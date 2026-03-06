@@ -61,7 +61,7 @@ class SurveyTask(db.Model):
     end_time = db.Column(db.DateTime, nullable=True)
 
 with app.app_context():
-    db.drop_all() # <-- TEMPORARILY UNCOMMENT THIS TO RESET THE DB
+    # db.drop_all() # <-- TEMPORARILY UNCOMMENT THIS TO RESET THE DB
     db.create_all()
     
     survey_tree = {
