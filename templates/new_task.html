@@ -42,7 +42,9 @@
                 <label>Task Category:</label>
                 <select name="task_category" required>
                     <option value="">-- Select Category --</option>
-                    <option value="Land">Land</option><option value="Marine">Marine</option><option value="Land+Marine">Land+Marine</option><option value="Office">Office</option><option value="Others">Others (Specify in remarks)</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.name }}">{{ cat.name }}</option>
+                    {% endfor %}
                 </select>
             </div>
             
@@ -55,7 +57,9 @@
                 <label>Instrument:</label>
                 <select name="instrument" required>
                     <option value="">-- Select Instrument --</option>
-                    <option value="Rover">Rover</option><option value="Total Station">Total Station</option><option value="Level Machine">Level Machine</option><option value="Measuring Tape">Measuring Tape</option><option value="CAD">CAD</option><option value="PDS/Terramodel">PDS/Terramodel</option><option value="Teams">Teams</option><option value="PC">PC</option><option value="Others">Others (Specify in remarks)</option>
+                    {% for inst in instruments %}
+                    <option value="{{ inst.name }}">{{ inst.name }}</option>
+                    {% endfor %}
                 </select>
             </div>
 
@@ -63,23 +67,24 @@
                 <label>Action Required:</label>
                 <select name="action_required" required>
                     <option value="">-- Select Action --</option>
-                    <option value="Stake-out/Marking">Stake-out/Marking</option><option value="As-Built">As-Built</option><option value="Meeting/Coordination">Meeting/Coordination</option><option value="Visual Inspection">Visual Inspection</option><option value="Report">Report</option><option value="Request">Request</option><option value="Drafting">Drafting</option><option value="Design">Design</option><option value="Charting">Charting</option><option value="Quantity Sheet">Quantity Sheet</option><option value="Others">Others (Specify in remarks)</option>
+                    {% for act in actions %}
+                    <option value="{{ act.name }}">{{ act.name }}</option>
+                    {% endfor %}
                 </select>
             </div>
 
             <div class="form-group">
-                <label>Remarks:</label>
+                <label>Opening Remarks:</label>
                 <textarea name="remarks" rows="2" placeholder="Any initial notes or 'Other' specifications..."></textarea>
             </div>
+            
             <button type="submit">Open Task</button>
             <a href="/" style="display: block; text-align: center; margin-top: 15px; color: #666; text-decoration: none;">Cancel</a>
         </form>
     </div>
 
     <script>
-        // Schema is now dynamically injected from your database!
         let schema = {{ schema_json | safe }};
-
         function populateDropdown(dropdownId, optionsList) {
             let dropdown = document.getElementById(dropdownId);
             dropdown.innerHTML = '<option value="">-- Select --</option>'; 

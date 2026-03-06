@@ -25,12 +25,9 @@
             <div class="form-group">
                 <select name="department" required>
                     <option value="">-- Select Dept --</option>
-                    <option value="QA/QC">QA/QC</option>
-                    <option value="OPERATIONS">OPERATIONS</option>
-                    <option value="DREDGING">DREDGING</option>
-                    <option value="OFFICE">OFFICE</option>
-                    <option value="LOGISTICS">LOGISTICS</option>
-                    <option value="OTHERS">OTHERS</option>
+                    {% for dept in departments %}
+                    <option value="{{ dept.name }}">{{ dept.name }}</option>
+                    {% endfor %}
                 </select>
                 <input type="text" name="name" placeholder="Requestor Name" required>
                 <button type="submit">Add Requestor</button>
@@ -39,7 +36,26 @@
     </div>
 
     <div class="card">
-        <h3>2. Build Project Schema (Cascading Data)</h3>
+        <h3>2. Add New Dropdown Options</h3>
+        <p style="font-size: 13px; color: #666; margin-top: 0;">Add new choices to your task form dropdowns.</p>
+        <form method="POST">
+            <input type="hidden" name="action" value="add_dropdown">
+            <div class="form-group">
+                <select name="category" required>
+                    <option value="">-- Select Dropdown List --</option>
+                    <option value="Department">Department</option>
+                    <option value="TaskCategory">Task Category</option>
+                    <option value="Instrument">Instrument</option>
+                    <option value="ActionRequired">Action Required</option>
+                </select>
+                <input type="text" name="new_value" placeholder="New Option Name" required>
+                <button type="submit" style="background: #28a745;">Add Option to Database</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card">
+        <h3>3. Build Project Schema (Cascading Data)</h3>
         
         <form method="POST" class="form-group">
             <input type="hidden" name="action" value="add_area">
@@ -81,35 +97,17 @@
 
     <script>
         let schema = {{ schema_json | safe }};
-        
         function pop(id, list) {
             let el = document.getElementById(id);
             el.innerHTML = '<option value="">-- Select --</option>';
             list.forEach(i => el.innerHTML += `<option value="${i}">${i}</option>`);
         }
-        
         pop("aDrop", Object.keys(schema));
-        
-        function updateLoc() {
-            let a = document.getElementById("aDrop").value;
-            pop("lDrop", a ? Object.keys(schema[a]) : []);
-            updateSub();
-        }
-        function updateSub() {
-            let a = document.getElementById("aDrop").value;
-            let l = document.getElementById("lDrop").value;
-            pop("sDrop", (a && l) ? Object.keys(schema[a][l]) : []);
-        }
-
+        function updateLoc() { let a = document.getElementById("aDrop").value; pop("lDrop", a ? Object.keys(schema[a]) : []); updateSub(); }
+        function updateSub() { let a = document.getElementById("aDrop").value; let l = document.getElementById("lDrop").value; pop("sDrop", (a && l) ? Object.keys(schema[a][l]) : []); }
         function setParent(action, requiredDrop, fieldName) {
-            let a = document.getElementById("aDrop").value;
-            let l = document.getElementById("lDrop").value;
-            let s = document.getElementById("sDrop").value;
-            
-            if (!document.getElementById(requiredDrop).value) {
-                alert("Please select the parent dropdown above first!"); return false;
-            }
-            
+            let a = document.getElementById("aDrop").value; let l = document.getElementById("lDrop").value; let s = document.getElementById("sDrop").value;
+            if (!document.getElementById(requiredDrop).value) { alert("Please select the parent dropdown above first!"); return false; }
             if(action === 'add_location') document.getElementById('hidden_area_loc').value = a;
             if(action === 'add_subloc') { document.getElementById('hidden_area_sub').value = a; document.getElementById('hidden_loc_sub').value = l; }
             if(action === 'add_scope') { document.getElementById('hidden_area_scp').value = a; document.getElementById('hidden_loc_scp').value = l; document.getElementById('hidden_sub_scp').value = s; }
