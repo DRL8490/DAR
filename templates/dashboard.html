@@ -11,10 +11,13 @@
         .task-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; border-left: 5px solid #ffc107; }
         .task-title { font-size: 16px; font-weight: bold; margin: 0 0 5px 0; color: #333; }
         .task-detail { font-size: 14px; color: #666; margin: 2px 0; }
-        .close-form { margin-top: 10px; display: flex; gap: 10px; }
-        .close-input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        .action-area { margin-top: 15px; display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid #eee; }
+        .action-row { display: flex; gap: 10px; }
+        .action-input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
         .btn-close { background-color: #28a745; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-cancel { background-color: #dc3545; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .flash { padding: 10px; border-radius: 6px; margin-bottom: 15px; background-color: #d4edda; color: #155724; text-align: center; }
+        .flash.error { background-color: #ffe6e6; color: #cc0000; }
     </style>
 </head>
 <body>
@@ -23,8 +26,12 @@
         <a href="/new_task" class="btn-new">+ Open New Task</a>
     </div>
 
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}<div class="flash">{{ messages[0] }}</div>{% endif %}
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
     {% endwith %}
 
     {% if not tasks %}
@@ -33,14 +40,22 @@
         {% for task in tasks %}
         <div class="task-card">
             <h3 class="task-title">{{ task.area }} - {{ task.work_scope }}</h3>
+            <p class="task-detail"><strong>Category/Action:</strong> {{ task.task_category }} | {{ task.action_required }} ({{ task.instrument }})</p>
             <p class="task-detail"><strong>Location:</strong> {{ task.location or 'N/A' }} | {{ task.sub_location or 'N/A' }}</p>
-            <p class="task-detail"><strong>Requested By:</strong> {{ task.requestor or 'Internal' }}</p>
-            <p class="task-detail"><strong>Assigned To:</strong> {{ task.surveyor_name }}</p>
+            <p class="task-detail"><strong>Requested By:</strong> {{ task.requestor }}</p>
+            <p class="task-detail"><strong>Assigned To:</strong> {{ task.assigned_to }} (Opened by {{ task.surveyor_name }})</p>
             
-            <form action="/close_task/{{ task.id }}" method="POST" class="close-form">
-                <input type="text" name="closing_remarks" class="close-input" placeholder="Result/Closing remarks...">
-                <button type="submit" class="btn-close">Close Task</button>
-            </form>
+            <div class="action-area">
+                <form action="/close_task/{{ task.id }}" method="POST" class="action-row">
+                    <input type="text" name="closing_remarks" class="action-input" placeholder="Result/Closing remarks...">
+                    <button type="submit" class="btn-close">Close Task</button>
+                </form>
+                
+                <form action="/cancel_task/{{ task.id }}" method="POST" class="action-row" onsubmit="return confirm('Are you sure you want to cancel this task?');">
+                    <input type="text" name="cancel_reason" class="action-input" placeholder="Reason for cancellation..." required>
+                    <button type="submit" class="btn-cancel">Cancel Task</button>
+                </form>
+            </div>
         </div>
         {% endfor %}
     {% endif %}

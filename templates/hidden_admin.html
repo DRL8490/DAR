@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>System Config</title>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #eee; }
+        .card { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 10px; display: flex; gap: 10px; }
+        input, select, button { padding: 8px; }
+        button { background: #0056b3; color: white; border: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h2>Hidden System Configuration</h2>
+    <a href="/">Back to Dashboard</a>
+    
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}<p style="color: green; font-weight: bold;">{{ messages[0] }}</p>{% endif %}
+    {% endwith %}
+
+    <div class="card">
+        <h3>1. Add Requestor Database</h3>
+        <form method="POST">
+            <input type="hidden" name="action" value="add_requestor">
+            <div class="form-group">
+                <select name="department" required>
+                    <option value="">-- Select Dept --</option>
+                    <option value="QA/QC">QA/QC</option>
+                    <option value="OPERATIONS">OPERATIONS</option>
+                    <option value="DREDGING">DREDGING</option>
+                    <option value="OFFICE">OFFICE</option>
+                    <option value="LOGISTICS">LOGISTICS</option>
+                    <option value="OTHERS">OTHERS</option>
+                </select>
+                <input type="text" name="name" placeholder="Requestor Name" required>
+                <button type="submit">Add Requestor</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card">
+        <h3>2. Build Project Schema (Cascading Data)</h3>
+        
+        <form method="POST" class="form-group">
+            <input type="hidden" name="action" value="add_area">
+            <input type="text" name="area" placeholder="New Area Name" required>
+            <button type="submit">Add Area</button>
+        </form>
+        <hr>
+
+        <div class="form-group">
+            <select id="aDrop" onchange="updateLoc()"></select>
+            <select id="lDrop" onchange="updateSub()"></select>
+            <select id="sDrop"></select>
+        </div>
+        
+        <form method="POST" class="form-group" onsubmit="return setParent('add_location', 'aDrop', 'area')">
+            <input type="hidden" name="action" value="add_location">
+            <input type="hidden" name="area" id="hidden_area_loc">
+            <input type="text" name="location" placeholder="New Location for selected Area" required>
+            <button type="submit">Add Location</button>
+        </form>
+
+        <form method="POST" class="form-group" onsubmit="return setParent('add_subloc', 'lDrop', 'location')">
+            <input type="hidden" name="action" value="add_subloc">
+            <input type="hidden" name="area" id="hidden_area_sub">
+            <input type="hidden" name="location" id="hidden_loc_sub">
+            <input type="text" name="sub_location" placeholder="New SubLocation for selected Location" required>
+            <button type="submit">Add SubLocation</button>
+        </form>
+
+        <form method="POST" class="form-group" onsubmit="return setParent('add_scope', 'sDrop', 'sub_location')">
+            <input type="hidden" name="action" value="add_scope">
+            <input type="hidden" name="area" id="hidden_area_scp">
+            <input type="hidden" name="location" id="hidden_loc_scp">
+            <input type="hidden" name="sub_location" id="hidden_sub_scp">
+            <input type="text" name="work_scope" placeholder="New Work Scope for selected SubLoc" required>
+            <button type="submit">Add Work Scope</button>
+        </form>
+    </div>
+
+    <script>
+        let schema = {{ schema_json | safe }};
+        
+        function pop(id, list) {
+            let el = document.getElementById(id);
+            el.innerHTML = '<option value="">-- Select --</option>';
+            list.forEach(i => el.innerHTML += `<option value="${i}">${i}</option>`);
+        }
+        
+        pop("aDrop", Object.keys(schema));
+        
+        function updateLoc() {
+            let a = document.getElementById("aDrop").value;
+            pop("lDrop", a ? Object.keys(schema[a]) : []);
+            updateSub();
+        }
+        function updateSub() {
+            let a = document.getElementById("aDrop").value;
+            let l = document.getElementById("lDrop").value;
+            pop("sDrop", (a && l) ? Object.keys(schema[a][l]) : []);
+        }
+
+        function setParent(action, requiredDrop, fieldName) {
+            let a = document.getElementById("aDrop").value;
+            let l = document.getElementById("lDrop").value;
+            let s = document.getElementById("sDrop").value;
+            
+            if (!document.getElementById(requiredDrop).value) {
+                alert("Please select the parent dropdown above first!"); return false;
+            }
+            
+            if(action === 'add_location') document.getElementById('hidden_area_loc').value = a;
+            if(action === 'add_subloc') { document.getElementById('hidden_area_sub').value = a; document.getElementById('hidden_loc_sub').value = l; }
+            if(action === 'add_scope') { document.getElementById('hidden_area_scp').value = a; document.getElementById('hidden_loc_scp').value = l; document.getElementById('hidden_sub_scp').value = s; }
+            return true;
+        }
+    </script>
+</body>
+</html>
