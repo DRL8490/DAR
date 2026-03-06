@@ -95,11 +95,49 @@ def forgot_password():
     return render_template('forgot_password.html')
 
 # --- MAIN APP ROUTES ---
-
-@app.route('/')
-@login_required # This forces users to log in before seeing the form!
-def index():
-    return render_template('index.html', name=current_user.name)
-
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        email = request.form.get('email').strip().lower() # Force lowercase
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        
+        # 1. Domain Restriction Check
+        if not email.endswith('@nmdc-group.com'):
+            flash('Registration restricted to @nmdc-group.com emails only.', 'error')
+            return redirect(url_for('register'))
+            
+        # 2. Password Match Check
+        if password != confirm_password:
+            flash('Passwords do not match. Please try again.', 'error')
+            return redirect(url_for('register'))
+            
+        # 3. Check if user already exists
+        user_exists = User.query.filter_by(email=email).first()
+        if user_exists:
+            flash('Email address already exists.', 'error')
+            return redirect(url_for('register'))
+            
+        # 4. Auto-Extract Name (FirstName.LastName -> Firstname Lastname)
+        email_prefix = email.split('@')[0]
+        name_parts = email_prefix.split('.')
+        if len(name_parts) >= 2:
+            formatted_name = f"{name_parts[0].capitalize()} {name_parts[1].capitalize()}"
+        else:
+            formatted_name = email_prefix.capitalize() # Fallback if no dot is found
+            
+        # 5. Save the new user
+        new_user = User(
+            email=email, 
+            name=formatted_name, 
+            password_hash=generate_password_hash(password, method='pbkdf2:sha256')
+        )
+        db.session.add(new_user)
+        db.session.commit()
+        
+        flash('Account created successfully! Please log in.', 'success')
+        return redirect(url_for('login'))
+        
+    return render_template('register.html')
 if __name__ == '__main__':
     app.run(debug=True, port=5001)

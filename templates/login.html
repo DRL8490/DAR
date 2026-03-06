@@ -2,27 +2,61 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Login - DAR</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Login - NMDC Survey</title>
     <style>
-        body { font-family: Arial; padding: 20px; max-width: 400px; margin: auto; }
-        .form-group { margin-bottom: 15px; display: flex; flex-direction: column; }
-        input, button { padding: 10px; font-size: 16px; width: 100%; box-sizing: border-box; }
-        button { background-color: #0056b3; color: white; border: none; cursor: pointer; margin-top: 10px; }
-        .links { margin-top: 15px; text-align: center; font-size: 14px; }
+        /* Exact same CSS as register.html */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background-color: #f4f7f6; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 90vh; margin: 0; }
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); width: 100%; max-width: 400px; box-sizing: border-box; }
+        h2 { text-align: center; color: #333; margin-top: 0; }
+        .form-group { margin-bottom: 20px; position: relative; }
+        label { font-weight: 600; margin-bottom: 8px; display: block; color: #555; font-size: 14px; }
+        input { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; transition: border-color 0.3s; }
+        input:focus { border-color: #0056b3; outline: none; }
+        .eye-icon { position: absolute; right: 12px; top: 38px; cursor: pointer; color: #666; font-size: 18px; user-select: none; }
+        button { background-color: #0056b3; color: white; border: none; padding: 14px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 10px; }
+        .links { margin-top: 20px; text-align: center; font-size: 14px; display: flex; flex-direction: column; gap: 10px; }
+        .links a { color: #0056b3; text-decoration: none; }
+        .flash { padding: 10px; border-radius: 6px; margin-bottom: 15px; text-align: center; font-size: 14px; }
+        .flash.error { background-color: #ffe6e6; color: #cc0000; }
+        .flash.success { background-color: #d4edda; color: #155724; }
     </style>
 </head>
 <body>
-    <h2>Login</h2>
-    {% with messages = get_flashed_messages() %}
-      {% if messages %} <p style="color: red;">{{ messages[0] }}</p> {% endif %}
-    {% endwith %}
-    <form method="POST" action="/login">
-        <div class="form-group"><label>Email:</label><input type="email" name="email" required></div>
-        <div class="form-group"><label>Password:</label><input type="password" name="password" required></div>
-        <button type="submit">Login</button>
-    </form>
-    <div class="links">
-        <a href="/register">Create Account</a> | <a href="/forgot-password">Forgot Password?</a>
+    <div class="card">
+        <h2>NMDC Daily Report</h2>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+        
+        <form method="POST" action="/login">
+            <div class="form-group">
+                <label>Email:</label>
+                <input type="email" name="email" required>
+            </div>
+            <div class="form-group">
+                <label>Password:</label>
+                <input type="password" name="password" id="logPass" required>
+                <span class="eye-icon" onclick="togglePass('logPass', this)">👁️</span>
+            </div>
+            <button type="submit">Login</button>
+        </form>
+        <div class="links">
+            <a href="/register">Create Account</a>
+            <a href="/forgot-password" style="font-size: 13px; color: #777;">Forgot Password?</a>
+        </div>
     </div>
+
+    <script>
+        function togglePass(inputId, icon) {
+            let input = document.getElementById(inputId);
+            if (input.type === "password") { input.type = "text"; icon.innerText = "🙈"; } 
+            else { input.type = "password"; icon.innerText = "👁️"; }
+        }
+    </script>
 </body>
 </html>
