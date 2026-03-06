@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Active Tasks - NMDC</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; background-color: #f4f7f6; padding: 20px; margin: 0; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .btn-new { background-color: #0056b3; color: white; padding: 10px 15px; text-decoration: none; border-radius: 6px; font-weight: bold; }
+        .task-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; border-left: 5px solid #ffc107; }
+        .task-title { font-size: 16px; font-weight: bold; margin: 0 0 5px 0; color: #333; }
+        .task-detail { font-size: 14px; color: #666; margin: 2px 0; }
+        .close-form { margin-top: 10px; display: flex; gap: 10px; }
+        .close-input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        .btn-close { background-color: #28a745; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .flash { padding: 10px; border-radius: 6px; margin-bottom: 15px; background-color: #d4edda; color: #155724; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>Active Survey Tasks</h2>
+        <a href="/new_task" class="btn-new">+ Open New Task</a>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}<div class="flash">{{ messages[0] }}</div>{% endif %}
+    {% endwith %}
+
+    {% if not tasks %}
+        <p style="text-align: center; color: #777; margin-top: 50px;">No open tasks. Great job team!</p>
+    {% else %}
+        {% for task in tasks %}
+        <div class="task-card">
+            <h3 class="task-title">{{ task.area }} - {{ task.work_scope }}</h3>
+            <p class="task-detail"><strong>Location:</strong> {{ task.location or 'N/A' }} | {{ task.sub_location or 'N/A' }}</p>
+            <p class="task-detail"><strong>Requested By:</strong> {{ task.requestor or 'Internal' }}</p>
+            <p class="task-detail"><strong>Assigned To:</strong> {{ task.surveyor_name }}</p>
+            
+            <form action="/close_task/{{ task.id }}" method="POST" class="close-form">
+                <input type="text" name="closing_remarks" class="close-input" placeholder="Result/Closing remarks...">
+                <button type="submit" class="btn-close">Close Task</button>
+            </form>
+        </div>
+        {% endfor %}
+    {% endif %}
+    
+    <div style="text-align: center; margin-top: 30px;">
+        <a href="/logout" style="color: #dc3545; text-decoration: none;">Logout ({{ name }})</a>
+    </div>
+</body>
+</html>
