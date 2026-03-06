@@ -54,6 +54,7 @@ class SurveyTask(db.Model):
     end_time = db.Column(db.DateTime, nullable=True)
 
 with app.app_context():
+    db.drop_all()
     db.create_all()
     # Initialize blank schema if it doesn't exist
     if not AppConfig.query.first():
