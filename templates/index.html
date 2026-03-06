@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Activity Reporting</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+        .form-group { margin-bottom: 15px; display: flex; flex-direction: column; }
+        label { font-weight: bold; margin-bottom: 5px; }
+        select, input, textarea { padding: 10px; font-size: 16px; width: 100%; box-sizing: border-box; }
+        button.submit-btn { padding: 12px; font-size: 16px; background-color: #28a745; color: white; border: none; cursor: pointer; margin-top: 10px; width: 100%; }
+        button.submit-btn:hover { background-color: #218838; }
+    </style>
+</head>
+<body>
+
+    <h2>Daily Survey Report</h2>
+
+    <form action="/submit" method="POST">
+        
+        <div class="form-group">
+            <label>Surveyor Name:</label>
+            <input type="text" name="surveyor_name" required placeholder="Enter your name">
+        </div>
+
+        <div class="form-group">
+            <label>Area:</label>
+            <select name="area" id="areaDropdown" onchange="updateLocations()" required></select>
+        </div>
+
+        <div class="form-group">
+            <label>Location:</label>
+            <select name="location" id="locationDropdown" onchange="updateSubLocations()"></select>
+        </div>
+
+        <div class="form-group">
+            <label>Sub-Location:</label>
+            <select name="sub_location" id="subLocationDropdown" onchange="updateWorkScopes()"></select>
+        </div>
+
+        <div class="form-group">
+            <label>Work Scope:</label>
+            <select name="work_scope" id="workScopeDropdown" required></select>
+        </div>
+
+        <div class="form-group">
+            <label>Remarks (Optional):</label>
+            <textarea name="remarks" rows="3" placeholder="Enter any field notes or delays..."></textarea>
+        </div>
+
+        <button type="submit" class="submit-btn">Submit Daily Report</button>
+    </form>
+
+    <script>
+        // The project schema
+        let schema = {
+            "01_Onshore_Area_Scope": {
+                "Taichung": {
+                    "AHDD": ["General", "Trial Pits", "Thruster Pit", "Crossover Pits", "Grit Tank", "Drainage"],
+                    "Tienli": ["General"],
+                    "Berth37": ["General"]
+                },
+                "Tunghsiao": {
+                    "Temp Platform": ["General", "Trial Pits", "Thruster Pit", "Crossover Pits", "Grit Tank", "Drainage"],
+                    "Inside Plant": ["General", "Trial Pits", "Thruster Pit", "Crossover Pits"]
+                }
+            },
+            "02_Nearshore_Area_Scope": {
+                "Taichung": { "Trench 1": ["General", "Dredging", "Pipeline A", "Pipeline B", "SRI", "Backfilling"] },
+                "Tunghsiao": { "Trench 8": ["General", "Dredging", "Pipeline A", "Pipeline B", "SRI", "Backfilling"] }
+            },
+            "03_Offshore_Area_Scope": {
+                "N/A": {
+                    "Trench 2": ["General", "Pipelaying A", "Pipelaying B", "Post-Trenching", "SRI"],
+                    "Trench 3": ["General", "Pipelaying A", "Pipelaying B", "Post-Trenching", "SRI"],
+                    "Trench 4": ["General", "Pipelaying A", "Pipelaying B", "Post-Trenching", "SRI"],
+                    "Trench 5": ["General", "Mattress Installation", "Pipelaying A", "Pipelaying B", "Post-Trenching", "Backfilling"],
+                    "Trench 6": ["General", "Mattress Installation", "Pipelaying A", "Pipelaying B", "Post-Trenching", "Backfilling"],
+                    "Trench 7": ["General", "Dredging_Midline Tie-In", "Pipeline A", "Pipeline B", "Post-Trenching", "SRI", "Backfilling"]
+                }
+            },
+            "04_Marine_Area_Scope": {
+                "N/A": { "N/A": ["General", "Pipeline A", "Pipeline B", "Pipeline SRI", "Backfill"] }
+            }
+        };
+
+        function populateDropdown(dropdownId, optionsList) {
+            let dropdown = document.getElementById(dropdownId);
+            dropdown.innerHTML = '<option value="">-- Select --</option>'; 
+            optionsList.forEach(option => {
+                let opt = document.createElement('option');
+                opt.value = option;
+                opt.innerHTML = option;
+                dropdown.appendChild(opt);
+            });
+        }
+
+        function loadAreas() {
+            populateDropdown("areaDropdown", Object.keys(schema));
+            updateLocations(); 
+        }
+
+        function updateLocations() {
+            let area = document.getElementById("areaDropdown").value;
+            let locations = area && schema[area] ? Object.keys(schema[area]) : [];
+            populateDropdown("locationDropdown", locations);
+            updateSubLocations(); 
+        }
+
+        function updateSubLocations() {
+            let area = document.getElementById("areaDropdown").value;
+            let location = document.getElementById("locationDropdown").value;
+            let subLocations = (area && location && schema[area][location]) ? Object.keys(schema[area][location]) : [];
+            populateDropdown("subLocationDropdown", subLocations);
+            updateWorkScopes(); 
+        }
+
+        function updateWorkScopes() {
+            let area = document.getElementById("areaDropdown").value;
+            let location = document.getElementById("locationDropdown").value;
+            let subLocation = document.getElementById("subLocationDropdown").value;
+            let scopes = (area && location && subLocation && schema[area][location][subLocation]) ? schema[area][location][subLocation] : [];
+            populateDropdown("workScopeDropdown", scopes);
+        }
+
+        loadAreas();
+    </script>
+</body>
+</html>
