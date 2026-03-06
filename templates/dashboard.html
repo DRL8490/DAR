@@ -10,14 +10,15 @@
         .btn-new { background-color: #0056b3; color: white; padding: 10px 15px; text-decoration: none; border-radius: 6px; font-weight: bold; }
         .task-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; border-left: 5px solid #ffc107; }
         .task-title { font-size: 16px; font-weight: bold; margin: 0 0 5px 0; color: #333; }
-        .task-detail { font-size: 14px; color: #666; margin: 2px 0; }
-        .action-area { margin-top: 15px; display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid #eee; }
-        .action-row { display: flex; gap: 10px; }
-        .action-input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
-        .btn-close { background-color: #28a745; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .btn-cancel { background-color: #dc3545; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .task-detail { font-size: 14px; color: #666; margin: 3px 0; }
+        .action-area { margin-top: 15px; padding-top: 10px; border-top: 1px solid #eee; }
+        .action-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px; padding: 12px; background: #f9f9f9; border-radius: 6px; border: 1px solid #ddd; }
+        .action-input { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
+        .btn-close { background-color: #28a745; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; align-self: flex-start; }
+        .btn-cancel { background-color: #dc3545; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; align-self: flex-start; }
         .flash { padding: 10px; border-radius: 6px; margin-bottom: 15px; background-color: #d4edda; color: #155724; text-align: center; }
         .flash.error { background-color: #ffe6e6; color: #cc0000; }
+        .unauthorized-msg { text-align: center; font-style: italic; color: #888; padding: 10px; background: #f1f1f1; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -40,21 +41,35 @@
         {% for task in tasks %}
         <div class="task-card">
             <h3 class="task-title">{{ task.area }} - {{ task.work_scope }}</h3>
+            
             <p class="task-detail"><strong>Category/Action:</strong> {{ task.task_category }} | {{ task.action_required }} ({{ task.instrument }})</p>
             <p class="task-detail"><strong>Location:</strong> {{ task.location or 'N/A' }} | {{ task.sub_location or 'N/A' }}</p>
-            <p class="task-detail"><strong>Requested By:</strong> {{ task.requestor }}</p>
-            <p class="task-detail"><strong>Assigned To:</strong> {{ task.assigned_to }} (Opened by {{ task.surveyor_name }})</p>
+            
+            <p class="task-detail"><strong>Opening Remarks:</strong> {{ task.remarks or 'None' }}</p>
+            
+            <p class="task-detail"><strong>Requested By:</strong> {{ task.requestor }} | <strong>Assigned To:</strong> {{ task.assigned_to }} (Opened by {{ task.surveyor_name }})</p>
             
             <div class="action-area">
-                <form action="/close_task/{{ task.id }}" method="POST" class="action-row">
-                    <input type="text" name="closing_remarks" class="action-input" placeholder="Result/Closing remarks...">
-                    <button type="submit" class="btn-close">Close Task</button>
-                </form>
+                {% if name == task.surveyor_name or name == task.assigned_to %}
+                    
+                    <form action="/close_task/{{ task.id }}" method="POST" class="action-form">
+                        <strong style="font-size: 14px; color: #28a745;">Complete Task</strong>
+                        <input type="text" name="closing_remarks" class="action-input" placeholder="Result/Closing remarks (Required)..." required>
+                        <input type="url" name="deliverable_link" class="action-input" placeholder="OneDrive Deliverable Link (Optional)...">
+                        <button type="submit" class="btn-close">Close Task</button>
+                    </form>
+                    
+                    <form action="/cancel_task/{{ task.id }}" method="POST" class="action-form" onsubmit="return confirm('Are you sure you want to cancel this task?');">
+                        <strong style="font-size: 14px; color: #dc3545;">Cancel Task</strong>
+                        <input type="text" name="cancel_reason" class="action-input" placeholder="Reason for cancellation (Required)..." required>
+                        <button type="submit" class="btn-cancel">Cancel Task</button>
+                    </form>
                 
-                <form action="/cancel_task/{{ task.id }}" method="POST" class="action-row" onsubmit="return confirm('Are you sure you want to cancel this task?');">
-                    <input type="text" name="cancel_reason" class="action-input" placeholder="Reason for cancellation..." required>
-                    <button type="submit" class="btn-cancel">Cancel Task</button>
-                </form>
+                {% else %}
+                    <div class="unauthorized-msg">
+                        Only the task creator ({{ task.surveyor_name }}) or assignee ({{ task.assigned_to }}) can close or cancel this task.
+                    </div>
+                {% endif %}
             </div>
         </div>
         {% endfor %}

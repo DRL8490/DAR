@@ -36,16 +36,15 @@ class AppConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     schema_data = db.Column(db.Text, default="{}") 
 
-# NEW: Master table for all simple dropdowns
 class DropdownOption(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    category = db.Column(db.String(50), nullable=False) # e.g., 'Department', 'Instrument'
+    category = db.Column(db.String(50), nullable=False) 
     name = db.Column(db.String(100), nullable=False)
 
 class SurveyTask(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    surveyor_name = db.Column(db.String(100), nullable=False)
-    assigned_to = db.Column(db.String(100), nullable=True) 
+    surveyor_name = db.Column(db.String(100), nullable=False) # The Creator
+    assigned_to = db.Column(db.String(100), nullable=True)    # The Assignee
     requestor = db.Column(db.String(100), nullable=True)
     task_category = db.Column(db.String(100), nullable=True) 
     instrument = db.Column(db.String(100), nullable=True) 
@@ -55,15 +54,15 @@ class SurveyTask(db.Model):
     sub_location = db.Column(db.String(100), nullable=True) 
     work_scope = db.Column(db.String(100), nullable=False)
     remarks = db.Column(db.Text, nullable=True)
+    deliverable_link = db.Column(db.String(500), nullable=True) # NEW COLUMN
     status = db.Column(db.String(20), default="Open")
     start_time = db.Column(db.DateTime, default=datetime.utcnow)
     end_time = db.Column(db.DateTime, nullable=True)
 
 with app.app_context():
-    # db.drop_all() # <-- TEMPORARILY UNCOMMENT THIS FOR YOUR FIRST RENDER DEPLOY, THEN DELETE IT
+    # db.drop_all() # <-- TEMPORARILY UNCOMMENT FOR FIRST DEPLOY, THEN DELETE
     db.create_all()
     
-    # 1. Seed the Cascading Survey Tree
     survey_tree = {
         "00_Survey_Office": { "Taichung": { "Wuqi Office": ["General", "Internal Meetings", "External Meetings", "Survey Scope Coordination", "Contracts Coordination", "Survey Requests TW", "Survey Requests UAE"] } },
         "01_Onshore_Area_Scope": { "Taichung": { "AHDD": ["General", "Trial Pits", "Thruster Pit", "Crossover Pits", "Grit Tank", "Drainage"], "Tienli": ["General"], "Berth37": ["General"] }, "Tunghsiao": { "Temp Platform": ["General", "Trial Pits", "Thruster Pit", "Crossover Pits", "Grit Tank", "Drainage"], "Inside Plant": ["General", "Trial Pits", "Thruster Pit", "Crossover Pits"] } },
@@ -76,30 +75,24 @@ with app.app_context():
     if not config: db.session.add(AppConfig(schema_data=json.dumps(survey_tree)))
     else: config.schema_data = json.dumps(survey_tree)
     
-    # 2. Seed the Dropdown Options Database
     if not DropdownOption.query.first():
         initial_dropdowns = [
-            # Departments
             ('Department', 'SURVEY'), ('Department', 'OPERATIONS'), ('Department', 'DREDGING'), ('Department', 'QA/QC'), ('Department', 'ENERGY'), ('Department', 'SAFETY'), ('Department', 'OFFICE/ADMIN'), ('Department', 'LOGISTICS'), ('Department', 'OTHERS (Specify on remarks)'),
-            # Categories
             ('TaskCategory', 'Land'), ('TaskCategory', 'Marine'), ('TaskCategory', 'Land+Marine'), ('TaskCategory', 'Office'), ('TaskCategory', 'Others (Specify on remarks)'),
-            # Instruments
             ('Instrument', 'Rover'), ('Instrument', 'Total Station'), ('Instrument', 'Level Machine'), ('Instrument', 'Measuring Tape'), ('Instrument', 'CAD'), ('Instrument', 'PDS/Terramodel'), ('Instrument', 'Teams'), ('Instrument', 'PC'), ('Instrument', 'Others (Specify on remarks)'),
-            # Actions
             ('ActionRequired', 'Stake-out/Marking'), ('ActionRequired', 'As-Built'), ('ActionRequired', 'Meeting/Coordination'), ('ActionRequired', 'Visual Inspection'), ('ActionRequired', 'Report'), ('ActionRequired', 'Request'), ('ActionRequired', 'Drafting'), ('ActionRequired', 'Design'), ('ActionRequired', 'Charting'), ('ActionRequired', 'Quantity Sheet'), ('ActionRequired', 'Others (Specify on remarks)')
         ]
-        for cat, name in initial_dropdowns:
-            db.session.add(DropdownOption(category=cat, name=name))
-            
+        for cat, name in initial_dropdowns: db.session.add(DropdownOption(category=cat, name=name))
     db.session.commit()
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# --- AUTHENTICATION ROUTES (Unchanged) ---
+# --- AUTHENTICATION ROUTES (Omitted for brevity, keep your exact existing ones) ---
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    # ... KEEP EXISTING CODE ...
     if request.method == 'POST':
         email = request.form.get('email').strip().lower()
         password = request.form.get('password')
@@ -125,6 +118,7 @@ def register():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    # ... KEEP EXISTING CODE ...
     if request.method == 'POST':
         email = request.form.get('email').strip().lower()
         password = request.form.get('password')
@@ -146,28 +140,24 @@ def logout():
 def forgot_password():
     return render_template('forgot_password.html')
 
-# --- HIDDEN ADMIN ROUTE ---
 @app.route('/system_config_hidden', methods=['GET', 'POST'])
 @login_required
 def hidden_config():
+    # ... KEEP EXISTING CODE ...
     config = AppConfig.query.first()
     schema = json.loads(config.schema_data)
     
     if request.method == 'POST':
         action = request.form.get('action')
-        
         if action == 'add_requestor':
             dept = request.form.get('department')
             name = request.form.get('name').capitalize()
             db.session.add(Requestor(department=dept, name=name))
-            
         elif action == 'add_dropdown':
             cat = request.form.get('category')
             new_val = request.form.get('new_value')
             db.session.add(DropdownOption(category=cat, name=new_val))
-            
         else:
-            # Dynamic Schema Builder
             area = request.form.get('area')
             loc = request.form.get('location')
             sub = request.form.get('sub_location')
@@ -182,14 +172,13 @@ def hidden_config():
                 if area in schema and loc in schema[area] and sub in schema[area][loc]:
                     if scope not in schema[area][loc][sub]: schema[area][loc][sub].append(scope)
             config.schema_data = json.dumps(schema)
-            
         db.session.commit()
         flash('Database Updated!', 'success')
         return redirect(url_for('hidden_config'))
-        
     requestors = Requestor.query.all()
     departments = DropdownOption.query.filter_by(category='Department').all()
     return render_template('hidden_admin.html', schema_json=json.dumps(schema), requestors=requestors, departments=departments)
+
 
 # --- WORKFLOW ROUTES ---
 @app.route('/')
@@ -201,9 +190,9 @@ def dashboard():
 @app.route('/new_task', methods=['GET', 'POST'])
 @login_required
 def new_task():
+    # ... KEEP EXISTING CODE ...
     config = AppConfig.query.first()
     schema_json = config.schema_data if config else "{}"
-    
     if request.method == 'POST':
         new_survey = SurveyTask(
             surveyor_name=current_user.name, assigned_to=request.form.get('assigned_to'), requestor=request.form.get('requestor'),
@@ -218,8 +207,6 @@ def new_task():
         
     users = User.query.all()
     requestors = Requestor.query.all()
-    
-    # Query the DB for all the dropdown lists
     categories = DropdownOption.query.filter_by(category='TaskCategory').all()
     instruments = DropdownOption.query.filter_by(category='Instrument').all()
     actions = DropdownOption.query.filter_by(category='ActionRequired').all()
@@ -227,23 +214,56 @@ def new_task():
     return render_template('new_task.html', users=users, requestors=requestors, schema_json=schema_json,
                            categories=categories, instruments=instruments, actions=actions)
 
+# UPDATED: Secure Close Task
 @app.route('/close_task/<int:task_id>', methods=['POST'])
 @login_required
 def close_task(task_id):
     task = SurveyTask.query.get_or_404(task_id)
+    
+    # 1. Security Check
+    if current_user.name not in [task.surveyor_name, task.assigned_to]:
+        flash('Unauthorized: Only the task creator or assignee can close this task.', 'error')
+        return redirect(url_for('dashboard'))
+        
     closing_remarks = request.form.get('closing_remarks')
-    if closing_remarks: task.remarks = f"{task.remarks} | Closed: {closing_remarks}" if task.remarks else f"Closed: {closing_remarks}"
+    deliverable_link = request.form.get('deliverable_link')
+    
+    # 2. Validation
+    if not closing_remarks:
+        flash('Closing remarks are mandatory.', 'error')
+        return redirect(url_for('dashboard'))
+
+    # 3. Update Database
+    task.remarks = f"{task.remarks} | Closed: {closing_remarks}" if task.remarks else f"Closed: {closing_remarks}"
+    if deliverable_link:
+        task.deliverable_link = deliverable_link
+        
     task.status = 'Closed'
     task.end_time = datetime.utcnow()
     db.session.commit()
+    flash('Task closed and logged!', 'success')
     return redirect(url_for('dashboard'))
 
+# UPDATED: Secure Cancel Task
 @app.route('/cancel_task/<int:task_id>', methods=['POST'])
 @login_required
 def cancel_task(task_id):
     task = SurveyTask.query.get_or_404(task_id)
+    
+    # 1. Security Check
+    if current_user.name not in [task.surveyor_name, task.assigned_to]:
+        flash('Unauthorized: Only the task creator or assignee can cancel this task.', 'error')
+        return redirect(url_for('dashboard'))
+        
     cancel_reason = request.form.get('cancel_reason')
-    if cancel_reason: task.remarks = f"{task.remarks} | CANCELED: {cancel_reason}" if task.remarks else f"CANCELED: {cancel_reason}"
+    
+    # 2. Validation
+    if not cancel_reason:
+        flash('Cancel reason is mandatory.', 'error')
+        return redirect(url_for('dashboard'))
+        
+    # 3. Update Database
+    task.remarks = f"{task.remarks} | CANCELED: {cancel_reason}" if task.remarks else f"CANCELED: {cancel_reason}"
     task.status = 'Canceled'
     task.end_time = datetime.utcnow()
     db.session.commit()
