@@ -60,7 +60,7 @@ class SurveyTask(db.Model):
     end_time = db.Column(db.DateTime, nullable=True)
 
 with app.app_context():
-    # db.drop_all() # <-- TEMPORARILY UNCOMMENT FOR FIRST DEPLOY, THEN DELETE
+    db.drop_all() # <-- TEMPORARILY UNCOMMENT FOR FIRST DEPLOY, THEN DELETE
     db.create_all()
     
     survey_tree = {
