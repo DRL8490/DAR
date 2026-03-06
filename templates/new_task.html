@@ -11,6 +11,8 @@
         label { font-weight: bold; margin-bottom: 5px; font-size: 14px; color: #444; }
         select, input, textarea { padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; }
         button { background-color: #0056b3; color: white; border: none; padding: 12px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 10px; }
+        .btn-add { background-color: #6c757d; color: white; width: 40px; margin-top: 0; padding: 10px; font-weight: bold; }
+        .btn-remove { background-color: #dc3545; color: white; width: 40px; margin-top: 0; padding: 10px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -19,12 +21,16 @@
         <form action="/new_task" method="POST">
             
             <div class="form-group">
-                <label>Requestor:</label>
-                <select name="requestor" required>
-                    <option value="">-- Select Requestor --</option>
-                    {% for req in requestors %}
-                    <option value="{{ req.department }} - {{ req.name }}">{{ req.department }} - {{ req.name }}</option>
-                    {% endfor %}
+                <label>Requestor Dept:</label>
+                <select name="requestor_dept" id="reqDept" onchange="updateReqNames()" required>
+                    <option value="">-- Select Dept --</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Requestor Name:</label>
+                <select name="requestor_name" id="reqName" required>
+                    <option value="">-- Select Name --</option>
                 </select>
             </div>
             
@@ -73,6 +79,14 @@
                 </select>
             </div>
 
+                        <div class="form-group" id="link-container">
+                <label>Reference File Links (Optional):</label>
+                <div style="display: flex; gap: 5px; margin-bottom: 5px;">
+                    <input type="url" name="reference_link" placeholder="Paste OneDrive or file link..." style="flex: 1;">
+                    <button type="button" class="btn-add" onclick="addLink()">+</button>
+                </div>
+            </div>
+
             <div class="form-group">
                 <label>Opening Remarks:</label>
                 <textarea name="remarks" rows="2" placeholder="Any initial notes or 'Other' specifications..."></textarea>
@@ -84,6 +98,35 @@
     </div>
 
     <script>
+        // 1. Dynamic Links Logic
+        function addLink() {
+            let div = document.createElement('div');
+            div.style.cssText = "display: flex; gap: 5px; margin-bottom: 5px;";
+            div.innerHTML = '<input type="url" name="reference_link" placeholder="Paste another link..." style="flex: 1;"><button type="button" class="btn-remove" onclick="this.parentElement.remove()">X</button>';
+            document.getElementById('link-container').appendChild(div);
+        }
+
+        // 2. Cascading Requestor Logic
+        let reqTree = {{ req_dict_json | safe }};
+        function popReqDepts() {
+            let deptDrop = document.getElementById("reqDept");
+            Object.keys(reqTree).forEach(d => {
+                let opt = document.createElement("option"); opt.value = d; opt.innerHTML = d; deptDrop.appendChild(opt);
+            });
+        }
+        function updateReqNames() {
+            let dept = document.getElementById("reqDept").value;
+            let nameDrop = document.getElementById("reqName");
+            nameDrop.innerHTML = '<option value="">-- Select Name --</option>';
+            if (dept && reqTree[dept]) {
+                reqTree[dept].forEach(n => {
+                    let opt = document.createElement("option"); opt.value = n; opt.innerHTML = n; nameDrop.appendChild(opt);
+                });
+            }
+        }
+        popReqDepts();
+
+        // 3. Cascading Location Logic
         let schema = {{ schema_json | safe }};
         function populateDropdown(dropdownId, optionsList) {
             let dropdown = document.getElementById(dropdownId);

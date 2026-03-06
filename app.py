@@ -43,8 +43,8 @@ class DropdownOption(db.Model):
 
 class SurveyTask(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    surveyor_name = db.Column(db.String(100), nullable=False) # The Creator
-    assigned_to = db.Column(db.String(100), nullable=True)    # The Assignee
+    surveyor_name = db.Column(db.String(100), nullable=False) 
+    assigned_to = db.Column(db.String(100), nullable=True)    
     requestor = db.Column(db.String(100), nullable=True)
     task_category = db.Column(db.String(100), nullable=True) 
     instrument = db.Column(db.String(100), nullable=True) 
@@ -54,13 +54,14 @@ class SurveyTask(db.Model):
     sub_location = db.Column(db.String(100), nullable=True) 
     work_scope = db.Column(db.String(100), nullable=False)
     remarks = db.Column(db.Text, nullable=True)
-    deliverable_link = db.Column(db.String(500), nullable=True) # NEW COLUMN
+    deliverable_link = db.Column(db.String(500), nullable=True) 
+    reference_links = db.Column(db.Text, nullable=True) # NEW COLUMN FOR DYNAMIC LINKS
     status = db.Column(db.String(20), default="Open")
     start_time = db.Column(db.DateTime, default=datetime.utcnow)
     end_time = db.Column(db.DateTime, nullable=True)
 
 with app.app_context():
-    db.drop_all() # <-- TEMPORARILY UNCOMMENT FOR FIRST DEPLOY, THEN DELETE
+    db.drop_all() # <-- TEMPORARILY UNCOMMENT THIS TO RESET THE DB
     db.create_all()
     
     survey_tree = {
@@ -89,10 +90,9 @@ with app.app_context():
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# --- AUTHENTICATION ROUTES (Omitted for brevity, keep your exact existing ones) ---
+# --- AUTHENTICATION ROUTES ---
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    # ... KEEP EXISTING CODE ...
     if request.method == 'POST':
         email = request.form.get('email').strip().lower()
         password = request.form.get('password')
@@ -118,7 +118,6 @@ def register():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    # ... KEEP EXISTING CODE ...
     if request.method == 'POST':
         email = request.form.get('email').strip().lower()
         password = request.form.get('password')
@@ -143,7 +142,6 @@ def forgot_password():
 @app.route('/system_config_hidden', methods=['GET', 'POST'])
 @login_required
 def hidden_config():
-    # ... KEEP EXISTING CODE ...
     config = AppConfig.query.first()
     schema = json.loads(config.schema_data)
     
@@ -175,10 +173,10 @@ def hidden_config():
         db.session.commit()
         flash('Database Updated!', 'success')
         return redirect(url_for('hidden_config'))
+        
     requestors = Requestor.query.all()
     departments = DropdownOption.query.filter_by(category='Department').all()
     return render_template('hidden_admin.html', schema_json=json.dumps(schema), requestors=requestors, departments=departments)
-
 
 # --- WORKFLOW ROUTES ---
 @app.route('/')
@@ -190,50 +188,68 @@ def dashboard():
 @app.route('/new_task', methods=['GET', 'POST'])
 @login_required
 def new_task():
-    # ... KEEP EXISTING CODE ...
     config = AppConfig.query.first()
     schema_json = config.schema_data if config else "{}"
+    
     if request.method == 'POST':
+        # Merge the Requestor fields back into one line for the database
+        req_dept = request.form.get('requestor_dept')
+        req_name = request.form.get('requestor_name')
+        merged_requestor = f"{req_dept} - {req_name}"
+        
+        # Grab all dynamic reference links and join them together
+        ref_links = request.form.getlist('reference_link')
+        ref_links_str = " | ".join([link for link in ref_links if link.strip()])
+
         new_survey = SurveyTask(
-            surveyor_name=current_user.name, assigned_to=request.form.get('assigned_to'), requestor=request.form.get('requestor'),
-            task_category=request.form.get('task_category'), instrument=request.form.get('instrument'), action_required=request.form.get('action_required'),
-            area=request.form.get('area'), location=request.form.get('location'), sub_location=request.form.get('sub_location'),
-            work_scope=request.form.get('work_scope'), remarks=request.form.get('remarks')
+            surveyor_name=current_user.name, 
+            assigned_to=request.form.get('assigned_to'), 
+            requestor=merged_requestor,
+            task_category=request.form.get('task_category'), 
+            instrument=request.form.get('instrument'), 
+            action_required=request.form.get('action_required'),
+            area=request.form.get('area'), 
+            location=request.form.get('location'), 
+            sub_location=request.form.get('sub_location'),
+            work_scope=request.form.get('work_scope'), 
+            remarks=request.form.get('remarks'),
+            reference_links=ref_links_str
         )
         db.session.add(new_survey)
         db.session.commit()
         flash('New task opened successfully!', 'success')
         return redirect(url_for('dashboard'))
         
-    users = User.query.all()
+    # Build the Requestor cascade dictionary
     requestors = Requestor.query.all()
+    req_dict = {}
+    for r in requestors:
+        if r.department not in req_dict:
+            req_dict[r.department] = []
+        req_dict[r.department].append(r.name)
+        
+    users = User.query.all()
     categories = DropdownOption.query.filter_by(category='TaskCategory').all()
     instruments = DropdownOption.query.filter_by(category='Instrument').all()
     actions = DropdownOption.query.filter_by(category='ActionRequired').all()
     
-    return render_template('new_task.html', users=users, requestors=requestors, schema_json=schema_json,
+    return render_template('new_task.html', users=users, req_dict_json=json.dumps(req_dict), schema_json=schema_json,
                            categories=categories, instruments=instruments, actions=actions)
 
-# UPDATED: Secure Close Task
 @app.route('/close_task/<int:task_id>', methods=['POST'])
 @login_required
 def close_task(task_id):
     task = SurveyTask.query.get_or_404(task_id)
-    
-    # 1. Security Check
     if current_user.name not in [task.surveyor_name, task.assigned_to]:
         flash('Unauthorized: Only the task creator or assignee can close this task.', 'error')
         return redirect(url_for('dashboard'))
         
     closing_remarks = request.form.get('closing_remarks')
     deliverable_link = request.form.get('deliverable_link')
-    
-    # 2. Validation
     if not closing_remarks:
         flash('Closing remarks are mandatory.', 'error')
         return redirect(url_for('dashboard'))
 
-    # 3. Update Database
     task.remarks = f"{task.remarks} | Closed: {closing_remarks}" if task.remarks else f"Closed: {closing_remarks}"
     if deliverable_link:
         task.deliverable_link = deliverable_link
@@ -244,25 +260,19 @@ def close_task(task_id):
     flash('Task closed and logged!', 'success')
     return redirect(url_for('dashboard'))
 
-# UPDATED: Secure Cancel Task
 @app.route('/cancel_task/<int:task_id>', methods=['POST'])
 @login_required
 def cancel_task(task_id):
     task = SurveyTask.query.get_or_404(task_id)
-    
-    # 1. Security Check
     if current_user.name not in [task.surveyor_name, task.assigned_to]:
         flash('Unauthorized: Only the task creator or assignee can cancel this task.', 'error')
         return redirect(url_for('dashboard'))
         
     cancel_reason = request.form.get('cancel_reason')
-    
-    # 2. Validation
     if not cancel_reason:
         flash('Cancel reason is mandatory.', 'error')
         return redirect(url_for('dashboard'))
         
-    # 3. Update Database
     task.remarks = f"{task.remarks} | CANCELED: {cancel_reason}" if task.remarks else f"CANCELED: {cancel_reason}"
     task.status = 'Canceled'
     task.end_time = datetime.utcnow()

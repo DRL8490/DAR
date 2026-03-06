@@ -45,13 +45,19 @@
             <p class="task-detail"><strong>Category/Action:</strong> {{ task.task_category }} | {{ task.action_required }} ({{ task.instrument }})</p>
             <p class="task-detail"><strong>Location:</strong> {{ task.location or 'N/A' }} | {{ task.sub_location or 'N/A' }}</p>
             
-            <p class="task-detail"><strong>Opening Remarks:</strong> {{ task.remarks or 'None' }}</p>
+            {% if task.reference_links %}
+            <p class="task-detail"><strong>References:</strong> 
+                {% for link in task.reference_links.split(' | ') %}
+                    <a href="{{ link }}" target="_blank" style="color: #0056b3; text-decoration: underline;">[Link {{ loop.index }}]</a> 
+                {% endfor %}
+            </p>
+            {% endif %}
             
+            <p class="task-detail"><strong>Opening Remarks:</strong> {{ task.remarks or 'None' }}</p>
             <p class="task-detail"><strong>Requested By:</strong> {{ task.requestor }} | <strong>Assigned To:</strong> {{ task.assigned_to }} (Opened by {{ task.surveyor_name }})</p>
             
             <div class="action-area">
                 {% if name == task.surveyor_name or name == task.assigned_to %}
-                    
                     <form action="/close_task/{{ task.id }}" method="POST" class="action-form">
                         <strong style="font-size: 14px; color: #28a745;">Complete Task</strong>
                         <input type="text" name="closing_remarks" class="action-input" placeholder="Result/Closing remarks (Required)..." required>
@@ -64,7 +70,6 @@
                         <input type="text" name="cancel_reason" class="action-input" placeholder="Reason for cancellation (Required)..." required>
                         <button type="submit" class="btn-cancel">Cancel Task</button>
                     </form>
-                
                 {% else %}
                     <div class="unauthorized-msg">
                         Only the task creator ({{ task.surveyor_name }}) or assignee ({{ task.assigned_to }}) can close or cancel this task.
