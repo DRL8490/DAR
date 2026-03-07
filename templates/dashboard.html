@@ -8,7 +8,6 @@
         body { font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; background-color: #f4f7f6; padding: 20px; margin: 0; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .btn-new { background-color: #0056b3; color: white; padding: 10px 15px; text-decoration: none; border-radius: 6px; font-weight: bold; }
-        .preset-bar { background: #e9ecef; padding: 10px; border-radius: 6px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
         .task-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; border-left: 5px solid #ffc107; }
         .task-title { font-size: 16px; font-weight: bold; margin: 0 0 5px 0; color: #333; }
         .task-detail { font-size: 14px; color: #666; margin: 3px 0; }
@@ -25,16 +24,6 @@
     <div class="header">
         <h2>Active Survey Tasks</h2>
         <a href="/new_task" class="btn-new">+ Open New Task</a>
-    </div>
-
-    <div class="preset-bar">
-        <strong style="font-size: 14px;">Quick Start:</strong>
-        <select onchange="if(this.value) window.location.href='/new_task?preset_id=' + this.value;" style="padding: 8px; flex: 1; border-radius: 4px; border: 1px solid #ccc;">
-            <option value="">-- Load a saved Preset Task --</option>
-            {% for p in presets %}
-            <option value="{{ p.id }}">{{ p.preset_name }}</option>
-            {% endfor %}
-        </select>
     </div>
 
     <div style="margin-bottom: 20px;">
@@ -58,7 +47,7 @@
             <p class="task-detail"><strong>Category/Action:</strong> {{ task.task_category }} | {{ task.action_required }} ({{ task.instrument }})</p>
             <p class="task-detail"><strong>Location:</strong> {{ task.location or 'N/A' }} | {{ task.sub_location or 'N/A' }}</p>
             {% if task.reference_links %}
-            <p class="task-detail"><strong>References:</strong> {% for link in task.reference_links.split(' | ') %}<a href="{{ link }}" target="_blank">[Link {{ loop.index }}]</a> {% endfor %}</p>
+            <p class="task-detail"><strong>References:</strong> {% for link in task.reference_links.split(' | ') %}<a href="{{ link }}" target="_blank" style="color: #0056b3; text-decoration: underline;">[Link {{ loop.index }}]</a> {% endfor %}</p>
             {% endif %}
             <p class="task-detail"><strong>Opening Remarks:</strong> {{ task.remarks or 'None' }}</p>
             <p class="task-detail"><strong>Requested By:</strong> {{ task.requestor }} | <strong>Assigned To:</strong> {{ task.assigned_to }} (Opened by {{ task.surveyor_name }})</p>
