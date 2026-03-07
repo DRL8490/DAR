@@ -13,133 +13,140 @@
         button { background-color: #0056b3; color: white; border: none; padding: 12px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 10px; }
         .btn-add { background-color: #6c757d; color: white; width: 40px; margin-top: 0; padding: 10px; font-weight: bold; }
         .btn-remove { background-color: #dc3545; color: white; width: 40px; margin-top: 0; padding: 10px; font-weight: bold; }
+        
+        /* Modal Styles */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-box { background: white; padding: 25px; border-radius: 10px; width: 90%; max-width: 350px; text-align: center; }
+        .modal-btn { margin-top: 10px; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; border: none; width: 100%; }
+        .btn-yes { background: #28a745; color: white; }
+        .btn-no { background: #6c757d; color: white; }
+        .btn-never { background: #dc3545; color: white; }
     </style>
 </head>
 <body>
     <div class="card">
         <h2>Open New Task</h2>
-        <form action="/new_task" method="POST">
+        <form id="taskForm" action="/new_task" method="POST">
             
-            <div class="form-group">
-                <label>Requestor Dept:</label>
-                <select name="requestor_dept" id="reqDept" onchange="updateReqNames()" required>
-                    <option value="">-- Select Dept --</option>
-                </select>
-            </div>
-            
-            <div class="form-group">
-                <label>Requestor Name:</label>
-                <select name="requestor_name" id="reqName" required>
-                    <option value="">-- Select Name --</option>
-                </select>
-            </div>
-            
-            <div class="form-group">
-                <label>Assigned To:</label>
-                <select name="assigned_to" required>
-                    <option value="">-- Select Team Member --</option>
-                    {% for u in users %}
-                    <option value="{{ u.name }}">{{ u.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label>Task Category:</label>
-                <select name="task_category" required>
-                    <option value="">-- Select Category --</option>
-                    {% for cat in categories %}
-                    <option value="{{ cat.name }}">{{ cat.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
+            <div class="form-group"><label>Requestor Dept:</label><select name="requestor_dept" id="reqDept" onchange="updateReqNames()" required><option value="">-- Select Dept --</option></select></div>
+            <div class="form-group"><label>Requestor Name:</label><select name="requestor_name" id="reqName" required><option value="">-- Select Name --</option></select></div>
+            <div class="form-group"><label>Assigned To:</label><select name="assigned_to" required><option value="">-- Select Team Member --</option>{% for u in users %}<option value="{{ u.name }}">{{ u.name }}</option>{% endfor %}</select></div>
+            <div class="form-group"><label>Task Category:</label><select name="task_category" required><option value="">-- Select Category --</option>{% for cat in categories %}<option value="{{ cat.name }}">{{ cat.name }}</option>{% endfor %}</select></div>
             
             <div class="form-group"><label>Area:</label><select name="area" id="areaDropdown" onchange="updateLocations()" required></select></div>
             <div class="form-group"><label>Location:</label><select name="location" id="locationDropdown" onchange="updateSubLocations()"></select></div>
             <div class="form-group"><label>Sub-Location:</label><select name="sub_location" id="subLocationDropdown" onchange="updateWorkScopes()"></select></div>
             <div class="form-group"><label>Work Scope:</label><select name="work_scope" id="workScopeDropdown" required></select></div>
 
-            <div class="form-group">
-                <label>Instrument:</label>
-                <select name="instrument" required>
-                    <option value="">-- Select Instrument --</option>
-                    {% for inst in instruments %}
-                    <option value="{{ inst.name }}">{{ inst.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
+            <div class="form-group"><label>Instrument:</label><select name="instrument" required><option value="">-- Select Instrument --</option>{% for inst in instruments %}<option value="{{ inst.name }}">{{ inst.name }}</option>{% endfor %}</select></div>
+            <div class="form-group"><label>Action Required:</label><select name="action_required" required><option value="">-- Select Action --</option>{% for act in actions %}<option value="{{ act.name }}">{{ act.name }}</option>{% endfor %}</select></div>
 
-            <div class="form-group">
-                <label>Action Required:</label>
-                <select name="action_required" required>
-                    <option value="">-- Select Action --</option>
-                    {% for act in actions %}
-                    <option value="{{ act.name }}">{{ act.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-                        <div class="form-group" id="link-container">
+            <div class="form-group" id="link-container">
                 <label>Reference File Links (Optional):</label>
-                <div style="display: flex; gap: 5px; margin-bottom: 5px;">
-                    <input type="url" name="reference_link" placeholder="Paste OneDrive or file link..." style="flex: 1;">
-                    <button type="button" class="btn-add" onclick="addLink()">+</button>
-                </div>
+                <div style="display: flex; gap: 5px; margin-bottom: 5px;"><input type="url" name="reference_link" placeholder="Paste link..." style="flex: 1;"><button type="button" class="btn-add" onclick="addLink()">+</button></div>
             </div>
 
-            <div class="form-group">
-                <label>Opening Remarks:</label>
-                <textarea name="remarks" rows="2" placeholder="Any initial notes or 'Other' specifications..."></textarea>
+            <div class="form-group"><label>Opening Remarks:</label><textarea name="remarks" rows="2" placeholder="Any initial notes..."></textarea></div>
+            
+            <div style="margin-bottom: 15px; display: flex; align-items: center;">
+                <input type="checkbox" id="chkPreset" style="width: auto; margin-right: 10px;">
+                <label for="chkPreset" style="margin: 0;">Add to Preset List</label>
             </div>
             
+            <input type="hidden" name="save_preset" id="hiddenSavePreset" value="false">
+            <input type="hidden" name="preset_name" id="hiddenPresetName" value="">
+
             <button type="submit">Open Task</button>
             <a href="/" style="display: block; text-align: center; margin-top: 15px; color: #666; text-decoration: none;">Cancel</a>
         </form>
     </div>
 
-    <script>
-        // 1. Dynamic Links Logic
-        function addLink() {
-            let div = document.createElement('div');
-            div.style.cssText = "display: flex; gap: 5px; margin-bottom: 5px;";
-            div.innerHTML = '<input type="url" name="reference_link" placeholder="Paste another link..." style="flex: 1;"><button type="button" class="btn-remove" onclick="this.parentElement.remove()">X</button>';
-            document.getElementById('link-container').appendChild(div);
-        }
+    <div class="modal-overlay" id="presetModal">
+        <div class="modal-box">
+            <h3 id="modalTitle">Save as Preset?</h3>
+            <p id="modalText">Do you want to make this a Preset Task?</p>
+            <input type="text" id="modalNameInput" placeholder="Preset Name (Optional)" style="width: 100%; box-sizing: border-box; padding: 10px; margin-bottom: 15px; border-radius: 4px; border: 1px solid #ccc;">
+            <button class="modal-btn btn-yes" onclick="submitTask('yes')">Yes, Save Preset</button>
+            <button class="modal-btn btn-no" id="btnNo" onclick="submitTask('no')">No, just Open Task</button>
+            <button class="modal-btn btn-never" id="btnNever" onclick="submitTask('never')">Don't Ask Again</button>
+        </div>
+    </div>
 
-        // 2. Cascading Requestor Logic
+    <script>
+        function addLink() { let d = document.createElement('div'); d.style.cssText = "display:flex; gap:5px; margin-bottom:5px;"; d.innerHTML = '<input type="url" name="reference_link" style="flex:1;"><button type="button" class="btn-remove" onclick="this.parentElement.remove()">X</button>'; document.getElementById('link-container').appendChild(d); }
+
         let reqTree = {{ req_dict_json | safe }};
-        function popReqDepts() {
-            let deptDrop = document.getElementById("reqDept");
-            Object.keys(reqTree).forEach(d => {
-                let opt = document.createElement("option"); opt.value = d; opt.innerHTML = d; deptDrop.appendChild(opt);
-            });
-        }
-        function updateReqNames() {
-            let dept = document.getElementById("reqDept").value;
-            let nameDrop = document.getElementById("reqName");
-            nameDrop.innerHTML = '<option value="">-- Select Name --</option>';
-            if (dept && reqTree[dept]) {
-                reqTree[dept].forEach(n => {
-                    let opt = document.createElement("option"); opt.value = n; opt.innerHTML = n; nameDrop.appendChild(opt);
-                });
-            }
-        }
+        function popReqDepts() { let d = document.getElementById("reqDept"); Object.keys(reqTree).forEach(x => { let o = document.createElement("option"); o.value = x; o.innerHTML = x; d.appendChild(o); }); }
+        function updateReqNames() { let d = document.getElementById("reqDept").value; let n = document.getElementById("reqName"); n.innerHTML = '<option value="">-- Select Name --</option>'; if (d && reqTree[d]) { reqTree[d].forEach(x => { let o = document.createElement("option"); o.value = x; o.innerHTML = x; n.appendChild(o); }); } }
         popReqDepts();
 
-        // 3. Cascading Location Logic
         let schema = {{ schema_json | safe }};
-        function populateDropdown(dropdownId, optionsList) {
-            let dropdown = document.getElementById(dropdownId);
-            dropdown.innerHTML = '<option value="">-- Select --</option>'; 
-            optionsList.forEach(option => {
-                let opt = document.createElement('option'); opt.value = option; opt.innerHTML = option; dropdown.appendChild(opt);
-            });
-        }
-        function loadAreas() { populateDropdown("areaDropdown", Object.keys(schema)); updateLocations(); }
-        function updateLocations() { let area = document.getElementById("areaDropdown").value; let locations = area && schema[area] ? Object.keys(schema[area]) : []; populateDropdown("locationDropdown", locations); updateSubLocations(); }
-        function updateSubLocations() { let area = document.getElementById("areaDropdown").value; let location = document.getElementById("locationDropdown").value; let subLocations = (area && location && schema[area][location]) ? Object.keys(schema[area][location]) : []; populateDropdown("subLocationDropdown", subLocations); updateWorkScopes(); }
-        function updateWorkScopes() { let area = document.getElementById("areaDropdown").value; let location = document.getElementById("locationDropdown").value; let subLocation = document.getElementById("subLocationDropdown").value; let scopes = (area && location && subLocation && schema[area][location][subLocation]) ? schema[area][location][subLocation] : []; populateDropdown("workScopeDropdown", scopes); }
+        function popD(id, list) { let d = document.getElementById(id); d.innerHTML = '<option value="">-- Select --</option>'; list.forEach(x => { let o = document.createElement('option'); o.value = x; o.innerHTML = x; d.appendChild(o); }); }
+        function loadAreas() { popD("areaDropdown", Object.keys(schema)); updateLocations(); }
+        function updateLocations() { let a = document.getElementById("areaDropdown").value; popD("locationDropdown", a && schema[a] ? Object.keys(schema[a]) : []); updateSubLocations(); }
+        function updateSubLocations() { let a = document.getElementById("areaDropdown").value; let l = document.getElementById("locationDropdown").value; popD("subLocationDropdown", (a && l && schema[a][l]) ? Object.keys(schema[a][l]) : []); updateWorkScopes(); }
+        function updateWorkScopes() { let a = document.getElementById("areaDropdown").value; let l = document.getElementById("locationDropdown").value; let s = document.getElementById("subLocationDropdown").value; popD("workScopeDropdown", (a && l && s && schema[a][l][s]) ? schema[a][l][s] : []); }
         loadAreas();
+
+        // ----------------------------------------
+        // PRESET AUTO-FILL LOGIC
+        // ----------------------------------------
+        let loadedPreset = {{ loaded_preset | safe }};
+        if (loadedPreset) {
+            document.querySelector('[name="assigned_to"]').value = loadedPreset.assigned_to;
+            document.querySelector('[name="task_category"]').value = loadedPreset.task_category;
+            document.querySelector('[name="instrument"]').value = loadedPreset.instrument;
+            document.querySelector('[name="action_required"]').value = loadedPreset.action_required;
+            
+            document.getElementById("reqDept").value = loadedPreset.req_dept; updateReqNames();
+            document.getElementById("reqName").value = loadedPreset.req_name;
+            
+            document.getElementById("areaDropdown").value = loadedPreset.area; updateLocations();
+            document.getElementById("locationDropdown").value = loadedPreset.location; updateSubLocations();
+            document.getElementById("subLocationDropdown").value = loadedPreset.sub_location; updateWorkScopes();
+            document.getElementById("workScopeDropdown").value = loadedPreset.work_scope;
+        }
+
+        // ----------------------------------------
+        // POPUP MODAL LOGIC
+        // ----------------------------------------
+        let isSubmitting = false;
+        document.getElementById('taskForm').addEventListener('submit', function(e) {
+            if (isSubmitting) return; // Prevent loop
+            e.preventDefault();
+
+            let wantsPreset = document.getElementById('chkPreset').checked;
+            let dontAsk = localStorage.getItem('dontAskPreset') === 'true';
+
+            if (wantsPreset) {
+                // They checked the box manually
+                document.getElementById('modalTitle').innerText = "Name Your Preset";
+                document.getElementById('modalText').innerText = "Give this preset a name so you can find it later.";
+                document.getElementById('btnNo').style.display = 'none';
+                document.getElementById('btnNever').style.display = 'none';
+                document.getElementById('presetModal').style.display = 'flex';
+            } else if (!dontAsk) {
+                // They didn't check it, and haven't silenced the prompt
+                document.getElementById('modalTitle').innerText = "Save as Preset?";
+                document.getElementById('modalText').innerText = "Do you want to make this a Preset Task?";
+                document.getElementById('btnNo').style.display = 'block';
+                document.getElementById('btnNever').style.display = 'block';
+                document.getElementById('presetModal').style.display = 'flex';
+            } else {
+                // They silenced the prompt, just submit
+                submitTask('no');
+            }
+        });
+
+        function submitTask(action) {
+            if (action === 'never') localStorage.setItem('dontAskPreset', 'true');
+            if (action === 'yes') {
+                document.getElementById('hiddenSavePreset').value = 'true';
+                document.getElementById('hiddenPresetName').value = document.getElementById('modalNameInput').value;
+            }
+            isSubmitting = true;
+            document.getElementById('taskForm').submit();
+        }
     </script>
 </body>
 </html>

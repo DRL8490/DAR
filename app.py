@@ -41,6 +41,22 @@ class DropdownOption(db.Model):
     category = db.Column(db.String(50), nullable=False) 
     name = db.Column(db.String(100), nullable=False)
 
+# NEW: Unique Presets for each user
+class PresetTask(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    preset_name = db.Column(db.String(100), nullable=False)
+    req_dept = db.Column(db.String(100))
+    req_name = db.Column(db.String(100))
+    assigned_to = db.Column(db.String(100))
+    task_category = db.Column(db.String(100))
+    area = db.Column(db.String(100))
+    location = db.Column(db.String(100))
+    sub_location = db.Column(db.String(100))
+    work_scope = db.Column(db.String(100))
+    instrument = db.Column(db.String(100))
+    action_required = db.Column(db.String(100))
+
 class SurveyTask(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     surveyor_name = db.Column(db.String(100), nullable=False) 
@@ -55,13 +71,13 @@ class SurveyTask(db.Model):
     work_scope = db.Column(db.String(100), nullable=False)
     remarks = db.Column(db.Text, nullable=True)
     deliverable_link = db.Column(db.String(500), nullable=True) 
-    reference_links = db.Column(db.Text, nullable=True) # NEW COLUMN FOR DYNAMIC LINKS
+    reference_links = db.Column(db.Text, nullable=True) 
     status = db.Column(db.String(20), default="Open")
     start_time = db.Column(db.DateTime, default=datetime.utcnow)
     end_time = db.Column(db.DateTime, nullable=True)
 
 with app.app_context():
-    # db.drop_all() # <-- TEMPORARILY UNCOMMENT THIS TO RESET THE DB
+    # db.drop_all() # <-- TEMPORARILY UNCOMMENT THIS ONCE, THEN DELETE
     db.create_all()
     
     survey_tree = {
@@ -90,7 +106,7 @@ with app.app_context():
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# --- AUTHENTICATION ROUTES ---
+# --- AUTHENTICATION ROUTES (Omitted for brevity, keep existing login/register) ---
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -139,22 +155,18 @@ def logout():
 def forgot_password():
     return render_template('forgot_password.html')
 
+# --- CONFIG ROUTE ---
 @app.route('/system_config_hidden', methods=['GET', 'POST'])
 @login_required
 def hidden_config():
     config = AppConfig.query.first()
     schema = json.loads(config.schema_data)
-    
     if request.method == 'POST':
         action = request.form.get('action')
         if action == 'add_requestor':
-            dept = request.form.get('department')
-            name = request.form.get('name').capitalize()
-            db.session.add(Requestor(department=dept, name=name))
+            db.session.add(Requestor(department=request.form.get('department'), name=request.form.get('name').capitalize()))
         elif action == 'add_dropdown':
-            cat = request.form.get('category')
-            new_val = request.form.get('new_value')
-            db.session.add(DropdownOption(category=cat, name=new_val))
+            db.session.add(DropdownOption(category=request.form.get('category'), name=request.form.get('new_value')))
         else:
             area = request.form.get('area')
             loc = request.form.get('location')
@@ -173,17 +185,16 @@ def hidden_config():
         db.session.commit()
         flash('Database Updated!', 'success')
         return redirect(url_for('hidden_config'))
-        
-    requestors = Requestor.query.all()
-    departments = DropdownOption.query.filter_by(category='Department').all()
-    return render_template('hidden_admin.html', schema_json=json.dumps(schema), requestors=requestors, departments=departments)
+    return render_template('hidden_admin.html', schema_json=json.dumps(schema), requestors=Requestor.query.all(), departments=DropdownOption.query.filter_by(category='Department').all())
+
 
 # --- WORKFLOW ROUTES ---
 @app.route('/')
 @login_required
 def dashboard():
     open_tasks = SurveyTask.query.filter_by(status='Open').order_by(SurveyTask.start_time.desc()).all()
-    return render_template('dashboard.html', name=current_user.name, tasks=open_tasks)
+    user_presets = PresetTask.query.filter_by(user_id=current_user.id).all()
+    return render_template('dashboard.html', name=current_user.name, tasks=open_tasks, presets=user_presets)
 
 @app.route('/new_task', methods=['GET', 'POST'])
 @login_required
@@ -191,73 +202,74 @@ def new_task():
     config = AppConfig.query.first()
     schema_json = config.schema_data if config else "{}"
     
+    # Pre-load preset if passed in URL
+    preset_id = request.args.get('preset_id')
+    loaded_preset = None
+    if preset_id:
+        loaded_preset = PresetTask.query.filter_by(id=preset_id, user_id=current_user.id).first()
+        if loaded_preset:
+            loaded_preset = {c.name: getattr(loaded_preset, c.name) for c in loaded_preset.__table__.columns}
+    
     if request.method == 'POST':
-        # Merge the Requestor fields back into one line for the database
         req_dept = request.form.get('requestor_dept')
         req_name = request.form.get('requestor_name')
         merged_requestor = f"{req_dept} - {req_name}"
         
-        # Grab all dynamic reference links and join them together
+        # Preset Saving Logic
+        save_preset = request.form.get('save_preset')
+        preset_name = request.form.get('preset_name')
+        if save_preset == 'true':
+            p_name = preset_name or f"{request.form.get('area')} - {request.form.get('work_scope')}"
+            db.session.add(PresetTask(
+                user_id=current_user.id, preset_name=p_name, req_dept=req_dept, req_name=req_name,
+                assigned_to=request.form.get('assigned_to'), task_category=request.form.get('task_category'),
+                area=request.form.get('area'), location=request.form.get('location'), 
+                sub_location=request.form.get('sub_location'), work_scope=request.form.get('work_scope'),
+                instrument=request.form.get('instrument'), action_required=request.form.get('action_required')
+            ))
+        
         ref_links = request.form.getlist('reference_link')
         ref_links_str = " | ".join([link for link in ref_links if link.strip()])
 
         new_survey = SurveyTask(
-            surveyor_name=current_user.name, 
-            assigned_to=request.form.get('assigned_to'), 
-            requestor=merged_requestor,
-            task_category=request.form.get('task_category'), 
-            instrument=request.form.get('instrument'), 
-            action_required=request.form.get('action_required'),
-            area=request.form.get('area'), 
-            location=request.form.get('location'), 
-            sub_location=request.form.get('sub_location'),
-            work_scope=request.form.get('work_scope'), 
-            remarks=request.form.get('remarks'),
-            reference_links=ref_links_str
+            surveyor_name=current_user.name, assigned_to=request.form.get('assigned_to'), requestor=merged_requestor,
+            task_category=request.form.get('task_category'), instrument=request.form.get('instrument'), action_required=request.form.get('action_required'),
+            area=request.form.get('area'), location=request.form.get('location'), sub_location=request.form.get('sub_location'),
+            work_scope=request.form.get('work_scope'), remarks=request.form.get('remarks'), reference_links=ref_links_str
         )
         db.session.add(new_survey)
         db.session.commit()
         flash('New task opened successfully!', 'success')
         return redirect(url_for('dashboard'))
         
-    # Build the Requestor cascade dictionary
     requestors = Requestor.query.all()
     req_dict = {}
     for r in requestors:
-        if r.department not in req_dict:
-            req_dict[r.department] = []
+        if r.department not in req_dict: req_dict[r.department] = []
         req_dict[r.department].append(r.name)
         
-    users = User.query.all()
-    categories = DropdownOption.query.filter_by(category='TaskCategory').all()
-    instruments = DropdownOption.query.filter_by(category='Instrument').all()
-    actions = DropdownOption.query.filter_by(category='ActionRequired').all()
-    
-    return render_template('new_task.html', users=users, req_dict_json=json.dumps(req_dict), schema_json=schema_json,
-                           categories=categories, instruments=instruments, actions=actions)
+    return render_template('new_task.html', users=User.query.all(), req_dict_json=json.dumps(req_dict), schema_json=schema_json,
+                           categories=DropdownOption.query.filter_by(category='TaskCategory').all(), 
+                           instruments=DropdownOption.query.filter_by(category='Instrument').all(), 
+                           actions=DropdownOption.query.filter_by(category='ActionRequired').all(),
+                           loaded_preset=json.dumps(loaded_preset) if loaded_preset else "null")
 
 @app.route('/close_task/<int:task_id>', methods=['POST'])
 @login_required
 def close_task(task_id):
     task = SurveyTask.query.get_or_404(task_id)
     if current_user.name not in [task.surveyor_name, task.assigned_to]:
-        flash('Unauthorized: Only the task creator or assignee can close this task.', 'error')
+        flash('Unauthorized.', 'error')
         return redirect(url_for('dashboard'))
-        
     closing_remarks = request.form.get('closing_remarks')
-    deliverable_link = request.form.get('deliverable_link')
     if not closing_remarks:
         flash('Closing remarks are mandatory.', 'error')
         return redirect(url_for('dashboard'))
-
     task.remarks = f"{task.remarks} | Closed: {closing_remarks}" if task.remarks else f"Closed: {closing_remarks}"
-    if deliverable_link:
-        task.deliverable_link = deliverable_link
-        
+    if request.form.get('deliverable_link'): task.deliverable_link = request.form.get('deliverable_link')
     task.status = 'Closed'
     task.end_time = datetime.utcnow()
     db.session.commit()
-    flash('Task closed and logged!', 'success')
     return redirect(url_for('dashboard'))
 
 @app.route('/cancel_task/<int:task_id>', methods=['POST'])
@@ -265,20 +277,24 @@ def close_task(task_id):
 def cancel_task(task_id):
     task = SurveyTask.query.get_or_404(task_id)
     if current_user.name not in [task.surveyor_name, task.assigned_to]:
-        flash('Unauthorized: Only the task creator or assignee can cancel this task.', 'error')
+        flash('Unauthorized.', 'error')
         return redirect(url_for('dashboard'))
-        
     cancel_reason = request.form.get('cancel_reason')
     if not cancel_reason:
         flash('Cancel reason is mandatory.', 'error')
         return redirect(url_for('dashboard'))
-        
     task.remarks = f"{task.remarks} | CANCELED: {cancel_reason}" if task.remarks else f"CANCELED: {cancel_reason}"
     task.status = 'Canceled'
     task.end_time = datetime.utcnow()
     db.session.commit()
-    flash('Task canceled.', 'error')
     return redirect(url_for('dashboard'))
+
+# NEW: Report Wizard Route
+@app.route('/reports')
+@login_required
+def reports():
+    all_tasks = SurveyTask.query.order_by(SurveyTask.start_time.desc()).all()
+    return render_template('reports.html', tasks=all_tasks)
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
