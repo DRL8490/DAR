@@ -41,7 +41,6 @@ class DropdownOption(db.Model):
     category = db.Column(db.String(50), nullable=False) 
     name = db.Column(db.String(100), nullable=False)
 
-# NEW: Unique Presets for each user
 class PresetTask(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, nullable=False)
@@ -77,7 +76,7 @@ class SurveyTask(db.Model):
     end_time = db.Column(db.DateTime, nullable=True)
 
 with app.app_context():
-    # db.drop_all() # <-- TEMPORARILY UNCOMMENT THIS ONCE, THEN DELETE
+    # db.drop_all() # <-- Keep this commented out unless you need to do a hard reset!
     db.create_all()
     
     survey_tree = {
@@ -106,7 +105,7 @@ with app.app_context():
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# --- AUTHENTICATION ROUTES (Omitted for brevity, keep existing login/register) ---
+# --- AUTHENTICATION ROUTES ---
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -155,12 +154,13 @@ def logout():
 def forgot_password():
     return render_template('forgot_password.html')
 
-# --- CONFIG ROUTE ---
+# --- ADMIN ROUTE ---
 @app.route('/system_config_hidden', methods=['GET', 'POST'])
 @login_required
 def hidden_config():
     config = AppConfig.query.first()
     schema = json.loads(config.schema_data)
+    
     if request.method == 'POST':
         action = request.form.get('action')
         if action == 'add_requestor':
@@ -185,16 +185,19 @@ def hidden_config():
         db.session.commit()
         flash('Database Updated!', 'success')
         return redirect(url_for('hidden_config'))
-    return render_template('hidden_admin.html', schema_json=json.dumps(schema), requestors=Requestor.query.all(), departments=DropdownOption.query.filter_by(category='Department').all())
-
+        
+    requestors = Requestor.query.all()
+    departments = DropdownOption.query.filter_by(category='Department').all()
+    return render_template('hidden_admin.html', schema_json=json.dumps(schema), requestors=requestors, departments=departments)
 
 # --- WORKFLOW ROUTES ---
 @app.route('/')
 @login_required
 def dashboard():
-    # We now pull ALL tasks so the JavaScript buttons can filter them instantly
     all_tasks = SurveyTask.query.order_by(SurveyTask.start_time.desc()).all()
     return render_template('dashboard.html', name=current_user.name, tasks=all_tasks)
+
+@app.route('/new_task', methods=['GET', 'POST'])
 @login_required
 def new_task():
     config = AppConfig.query.first()
@@ -244,7 +247,6 @@ def new_task():
         if r.department not in req_dict: req_dict[r.department] = []
         req_dict[r.department].append(r.name)
         
-    # Query user presets to send to the New Task page
     user_presets = PresetTask.query.filter_by(user_id=current_user.id).all()
         
     return render_template('new_task.html', users=User.query.all(), req_dict_json=json.dumps(req_dict), schema_json=schema_json,
@@ -252,7 +254,8 @@ def new_task():
                            instruments=DropdownOption.query.filter_by(category='Instrument').all(), 
                            actions=DropdownOption.query.filter_by(category='ActionRequired').all(),
                            loaded_preset=json.dumps(loaded_preset) if loaded_preset else "null",
-                           presets=user_presets) # <-- Passed to template here
+                           presets=user_presets)
+
 @app.route('/close_task/<int:task_id>', methods=['POST'])
 @login_required
 def close_task(task_id):
@@ -260,15 +263,20 @@ def close_task(task_id):
     if current_user.name not in [task.surveyor_name, task.assigned_to]:
         flash('Unauthorized.', 'error')
         return redirect(url_for('dashboard'))
+        
     closing_remarks = request.form.get('closing_remarks')
     if not closing_remarks:
         flash('Closing remarks are mandatory.', 'error')
         return redirect(url_for('dashboard'))
+
     task.remarks = f"{task.remarks} | Closed: {closing_remarks}" if task.remarks else f"Closed: {closing_remarks}"
-    if request.form.get('deliverable_link'): task.deliverable_link = request.form.get('deliverable_link')
+    if request.form.get('deliverable_link'):
+        task.deliverable_link = request.form.get('deliverable_link')
+        
     task.status = 'Closed'
     task.end_time = datetime.utcnow()
     db.session.commit()
+    flash('Task closed and logged!', 'success')
     return redirect(url_for('dashboard'))
 
 @app.route('/cancel_task/<int:task_id>', methods=['POST'])
@@ -278,17 +286,19 @@ def cancel_task(task_id):
     if current_user.name not in [task.surveyor_name, task.assigned_to]:
         flash('Unauthorized.', 'error')
         return redirect(url_for('dashboard'))
+        
     cancel_reason = request.form.get('cancel_reason')
     if not cancel_reason:
         flash('Cancel reason is mandatory.', 'error')
         return redirect(url_for('dashboard'))
+        
     task.remarks = f"{task.remarks} | CANCELED: {cancel_reason}" if task.remarks else f"CANCELED: {cancel_reason}"
     task.status = 'Canceled'
     task.end_time = datetime.utcnow()
     db.session.commit()
+    flash('Task canceled.', 'error')
     return redirect(url_for('dashboard'))
 
-# NEW: Report Wizard Route
 @app.route('/reports')
 @login_required
 def reports():
