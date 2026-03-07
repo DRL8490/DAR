@@ -193,16 +193,14 @@ def hidden_config():
 @login_required
 def dashboard():
     open_tasks = SurveyTask.query.filter_by(status='Open').order_by(SurveyTask.start_time.desc()).all()
-    user_presets = PresetTask.query.filter_by(user_id=current_user.id).all()
-    return render_template('dashboard.html', name=current_user.name, tasks=open_tasks, presets=user_presets)
-
+    # Removed presets from here!
+    return render_template('dashboard.html', name=current_user.name, tasks=open_tasks)
 @app.route('/new_task', methods=['GET', 'POST'])
 @login_required
 def new_task():
     config = AppConfig.query.first()
     schema_json = config.schema_data if config else "{}"
     
-    # Pre-load preset if passed in URL
     preset_id = request.args.get('preset_id')
     loaded_preset = None
     if preset_id:
@@ -215,7 +213,6 @@ def new_task():
         req_name = request.form.get('requestor_name')
         merged_requestor = f"{req_dept} - {req_name}"
         
-        # Preset Saving Logic
         save_preset = request.form.get('save_preset')
         preset_name = request.form.get('preset_name')
         if save_preset == 'true':
@@ -248,12 +245,15 @@ def new_task():
         if r.department not in req_dict: req_dict[r.department] = []
         req_dict[r.department].append(r.name)
         
+    # Query user presets to send to the New Task page
+    user_presets = PresetTask.query.filter_by(user_id=current_user.id).all()
+        
     return render_template('new_task.html', users=User.query.all(), req_dict_json=json.dumps(req_dict), schema_json=schema_json,
                            categories=DropdownOption.query.filter_by(category='TaskCategory').all(), 
                            instruments=DropdownOption.query.filter_by(category='Instrument').all(), 
                            actions=DropdownOption.query.filter_by(category='ActionRequired').all(),
-                           loaded_preset=json.dumps(loaded_preset) if loaded_preset else "null")
-
+                           loaded_preset=json.dumps(loaded_preset) if loaded_preset else "null",
+                           presets=user_presets) # <-- Passed to template here
 @app.route('/close_task/<int:task_id>', methods=['POST'])
 @login_required
 def close_task(task_id):

@@ -26,6 +26,15 @@
 <body>
     <div class="card">
         <h2>Open New Task</h2>
+        <div style="background: #e9ecef; padding: 10px; border-radius: 6px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+            <strong style="font-size: 14px; color: #333;">Quick Start:</strong>
+            <select onchange="if(this.value) window.location.href='/new_task?preset_id=' + this.value;" style="padding: 8px; flex: 1; border-radius: 4px; border: 1px solid #ccc;">
+                <option value="">-- Load a saved Preset Task --</option>
+                {% for p in presets %}
+                <option value="{{ p.id }}">{{ p.preset_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
         <form id="taskForm" action="/new_task" method="POST">
             
             <div class="form-group"><label>Requestor Dept:</label><select name="requestor_dept" id="reqDept" onchange="updateReqNames()" required><option value="">-- Select Dept --</option></select></div>
