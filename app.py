@@ -192,10 +192,9 @@ def hidden_config():
 @app.route('/')
 @login_required
 def dashboard():
-    open_tasks = SurveyTask.query.filter_by(status='Open').order_by(SurveyTask.start_time.desc()).all()
-    # Removed presets from here!
-    return render_template('dashboard.html', name=current_user.name, tasks=open_tasks)
-@app.route('/new_task', methods=['GET', 'POST'])
+    # We now pull ALL tasks so the JavaScript buttons can filter them instantly
+    all_tasks = SurveyTask.query.order_by(SurveyTask.start_time.desc()).all()
+    return render_template('dashboard.html', name=current_user.name, tasks=all_tasks)
 @login_required
 def new_task():
     config = AppConfig.query.first()

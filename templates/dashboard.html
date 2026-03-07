@@ -8,8 +8,23 @@
         body { font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; background-color: #f4f7f6; padding: 20px; margin: 0; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .btn-new { background-color: #0056b3; color: white; padding: 10px 15px; text-decoration: none; border-radius: 6px; font-weight: bold; }
-        .task-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; border-left: 5px solid #ffc107; }
-        .task-title { font-size: 16px; font-weight: bold; margin: 0 0 5px 0; color: #333; }
+        
+        /* New Filter Bar Styles */
+        .filter-bar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; background: #e9ecef; padding: 12px; border-radius: 8px; align-items: center; }
+        .btn-filter { background: white; color: #555; border: 1px solid #ccc; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: 13px; font-weight: bold; transition: all 0.2s; }
+        .btn-filter:hover { background: #ddd; }
+        .btn-filter.active { background: #0056b3; color: white; border-color: #0056b3; }
+        
+        .task-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; border-left: 5px solid #ffc107; transition: all 0.2s; }
+        .task-card[data-status="Closed"] { border-left-color: #28a745; opacity: 0.8; }
+        .task-card[data-status="Canceled"] { border-left-color: #dc3545; opacity: 0.8; }
+        
+        .task-title { font-size: 16px; font-weight: bold; margin: 0 0 5px 0; color: #333; display: flex; justify-content: space-between;}
+        .status-badge { font-size: 12px; padding: 3px 8px; border-radius: 12px; color: white; }
+        .badge-Open { background: #ffc107; color: black; }
+        .badge-Closed { background: #28a745; }
+        .badge-Canceled { background: #dc3545; }
+
         .task-detail { font-size: 14px; color: #666; margin: 3px 0; }
         .action-area { margin-top: 15px; padding-top: 10px; border-top: 1px solid #eee; }
         .action-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 15px; padding: 12px; background: #f9f9f9; border-radius: 6px; border: 1px solid #ddd; }
@@ -26,6 +41,16 @@
         <a href="/new_task" class="btn-new">+ Open New Task</a>
     </div>
 
+    <div class="filter-bar">
+        <strong style="font-size: 14px; color: #333;">Filters:</strong>
+        <button class="btn-filter" onclick="filterTasks('all', this)">All</button>
+        <button class="btn-filter active" id="btnFilterOpen" onclick="filterTasks('open', this)">Open</button>
+        <button class="btn-filter" onclick="filterTasks('closed', this)">Closed</button>
+        <button class="btn-filter" onclick="filterTasks('canceled', this)">Canceled</button>
+        <button class="btn-filter" onclick="filterTasks('today', this)">Today</button>
+        <button class="btn-filter" onclick="filterTasks('mine', this)">Mine</button>
+    </div>
+
     <div style="margin-bottom: 20px;">
         <a href="/reports" style="color: #0056b3; font-weight: bold; text-decoration: none;">📊 Open Report Generation Wizard</a>
     </div>
@@ -38,41 +63,102 @@
       {% endif %}
     {% endwith %}
 
-    {% if not tasks %}
-        <p style="text-align: center; color: #777; margin-top: 50px;">No open tasks. Great job team!</p>
-    {% else %}
+    <p id="noTasksMsg" style="text-align: center; color: #777; margin-top: 50px; display: none;">No tasks match this filter. Great job team!</p>
+
+    <div id="taskContainer">
         {% for task in tasks %}
-        <div class="task-card">
-            <h3 class="task-title">{{ task.area }} - {{ task.work_scope }}</h3>
+        <div class="task-card" 
+             data-status="{{ task.status }}" 
+             data-date="{{ task.start_time.strftime('%Y-%m-%d') }}" 
+             data-mine="{% if name == task.surveyor_name or name == task.assigned_to %}true{% else %}false{% endif %}">
+            
+            <h3 class="task-title">
+                <span>{{ task.area }} - {{ task.work_scope }}</span>
+                <span class="status-badge badge-{{ task.status }}">{{ task.status }}</span>
+            </h3>
+            
             <p class="task-detail"><strong>Category/Action:</strong> {{ task.task_category }} | {{ task.action_required }} ({{ task.instrument }})</p>
             <p class="task-detail"><strong>Location:</strong> {{ task.location or 'N/A' }} | {{ task.sub_location or 'N/A' }}</p>
             {% if task.reference_links %}
             <p class="task-detail"><strong>References:</strong> {% for link in task.reference_links.split(' | ') %}<a href="{{ link }}" target="_blank" style="color: #0056b3; text-decoration: underline;">[Link {{ loop.index }}]</a> {% endfor %}</p>
             {% endif %}
-            <p class="task-detail"><strong>Opening Remarks:</strong> {{ task.remarks or 'None' }}</p>
+            <p class="task-detail"><strong>Opening Remarks:</strong> {{ task.remarks.split('| Closed:')[0].split('| CANCELED:')[0] if task.remarks else 'None' }}</p>
+            
+            {% if task.status != 'Open' %}
+            <p class="task-detail" style="color: #333; background: #f1f1f1; padding: 5px; border-radius: 4px;">
+                <strong>Closing Notes:</strong> {{ task.remarks.split('|')[1] if task.remarks and '|' in task.remarks else 'None' }}
+            </p>
+            {% endif %}
+
             <p class="task-detail"><strong>Requested By:</strong> {{ task.requestor }} | <strong>Assigned To:</strong> {{ task.assigned_to }} (Opened by {{ task.surveyor_name }})</p>
             
-            <div class="action-area">
-                {% if name == task.surveyor_name or name == task.assigned_to %}
-                    <form action="/close_task/{{ task.id }}" method="POST" class="action-form">
-                        <strong style="font-size: 14px; color: #28a745;">Complete Task</strong>
-                        <input type="text" name="closing_remarks" class="action-input" placeholder="Result/Closing remarks (Required)..." required>
-                        <input type="url" name="deliverable_link" class="action-input" placeholder="OneDrive Deliverable Link (Optional)...">
-                        <button type="submit" class="btn-close">Close Task</button>
-                    </form>
-                    <form action="/cancel_task/{{ task.id }}" method="POST" class="action-form" onsubmit="return confirm('Are you sure you want to cancel this task?');">
-                        <strong style="font-size: 14px; color: #dc3545;">Cancel Task</strong>
-                        <input type="text" name="cancel_reason" class="action-input" placeholder="Reason for cancellation (Required)..." required>
-                        <button type="submit" class="btn-cancel">Cancel Task</button>
-                    </form>
-                {% else %}
-                    <div style="text-align: center; font-style: italic; color: #888; padding: 10px; background: #f1f1f1; border-radius: 4px;">Only the task creator or assignee can close this.</div>
-                {% endif %}
-            </div>
+            {% if task.status == 'Open' %}
+                <div class="action-area">
+                    {% if name == task.surveyor_name or name == task.assigned_to %}
+                        <form action="/close_task/{{ task.id }}" method="POST" class="action-form">
+                            <strong style="font-size: 14px; color: #28a745;">Complete Task</strong>
+                            <input type="text" name="closing_remarks" class="action-input" placeholder="Result/Closing remarks (Required)..." required>
+                            <input type="url" name="deliverable_link" class="action-input" placeholder="OneDrive Deliverable Link (Optional)...">
+                            <button type="submit" class="btn-close">Close Task</button>
+                        </form>
+                        <form action="/cancel_task/{{ task.id }}" method="POST" class="action-form" onsubmit="return confirm('Are you sure you want to cancel this task?');">
+                            <strong style="font-size: 14px; color: #dc3545;">Cancel Task</strong>
+                            <input type="text" name="cancel_reason" class="action-input" placeholder="Reason for cancellation (Required)..." required>
+                            <button type="submit" class="btn-cancel">Cancel Task</button>
+                        </form>
+                    {% else %}
+                        <div style="text-align: center; font-style: italic; color: #888; padding: 10px; background: #f1f1f1; border-radius: 4px;">Only the task creator or assignee can close this.</div>
+                    {% endif %}
+                </div>
+            {% endif %}
         </div>
         {% endfor %}
-    {% endif %}
+    </div>
     
     <div style="text-align: center; margin-top: 30px;"><a href="/logout" style="color: #dc3545; text-decoration: none;">Logout ({{ name }})</a></div>
+
+    <script>
+        function filterTasks(filterType, btnElement) {
+            // Update the active blue button style
+            document.querySelectorAll('.btn-filter').forEach(btn => btn.classList.remove('active'));
+            if(btnElement) btnElement.classList.add('active');
+
+            const cards = document.querySelectorAll('.task-card');
+            
+            // Get today's date in YYYY-MM-DD to match the Python date string
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            const todayStr = `${yyyy}-${mm}-${dd}`;
+
+            let visibleCount = 0;
+
+            cards.forEach(card => {
+                let show = false;
+                const status = card.dataset.status;
+                const date = card.dataset.date;
+                const isMine = card.dataset.mine === 'true';
+
+                if (filterType === 'all') show = true;
+                else if (filterType === 'open' && status === 'Open') show = true;
+                else if (filterType === 'closed' && status === 'Closed') show = true;
+                else if (filterType === 'canceled' && status === 'Canceled') show = true;
+                else if (filterType === 'today' && date === todayStr) show = true;
+                else if (filterType === 'mine' && isMine) show = true;
+
+                card.style.display = show ? 'block' : 'none';
+                if(show) visibleCount++;
+            });
+
+            // Show 'No Tasks' message if the screen is empty
+            document.getElementById('noTasksMsg').style.display = visibleCount === 0 ? 'block' : 'none';
+        }
+
+        // On page load, automatically click the "Open" button to hide old clutter
+        window.onload = () => {
+            filterTasks('open', document.getElementById('btnFilterOpen'));
+        };
+    </script>
 </body>
 </html>
