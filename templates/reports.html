@@ -11,13 +11,15 @@
         
         /* Layout */
         .wizard-container { display: flex; gap: 20px; align-items: flex-start; }
-        .sidebar { width: 320px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); flex-shrink: 0; }
+        .sidebar { width: 340px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); flex-shrink: 0; }
         .preview-area { flex: 1; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); overflow-x: auto; min-height: 500px; }
         
         /* UI Elements */
-        .form-control { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .form-control { width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
         .btn-apply { background: #28a745; color: white; width: 100%; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
-        .btn-print { background: #0056b3; color: white; width: 100%; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        .btn-print { background: #0056b3; color: white; width: 100%; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; display: block; text-align: center; text-decoration: none; box-sizing: border-box; margin-bottom: 10px; }
+        .btn-excel { background: #17a2b8; color: white; width: 100%; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; display: block; text-align: center; text-decoration: none; box-sizing: border-box; margin-bottom: 10px; }
+        .btn-concat { background: #17a2b8; color: white; width: 100%; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-bottom: 20px; }
         
         /* Drag and Drop List */
         .col-list { border: 1px solid #eee; border-radius: 4px; margin-bottom: 20px; background: #fafafa; }
@@ -54,11 +56,32 @@
     <div class="wizard-container">
         
         <div class="sidebar no-print">
-            <h3>1. Header Designer</h3>
+            <h3 style="margin-top: 0;">1. Header Designer</h3>
+            <input type="text" id="hdrLogo" class="form-control" placeholder="Logo Image URL (Optional)">
             <input type="text" id="hdrTitle" class="form-control" placeholder="Report Title (e.g. Daily Survey Report)">
             <input type="text" id="hdrSubtitle" class="form-control" placeholder="Subtitle / Date / Company">
 
-            <h3>2. Column Configuration</h3>
+            <h3>2. Concatenate Columns</h3>
+            <p style="font-size: 12px; color: #666; margin-top: 0;">Merge two fields into a single column to save space.</p>
+            <div style="display: flex; gap: 5px; margin-bottom: 12px;">
+                <select id="concatCol1" class="form-control" style="margin: 0;">
+                    <option value="0">ID</option><option value="1">Status</option><option value="2">Date</option><option value="3">Area</option>
+                    <option value="4">Location</option><option value="5">Work Scope</option><option value="6">Category</option>
+                    <option value="7">Action Req.</option><option value="8">Assigned To</option><option value="9">Opening Remarks</option><option value="10">Closing Remarks</option>
+                </select>
+                <select id="concatCol2" class="form-control" style="margin: 0;">
+                    <option value="0">ID</option><option value="1">Status</option><option value="2">Date</option><option value="3">Area</option>
+                    <option value="4" selected>Location</option><option value="5">Work Scope</option><option value="6">Category</option>
+                    <option value="7">Action Req.</option><option value="8">Assigned To</option><option value="9">Opening Remarks</option><option value="10">Closing Remarks</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 5px; margin-bottom: 12px;">
+                <input type="text" id="concatSep" class="form-control" placeholder="Separator (e.g. ' | ')" value=" | " style="flex: 1; margin: 0;">
+                <input type="text" id="concatName" class="form-control" placeholder="New Col Name" value="Area | Location" style="flex: 2; margin: 0;">
+            </div>
+            <button onclick="addConcatColumn()" class="btn-concat">+ Create Merged Column</button>
+
+            <h3>3. Column Configuration</h3>
             <p style="font-size: 12px; color: #666; margin-top: 0;">Drag the ☰ handles to reorder. Uncheck to hide.</p>
             
             <div class="col-list" id="dragContainer">
@@ -76,15 +99,19 @@
             </div>
 
             <button onclick="applyReportConfig()" class="btn-apply">Update Preview</button>
-            <button onclick="window.print()" class="btn-print">Print PDF</button>
+            
+            <a href="/export_excel" class="btn-excel" style="background: #28a745;">📊 Export Master Register (.xlsx)</a>
+            
+            <button onclick="window.print()" class="btn-print">🖨️ Print Custom PDF</button>
         </div>
 
         <div class="preview-area">
             
-            <div id="print-header" class="print-header" style="display: none; text-align: center; margin-bottom: 20px;">
-                <h1 id="print-title" style="margin: 0; color: #333;">NMDC Survey Report</h1>
+            <div id="print-header" class="print-header" style="display: none; text-align: center; margin-bottom: 20px; position: relative; min-height: 80px;">
+                <img id="print-logo" src="" style="position: absolute; left: 0; top: 0; max-height: 80px; max-width: 180px; display: none;">
+                <h1 id="print-title" style="margin: 0; color: #333; padding-top: 10px;">NMDC Survey Report</h1>
                 <h3 id="print-subtitle" style="margin: 5px 0; color: #666;">Generated Report</h3>
-                <hr style="border: 1px solid #ccc;">
+                <hr style="border: 1px solid #ccc; clear: both; margin-top: 25px;">
             </div>
 
             <table id="reportTable">
@@ -116,17 +143,12 @@
     </div>
 
     <script>
-        // 1. Drag and Drop Logic
+        // --- 1. Drag and Drop Engine ---
         let draggedItem = null;
-        document.querySelectorAll('.col-item').forEach(item => {
-            item.addEventListener('dragstart', function(e) {
-                draggedItem = this;
-                setTimeout(() => this.classList.add('dragging'), 0);
-            });
-            item.addEventListener('dragend', function() {
-                this.classList.remove('dragging');
-                draggedItem = null;
-            });
+        
+        function attachDragEvents(item) {
+            item.addEventListener('dragstart', function(e) { draggedItem = this; setTimeout(() => this.classList.add('dragging'), 0); });
+            item.addEventListener('dragend', function() { this.classList.remove('dragging'); draggedItem = null; });
             item.addEventListener('dragover', function(e) { e.preventDefault(); });
             item.addEventListener('dragenter', function(e) { e.preventDefault(); this.style.background = '#e9ecef'; });
             item.addEventListener('dragleave', function() { this.style.background = 'white'; });
@@ -137,51 +159,98 @@
                     let allItems = [...this.parentNode.children];
                     let draggedPos = allItems.indexOf(draggedItem);
                     let thisPos = allItems.indexOf(this);
-                    if (draggedPos < thisPos) {
-                        this.parentNode.insertBefore(draggedItem, this.nextSibling);
-                    } else {
-                        this.parentNode.insertBefore(draggedItem, this);
-                    }
+                    if (draggedPos < thisPos) this.parentNode.insertBefore(draggedItem, this.nextSibling);
+                    else this.parentNode.insertBefore(draggedItem, this);
                 }
             });
-        });
+        }
+        document.querySelectorAll('.col-item').forEach(attachDragEvents);
 
-        // 2. Report Table Rebuilding Logic
+        // --- 2. Dynamic Concatenate Feature ---
+        function addConcatColumn() {
+            let c1 = document.getElementById('concatCol1').value;
+            let c2 = document.getElementById('concatCol2').value;
+            let sep = document.getElementById('concatSep').value;
+            let name = document.getElementById('concatName').value || 'Merged Column';
+            
+            let container = document.getElementById('dragContainer');
+            let div = document.createElement('div');
+            div.className = 'col-item';
+            div.setAttribute('draggable', 'true');
+            div.setAttribute('data-concat-c1', c1);
+            div.setAttribute('data-concat-c2', c2);
+            div.setAttribute('data-concat-sep', sep);
+            div.setAttribute('data-concat-name', name);
+            
+            div.innerHTML = `<span class="drag-handle">☰</span><input type="checkbox" checked> <strong style="color:#17a2b8; margin-left:5px;">[Merged]</strong> ${name} <button onclick="this.parentElement.remove()" style="margin-left:auto; background:#dc3545; color:white; border:none; border-radius:3px; cursor:pointer; padding: 2px 6px;">X</button>`;
+            
+            attachDragEvents(div);
+            container.appendChild(div);
+        }
+
+        // --- 3. Report Builder Logic ---
         window.onload = () => {
-            // Backup the original untouched table structure on page load
             const table = document.getElementById("reportTable");
             const rows = Array.from(table.rows);
             window.originalData = rows.map(row => Array.from(row.children)); 
         };
 
         function applyReportConfig() {
-            // Apply Custom Header
+            // Apply Header Logo & Text
+            let logoUrl = document.getElementById('hdrLogo').value;
+            let logoImg = document.getElementById('print-logo');
+            if(logoUrl) { logoImg.src = logoUrl; logoImg.style.display = 'block'; } else { logoImg.style.display = 'none'; }
+            
             document.getElementById('print-title').innerText = document.getElementById('hdrTitle').value || 'NMDC Survey Report';
             document.getElementById('print-subtitle').innerText = document.getElementById('hdrSubtitle').value || new Date().toLocaleDateString();
 
-            // Figure out the new desired order and visibility
+            // Read Sidebar UI State
             const configItems = document.querySelectorAll('.col-item');
             const activeCols = [];
+            
             configItems.forEach(item => {
                 if(item.querySelector('input').checked) {
-                    activeCols.push(parseInt(item.getAttribute('data-col')));
+                    if (item.hasAttribute('data-concat-c1')) {
+                        activeCols.push({
+                            type: 'concat',
+                            c1: parseInt(item.getAttribute('data-concat-c1')),
+                            c2: parseInt(item.getAttribute('data-concat-c2')),
+                            sep: item.getAttribute('data-concat-sep'),
+                            name: item.getAttribute('data-concat-name')
+                        });
+                    } else {
+                        activeCols.push({ type: 'standard', index: parseInt(item.getAttribute('data-col')) });
+                    }
                 }
             });
 
-            // Rebuild the table
+            // Rebuild the DOM Table
             const table = document.getElementById("reportTable");
-            table.innerHTML = ""; // Wipe current table
+            table.innerHTML = ""; 
 
             window.originalData.forEach((originalCells, rowIndex) => {
                 let tr = document.createElement("tr");
                 
-                // Pluck the cells in the exact order requested by the sidebar
-                activeCols.forEach(colIndex => {
-                    let cellClone = originalCells[colIndex].cloneNode(true);
-                    tr.appendChild(cellClone);
+                activeCols.forEach(colDef => {
+                    if (colDef.type === 'standard') {
+                        tr.appendChild(originalCells[colDef.index].cloneNode(true));
+                    } else if (colDef.type === 'concat') {
+                        let newCell = document.createElement(rowIndex === 0 ? "th" : "td");
+                        if (rowIndex === 0) {
+                            newCell.innerText = colDef.name; 
+                        } else {
+                            let text1 = originalCells[colDef.c1].innerText.trim();
+                            let text2 = originalCells[colDef.c2].innerText.trim();
+                            
+                            if(text1 && text2 && text1 !== '-' && text2 !== '-') newCell.innerText = text1 + colDef.sep + text2;
+                            else if (text1 && text1 !== '-') newCell.innerText = text1;
+                            else if (text2 && text2 !== '-') newCell.innerText = text2;
+                            else newCell.innerText = '-';
+                        }
+                        tr.appendChild(newCell);
+                    }
                 });
                 
-                // Inject the row back into thead or tbody
                 if (rowIndex === 0) {
                     let thead = document.createElement("thead");
                     thead.appendChild(tr);

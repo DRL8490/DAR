@@ -1,3 +1,6 @@
+import pandas as pd
+import io
+from flask import send_file
 import os, json
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
@@ -304,6 +307,62 @@ def cancel_task(task_id):
 def reports():
     all_tasks = SurveyTask.query.order_by(SurveyTask.start_time.desc()).all()
     return render_template('reports.html', tasks=all_tasks)
+@app.route('/export_excel')
+@login_required
+def export_excel():
+    # 1. Grab all tasks from the database
+    tasks = SurveyTask.query.order_by(SurveyTask.start_time.asc()).all()
+    
+    # 2. Map the database columns to your specific Master Register format
+    data = []
+    for i, task in enumerate(tasks, 1):
+        data.append({
+            'Tender / Project Ref.': '20012',
+            'Sl No': i,
+            'Activity Type': task.task_category,
+            'Discipline': task.action_required,
+            'Requestor Ref. #': '', # Leave blank for manual entry or map later
+            'Survey Ref. #': f"THPP-SURV-{task.id:04d}",
+            'Requestor': task.requestor,
+            'Assigned to': task.assigned_to,
+            'Date/Time Received': task.start_time.strftime('%Y-%m-%d %H:%M') if task.start_time else '',
+            'Date/Time Completed': task.end_time.strftime('%Y-%m-%d %H:%M') if task.end_time else '',
+            'Description of Survey Works / Survey Volume Calculation': f"{task.area} - {task.location or ''} - {task.work_scope}",
+            'Special Conditions / Remarks': task.remarks or ''
+        })
+    
+    df = pd.DataFrame(data)
+    output = io.BytesIO()
+    
+    # 3. Create the Excel file and inject the custom QA/QC Header Rows
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        # Start the table on row 3 (index 2) so we have room for the titles
+        df.to_excel(writer, index=False, startrow=2, sheet_name='Master Register')
+        worksheet = writer.sheets['Master Register']
+        
+        # Row 1 Title
+        worksheet.cell(row=1, column=5, value="SURVEY ACTIVITY MASTER REGISTER")
+        
+        # Row 2 Title (Dynamically sets the current month/year)
+        current_month = datetime.utcnow().strftime("%B %Y").upper()
+        worksheet.cell(row=2, column=1, value=f"MONTH OF {current_month} - SURVEY TEAM")
+        
+        # Auto-adjust column widths for readability
+        for column in worksheet.columns:
+            max_length = 0
+            column = [cell for cell in column]
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(cell.value)
+                except:
+                    pass
+            adjusted_width = (max_length + 2)
+            worksheet.column_dimensions[column[0].column_letter].width = adjusted_width
 
+    output.seek(0)
+    filename = f"2510_QA-20-FM-003-13_Master_SAR-SVR_Register_{datetime.utcnow().strftime('%Y%m%d')}.xlsx"
+    
+    return send_file(output, download_name=filename, as_attachment=True)
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
