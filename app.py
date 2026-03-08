@@ -2,6 +2,7 @@ import pandas as pd
 import io
 from flask import send_file
 import os, json
+import traceback
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -200,140 +201,93 @@ def dashboard():
     all_tasks = SurveyTask.query.order_by(SurveyTask.start_time.desc()).all()
     return render_template('dashboard.html', name=current_user.name, tasks=all_tasks)
 
-@app.route('/new_task', methods=['GET', 'POST'])
-@login_required
-def new_task():
-    config = AppConfig.query.first()
-    schema_json = config.schema_data if config else "{}"
-    
-    preset_id = request.args.get('preset_id')
-    loaded_preset = None
-    if preset_id:
-        loaded_preset = PresetTask.query.filter_by(id=preset_id, user_id=current_user.id).first()
-        if loaded_preset:
-            loaded_preset = {c.name: getattr(loaded_preset, c.name) for c in loaded_preset.__table__.columns}
-    
-    if request.method == 'POST':
-        req_dept = request.form.get('requestor_dept')
-        req_name = request.form.get('requestor_name')
-        merged_requestor = f"{req_dept} - {req_name}"
-        
-        save_preset = request.form.get('save_preset')
-        preset_name = request.form.get('preset_name')
-        if save_preset == 'true':
-            p_name = preset_name or f"{request.form.get('area')} - {request.form.get('work_scope')}"
-            db.session.add(PresetTask(
-                user_id=current_user.id, preset_name=p_name, req_dept=req_dept, req_name=req_name,
-                assigned_to=request.form.get('assigned_to'), task_category=request.form.get('task_category'),
-                area=request.form.get('area'), location=request.form.get('location'), 
-                sub_location=request.form.get('sub_location'), work_scope=request.form.get('work_scope'),
-                instrument=request.form.get('instrument'), action_required=request.form.get('action_required')
-            ))
-        
-        ref_links = request.form.getlist('reference_link')
-        ref_links_str = " | ".join([link for link in ref_links if link.strip()])
-
-        new_survey = SurveyTask(
-            surveyor_name=current_user.name, assigned_to=request.form.get('assigned_to'), requestor=merged_requestor,
-            task_category=request.form.get('task_category'), instrument=request.form.get('instrument'), action_required=request.form.get('action_required'),
-            area=request.form.get('area'), location=request.form.get('location'), sub_location=request.form.get('sub_location'),
-            work_scope=request.form.get('work_scope'), remarks=request.form.get('remarks'), reference_links=ref_links_str
-        )
-        db.session.add(new_survey)
-        db.session.commit()
-        flash('New task opened successfully!', 'success')
-        return redirect(url_for('dashboard'))
-        
-    requestors = Requestor.query.all()
-    req_dict = {}
-    for r in requestors:
-        if r.department not in req_dict: req_dict[r.department] = []
-        req_dict[r.department].append(r.name)
-        
-    user_presets = PresetTask.query.filter_by(user_id=current_user.id).all()
-        
-    return render_template('new_task.html', users=User.query.all(), req_dict_json=json.dumps(req_dict), schema_json=schema_json,
-                           categories=DropdownOption.query.filter_by(category='TaskCategory').all(), 
-                           instruments=DropdownOption.query.filter_by(category='Instrument').all(), 
-                           actions=DropdownOption.query.filter_by(category='ActionRequired').all(),
-                           loaded_preset=json.dumps(loaded_preset) if loaded_preset else "null",
-                           presets=user_presets)
 @app.route('/edit_task/<int:task_id>', methods=['GET', 'POST'])
 @login_required
 def edit_task(task_id):
-    task = SurveyTask.query.get_or_404(task_id)
-    
-    # Security: Only creator or assignee can edit
-    if current_user.name not in [task.surveyor_name, task.assigned_to]:
-        flash('Unauthorized to edit this task.', 'error')
-        return redirect(url_for('dashboard'))
-
-    if request.method == 'POST':
-        req_dept = request.form.get('requestor_dept')
-        req_name = request.form.get('requestor_name')
-        
-        task.requestor = f"{req_dept} - {req_name}"
-        task.assigned_to = request.form.get('assigned_to')
-        task.task_category = request.form.get('task_category')
-        task.area = request.form.get('area')
-        task.location = request.form.get('location')
-        task.sub_location = request.form.get('sub_location')
-        task.work_scope = request.form.get('work_scope')
-        task.instrument = request.form.get('instrument')
-        task.action_required = request.form.get('action_required')
-        task.remarks = request.form.get('remarks')
-
-        ref_links = request.form.getlist('reference_link')
-        task.reference_links = " | ".join([link for link in ref_links if link.strip()])
-
-        db.session.commit()
-        flash('Task updated successfully!', 'success')
-        return redirect(url_for('dashboard'))
-
-    # Prepare data for GET request (Form rendering)
-    config = AppConfig.query.first()
-    schema_json = config.schema_data if config else "{}"
-    
-    requestors = Requestor.query.all()
-    req_dict = {}
-    for r in requestors:
-        if r.department not in req_dict: req_dict[r.department] = []
-        req_dict[r.department].append(r.name)
-        
-    # BULLETPROOF EXTRACTION: We explicitly map only what Javascript needs!
-    task_dict = {
-        'assigned_to': task.assigned_to or "",
-        'task_category': task.task_category or "",
-        'instrument': task.instrument or "",
-        'action_required': task.action_required or "",
-        'area': task.area or "",
-        'location': task.location or "",
-        'sub_location': task.sub_location or "",
-        'work_scope': task.work_scope or ""
-    }
-    
-    # Safely split the requestor
-    if task.requestor and " - " in task.requestor:
-        task_dict['req_dept'], task_dict['req_name'] = task.requestor.split(" - ", 1)
-    else:
-        task_dict['req_dept'], task_dict['req_name'] = "", ""
-
-    # Safely build the Task ID String in Python, NOT Jinja
     try:
-        task_id_str = task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else f"UNKNOWN-{task.id}"
-    except Exception:
-        task_id_str = str(task.start_time)
+        task = SurveyTask.query.get_or_404(task_id)
+        
+        # Security: Only creator or assignee can edit
+        if current_user.name not in [task.surveyor_name, task.assigned_to]:
+            flash('Unauthorized to edit this task.', 'error')
+            return redirect(url_for('dashboard'))
 
-    return render_template('edit_task.html', 
-                           task=task, 
-                           task_id_str=task_id_str,  # <-- Passed safely to UI
-                           users=User.query.all(), 
-                           req_dict_json=json.dumps(req_dict), 
-                           schema_json=schema_json, 
-                           categories=DropdownOption.query.filter_by(category='TaskCategory').all(), 
-                           instruments=DropdownOption.query.filter_by(category='Instrument').all(), 
-                           actions=DropdownOption.query.filter_by(category='ActionRequired').all(),
-                           task_json=json.dumps(task_dict))@login_required
+        if request.method == 'POST':
+            req_dept = request.form.get('requestor_dept')
+            req_name = request.form.get('requestor_name')
+            
+            task.requestor = f"{req_dept} - {req_name}"
+            task.assigned_to = request.form.get('assigned_to')
+            task.task_category = request.form.get('task_category')
+            task.area = request.form.get('area')
+            task.location = request.form.get('location')
+            task.sub_location = request.form.get('sub_location')
+            task.work_scope = request.form.get('work_scope')
+            task.instrument = request.form.get('instrument')
+            task.action_required = request.form.get('action_required')
+            task.remarks = request.form.get('remarks')
+
+            ref_links = request.form.getlist('reference_link')
+            task.reference_links = " | ".join([link for link in ref_links if link.strip()])
+
+            db.session.commit()
+            flash('Task updated successfully!', 'success')
+            return redirect(url_for('dashboard'))
+
+        # Prepare data for GET request
+        config = AppConfig.query.first()
+        schema_json = config.schema_data if config else "{}"
+        
+        requestors = Requestor.query.all()
+        req_dict = {}
+        for r in requestors:
+            if r.department not in req_dict: req_dict[r.department] = []
+            req_dict[r.department].append(r.name)
+            
+        task_dict = {
+            'assigned_to': task.assigned_to or "",
+            'task_category': task.task_category or "",
+            'instrument': task.instrument or "",
+            'action_required': task.action_required or "",
+            'area': task.area or "",
+            'location': task.location or "",
+            'sub_location': task.sub_location or "",
+            'work_scope': task.work_scope or ""
+        }
+        
+        if task.requestor and " - " in task.requestor:
+            task_dict['req_dept'], task_dict['req_name'] = task.requestor.split(" - ", 1)
+        else:
+            task_dict['req_dept'], task_dict['req_name'] = "", ""
+
+        try:
+            task_id_str = task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else f"UNKNOWN-{task.id}"
+        except Exception:
+            task_id_str = str(task.start_time)
+
+        return render_template('edit_task.html', 
+                               task=task, 
+                               task_id_str=task_id_str,
+                               users=User.query.all(), 
+                               req_dict_json=json.dumps(req_dict), 
+                               schema_json=schema_json, 
+                               categories=DropdownOption.query.filter_by(category='TaskCategory').all(), 
+                               instruments=DropdownOption.query.filter_by(category='Instrument').all(), 
+                               actions=DropdownOption.query.filter_by(category='ActionRequired').all(),
+                               task_json=json.dumps(task_dict))
+                               
+    except Exception as e:
+        # IF IT CRASHES, IT WILL PRINT THE EXACT REASON HERE:
+        error_details = traceback.format_exc()
+        return f"""
+        <div style="font-family: monospace; padding: 20px; background: #ffe6e6; border: 2px solid red;">
+            <h2 style="color: red;">DIAGNOSTIC CRASH REPORT</h2>
+            <p><strong>Error:</strong> {str(e)}</p>
+            <h3>Full Traceback:</h3>
+            <pre style="background: white; padding: 10px; border: 1px solid #ccc; overflow-x: auto;">{error_details}</pre>
+        </div>
+        """
+
 def close_task(task_id):
     task = SurveyTask.query.get_or_404(task_id)
     if current_user.name not in [task.surveyor_name, task.assigned_to]:
