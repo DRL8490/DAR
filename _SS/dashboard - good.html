@@ -43,10 +43,7 @@
 <body>
     <div class="header">
         <h2>Active Survey Tasks</h2>
-        <div style="display: flex; gap: 10px;">
-            <a href="/new_task" class="btn-new">+ Open New Task</a>
-            <a href="/system_config_hidden" class="btn-new" style="background-color: #ffc107; color: black;">⚙️ Config</a>
-        </div>
+        <a href="/new_task" class="btn-new">+ Open New Task</a>
     </div>
 
     <div class="filter-bar">
@@ -55,7 +52,7 @@
         <button class="btn-filter active" id="btnFilterOpen" onclick="setPresetFilter('open', this)">Open</button>
         <button class="btn-filter" onclick="setPresetFilter('closed', this)">Closed</button>
         <button class="btn-filter" onclick="setPresetFilter('canceled', this)">Canceled</button>
-        <button class="btn-filter" onclick="setPresetFilter('mine', this)">Assigned to Me</button>
+        <button class="btn-filter" onclick="setPresetFilter('mine', this)">Mine</button>
         
         <div style="margin-left: auto; display: flex; align-items: center; gap: 5px;">
             <span style="font-size: 13px; color: #555;">From:</span>
@@ -74,11 +71,11 @@
 
     <div id="taskContainer">
         {% for task in tasks %}
-        <div class="task-card" data-status="{{ task.status }}" data-date="{{ task.start_time.strftime('%Y-%m-%d') }}" data-mine="{% if name == task.assigned_to %}true{% else %}false{% endif %}">
+        <div class="task-card" data-status="{{ task.status }}" data-date="{{ task.start_time.strftime('%Y-%m-%d') }}" data-mine="{% if name == task.surveyor_name or name == task.assigned_to %}true{% else %}false{% endif %}">
             
             <div class="task-header" onclick="toggleCard('body-{{ task.id }}')">
                 <div style="display: flex; align-items: center; flex-wrap: wrap;">
-                    <span class="task-id">{{ task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else 'UNKNOWN-'~task.id }}</span>
+                    <span class="task-id">{{ task.start_time.strftime('%Y%m%d-%H%M%S') }}</span>
                     <h3 class="task-title">{{ task.area }} | {{ task.work_scope }}</h3>
                 </div>
                 <div>

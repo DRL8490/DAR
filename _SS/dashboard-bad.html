@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - NMDC</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f7f6; padding: 20px; max-width: 900px; margin: auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .btn { padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; border: none; text-decoration: none; display: inline-block; font-size: 14px; }
+        .btn-primary { background: #0056b3; color: white; }
+        .btn-warning { background: #ffc107; color: black; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+
+        /* Classic Card Layout */
+        .task-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; border-left: 5px solid #0056b3; }
+        .task-card[data-status="Closed"] { border-left-color: #28a745; opacity: 0.8; }
+        .task-card[data-status="Canceled"] { border-left-color: #dc3545; opacity: 0.6; }
+        
+        .status-badge { padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-right: 10px; }
+        .status-Open { background: #ffeeba; color: #856404; }
+        .status-Closed { background: #d4edda; color: #155724; }
+        .status-Canceled { background: #f8d7da; color: #721c24; }
+
+        /* Filter Buttons */
+        .filter-container { margin-bottom: 20px; display: flex; gap: 10px; }
+        .filter-btn { padding: 8px 15px; border: 2px solid #0056b3; background: white; color: #0056b3; cursor: pointer; border-radius: 6px; font-weight: bold; }
+        .filter-btn.active { background: #0056b3; color: white; }
+
+        /* Actions and Hidden Details */
+        .action-form { display: none; background: #f8f9fa; padding: 15px; border-radius: 6px; margin-top: 15px; border: 1px solid #ddd; }
+        .action-form input { padding: 10px; width: calc(100% - 22px); margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        
+        .hidden-details { margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 6px; border: 1px solid #ddd; font-family: monospace; font-size: 14px; line-height: 1.8; color: #222; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2>📊 Survey Dashboard</h2>
+        <div style="display: flex; gap: 10px;">
+            <a href="/new_task" class="btn btn-primary">+ New Task</a>
+            <a href="/reports" class="btn btn-secondary">Reports</a>
+            <a href="/system_config_hidden" class="btn btn-warning">⚙️ Config</a>
+            <a href="/logout" class="btn btn-danger">Logout</a>
+        </div>
+    </div>
+
+    <div class="filter-container">
+        <button class="filter-btn active" id="btnAll" onclick="filterTasks('all')">All Tasks</button>
+        <button class="filter-btn" id="btnAssigned" onclick="filterTasks('assigned')">Assigned to Me</button>
+    </div>
+
+    <div id="taskList">
+        {% for task in tasks %}
+        <div class="task-card" data-assigned="{{ task.assigned_to }}" data-status="{{ task.status }}">
+            
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                    <h3 style="margin-top: 0; margin-bottom: 8px;">
+                        <span class="status-badge status-{{ task.status }}">{{ task.status }}</span> 
+                        {{ task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else 'UNKNOWN-'~task.id }} - {{ task.task_category }}
+                    </h3>
+                    <p style="margin: 0; color: #555; font-size: 14px;"><strong>Area:</strong> {{ task.area }} | <strong>Location:</strong> {{ task.location }}</p>
+                </div>
+                
+                <div style="display: flex; gap: 5px;">
+                    {% if task.status == 'Open' %}
+                    <a href="/edit_task/{{ task.id }}" class="btn btn-warning">Edit</a>
+                    <button class="btn btn-success" onclick="toggleForm('complete-{{ task.id }}')">Complete</button>
+                    <button class="btn btn-danger" onclick="toggleForm('cancel-{{ task.id }}')">Cancel</button>
+                    {% endif %}
+                </div>
+            </div>
+
+            <details style="margin-top: 15px; cursor: pointer; color: #0056b3; font-weight: bold; outline: none;">
+                <summary>View Details</summary>
+                <div class="hidden-details">
+                    Line 1 - [{{ task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else 'UNKNOWN-'~task.id }}] Area:[{{ task.area }}] | Location:{{ task.location }} | {{ task.sub_location }} | Work Scope:[{{ task.work_scope }}] | [{{ task.action_required }}]<br>
+                    Line 2 - [Requested by: {{ task.requestor }}] [Assigned to: {{ task.assigned_to }}]
+                    
+                    {% if task.remarks or task.reference_links %}
+                    <hr style="border: 0; border-top: 1px solid #ccc; margin: 15px 0;">
+                    {% if task.remarks %}<p style="margin: 5px 0;"><strong>Remarks:</strong> {{ task.remarks }}</p>{% endif %}
+                    {% if task.reference_links %}
+                        <p style="margin: 5px 0;"><strong>Links:</strong> 
+                        {% for link in task.reference_links.split(' | ') %}
+                            <a href="{{ link }}" target="_blank" style="color: #0056b3;">Link {{ loop.index }}</a>
+                        {% endfor %}
+                        </p>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </details>
+
+            <div id="complete-{{ task.id }}" class="action-form">
+                <form action="/close_task/{{ task.id }}" method="POST">
+                    <input type="text" name="closing_remarks" placeholder="Closing Remarks (Required)..." required>
+                    <input type="url" name="deliverable_link" placeholder="Deliverable Link (Optional)...">
+                    <button type="submit" class="btn btn-success">Submit Completion</button>
+                    <button type="button" class="btn btn-secondary" onclick="toggleForm('complete-{{ task.id }}')">Cancel</button>
+                </form>
+            </div>
+            <div id="cancel-{{ task.id }}" class="action-form">
+                <form action="/cancel_task/{{ task.id }}" method="POST">
+                    <input type="text" name="cancel_reason" placeholder="Reason for cancellation (Required)..." required>
+                    <button type="submit" class="btn btn-danger">Confirm Cancel</button>
+                    <button type="button" class="btn btn-secondary" onclick="toggleForm('cancel-{{ task.id }}')">Cancel</button>
+                </form>
+            </div>
+            
+        </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        function filterTasks(type) {
+            const currentUser = "{{ current_user.name }}";
+            const cards = document.querySelectorAll('.task-card');
+            
+            document.getElementById('btnAll').classList.remove('active');
+            document.getElementById('btnAssigned').classList.remove('active');
+            
+            if (type === 'all') {
+                document.getElementById('btnAll').classList.add('active');
+                cards.forEach(card => card.style.display = 'block');
+            } else if (type === 'assigned') {
+                document.getElementById('btnAssigned').classList.add('active');
+                cards.forEach(card => {
+                    // Compares the logged in user to the data-assigned tag on the card
+                    if (card.getAttribute('data-assigned') === currentUser) {
+                        card.style.display = 'block';
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+            }
+        }
+
+        function toggleForm(id) {
+            const form = document.getElementById(id);
+            if (form.style.display === 'block') {
+                form.style.display = 'none';
+            } else {
+                const parentCard = form.closest('.task-card');
+                parentCard.querySelectorAll('.action-form').forEach(f => f.style.display = 'none');
+                form.style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>
