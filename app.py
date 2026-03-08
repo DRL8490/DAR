@@ -365,7 +365,7 @@ def export_excel():
     
     # 2. Map the database columns to your specific Master Register format
     data = []
-  for i, task in enumerate(tasks, 1):
+    for i, task in enumerate(tasks, 1):
         # Format the new Task ID based on start_time
         task_id_str = task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else f"UNKNOWN-{task.id}"
         
@@ -389,18 +389,17 @@ def export_excel():
     
     # 3. Create the Excel file and inject the custom QA/QC Header Rows
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        # Start the table on row 3 (index 2) so we have room for the titles
         df.to_excel(writer, index=False, startrow=2, sheet_name='Master Register')
         worksheet = writer.sheets['Master Register']
         
         # Row 1 Title
         worksheet.cell(row=1, column=5, value="SURVEY ACTIVITY MASTER REGISTER")
         
-        # Row 2 Title (Dynamically sets the current month/year)
+        # Row 2 Title
         current_month = datetime.utcnow().strftime("%B %Y").upper()
         worksheet.cell(row=2, column=1, value=f"MONTH OF {current_month} - SURVEY TEAM")
         
-        # Auto-adjust column widths for readability
+        # Auto-adjust column widths
         for column in worksheet.columns:
             max_length = 0
             column = [cell for cell in column]
@@ -416,7 +415,8 @@ def export_excel():
     output.seek(0)
     filename = f"2510_QA-20-FM-003-13_Master_SAR-SVR_Register_{datetime.utcnow().strftime('%Y%m%d')}.xlsx"
     
-    return send_file(output, download_name=filename, as_attachment=True)
+    return send_file(output, download_name=filename, as_attachment=True)  
+  
 @app.route('/pv1_migrate')
 @login_required
 def pv1_migrate():
