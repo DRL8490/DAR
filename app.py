@@ -293,7 +293,7 @@ def hidden_config():
         return redirect(url_for('hidden_config'))
         
     requestors = Requestor.query.all()
-   departments = DropdownOption.query.filter_by(category='Department').order_by(DropdownOption.name.asc()).all()
+    departments = DropdownOption.query.filter_by(category='Department').order_by(DropdownOption.name.asc()).all()
     return render_template('hidden_admin.html', schema_json=json.dumps(schema), requestors=requestors, departments=departments)
 
 # --- WORKFLOW ROUTES ---
