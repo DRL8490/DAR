@@ -17,7 +17,7 @@
 </head>
 <body>
     <div class="card">
-        <h2>✏️ Edit Task: {{ task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else 'Unknown ID' }}</h2>
+        <h2>✏️ Edit Task: {{ task_id_str }}</h2>
         <form action="/edit_task/{{ task.id }}" method="POST">
             
             <div class="form-group"><label>Requestor Dept:</label><select name="requestor_dept" id="reqDept" onchange="updateReqNames()" required><option value="">-- Select Dept --</option></select></div>

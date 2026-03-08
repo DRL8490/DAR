@@ -293,27 +293,47 @@ def edit_task(task_id):
     # Prepare data for GET request (Form rendering)
     config = AppConfig.query.first()
     schema_json = config.schema_data if config else "{}"
+    
     requestors = Requestor.query.all()
     req_dict = {}
     for r in requestors:
         if r.department not in req_dict: req_dict[r.department] = []
         req_dict[r.department].append(r.name)
         
-    # FIX: Convert all database values to strings first so JSON doesn't crash on datetime objects!
-    task_dict = {c.name: str(getattr(task, c.name)) if getattr(task, c.name) else "" for c in task.__table__.columns}
+    # BULLETPROOF EXTRACTION: We explicitly map only what Javascript needs!
+    task_dict = {
+        'assigned_to': task.assigned_to or "",
+        'task_category': task.task_category or "",
+        'instrument': task.instrument or "",
+        'action_required': task.action_required or "",
+        'area': task.area or "",
+        'location': task.location or "",
+        'sub_location': task.sub_location or "",
+        'work_scope': task.work_scope or ""
+    }
     
-    # Split requestor back into dept and name for the UI
+    # Safely split the requestor
     if task.requestor and " - " in task.requestor:
         task_dict['req_dept'], task_dict['req_name'] = task.requestor.split(" - ", 1)
     else:
         task_dict['req_dept'], task_dict['req_name'] = "", ""
 
-    return render_template('edit_task.html', task=task, users=User.query.all(), req_dict_json=json.dumps(req_dict), 
-                           schema_json=schema_json, categories=DropdownOption.query.filter_by(category='TaskCategory').all(), 
+    # Safely build the Task ID String in Python, NOT Jinja
+    try:
+        task_id_str = task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else f"UNKNOWN-{task.id}"
+    except Exception:
+        task_id_str = str(task.start_time)
+
+    return render_template('edit_task.html', 
+                           task=task, 
+                           task_id_str=task_id_str,  # <-- Passed safely to UI
+                           users=User.query.all(), 
+                           req_dict_json=json.dumps(req_dict), 
+                           schema_json=schema_json, 
+                           categories=DropdownOption.query.filter_by(category='TaskCategory').all(), 
                            instruments=DropdownOption.query.filter_by(category='Instrument').all(), 
                            actions=DropdownOption.query.filter_by(category='ActionRequired').all(),
-                           task_json=json.dumps(task_dict))@app.route('/close_task/<int:task_id>', methods=['POST'])
-@login_required
+                           task_json=json.dumps(task_dict))@login_required
 def close_task(task_id):
     task = SurveyTask.query.get_or_404(task_id)
     if current_user.name not in [task.surveyor_name, task.assigned_to]:
