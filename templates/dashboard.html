@@ -3,183 +3,162 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Active Tasks - NMDC</title>
+    <title>Dashboard - NMDC</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; background-color: #f4f7f6; padding: 20px; margin: 0; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
-        .btn-new { background-color: #0056b3; color: white; padding: 10px 15px; text-decoration: none; border-radius: 6px; font-weight: bold; }
+        body { font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; background-color: #f4f7f6; padding: 20px; max-width: 1200px; margin: auto; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .btn { padding: 8px 15px; border-radius: 4px; font-weight: bold; cursor: pointer; border: none; text-decoration: none; display: inline-block; font-size: 13px; }
+        .btn-primary { background: #0056b3; color: white; }
+        .btn-warning { background: #ffc107; color: black; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-outline { background: transparent; border: 2px solid #0056b3; color: #0056b3; }
+        .btn-outline.active { background: #0056b3; color: white; }
         
-        .filter-bar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; background: #e9ecef; padding: 12px; border-radius: 8px; align-items: center; }
-        .btn-filter { background: white; color: #555; border: 1px solid #ccc; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: 13px; font-weight: bold; transition: all 0.2s; }
-        .btn-filter:hover { background: #ddd; }
-        .btn-filter.active { background: #0056b3; color: white; border-color: #0056b3; }
-        .date-input { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
-        
-        .task-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; border-left: 5px solid #ffc107; transition: all 0.2s; }
+        /* High-Density Card Styling */
+        .task-card { background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; padding: 15px; border-left: 5px solid #ffc107; display: flex; flex-direction: column; gap: 10px; }
         .task-card[data-status="Closed"] { border-left-color: #28a745; opacity: 0.8; }
-        .task-card[data-status="Canceled"] { border-left-color: #dc3545; opacity: 0.8; }
+        .task-card[data-status="Canceled"] { border-left-color: #dc3545; opacity: 0.6; }
         
-        .task-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; cursor: pointer; }
-        .task-title { font-size: 16px; font-weight: bold; margin: 0; color: #333; }
-        .task-id { font-size: 12px; color: #666; font-family: monospace; background: #eee; padding: 3px 6px; border-radius: 4px; margin-right: 10px; }
-        .status-badge { font-size: 12px; padding: 3px 8px; border-radius: 12px; color: white; font-weight: bold; }
-        .badge-Open { background: #ffc107; color: black; }
-        .badge-Closed { background: #28a745; }
-        .badge-Canceled { background: #dc3545; }
+        .task-header { display: flex; justify-content: space-between; align-items: center; gap: 15px; }
+        .task-info { flex: 1; }
+        .line-1 { font-size: 14px; font-weight: bold; color: #333; margin-bottom: 5px; }
+        .line-2 { font-size: 13px; color: #666; font-weight: 500; }
+        .task-actions { display: flex; gap: 5px; flex-shrink: 0; }
+        
+        .status-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-right: 5px; }
+        .status-open { background: #ffeeba; color: #856404; }
+        .status-closed { background: #d4edda; color: #155724; }
+        .status-canceled { background: #f8d7da; color: #721c24; }
 
-        .task-body { display: none; margin-top: 15px; padding-top: 15px; border-top: 1px dashed #ccc; }
-        .task-detail { font-size: 14px; color: #666; margin: 4px 0; }
+        .filters { display: flex; gap: 10px; margin-bottom: 20px; }
         
-        .action-area { margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
-        .btn-action { color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; text-decoration: none; }
-        .btn-close { background-color: #28a745; }
-        .btn-cancel { background-color: #dc3545; }
-        .btn-edit { background-color: #ffc107; color: black; }
-        
-        .action-form { display: none; flex-direction: column; gap: 8px; margin-top: 10px; padding: 12px; background: #f9f9f9; border-radius: 6px; border: 1px solid #ddd; width: 100%; }
-        .action-input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+        /* Action Forms inside the card */
+        .action-form { display: none; background: #f8f9fa; padding: 10px; border-radius: 6px; margin-top: 10px; border: 1px solid #ddd; }
+        .action-form input { padding: 8px; width: calc(100% - 20px); margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; }
     </style>
 </head>
 <body>
     <div class="header">
-        <h2>Active Survey Tasks</h2>
-        <a href="/new_task" class="btn-new">+ Open New Task</a>
-    </div>
-
-    <div class="filter-bar">
-        <strong style="font-size: 14px; color: #333;">Filters:</strong>
-        <button class="btn-filter" onclick="setPresetFilter('all', this)">All</button>
-        <button class="btn-filter active" id="btnFilterOpen" onclick="setPresetFilter('open', this)">Open</button>
-        <button class="btn-filter" onclick="setPresetFilter('closed', this)">Closed</button>
-        <button class="btn-filter" onclick="setPresetFilter('canceled', this)">Canceled</button>
-        <button class="btn-filter" onclick="setPresetFilter('mine', this)">Mine</button>
-        
-        <div style="margin-left: auto; display: flex; align-items: center; gap: 5px;">
-            <span style="font-size: 13px; color: #555;">From:</span>
-            <input type="date" id="dateStart" class="date-input" onchange="applyFilters()">
-            <span style="font-size: 13px; color: #555;">To:</span>
-            <input type="date" id="dateEnd" class="date-input" onchange="applyFilters()">
-            <button onclick="clearDates()" style="background: none; border: none; color: #dc3545; cursor: pointer; font-weight: bold;" title="Clear Dates">X</button>
+        <h2>📊 Survey Dashboard</h2>
+        <div style="display: flex; gap: 10px;">
+            <a href="/new_task" class="btn btn-primary">+ New Task</a>
+            <a href="/reports" class="btn btn-secondary">Reports</a>
+            <a href="/system_config_hidden" class="btn btn-warning">⚙️ Config</a>
+            <a href="/logout" class="btn btn-danger">Logout</a>
         </div>
     </div>
 
-    <div style="margin-bottom: 20px;">
-        <a href="/reports" style="color: #0056b3; font-weight: bold; text-decoration: none;">📊 Open Report Generation Wizard</a>
+    <div class="filters">
+        <button class="btn btn-outline active" id="btnAll" onclick="filterTasks('all')">All Tasks</button>
+        <button class="btn btn-outline" id="btnAssigned" onclick="filterTasks('assigned')">Assigned to Me</button>
     </div>
 
-    <p id="noTasksMsg" style="text-align: center; color: #777; margin-top: 50px; display: none;">No tasks match this filter.</p>
-
-    <div id="taskContainer">
+    <div id="taskList">
         {% for task in tasks %}
-        <div class="task-card" data-status="{{ task.status }}" data-date="{{ task.start_time.strftime('%Y-%m-%d') }}" data-mine="{% if name == task.surveyor_name or name == task.assigned_to %}true{% else %}false{% endif %}">
+        <div class="task-card" data-assigned="{{ task.assigned_to }}" data-status="{{ task.status }}">
             
-            <div class="task-header" onclick="toggleCard('body-{{ task.id }}')">
-                <div style="display: flex; align-items: center; flex-wrap: wrap;">
-                    <span class="task-id">{{ task.start_time.strftime('%Y%m%d-%H%M%S') }}</span>
-                    <h3 class="task-title">{{ task.area }} | {{ task.work_scope }}</h3>
-                </div>
-                <div>
-                    <span class="status-badge badge-{{ task.status }}">{{ task.status }}</span>
-                    <span style="font-size: 12px; margin-left: 10px; color: #888;">▼</span>
-                </div>
-            </div>
-            
-            <div class="task-body" id="body-{{ task.id }}">
-                <p class="task-detail"><strong>Activity Type / Discipline:</strong> {{ task.task_category }} | {{ task.action_required }} ({{ task.instrument }})</p>
-                <p class="task-detail"><strong>Location:</strong> {{ task.location or 'N/A' }} | {{ task.sub_location or 'N/A' }}</p>
-                {% if task.reference_links %}
-                <p class="task-detail"><strong>References:</strong> {% for link in task.reference_links.split(' | ') %}<a href="{{ link }}" target="_blank" style="color: #0056b3; text-decoration: underline;">[Link {{ loop.index }}]</a> {% endfor %}</p>
-                {% endif %}
-                <p class="task-detail"><strong>Opening Remarks:</strong> {{ task.remarks.split('| Closed:')[0].split('| CANCELED:')[0] if task.remarks else 'None' }}</p>
-                
-                {% if task.status != 'Open' %}
-                <p class="task-detail" style="color: #333; background: #f1f1f1; padding: 5px; border-radius: 4px;">
-                    <strong>Closing Notes:</strong> {{ task.remarks.split('|')[1] if task.remarks and '|' in task.remarks else 'None' }}
-                </p>
-                {% endif %}
-                <p class="task-detail"><strong>Requested By:</strong> {{ task.requestor }} | <strong>Assigned To:</strong> {{ task.assigned_to }} (Opened by {{ task.surveyor_name }})</p>
-                
-                {% if task.status == 'Open' %}
-                    <div class="action-area">
-                        {% if name == task.surveyor_name or name == task.assigned_to %}
-                            <a href="/edit_task/{{ task.id }}" class="btn-action btn-edit">✏️ Edit</a>
-                            <button class="btn-action btn-close" onclick="document.getElementById('closeForm-{{ task.id }}').style.display='flex'">Complete</button>
-                            <button class="btn-action btn-cancel" onclick="document.getElementById('cancelForm-{{ task.id }}').style.display='flex'">Cancel</button>
-                            
-                            <form id="closeForm-{{ task.id }}" action="/close_task/{{ task.id }}" method="POST" class="action-form">
-                                <input type="text" name="closing_remarks" class="action-input" placeholder="Result/Closing remarks (Required)..." required>
-                                <input type="url" name="deliverable_link" class="action-input" placeholder="OneDrive Deliverable Link (Optional)...">
-                                <button type="submit" class="btn-action btn-close">Confirm Close</button>
-                            </form>
-                            
-                            <form id="cancelForm-{{ task.id }}" action="/cancel_task/{{ task.id }}" method="POST" class="action-form">
-                                <input type="text" name="cancel_reason" class="action-input" placeholder="Reason for cancellation (Required)..." required>
-                                <button type="submit" class="btn-action btn-cancel">Confirm Cancel</button>
-                            </form>
-                        {% else %}
-                            <span style="font-size: 12px; font-style: italic; color: #888;">Only creator/assignee can edit or close.</span>
-                        {% endif %}
+            <div class="task-header">
+                <div class="task-info">
+                    <div class="line-1">
+                        <span class="status-badge 
+                            {% if task.status == 'Open' %}status-open
+                            {% elif task.status == 'Closed' %}status-closed
+                            {% else %}status-canceled{% endif %}">
+                            {{ task.status }}
+                        </span>
+                        [{{ task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else 'UNKNOWN-'~task.id }}] 
+                        Area:[{{ task.area }}] | 
+                        Location:{{ task.location }} | {{ task.sub_location }} | 
+                        Work Scope:[{{ task.work_scope }}] | 
+                        [{{ task.action_required }}]
                     </div>
-                {% endif %}
+                    <div class="line-2">
+                        [Requested by: {{ task.requestor }}] [Assigned to: {{ task.assigned_to }}]
+                    </div>
+                </div>
+                
+                <div class="task-actions">
+                    {% if task.status == 'Open' %}
+                    <a href="/edit_task/{{ task.id }}" class="btn btn-warning">Edit</a>
+                    <button class="btn btn-success" onclick="toggleForm('complete-{{ task.id }}')">Complete</button>
+                    <button class="btn btn-danger" onclick="toggleForm('cancel-{{ task.id }}')">Cancel</button>
+                    {% endif %}
+                </div>
             </div>
+
+            {% if task.remarks or task.reference_links %}
+            <details style="font-size: 13px; color: #555; margin-top: 5px;">
+                <summary style="cursor: pointer; font-weight: bold; color: #0056b3;">View Extra Details</summary>
+                <div style="padding-top: 5px; padding-left: 15px;">
+                    {% if task.remarks %}<p style="margin: 5px 0;"><strong>Remarks:</strong> {{ task.remarks }}</p>{% endif %}
+                    {% if task.reference_links %}
+                        <p style="margin: 5px 0;"><strong>Links:</strong> 
+                        {% for link in task.reference_links.split(' | ') %}
+                            <a href="{{ link }}" target="_blank">Link {{ loop.index }}</a>
+                        {% endfor %}
+                        </p>
+                    {% endif %}
+                </div>
+            </details>
+            {% endif %}
+
+            <div id="complete-{{ task.id }}" class="action-form">
+                <form action="/close_task/{{ task.id }}" method="POST">
+                    <input type="text" name="closing_remarks" placeholder="Closing Remarks (Required)..." required>
+                    <input type="url" name="deliverable_link" placeholder="Deliverable Link (Optional)...">
+                    <button type="submit" class="btn btn-success">Submit Completion</button>
+                    <button type="button" class="btn btn-secondary" onclick="toggleForm('complete-{{ task.id }}')">Close View</button>
+                </form>
+            </div>
+            <div id="cancel-{{ task.id }}" class="action-form">
+                <form action="/cancel_task/{{ task.id }}" method="POST">
+                    <input type="text" name="cancel_reason" placeholder="Reason for cancellation (Required)..." required>
+                    <button type="submit" class="btn btn-danger">Confirm Cancel</button>
+                    <button type="button" class="btn btn-secondary" onclick="toggleForm('cancel-{{ task.id }}')">Close View</button>
+                </form>
+            </div>
+
         </div>
         {% endfor %}
     </div>
-    
-    <div style="text-align: center; margin-top: 30px;"><a href="/logout" style="color: #dc3545; text-decoration: none;">Logout ({{ name }})</a></div>
 
     <script>
-        let currentStatusFilter = 'open';
-
-        function toggleCard(id) {
-            let el = document.getElementById(id);
-            el.style.display = el.style.display === 'block' ? 'none' : 'block';
-        }
-
-        function setPresetFilter(type, btn) {
-            document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
-            if(btn) btn.classList.add('active');
-            currentStatusFilter = type;
-            applyFilters();
-        }
-
-        function clearDates() {
-            document.getElementById('dateStart').value = "";
-            document.getElementById('dateEnd').value = "";
-            applyFilters();
-        }
-
-        function applyFilters() {
+        // Updated Filter Logic: Checks the "Assigned To" variable against the logged-in User
+        function filterTasks(type) {
+            const currentUser = "{{ current_user.name }}";
             const cards = document.querySelectorAll('.task-card');
-            const dStart = document.getElementById('dateStart').value;
-            const dEnd = document.getElementById('dateEnd').value;
-            let visibleCount = 0;
-
-            cards.forEach(card => {
-                let show = false;
-                const status = card.dataset.status;
-                const date = card.dataset.date;
-                const isMine = card.dataset.mine === 'true';
-
-                if (currentStatusFilter === 'all') show = true;
-                else if (currentStatusFilter === 'open' && status === 'Open') show = true;
-                else if (currentStatusFilter === 'closed' && status === 'Closed') show = true;
-                else if (currentStatusFilter === 'canceled' && status === 'Canceled') show = true;
-                else if (currentStatusFilter === 'mine' && isMine) show = true;
-
-                if (show) {
-                    if (dStart && date < dStart) show = false;
-                    if (dEnd && date > dEnd) show = false;
-                }
-
-                card.style.display = show ? 'block' : 'none';
-                if(show) visibleCount++;
-            });
-
-            document.getElementById('noTasksMsg').style.display = visibleCount === 0 ? 'block' : 'none';
+            
+            document.getElementById('btnAll').classList.remove('active');
+            document.getElementById('btnAssigned').classList.remove('active');
+            
+            if (type === 'all') {
+                document.getElementById('btnAll').classList.add('active');
+                cards.forEach(card => card.style.display = 'flex');
+            } else if (type === 'assigned') {
+                document.getElementById('btnAssigned').classList.add('active');
+                cards.forEach(card => {
+                    if (card.getAttribute('data-assigned') === currentUser) {
+                        card.style.display = 'flex';
+                    } else {
+                        card.style.display = 'none';
+                    }
+                });
+            }
         }
 
-        window.onload = () => applyFilters();
+        // Dropdown toggle for closing/canceling tasks
+        function toggleForm(id) {
+            const form = document.getElementById(id);
+            if (form.style.display === 'block') {
+                form.style.display = 'none';
+            } else {
+                const parentCard = form.closest('.task-card');
+                parentCard.querySelectorAll('.action-form').forEach(f => f.style.display = 'none');
+                form.style.display = 'block';
+            }
+        }
     </script>
 </body>
 </html>
