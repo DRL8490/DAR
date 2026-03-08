@@ -69,18 +69,17 @@
  // ----------------------------------------
         // PRE-FILL EXISTING TASK DATA (WITH LEGACY SAFENET)
         // ----------------------------------------
-        function setSafeVal(idOrName, val) {
+function setSafeVal(idOrName, val) {
             if (!val || val === "N/A" || val === "None") return;
             let el = document.getElementById(idOrName) || document.querySelector(`[name="${idOrName}"]`);
             if (!el) return;
             
-            // If the old data doesn't match the new PV1 dropdown lists, force it to appear!
+            // Invisible Safenet: Creates the option but hides the warning label
             let exists = Array.from(el.options).some(opt => opt.value === val);
             if (!exists) {
                 let opt = document.createElement('option');
                 opt.value = val;
-                opt.innerHTML = val + " (Legacy)";
-                opt.style.color = "red";
+                opt.innerHTML = val; // Removed the " (Legacy)" text!
                 el.appendChild(opt);
             }
             el.value = val;
