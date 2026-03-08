@@ -53,13 +53,13 @@
     <script>
         function addLink() { let d = document.createElement('div'); d.style.cssText = "display:flex; gap:5px; margin-bottom:5px;"; d.innerHTML = '<input type="url" name="reference_link" style="flex:1;"><button type="button" class="btn-remove" onclick="this.parentElement.remove()">X</button>'; document.getElementById('link-container').appendChild(d); }
 
-        let reqTree = {{ req_dict_json | safe }};
-        function popReqDepts() { let d = document.getElementById("reqDept"); Object.keys(reqTree).forEach(x => { let o = document.createElement("option"); o.value = x; o.innerHTML = x; d.appendChild(o); }); }
-        function updateReqNames() { let d = document.getElementById("reqDept").value; let n = document.getElementById("reqName"); n.innerHTML = '<option value="">-- Select Name --</option>'; if (d && reqTree[d]) { reqTree[d].forEach(x => { let o = document.createElement("option"); o.value = x; o.innerHTML = x; n.appendChild(o); }); } }
+ let reqTree = {{ req_dict_json | safe }};
+        function popReqDepts() { let d = document.getElementById("reqDept"); Object.keys(reqTree).sort().forEach(x => { let o = document.createElement("option"); o.value = x; o.innerHTML = x; d.appendChild(o); }); }
+        function updateReqNames() { let d = document.getElementById("reqDept").value; let n = document.getElementById("reqName"); n.innerHTML = '<option value="">-- Select Name --</option>'; if (d && reqTree[d]) { reqTree[d].sort().forEach(x => { let o = document.createElement("option"); o.value = x; o.innerHTML = x; n.appendChild(o); }); } }
         popReqDepts();
 
         let schema = {{ schema_json | safe }};
-        function popD(id, list) { let d = document.getElementById(id); d.innerHTML = '<option value="">-- Select --</option>'; list.forEach(x => { let o = document.createElement('option'); o.value = x; o.innerHTML = x; d.appendChild(o); }); }
+        function popD(id, list) { let d = document.getElementById(id); d.innerHTML = '<option value="">-- Select --</option>'; list.sort().forEach(x => { let o = document.createElement('option'); o.value = x; o.innerHTML = x; d.appendChild(o); }); }
         function loadAreas() { popD("areaDropdown", Object.keys(schema)); updateLocations(); }
         function updateLocations() { let a = document.getElementById("areaDropdown").value; popD("locationDropdown", a && schema[a] ? Object.keys(schema[a]) : []); updateSubLocations(); }
         function updateSubLocations() { let a = document.getElementById("areaDropdown").value; let l = document.getElementById("locationDropdown").value; popD("subLocationDropdown", (a && l && schema[a][l]) ? Object.keys(schema[a][l]) : []); updateWorkScopes(); }

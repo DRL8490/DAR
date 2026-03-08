@@ -102,10 +102,10 @@
     <script>
         let schema = {{ schema_json | safe }};
         
-        function pop(id, list) {
+function pop(id, list) {
             let el = document.getElementById(id);
             el.innerHTML = '<option value="">-- Select Parent --</option>';
-            list.forEach(i => el.innerHTML += `<option value="${i}">${i}</option>`);
+            list.sort().forEach(i => el.innerHTML += `<option value="${i}">${i}</option>`);
         }
         
         pop("aDrop", Object.keys(schema));

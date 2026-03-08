@@ -206,7 +206,7 @@ with app.app_context():
         for req in new_actions: db.session.add(DropdownOption(category='ActionRequired', name=req))
 
     db.session.commit()
-    
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -293,7 +293,7 @@ def hidden_config():
         return redirect(url_for('hidden_config'))
         
     requestors = Requestor.query.all()
-    departments = DropdownOption.query.filter_by(category='Department').all()
+   departments = DropdownOption.query.filter_by(category='Department').order_by(DropdownOption.name.asc()).all()
     return render_template('hidden_admin.html', schema_json=json.dumps(schema), requestors=requestors, departments=departments)
 
 # --- WORKFLOW ROUTES ---
@@ -367,10 +367,13 @@ def new_task():
             
         user_presets = PresetTask.query.filter_by(user_id=current_user.id).all()
             
-        return render_template('new_task.html', users=User.query.all(), req_dict_json=json.dumps(req_dict), schema_json=schema_json,
-                               categories=DropdownOption.query.filter_by(category='TaskCategory').all(), 
-                               instruments=DropdownOption.query.filter_by(category='Instrument').all(), 
-                               actions=DropdownOption.query.filter_by(category='ActionRequired').all(),
+return render_template('new_task.html', 
+                               users=User.query.order_by(User.name.asc()).all(), 
+                               req_dict_json=json.dumps(req_dict), 
+                               schema_json=schema_json,
+                               categories=DropdownOption.query.filter_by(category='TaskCategory').order_by(DropdownOption.name.asc()).all(), 
+                               instruments=DropdownOption.query.filter_by(category='Instrument').order_by(DropdownOption.name.asc()).all(), 
+                               actions=DropdownOption.query.filter_by(category='ActionRequired').order_by(DropdownOption.name.asc()).all(),
                                loaded_preset=json.dumps(loaded_preset_dict) if loaded_preset_dict else "null",
                                presets=user_presets)
                                
@@ -442,15 +445,15 @@ def edit_task(task_id):
         except Exception:
             task_id_str = str(task.start_time)
 
-        return render_template('edit_task.html', 
+return render_template('edit_task.html', 
                                task=task, 
                                task_id_str=task_id_str,
-                               users=User.query.all(), 
+                               users=User.query.order_by(User.name.asc()).all(), 
                                req_dict_json=json.dumps(req_dict), 
                                schema_json=schema_json, 
-                               categories=DropdownOption.query.filter_by(category='TaskCategory').all(), 
-                               instruments=DropdownOption.query.filter_by(category='Instrument').all(), 
-                               actions=DropdownOption.query.filter_by(category='ActionRequired').all(),
+                               categories=DropdownOption.query.filter_by(category='TaskCategory').order_by(DropdownOption.name.asc()).all(), 
+                               instruments=DropdownOption.query.filter_by(category='Instrument').order_by(DropdownOption.name.asc()).all(), 
+                               actions=DropdownOption.query.filter_by(category='ActionRequired').order_by(DropdownOption.name.asc()).all(),
                                task_json=json.dumps(task_dict))
                                
     except Exception as e:
