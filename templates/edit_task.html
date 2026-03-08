@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Task - NMDC</title>
+    <style>
+        body { font-family: Arial; background-color: #f4f7f6; padding: 20px; max-width: 600px; margin: auto; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-top: 5px solid #ffc107; }
+        .form-group { margin-bottom: 15px; display: flex; flex-direction: column; }
+        label { font-weight: bold; margin-bottom: 5px; font-size: 14px; color: #444; }
+        select, input, textarea { padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; }
+        button { background-color: #ffc107; color: black; border: none; padding: 12px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 10px; font-weight: bold; }
+        .btn-add { background-color: #6c757d; color: white; width: 40px; padding: 10px; font-weight: bold; }
+        .btn-remove { background-color: #dc3545; color: white; width: 40px; padding: 10px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>✏️ Edit Task: {{ task.start_time.strftime('%Y%m%d-%H%M%S') }}</h2>
+        <form action="/edit_task/{{ task.id }}" method="POST">
+            
+            <div class="form-group"><label>Requestor Dept:</label><select name="requestor_dept" id="reqDept" onchange="updateReqNames()" required><option value="">-- Select Dept --</option></select></div>
+            <div class="form-group"><label>Requestor Name:</label><select name="requestor_name" id="reqName" required><option value="">-- Select Name --</option></select></div>
+            <div class="form-group"><label>Assigned To:</label><select name="assigned_to" required><option value="">-- Select Team Member --</option>{% for u in users %}<option value="{{ u.name }}">{{ u.name }}</option>{% endfor %}</select></div>
+            <div class="form-group"><label>Activity Type:</label><select name="task_category" required><option value="">-- Select Category --</option>{% for cat in categories %}<option value="{{ cat.name }}">{{ cat.name }}</option>{% endfor %}</select></div>
+            
+            <div class="form-group"><label>Area:</label><select name="area" id="areaDropdown" onchange="updateLocations()" required></select></div>
+            <div class="form-group"><label>Location:</label><select name="location" id="locationDropdown" onchange="updateSubLocations()"></select></div>
+            <div class="form-group"><label>Sub-Location:</label><select name="sub_location" id="subLocationDropdown" onchange="updateWorkScopes()"></select></div>
+            <div class="form-group"><label>Work Scope:</label><select name="work_scope" id="workScopeDropdown" required></select></div>
+
+            <div class="form-group"><label>Instrument:</label><select name="instrument" required><option value="">-- Select Instrument --</option>{% for inst in instruments %}<option value="{{ inst.name }}">{{ inst.name }}</option>{% endfor %}</select></div>
+            <div class="form-group"><label>Action Required/Discipline:</label><select name="action_required" required><option value="">-- Select Action --</option>{% for act in actions %}<option value="{{ act.name }}">{{ act.name }}</option>{% endfor %}</select></div>
+
+            <div class="form-group" id="link-container">
+                <label>Reference File Links:</label>
+                {% if task.reference_links %}
+                    {% for link in task.reference_links.split(' | ') %}
+                    <div style="display: flex; gap: 5px; margin-bottom: 5px;"><input type="url" name="reference_link" value="{{ link }}" style="flex: 1;"><button type="button" class="btn-remove" onclick="this.parentElement.remove()">X</button></div>
+                    {% endfor %}
+                {% endif %}
+                <div style="display: flex; gap: 5px; margin-bottom: 5px;"><input type="url" name="reference_link" placeholder="Add new link..." style="flex: 1;"><button type="button" class="btn-add" onclick="addLink()">+</button></div>
+            </div>
+
+            <div class="form-group"><label>Opening Remarks:</label><textarea name="remarks" rows="3">{{ task.remarks }}</textarea></div>
+            
+            <button type="submit">Save Changes</button>
+            <a href="/" style="display: block; text-align: center; margin-top: 15px; color: #666; text-decoration: none;">Cancel</a>
+        </form>
+    </div>
+
+    <script>
+        function addLink() { let d = document.createElement('div'); d.style.cssText = "display:flex; gap:5px; margin-bottom:5px;"; d.innerHTML = '<input type="url" name="reference_link" style="flex:1;"><button type="button" class="btn-remove" onclick="this.parentElement.remove()">X</button>'; document.getElementById('link-container').appendChild(d); }
+
+        let reqTree = {{ req_dict_json | safe }};
+        function popReqDepts() { let d = document.getElementById("reqDept"); Object.keys(reqTree).forEach(x => { let o = document.createElement("option"); o.value = x; o.innerHTML = x; d.appendChild(o); }); }
+        function updateReqNames() { let d = document.getElementById("reqDept").value; let n = document.getElementById("reqName"); n.innerHTML = '<option value="">-- Select Name --</option>'; if (d && reqTree[d]) { reqTree[d].forEach(x => { let o = document.createElement("option"); o.value = x; o.innerHTML = x; n.appendChild(o); }); } }
+        popReqDepts();
+
+        let schema = {{ schema_json | safe }};
+        function popD(id, list) { let d = document.getElementById(id); d.innerHTML = '<option value="">-- Select --</option>'; list.forEach(x => { let o = document.createElement('option'); o.value = x; o.innerHTML = x; d.appendChild(o); }); }
+        function loadAreas() { popD("areaDropdown", Object.keys(schema)); updateLocations(); }
+        function updateLocations() { let a = document.getElementById("areaDropdown").value; popD("locationDropdown", a && schema[a] ? Object.keys(schema[a]) : []); updateSubLocations(); }
+        function updateSubLocations() { let a = document.getElementById("areaDropdown").value; let l = document.getElementById("locationDropdown").value; popD("subLocationDropdown", (a && l && schema[a][l]) ? Object.keys(schema[a][l]) : []); updateWorkScopes(); }
+        function updateWorkScopes() { let a = document.getElementById("areaDropdown").value; let l = document.getElementById("locationDropdown").value; let s = document.getElementById("subLocationDropdown").value; popD("workScopeDropdown", (a && l && s && schema[a][l][s]) ? schema[a][l][s] : []); }
+        loadAreas();
+
+        // ----------------------------------------
+        // PRE-FILL EXISTING TASK DATA
+        // ----------------------------------------
+        let tData = {{ task_json | safe }};
+        if (tData) {
+            document.querySelector('[name="assigned_to"]').value = tData.assigned_to;
+            document.querySelector('[name="task_category"]').value = tData.task_category;
+            document.querySelector('[name="instrument"]').value = tData.instrument;
+            document.querySelector('[name="action_required"]').value = tData.action_required;
+            
+            document.getElementById("reqDept").value = tData.req_dept; updateReqNames();
+            document.getElementById("reqName").value = tData.req_name;
+            
+            document.getElementById("areaDropdown").value = tData.area; updateLocations();
+            document.getElementById("locationDropdown").value = tData.location; updateSubLocations();
+            document.getElementById("subLocationDropdown").value = tData.sub_location; updateWorkScopes();
+            document.getElementById("workScopeDropdown").value = tData.work_scope;
+        }
+    </script>
+</body>
+</html>

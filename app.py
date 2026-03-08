@@ -258,7 +258,57 @@ def new_task():
                            actions=DropdownOption.query.filter_by(category='ActionRequired').all(),
                            loaded_preset=json.dumps(loaded_preset) if loaded_preset else "null",
                            presets=user_presets)
+@app.route('/edit_task/<int:task_id>', methods=['GET', 'POST'])
+@login_required
+def edit_task(task_id):
+    task = SurveyTask.query.get_or_404(task_id)
+    
+    # Security: Only creator or assignee can edit
+    if current_user.name not in [task.surveyor_name, task.assigned_to]:
+        flash('Unauthorized to edit this task.', 'error')
+        return redirect(url_for('dashboard'))
 
+    if request.method == 'POST':
+        req_dept = request.form.get('requestor_dept')
+        req_name = request.form.get('requestor_name')
+        
+        task.requestor = f"{req_dept} - {req_name}"
+        task.assigned_to = request.form.get('assigned_to')
+        task.task_category = request.form.get('task_category')
+        task.area = request.form.get('area')
+        task.location = request.form.get('location')
+        task.sub_location = request.form.get('sub_location')
+        task.work_scope = request.form.get('work_scope')
+        task.instrument = request.form.get('instrument')
+        task.action_required = request.form.get('action_required')
+        task.remarks = request.form.get('remarks')
+
+        ref_links = request.form.getlist('reference_link')
+        task.reference_links = " | ".join([link for link in ref_links if link.strip()])
+
+        db.session.commit()
+        flash('Task updated successfully!', 'success')
+        return redirect(url_for('dashboard'))
+
+    config = AppConfig.query.first()
+    schema_json = config.schema_data if config else "{}"
+    requestors = Requestor.query.all()
+    req_dict = {}
+    for r in requestors:
+        if r.department not in req_dict: req_dict[r.department] = []
+        req_dict[r.department].append(r.name)
+        
+    task_dict = {c.name: getattr(task, c.name) for c in task.__table__.columns}
+    if task.requestor and " - " in task.requestor:
+        task_dict['req_dept'], task_dict['req_name'] = task.requestor.split(" - ", 1)
+    else:
+        task_dict['req_dept'], task_dict['req_name'] = "", ""
+
+    return render_template('edit_task.html', task=task, users=User.query.all(), req_dict_json=json.dumps(req_dict), 
+                           schema_json=schema_json, categories=DropdownOption.query.filter_by(category='TaskCategory').all(), 
+                           instruments=DropdownOption.query.filter_by(category='Instrument').all(), 
+                           actions=DropdownOption.query.filter_by(category='ActionRequired').all(),
+                           task_json=json.dumps(task_dict))
 @app.route('/close_task/<int:task_id>', methods=['POST'])
 @login_required
 def close_task(task_id):
@@ -315,14 +365,17 @@ def export_excel():
     
     # 2. Map the database columns to your specific Master Register format
     data = []
-    for i, task in enumerate(tasks, 1):
+  for i, task in enumerate(tasks, 1):
+        # Format the new Task ID based on start_time
+        task_id_str = task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else f"UNKNOWN-{task.id}"
+        
         data.append({
             'Tender / Project Ref.': '20012',
             'Sl No': i,
             'Activity Type': task.task_category,
             'Discipline': task.action_required,
-            'Requestor Ref. #': '', # Leave blank for manual entry or map later
-            'Survey Ref. #': f"THPP-SURV-{task.id:04d}",
+            'Requestor Ref. #': '', 
+            'Survey Ref. #': task_id_str,
             'Requestor': task.requestor,
             'Assigned to': task.assigned_to,
             'Date/Time Received': task.start_time.strftime('%Y-%m-%d %H:%M') if task.start_time else '',

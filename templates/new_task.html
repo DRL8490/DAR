@@ -40,7 +40,7 @@
             <div class="form-group"><label>Requestor Dept:</label><select name="requestor_dept" id="reqDept" onchange="updateReqNames()" required><option value="">-- Select Dept --</option></select></div>
             <div class="form-group"><label>Requestor Name:</label><select name="requestor_name" id="reqName" required><option value="">-- Select Name --</option></select></div>
             <div class="form-group"><label>Assigned To:</label><select name="assigned_to" required><option value="">-- Select Team Member --</option>{% for u in users %}<option value="{{ u.name }}">{{ u.name }}</option>{% endfor %}</select></div>
-            <div class="form-group"><label>Task Category:</label><select name="task_category" required><option value="">-- Select Category --</option>{% for cat in categories %}<option value="{{ cat.name }}">{{ cat.name }}</option>{% endfor %}</select></div>
+            <div class="form-group"><label>Activity Type:</label><select name="task_category" required><option value="">-- Select Category --</option>{% for cat in categories %}<option value="{{ cat.name }}">{{ cat.name }}</option>{% endfor %}</select></div>
             
             <div class="form-group"><label>Area:</label><select name="area" id="areaDropdown" onchange="updateLocations()" required></select></div>
             <div class="form-group"><label>Location:</label><select name="location" id="locationDropdown" onchange="updateSubLocations()"></select></div>
@@ -48,7 +48,7 @@
             <div class="form-group"><label>Work Scope:</label><select name="work_scope" id="workScopeDropdown" required></select></div>
 
             <div class="form-group"><label>Instrument:</label><select name="instrument" required><option value="">-- Select Instrument --</option>{% for inst in instruments %}<option value="{{ inst.name }}">{{ inst.name }}</option>{% endfor %}</select></div>
-            <div class="form-group"><label>Action Required:</label><select name="action_required" required><option value="">-- Select Action --</option>{% for act in actions %}<option value="{{ act.name }}">{{ act.name }}</option>{% endfor %}</select></div>
+            <div class="form-group"><label>Action Required/ Discipline:</label><select name="action_required" required><option value="">-- Select Action --</option>{% for act in actions %}<option value="{{ act.name }}">{{ act.name }}</option>{% endfor %}</select></div>
 
             <div class="form-group" id="link-container">
                 <label>Reference File Links (Optional):</label>
