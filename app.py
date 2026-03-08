@@ -367,7 +367,7 @@ def new_task():
             
         user_presets = PresetTask.query.filter_by(user_id=current_user.id).all()
             
-return render_template('new_task.html', 
+        return render_template('new_task.html', 
                                users=User.query.order_by(User.name.asc()).all(), 
                                req_dict_json=json.dumps(req_dict), 
                                schema_json=schema_json,
