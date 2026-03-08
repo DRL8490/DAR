@@ -17,7 +17,7 @@
 </head>
 <body>
     <div class="card">
-        <h2>✏️ Edit Task: {{ task.start_time.strftime('%Y%m%d-%H%M%S') }}</h2>
+        <h2>✏️ Edit Task: {{ task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else 'Unknown ID' }}</h2>
         <form action="/edit_task/{{ task.id }}" method="POST">
             
             <div class="form-group"><label>Requestor Dept:</label><select name="requestor_dept" id="reqDept" onchange="updateReqNames()" required><option value="">-- Select Dept --</option></select></div>
@@ -43,7 +43,7 @@
                 <div style="display: flex; gap: 5px; margin-bottom: 5px;"><input type="url" name="reference_link" placeholder="Add new link..." style="flex: 1;"><button type="button" class="btn-add" onclick="addLink()">+</button></div>
             </div>
 
-            <div class="form-group"><label>Opening Remarks:</label><textarea name="remarks" rows="3">{{ task.remarks }}</textarea></div>
+            <div class="form-group"><label>Opening Remarks:</label><textarea name="remarks" rows="3">{{ task.remarks or '' }}</textarea></div>
             
             <button type="submit">Save Changes</button>
             <a href="/" style="display: block; text-align: center; margin-top: 15px; color: #666; text-decoration: none;">Cancel</a>
