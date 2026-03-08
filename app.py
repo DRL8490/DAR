@@ -80,7 +80,6 @@ class SurveyTask(db.Model):
     end_time = db.Column(db.DateTime, nullable=True)
 
 with app.app_context():
-    # db.drop_all() # <-- Keep this commented out unless you need to do a hard reset!
     db.create_all()
     
     # 1. NEW PV ARCHITECTURE TREE
@@ -187,18 +186,15 @@ with app.app_context():
     # 3. Force the dropdowns to update to the PV Register options
     old_cat = DropdownOption.query.filter_by(category='TaskCategory', name='Land').first()
     if old_cat or not DropdownOption.query.first():
-        # Wipe the old options so we don't duplicate them
         DropdownOption.query.filter_by(category='TaskCategory').delete()
         DropdownOption.query.filter_by(category='ActionRequired').delete()
         
-        # Base UI Elements
         initial_dropdowns = [
             ('Department', 'SURVEY'), ('Department', 'OPERATIONS'), ('Department', 'DREDGING'), ('Department', 'QA/QC'), ('Department', 'ENERGY'), ('Department', 'SAFETY'), ('Department', 'OFFICE/ADMIN'), ('Department', 'LOGISTICS'), ('Department', 'OTHERS (Specify on remarks)'),
             ('Instrument', 'Rover'), ('Instrument', 'Total Station'), ('Instrument', 'Level Machine'), ('Instrument', 'Measuring Tape'), ('Instrument', 'CAD'), ('Instrument', 'PDS/Terramodel'), ('Instrument', 'Teams'), ('Instrument', 'PC'), ('Instrument', 'Others (Specify on remarks)')
         ]
         for cat, name in initial_dropdowns: db.session.add(DropdownOption(category=cat, name=name))
         
-        # The new PV1 Activity & Discipline Master List
         new_activities = ["Land Survey", "Bathymetric Survey", "Bathymetric & Land Survey", "Volume Calculation", "Drone Survey", "Geophysical Survey", "Lidar Survey", "Excavator Survey", "Tender Survey", "Survey Update", "System Check", "Vessel PDS Update"]
         new_actions = ["Progress Survey", "TSHD/CSD progress survey", "Check survey", "Setting out Survey", "Benchmark Verification Survey", "Stockpile Survey", "GI Survey", "Preloading Survey", "QW Blocks Survey", "QW Bedding Survey", "Concrete Casting Survey", "Pilling Survey", "Maggy/SSS/SBP Pre Survey", "Maggy/SSS/SBP Check Survey", "Maggy/SSS/SBP Progress Survey", "Pre Survey", "Post Survey", "As Build Survey", "Tender Survey", "Design Qty", "Progress Qty", "Tender Qty", "Post Construction Qty / As Build", "Progress Drw", "Pre Survey Drw", "Post Survey Drw", "As Build Drw", "Tender Drw", "Check Survey Drw", "Calibration", "Survey Update", "System Check"]
         
@@ -302,6 +298,7 @@ def hidden_config():
 def dashboard():
     all_tasks = SurveyTask.query.order_by(SurveyTask.start_time.desc()).all()
     return render_template('dashboard.html', name=current_user.name, tasks=all_tasks)
+
 @app.route('/new_task', methods=['GET', 'POST'])
 @login_required
 def new_task():
@@ -381,13 +378,13 @@ def new_task():
         import traceback
         error_details = traceback.format_exc()
         return f"<h2>DIAGNOSTIC CRASH REPORT (NEW TASK)</h2><p>Error: {str(e)}</p><pre>{error_details}</pre>"
+
 @app.route('/edit_task/<int:task_id>', methods=['GET', 'POST'])
 @login_required
 def edit_task(task_id):
     try:
         task = SurveyTask.query.get_or_404(task_id)
         
-        # Security: Only creator or assignee can edit
         if current_user.name not in [task.surveyor_name, task.assigned_to]:
             flash('Unauthorized to edit this task.', 'error')
             return redirect(url_for('dashboard'))
@@ -414,7 +411,6 @@ def edit_task(task_id):
             flash('Task updated successfully!', 'success')
             return redirect(url_for('dashboard'))
 
-        # Prepare data for GET request
         config = AppConfig.query.first()
         schema_json = config.schema_data if config else "{}"
         
@@ -445,7 +441,7 @@ def edit_task(task_id):
         except Exception:
             task_id_str = str(task.start_time)
 
-return render_template('edit_task.html', 
+        return render_template('edit_task.html', 
                                task=task, 
                                task_id_str=task_id_str,
                                users=User.query.order_by(User.name.asc()).all(), 
@@ -457,7 +453,7 @@ return render_template('edit_task.html',
                                task_json=json.dumps(task_dict))
                                
     except Exception as e:
-        # IF IT CRASHES, IT WILL PRINT THE EXACT REASON HERE:
+        import traceback
         error_details = traceback.format_exc()
         return f"""
         <div style="font-family: monospace; padding: 20px; background: #ffe6e6; border: 2px solid red;">
@@ -468,6 +464,8 @@ return render_template('edit_task.html',
         </div>
         """
 
+@app.route('/close_task/<int:task_id>', methods=['POST'])
+@login_required
 def close_task(task_id):
     task = SurveyTask.query.get_or_404(task_id)
     if current_user.name not in [task.surveyor_name, task.assigned_to]:
@@ -514,16 +512,14 @@ def cancel_task(task_id):
 def reports():
     all_tasks = SurveyTask.query.order_by(SurveyTask.start_time.desc()).all()
     return render_template('reports.html', tasks=all_tasks)
+
 @app.route('/export_excel')
 @login_required
 def export_excel():
-    # 1. Grab all tasks from the database
     tasks = SurveyTask.query.order_by(SurveyTask.start_time.asc()).all()
     
-    # 2. Map the database columns to your specific Master Register format
     data = []
     for i, task in enumerate(tasks, 1):
-        # Format the new Task ID based on start_time
         task_id_str = task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else f"UNKNOWN-{task.id}"
         
         data.append({
@@ -544,19 +540,15 @@ def export_excel():
     df = pd.DataFrame(data)
     output = io.BytesIO()
     
-    # 3. Create the Excel file and inject the custom QA/QC Header Rows
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, startrow=2, sheet_name='Master Register')
         worksheet = writer.sheets['Master Register']
         
-        # Row 1 Title
         worksheet.cell(row=1, column=5, value="SURVEY ACTIVITY MASTER REGISTER")
         
-        # Row 2 Title
         current_month = datetime.utcnow().strftime("%B %Y").upper()
         worksheet.cell(row=2, column=1, value=f"MONTH OF {current_month} - SURVEY TEAM")
         
-        # Auto-adjust column widths
         for column in worksheet.columns:
             max_length = 0
             column = [cell for cell in column]
@@ -574,4 +566,5 @@ def export_excel():
     
     return send_file(output, download_name=filename, as_attachment=True)  
  
+if __name__ == '__main__':
     app.run(debug=True, port=5001)
