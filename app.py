@@ -83,28 +83,130 @@ with app.app_context():
     # db.drop_all() # <-- Keep this commented out unless you need to do a hard reset!
     db.create_all()
     
-    survey_tree = {
-        "00_Survey_Office": { "Taichung": { "Wuqi Office": ["General", "Internal Meetings", "External Meetings", "Survey Scope Coordination", "Contracts Coordination", "Survey Requests TW", "Survey Requests UAE"] } },
-        "01_Onshore_Area_Scope": { "Taichung": { "AHDD": ["General", "Trial Pits", "Thruster Pit", "Crossover Pits", "Grit Tank", "Drainage"], "Tienli": ["General"], "Berth37": ["General"] }, "Tunghsiao": { "Temp Platform": ["General", "Trial Pits", "Thruster Pit", "Crossover Pits", "Grit Tank", "Drainage"], "Inside Plant": ["General", "Trial Pits", "Thruster Pit", "Crossover Pits"] } },
-        "02_Nearshore_Area_Scope": { "Taichung": { "Trench 1": ["General", "Dredging", "Pipeline A", "Pipeline B", "SRI", "Backfilling"] }, "Tunghsiao": { "Trench 8": ["General", "Dredging", "Pipeline A", "Pipeline B", "SRI", "Backfilling"] } },
-        "03_Offshore_Area_Scope": { "N/A": { "Trench 2": ["General", "Pipelaying A", "Pipelaying B", "Post-Trenching", "SRI"], "Trench 3": ["General", "Pipelaying A", "Pipelaying B", "Post-Trenching", "SRI"], "Trench 4": ["General", "Pipelaying A", "Pipelaying B", "Post-Trenching", "SRI"], "Trench 5": ["General", "Mattress Installation", "Pipelaying A", "Pipelaying B", "Post-Trenching", "Backfilling"], "Trench 6": ["General", "Mattress Installation", "Pipelaying A", "Pipelaying B", "Post-Trenching", "Backfilling"], "Trench 7": ["General", "Dredging_Midline Tie-In", "Pipeline A", "Pipeline B", "Post-Trenching", "SRI", "Backfilling"] } },
-        "04_Marine_Area_Scope": { "N/A": { "N/A": ["General", "Pipeline A", "Pipeline B", "Pipeline SRI", "Backfill"] } }
+    # 1. NEW PV ARCHITECTURE TREE
+    fancy_tree = {
+        "100_Office": {
+            "110_Taichung": {
+                "111_Survey_Internal": ["111-00_General", "111-10_Personnel_Files", "111-20_Personnel_Planning", "111-30_Survey_Subcon"],
+                "112_NMDC_Internal": ["112-00_General", "112-10_Admin", "112-20_Subcon_Tech_Review", "112-30_ENERGY"],
+                "113_Project-External": ["113-00_General", "113-10_TPC-POE"]
+            },
+            "120_Abu_Dhabi": {
+                "121_STS": ["121-10_KPI", "121-20_WSR"],
+                "122_ADMIN": ["122-00_General", "122-10_Timesheet", "122-20_TRF"],
+                "123_SWS": ["123-10_Equipment_List", "123-20_SEM", "123-30_AHO"]
+            }
+        },
+        "200_Onshore_Area_Scope": {
+            "211_Taichung": {
+                "N/A": ["211-00_General", "211-90_Others"],
+                "211-10_AHDD": ["211-11_General", "211-12_Trial Pits", "211-13_Thruster Pit", "211-14_Crossover Pits", "211-15_Grit Tank", "211-16_Drainage"],
+                "211-20_Tienli": ["211-21_General"],
+                "211-30_Berth37": ["211-31_General"]
+            },
+            "212_Tunghsiao": {
+                "N/A": ["212-90_Others"],
+                "212-10_Temp Platform": ["212-11_General", "212-12_Trial Pits", "212-13_Thruster Pit", "212-14_Crossover Pits", "212-15_Grit Tank", "212-16_Drainage", "212-17_Microtunneling"],
+                "212-20_Inside Plant": ["212-21_General", "212-22_Trial Pits", "212-23_Crossover Pits"]
+            }
+        },
+        "300_General_Marine": {
+            "N/A": {
+                "N/A": ["311_Pre-Surveys", "312_Progress-Surveys", "313_Post-Surveys"],
+                "314_Design": ["314-41_General", "314-42_DXF_Backgrounds", "314-43_Routelines", "314-44_3DM+Outlines"],
+                "315_Quantity": ["315-51_ICQP_Format", "315-52_CECI_Format", "315-53_Other_Formats"]
+            }
+        },
+        "400_Nearshore_Area_Scope": {
+            "411_Taichung": {
+                "N/A": ["411-10_General"],
+                "411-20_Trench 1": ["411-21_General", "411-22_Dredging", "411-23_Pipelaying A", "411-24_Pipelaying B", "411-25_SRI", "411-26_Backfilling"]
+            },
+            "412_Tunghsiao": {
+                "N/A": ["412-10_General"],
+                "412-20_Trench 8": ["412-21_General", "412-22_Dredging", "412-23_Pipelaying A", "412-24_Pipelaying B", "412-25_SRI", "412-26_Backfilling"]
+            }
+        },
+        "500_Offshore_Area_Scope": {
+            "510_Trench 2": {
+                "N/A": ["510-11_General", "510-12_Pipelaying A", "510-12_Post-Trenching-B", "510-14_SRI-A", "510-15_Pipelaying B", "510-16_Post-Trenching-A", "510-17_SRI-B"]
+            },
+            "511_Trench 3": {
+                "N/A": ["511-11_General", "511-12_Pipelaying A", "511-13_Post-Trenching-A", "511-14_SRI-A", "511-15_Pipelaying B", "511-16_Post-Trenching-B", "511-17_SRI-B"]
+            },
+            "512_Trench 4": {
+                "N/A": ["512-11_General", "512-12_Pipelaying A", "512-13_Post-Trenching-A", "512-14_SRI-A", "512-15_Pipelaying B", "512-16_Post-Trenching-B", "512-17_SRI-B"]
+            },
+            "513_Trench 5": {
+                "N/A": ["513-11_General"],
+                "513-12_Pipelaying": ["513-12_Pipelaying-A", "513-12_Pipelaying-B"],
+                "513-13_Post-Trenching": ["513-13_Post-Trenching-A", "513-13_Post-Trenching-B"],
+                "513-14_SRI": ["513-14_SRI-A", "513-14_SRI-B"],
+                "513-15_Backfilling": ["513-15_Backfilling-A", "513-15_Backfilling-B"]
+            },
+            "514_Trench 6": {
+                "N/A": ["514-11_General"],
+                "514-12_Pipelaying": ["514-12_Pipelaying-A", "514-12_Pipelaying-B"],
+                "514-13_Post-Trenching": ["514-13_Post-Trenching-A", "514-13_Post-Trenching-B"],
+                "514-14_SRI": ["514-14_SRI-A", "514-14_SRI-B"],
+                "514-15_Backfilling": ["514-15_Backfilling-A", "514-15_Backfilling-B"]
+            },
+            "515_Trench 7": {
+                "N/A": ["515-11_General"],
+                "515-12_Pipelaying": ["515-12_Pipelaying-A", "515-12_Pipelaying-B"],
+                "515-13_Post-Trenching": ["515-13_Post-Trenching-A", "515-13_Post-Trenching-B"],
+                "515-14_SRI": ["515-14_SRI-A", "515-14_SRI-B"],
+                "515-15_Backfilling": ["515-15_Backfilling-A", "515-15_Backfilling-B"]
+            },
+            "516_Midline_Tie-in": {
+                "N/A": ["516-11_General", "516-12_Dredging"],
+                "516-13_Pipelaying": ["516-12_Pipelaying-A", "516-12_Pipelaying-B"],
+                "516-14_Post-Trenching": ["516-13_Post-Trenching-A", "516-13_Post-Trenching-B"],
+                "516-15_SRI": ["516-14_SRI-A", "516-14_SRI-B"]
+            },
+            "517_Crossing-A": {
+                "517-10_Crossing-A1": ["517-11_Mattress_Installation-A1", "517-12_Pipelaying-A1", "517-13_SRI-A1"],
+                "517-20_Crossing-A2": ["517-21_Mattress_Installation-A1", "517-22_Pipelaying-A1", "517-23_SRI-A1"],
+                "517-30_Crossing-A3": ["517-31_Mattress_Installation-A1", "517-33_SRI-A1", "517-51_Pipelaying-A1"]
+            },
+            "518_Crossing-B": {
+                "518-10_Crossing-B1": ["518-11_Mattress_Installation-B1", "518-12_Pipelaying-B1", "518-13_SRI-B1"],
+                "518-20_Crossing-B2": ["518-21_Mattress_Installation-B1", "518-22_Pipelaying-B1", "518-23_SRI-B1"],
+                "518-30_Crossing-B3": ["518-31_Mattress_Installation-B1", "518-33_SRI-B1", "518-51_Pipelaying-B1"]
+            }
+        }
     }
     
+    # 2. Force the database to use the PV Tree
     config = AppConfig.query.first()
-    if not config: db.session.add(AppConfig(schema_data=json.dumps(survey_tree)))
-    else: config.schema_data = json.dumps(survey_tree)
-    
-    if not DropdownOption.query.first():
+    if not config: 
+        db.session.add(AppConfig(schema_data=json.dumps(fancy_tree)))
+    else: 
+        config.schema_data = json.dumps(fancy_tree)
+        
+    # 3. Force the dropdowns to update to the PV Register options
+    old_cat = DropdownOption.query.filter_by(category='TaskCategory', name='Land').first()
+    if old_cat or not DropdownOption.query.first():
+        # Wipe the old options so we don't duplicate them
+        DropdownOption.query.filter_by(category='TaskCategory').delete()
+        DropdownOption.query.filter_by(category='ActionRequired').delete()
+        
+        # Base UI Elements
         initial_dropdowns = [
             ('Department', 'SURVEY'), ('Department', 'OPERATIONS'), ('Department', 'DREDGING'), ('Department', 'QA/QC'), ('Department', 'ENERGY'), ('Department', 'SAFETY'), ('Department', 'OFFICE/ADMIN'), ('Department', 'LOGISTICS'), ('Department', 'OTHERS (Specify on remarks)'),
-            ('TaskCategory', 'Land'), ('TaskCategory', 'Marine'), ('TaskCategory', 'Land+Marine'), ('TaskCategory', 'Office'), ('TaskCategory', 'Others (Specify on remarks)'),
-            ('Instrument', 'Rover'), ('Instrument', 'Total Station'), ('Instrument', 'Level Machine'), ('Instrument', 'Measuring Tape'), ('Instrument', 'CAD'), ('Instrument', 'PDS/Terramodel'), ('Instrument', 'Teams'), ('Instrument', 'PC'), ('Instrument', 'Others (Specify on remarks)'),
-            ('ActionRequired', 'Stake-out/Marking'), ('ActionRequired', 'As-Built'), ('ActionRequired', 'Meeting/Coordination'), ('ActionRequired', 'Visual Inspection'), ('ActionRequired', 'Report'), ('ActionRequired', 'Request'), ('ActionRequired', 'Drafting'), ('ActionRequired', 'Design'), ('ActionRequired', 'Charting'), ('ActionRequired', 'Quantity Sheet'), ('ActionRequired', 'Others (Specify on remarks)')
+            ('Instrument', 'Rover'), ('Instrument', 'Total Station'), ('Instrument', 'Level Machine'), ('Instrument', 'Measuring Tape'), ('Instrument', 'CAD'), ('Instrument', 'PDS/Terramodel'), ('Instrument', 'Teams'), ('Instrument', 'PC'), ('Instrument', 'Others (Specify on remarks)')
         ]
         for cat, name in initial_dropdowns: db.session.add(DropdownOption(category=cat, name=name))
-    db.session.commit()
+        
+        # The new PV1 Activity & Discipline Master List
+        new_activities = ["Land Survey", "Bathymetric Survey", "Bathymetric & Land Survey", "Volume Calculation", "Drone Survey", "Geophysical Survey", "Lidar Survey", "Excavator Survey", "Tender Survey", "Survey Update", "System Check", "Vessel PDS Update"]
+        new_actions = ["Progress Survey", "TSHD/CSD progress survey", "Check survey", "Setting out Survey", "Benchmark Verification Survey", "Stockpile Survey", "GI Survey", "Preloading Survey", "QW Blocks Survey", "QW Bedding Survey", "Concrete Casting Survey", "Pilling Survey", "Maggy/SSS/SBP Pre Survey", "Maggy/SSS/SBP Check Survey", "Maggy/SSS/SBP Progress Survey", "Pre Survey", "Post Survey", "As Build Survey", "Tender Survey", "Design Qty", "Progress Qty", "Tender Qty", "Post Construction Qty / As Build", "Progress Drw", "Pre Survey Drw", "Post Survey Drw", "As Build Drw", "Tender Drw", "Check Survey Drw", "Calibration", "Survey Update", "System Check"]
+        
+        for act in new_activities: db.session.add(DropdownOption(category='TaskCategory', name=act))
+        for req in new_actions: db.session.add(DropdownOption(category='ActionRequired', name=req))
 
+    db.session.commit()
+    
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
