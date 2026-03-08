@@ -290,6 +290,7 @@ def edit_task(task_id):
         flash('Task updated successfully!', 'success')
         return redirect(url_for('dashboard'))
 
+    # Prepare data for GET request (Form rendering)
     config = AppConfig.query.first()
     schema_json = config.schema_data if config else "{}"
     requestors = Requestor.query.all()
@@ -298,7 +299,10 @@ def edit_task(task_id):
         if r.department not in req_dict: req_dict[r.department] = []
         req_dict[r.department].append(r.name)
         
-    task_dict = {c.name: getattr(task, c.name) for c in task.__table__.columns}
+    # FIX: Convert all database values to strings first so JSON doesn't crash on datetime objects!
+    task_dict = {c.name: str(getattr(task, c.name)) if getattr(task, c.name) else "" for c in task.__table__.columns}
+    
+    # Split requestor back into dept and name for the UI
     if task.requestor and " - " in task.requestor:
         task_dict['req_dept'], task_dict['req_name'] = task.requestor.split(" - ", 1)
     else:
@@ -308,8 +312,7 @@ def edit_task(task_id):
                            schema_json=schema_json, categories=DropdownOption.query.filter_by(category='TaskCategory').all(), 
                            instruments=DropdownOption.query.filter_by(category='Instrument').all(), 
                            actions=DropdownOption.query.filter_by(category='ActionRequired').all(),
-                           task_json=json.dumps(task_dict))
-@app.route('/close_task/<int:task_id>', methods=['POST'])
+                           task_json=json.dumps(task_dict))@app.route('/close_task/<int:task_id>', methods=['POST'])
 @login_required
 def close_task(task_id):
     task = SurveyTask.query.get_or_404(task_id)
