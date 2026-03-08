@@ -97,23 +97,38 @@
         function updateWorkScopes() { let a = document.getElementById("areaDropdown").value; let l = document.getElementById("locationDropdown").value; let s = document.getElementById("subLocationDropdown").value; popD("workScopeDropdown", (a && l && s && schema[a][l][s]) ? schema[a][l][s] : []); }
         loadAreas();
 
+// ----------------------------------------
+        // PRESET AUTO-FILL LOGIC (WITH LEGACY SAFENET)
         // ----------------------------------------
-        // PRESET AUTO-FILL LOGIC
-        // ----------------------------------------
+        function setSafeVal(idOrName, val) {
+            if (!val || val === "N/A" || val === "None") return;
+            let el = document.getElementById(idOrName) || document.querySelector(`[name="${idOrName}"]`);
+            if (!el) return;
+            let exists = Array.from(el.options).some(opt => opt.value === val);
+            if (!exists) {
+                let opt = document.createElement('option');
+                opt.value = val;
+                opt.innerHTML = val + " (Legacy)";
+                opt.style.color = "red";
+                el.appendChild(opt);
+            }
+            el.value = val;
+        }
+
         let loadedPreset = {{ loaded_preset | safe }};
         if (loadedPreset) {
-            document.querySelector('[name="assigned_to"]').value = loadedPreset.assigned_to;
-            document.querySelector('[name="task_category"]').value = loadedPreset.task_category;
-            document.querySelector('[name="instrument"]').value = loadedPreset.instrument;
-            document.querySelector('[name="action_required"]').value = loadedPreset.action_required;
+            setSafeVal('assigned_to', loadedPreset.assigned_to);
+            setSafeVal('task_category', loadedPreset.task_category);
+            setSafeVal('instrument', loadedPreset.instrument);
+            setSafeVal('action_required', loadedPreset.action_required);
             
-            document.getElementById("reqDept").value = loadedPreset.req_dept; updateReqNames();
-            document.getElementById("reqName").value = loadedPreset.req_name;
+            setSafeVal('reqDept', loadedPreset.req_dept); updateReqNames();
+            setSafeVal('reqName', loadedPreset.req_name);
             
-            document.getElementById("areaDropdown").value = loadedPreset.area; updateLocations();
-            document.getElementById("locationDropdown").value = loadedPreset.location; updateSubLocations();
-            document.getElementById("subLocationDropdown").value = loadedPreset.sub_location; updateWorkScopes();
-            document.getElementById("workScopeDropdown").value = loadedPreset.work_scope;
+            setSafeVal('areaDropdown', loadedPreset.area); updateLocations();
+            setSafeVal('locationDropdown', loadedPreset.location); updateSubLocations();
+            setSafeVal('subLocationDropdown', loadedPreset.sub_location); updateWorkScopes();
+            setSafeVal('workScopeDropdown', loadedPreset.work_scope);
         }
 
         // ----------------------------------------

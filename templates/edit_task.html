@@ -66,23 +66,40 @@
         function updateWorkScopes() { let a = document.getElementById("areaDropdown").value; let l = document.getElementById("locationDropdown").value; let s = document.getElementById("subLocationDropdown").value; popD("workScopeDropdown", (a && l && s && schema[a][l][s]) ? schema[a][l][s] : []); }
         loadAreas();
 
+ // ----------------------------------------
+        // PRE-FILL EXISTING TASK DATA (WITH LEGACY SAFENET)
         // ----------------------------------------
-        // PRE-FILL EXISTING TASK DATA
-        // ----------------------------------------
+        function setSafeVal(idOrName, val) {
+            if (!val || val === "N/A" || val === "None") return;
+            let el = document.getElementById(idOrName) || document.querySelector(`[name="${idOrName}"]`);
+            if (!el) return;
+            
+            // If the old data doesn't match the new PV1 dropdown lists, force it to appear!
+            let exists = Array.from(el.options).some(opt => opt.value === val);
+            if (!exists) {
+                let opt = document.createElement('option');
+                opt.value = val;
+                opt.innerHTML = val + " (Legacy)";
+                opt.style.color = "red";
+                el.appendChild(opt);
+            }
+            el.value = val;
+        }
+
         let tData = {{ task_json | safe }};
         if (tData) {
-            document.querySelector('[name="assigned_to"]').value = tData.assigned_to;
-            document.querySelector('[name="task_category"]').value = tData.task_category;
-            document.querySelector('[name="instrument"]').value = tData.instrument;
-            document.querySelector('[name="action_required"]').value = tData.action_required;
+            setSafeVal('assigned_to', tData.assigned_to);
+            setSafeVal('task_category', tData.task_category);
+            setSafeVal('instrument', tData.instrument);
+            setSafeVal('action_required', tData.action_required);
             
-            document.getElementById("reqDept").value = tData.req_dept; updateReqNames();
-            document.getElementById("reqName").value = tData.req_name;
+            setSafeVal('reqDept', tData.req_dept); updateReqNames();
+            setSafeVal('reqName', tData.req_name);
             
-            document.getElementById("areaDropdown").value = tData.area; updateLocations();
-            document.getElementById("locationDropdown").value = tData.location; updateSubLocations();
-            document.getElementById("subLocationDropdown").value = tData.sub_location; updateWorkScopes();
-            document.getElementById("workScopeDropdown").value = tData.work_scope;
+            setSafeVal('areaDropdown', tData.area); updateLocations();
+            setSafeVal('locationDropdown', tData.location); updateSubLocations();
+            setSafeVal('subLocationDropdown', tData.sub_location); updateWorkScopes();
+            setSafeVal('workScopeDropdown', tData.work_scope);
         }
     </script>
 </body>

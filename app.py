@@ -200,7 +200,82 @@ def hidden_config():
 def dashboard():
     all_tasks = SurveyTask.query.order_by(SurveyTask.start_time.desc()).all()
     return render_template('dashboard.html', name=current_user.name, tasks=all_tasks)
+@app.route('/new_task', methods=['GET', 'POST'])
+@login_required
+def new_task():
+    try:
+        config = AppConfig.query.first()
+        schema_json = config.schema_data if config else "{}"
+        
+        preset_id = request.args.get('preset_id')
+        loaded_preset_dict = None
+        
+        if preset_id:
+            preset = PresetTask.query.filter_by(id=preset_id, user_id=current_user.id).first()
+            if preset:
+                loaded_preset_dict = {
+                    'req_dept': preset.req_dept or "",
+                    'req_name': preset.req_name or "",
+                    'assigned_to': preset.assigned_to or "",
+                    'task_category': preset.task_category or "",
+                    'area': preset.area or "",
+                    'location': preset.location or "",
+                    'sub_location': preset.sub_location or "",
+                    'work_scope': preset.work_scope or "",
+                    'instrument': preset.instrument or "",
+                    'action_required': preset.action_required or ""
+                }
+        
+        if request.method == 'POST':
+            req_dept = request.form.get('requestor_dept')
+            req_name = request.form.get('requestor_name')
+            merged_requestor = f"{req_dept} - {req_name}"
+            
+            save_preset = request.form.get('save_preset')
+            preset_name = request.form.get('preset_name')
+            if save_preset == 'true':
+                p_name = preset_name or f"{request.form.get('area')} - {request.form.get('work_scope')}"
+                db.session.add(PresetTask(
+                    user_id=current_user.id, preset_name=p_name, req_dept=req_dept, req_name=req_name,
+                    assigned_to=request.form.get('assigned_to'), task_category=request.form.get('task_category'),
+                    area=request.form.get('area'), location=request.form.get('location'), 
+                    sub_location=request.form.get('sub_location'), work_scope=request.form.get('work_scope'),
+                    instrument=request.form.get('instrument'), action_required=request.form.get('action_required')
+                ))
+            
+            ref_links = request.form.getlist('reference_link')
+            ref_links_str = " | ".join([link for link in ref_links if link.strip()])
 
+            new_survey = SurveyTask(
+                surveyor_name=current_user.name, assigned_to=request.form.get('assigned_to'), requestor=merged_requestor,
+                task_category=request.form.get('task_category'), instrument=request.form.get('instrument'), action_required=request.form.get('action_required'),
+                area=request.form.get('area'), location=request.form.get('location'), sub_location=request.form.get('sub_location'),
+                work_scope=request.form.get('work_scope'), remarks=request.form.get('remarks'), reference_links=ref_links_str
+            )
+            db.session.add(new_survey)
+            db.session.commit()
+            flash('New task opened successfully!', 'success')
+            return redirect(url_for('dashboard'))
+            
+        requestors = Requestor.query.all()
+        req_dict = {}
+        for r in requestors:
+            if r.department not in req_dict: req_dict[r.department] = []
+            req_dict[r.department].append(r.name)
+            
+        user_presets = PresetTask.query.filter_by(user_id=current_user.id).all()
+            
+        return render_template('new_task.html', users=User.query.all(), req_dict_json=json.dumps(req_dict), schema_json=schema_json,
+                               categories=DropdownOption.query.filter_by(category='TaskCategory').all(), 
+                               instruments=DropdownOption.query.filter_by(category='Instrument').all(), 
+                               actions=DropdownOption.query.filter_by(category='ActionRequired').all(),
+                               loaded_preset=json.dumps(loaded_preset_dict) if loaded_preset_dict else "null",
+                               presets=user_presets)
+                               
+    except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
+        return f"<h2>DIAGNOSTIC CRASH REPORT (NEW TASK)</h2><p>Error: {str(e)}</p><pre>{error_details}</pre>"
 @app.route('/edit_task/<int:task_id>', methods=['GET', 'POST'])
 @login_required
 def edit_task(task_id):
