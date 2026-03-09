@@ -352,7 +352,7 @@ def run_migration():
             
     # ==========================================
     # PHASE 2 TRIGGER (DO NOT UNCOMMENT YET)
-    # db.session.commit() 
+    db.session.commit() 
     # ==========================================
 
     html_log = "".join(updates)
