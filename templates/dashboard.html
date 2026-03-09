@@ -9,7 +9,6 @@
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
         .btn-new { background-color: #0056b3; color: white; padding: 10px 15px; text-decoration: none; border-radius: 6px; font-weight: bold; }
         
-        /* Flash Message Styles */
         .flash-container { margin-bottom: 20px; }
         .flash-msg { padding: 12px 15px; border-radius: 6px; font-weight: bold; margin-bottom: 10px; font-size: 14px; }
         .flash-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
@@ -25,7 +24,6 @@
         .task-card[data-status="Closed"] { border-left-color: #28a745; opacity: 0.8; }
         .task-card[data-status="Canceled"] { border-left-color: #dc3545; opacity: 0.8; }
         
-        /* State 1: The Default View */
         .task-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; cursor: pointer; }
         .task-line-1 { font-family: monospace; font-size: 14px; color: #111; font-weight: bold; margin-bottom: 6px; line-height: 1.4; }
         .task-line-2 { font-size: 13px; color: #555; }
@@ -35,7 +33,6 @@
         .badge-Closed { background: #28a745; }
         .badge-Canceled { background: #dc3545; }
 
-        /* State 2: The Expanded View */
         .task-body { display: none; margin-top: 15px; padding-top: 15px; border-top: 1px dashed #ccc; }
         .task-detail { font-size: 14px; color: #444; margin: 6px 0; }
         
@@ -69,11 +66,11 @@
 
     <div class="filter-bar">
         <strong style="font-size: 14px; color: #333;">Filters:</strong>
-        <button class="btn-filter" onclick="setPresetFilter('all', this)">All</button>
-        <button class="btn-filter active" id="btnFilterOpen" onclick="setPresetFilter('open', this)">Open</button>
-        <button class="btn-filter" onclick="setPresetFilter('closed', this)">Closed</button>
-        <button class="btn-filter" onclick="setPresetFilter('canceled', this)">Canceled</button>
-        <button class="btn-filter" onclick="setPresetFilter('mine', this)">Assigned to Me</button>
+        <button class="btn-filter" id="btnAll" onclick="toggleStatus('All')">All</button>
+        <button class="btn-filter" id="btnOpen" onclick="toggleStatus('Open')">Open</button>
+        <button class="btn-filter" id="btnClosed" onclick="toggleStatus('Closed')">Closed</button>
+        <button class="btn-filter" id="btnCanceled" onclick="toggleStatus('Canceled')">Canceled</button>
+        <button class="btn-filter" id="btnMine" onclick="toggleMine()">Assigned to Me</button>
         
         <div style="margin-left: auto; display: flex; align-items: center; gap: 5px;">
             <span style="font-size: 13px; color: #555;">From:</span>
@@ -88,7 +85,7 @@
         <a href="/reports" style="color: #0056b3; font-weight: bold; text-decoration: none;">📊 Open Report Generation Wizard</a>
     </div>
 
-    <p id="noTasksMsg" style="text-align: center; color: #777; margin-top: 50px; display: none;">No tasks match this filter.</p>
+    <p id="noTasksMsg" style="text-align: center; color: #777; margin-top: 50px; display: none;">No tasks match this filter configuration.</p>
 
     <div id="taskContainer">
         {% for task in tasks %}
@@ -123,7 +120,6 @@
             </div>
             
             <div class="task-body" id="body-{{ task.id }}">
-                
                 {% if task.reference_links %}
                 <p class="task-detail"><strong>References:</strong> {% for link in task.reference_links.split(' | ') %}<a href="{{ link }}" target="_blank" style="color: #0056b3; text-decoration: underline;">[Link {{ loop.index }}]</a> {% endfor %}</p>
                 {% endif %}
@@ -166,18 +162,43 @@
     <div style="text-align: center; margin-top: 30px;"><a href="/logout" style="color: #dc3545; text-decoration: none;">Logout ({{ name }})</a></div>
 
     <script>
-        let currentStatusFilter = 'open';
+        // Use a Set to track multiple active filters at once
+        let activeStatuses = new Set(['All']); // Defaults to 'All'
+        let isMineActive = false;
 
         function toggleCard(id) {
             let el = document.getElementById(id);
             el.style.display = el.style.display === 'block' ? 'none' : 'block';
         }
 
-        function setPresetFilter(type, btn) {
-            document.querySelectorAll('.btn-filter').forEach(b => b.classList.remove('active'));
-            if(btn) btn.classList.add('active');
-            currentStatusFilter = type;
+        function toggleStatus(status) {
+            if (status === 'All') {
+                activeStatuses.clear();
+                activeStatuses.add('All');
+            } else {
+                activeStatuses.delete('All'); // Turn off 'All' if a specific status is clicked
+                if (activeStatuses.has(status)) {
+                    activeStatuses.delete(status); // Turn off if it was already on
+                } else {
+                    activeStatuses.add(status); // Turn on
+                }
+            }
+            updateFilterUI();
             applyFilters();
+        }
+
+        function toggleMine() {
+            isMineActive = !isMineActive; // Flips between true and false
+            updateFilterUI();
+            applyFilters();
+        }
+
+        function updateFilterUI() {
+            document.getElementById('btnAll').classList.toggle('active', activeStatuses.has('All'));
+            document.getElementById('btnOpen').classList.toggle('active', activeStatuses.has('Open'));
+            document.getElementById('btnClosed').classList.toggle('active', activeStatuses.has('Closed'));
+            document.getElementById('btnCanceled').classList.toggle('active', activeStatuses.has('Canceled'));
+            document.getElementById('btnMine').classList.toggle('active', isMineActive);
         }
 
         function clearDates() {
@@ -198,12 +219,26 @@
                 const date = card.dataset.date;
                 const isMine = card.dataset.mine === 'true';
 
-                if (currentStatusFilter === 'all') show = true;
-                else if (currentStatusFilter === 'open' && status === 'Open') show = true;
-                else if (currentStatusFilter === 'closed' && status === 'Closed') show = true;
-                else if (currentStatusFilter === 'canceled' && status === 'Canceled') show = true;
-                else if (currentStatusFilter === 'mine' && isMine) show = true;
+                // 1. Status Check Logic
+                let matchesStatus = false;
+                if (activeStatuses.has('All')) {
+                    matchesStatus = true;
+                } else if (activeStatuses.has(status)) {
+                    matchesStatus = true;
+                }
 
+                // 2. Ownership Check Logic
+                let matchesMine = true;
+                if (isMineActive && !isMine) {
+                    matchesMine = false; // Hides task if "Assigned to Me" is checked but task isn't yours
+                }
+
+                // 3. Final Verification
+                if (matchesStatus && matchesMine) {
+                    show = true;
+                }
+
+                // 4. Date Check (Overrides everything else)
                 if (show) {
                     if (dStart && date < dStart) show = false;
                     if (dEnd && date > dEnd) show = false;
@@ -216,7 +251,10 @@
             document.getElementById('noTasksMsg').style.display = visibleCount === 0 ? 'block' : 'none';
         }
 
-        window.onload = () => applyFilters();
+        window.onload = () => {
+            updateFilterUI();
+            applyFilters();
+        };
     </script>
 </body>
 </html>
