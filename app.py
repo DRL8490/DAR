@@ -18,11 +18,13 @@ if db_url.startswith("postgres://"):
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'super_secret_key_thpp_survey_2026'
+
+# --- VIP ADMIN LIST ---
 ADMIN_EMAILS = [
     'daryll.enano@nmdc-group.com',
     'mohamad.hediarto@nmdc-group.com',
     'mok.heng@nmdc-group.com'
-] # Add any other admin emails here!
+]
 
 db = SQLAlchemy(app)
 login_manager = LoginManager()
@@ -87,7 +89,7 @@ class SurveyTask(db.Model):
 with app.app_context():
     db.create_all()
     
-    # 1. NEW PV ARCHITECTURE TREE
+    # 1. NEW 4-LEVEL PV ARCHITECTURE TREE
     fancy_tree = {
         "100_Office": {
             "110_Taichung": {
@@ -101,82 +103,41 @@ with app.app_context():
                 "123_SWS": ["123-10_Equipment_List", "123-20_SEM", "123-30_AHO"]
             }
         },
-        "200_Onshore_Area_Scope": {
-            "211_Taichung": {
-                "N/A": ["211-00_General", "211-90_Others"],
-                "211-10_AHDD": ["211-11_General", "211-12_Trial Pits", "211-13_Thruster Pit", "211-14_Crossover Pits", "211-15_Grit Tank", "211-16_Drainage"],
-                "211-20_Tienli": ["211-21_General"],
-                "211-30_Berth37": ["211-31_General"]
+        "200_Onshore-Land": {
+            "210_Taichung": {
+                "211_General": ["211-00_General"],
+                "212_AHDD": ["212-00_General", "212-10_Trial Pits", "212-20_Thruster Pit", "212-30_Crossover Pits", "212-40_Grit Tank", "212-50_Drainage"],
+                "213_Tienli": ["213-00_General"],
+                "214_Berth37": ["214-00_General"],
+                "219_Others": ["219-00_Others"]
             },
-            "212_Tunghsiao": {
-                "N/A": ["212-90_Others"],
-                "212-10_Temp Platform": ["212-11_General", "212-12_Trial Pits", "212-13_Thruster Pit", "212-14_Crossover Pits", "212-15_Grit Tank", "212-16_Drainage", "212-17_Microtunneling"],
-                "212-20_Inside Plant": ["212-21_General", "212-22_Trial Pits", "212-23_Crossover Pits"]
+            "220_Tunghsiao": {
+                "221_Temp Platform": ["221-00_General", "221-10_Trial Pits", "221-20_Thruster Pit", "221-30_Crossover Pits", "221-40_Grit Tank", "221-50_Drainage", "221-60_Microtunneling"],
+                "222_Inside Plant": ["222-00_General", "222-10_Trial Pits", "222-20_Crossover Pits"],
+                "229_Others": ["229-00_Others"]
             }
         },
-        "300_General_Marine": {
-            "N/A": {
-                "N/A": ["311_Pre-Surveys", "312_Progress-Surveys", "313_Post-Surveys"],
-                "314_Design": ["314-41_General", "314-42_DXF_Backgrounds", "314-43_Routelines", "314-44_3DM+Outlines"],
-                "315_Quantity": ["315-51_ICQP_Format", "315-52_CECI_Format", "315-53_Other_Formats"]
-            }
-        },
-        "400_Nearshore_Area_Scope": {
-            "411_Taichung": {
-                "N/A": ["411-10_General"],
-                "411-20_Trench 1": ["411-21_General", "411-22_Dredging", "411-23_Pipelaying A", "411-24_Pipelaying B", "411-25_SRI", "411-26_Backfilling"]
+        "300_Marine": {
+            "310_General": {
+                "311_Surveys": ["311-10_Pre-Surveys", "311-20_Progress-Surveys", "311-30_Post-Surveys"],
+                "312_Design": ["312-00_General", "312-10_DXF_Backgrounds", "312-20_Routelines", "312-30_3DM+Outlines"],
+                "313_Quantity": ["313-10_ICQP_Format", "313-20_CECI_Format", "313-30_Other_Formats"]
             },
-            "412_Tunghsiao": {
-                "N/A": ["412-10_General"],
-                "412-20_Trench 8": ["412-21_General", "412-22_Dredging", "412-23_Pipelaying A", "412-24_Pipelaying B", "412-25_SRI", "412-26_Backfilling"]
-            }
-        },
-        "500_Offshore_Area_Scope": {
-            "510_Trench 2": {
-                "N/A": ["510-11_General", "510-12_Pipelaying A", "510-12_Post-Trenching-B", "510-14_SRI-A", "510-15_Pipelaying B", "510-16_Post-Trenching-A", "510-17_SRI-B"]
+            "320_Nearshore": {
+                "321_General": ["321-00_General"],
+                "322_Trench 1": ["322-00_General", "322-10_Dredging", "322-20_Pipelaying A", "322-30_Pipelaying B", "322-40_SRI", "322-50_Backfilling"],
+                "323_Trench 8": ["323-00_General", "323-10_Dredging", "323-20_Pipelaying A", "323-30_Pipelaying B", "323-40_SRI", "323-50_Backfilling"]
             },
-            "511_Trench 3": {
-                "N/A": ["511-11_General", "511-12_Pipelaying A", "511-13_Post-Trenching-A", "511-14_SRI-A", "511-15_Pipelaying B", "511-16_Post-Trenching-B", "511-17_SRI-B"]
-            },
-            "512_Trench 4": {
-                "N/A": ["512-11_General", "512-12_Pipelaying A", "512-13_Post-Trenching-A", "512-14_SRI-A", "512-15_Pipelaying B", "512-16_Post-Trenching-B", "512-17_SRI-B"]
-            },
-            "513_Trench 5": {
-                "N/A": ["513-11_General"],
-                "513-12_Pipelaying": ["513-12_Pipelaying-A", "513-12_Pipelaying-B"],
-                "513-13_Post-Trenching": ["513-13_Post-Trenching-A", "513-13_Post-Trenching-B"],
-                "513-14_SRI": ["513-14_SRI-A", "513-14_SRI-B"],
-                "513-15_Backfilling": ["513-15_Backfilling-A", "513-15_Backfilling-B"]
-            },
-            "514_Trench 6": {
-                "N/A": ["514-11_General"],
-                "514-12_Pipelaying": ["514-12_Pipelaying-A", "514-12_Pipelaying-B"],
-                "514-13_Post-Trenching": ["514-13_Post-Trenching-A", "514-13_Post-Trenching-B"],
-                "514-14_SRI": ["514-14_SRI-A", "514-14_SRI-B"],
-                "514-15_Backfilling": ["514-15_Backfilling-A", "514-15_Backfilling-B"]
-            },
-            "515_Trench 7": {
-                "N/A": ["515-11_General"],
-                "515-12_Pipelaying": ["515-12_Pipelaying-A", "515-12_Pipelaying-B"],
-                "515-13_Post-Trenching": ["515-13_Post-Trenching-A", "515-13_Post-Trenching-B"],
-                "515-14_SRI": ["515-14_SRI-A", "515-14_SRI-B"],
-                "515-15_Backfilling": ["515-15_Backfilling-A", "515-15_Backfilling-B"]
-            },
-            "516_Midline_Tie-in": {
-                "N/A": ["516-11_General", "516-12_Dredging"],
-                "516-13_Pipelaying": ["516-12_Pipelaying-A", "516-12_Pipelaying-B"],
-                "516-14_Post-Trenching": ["516-13_Post-Trenching-A", "516-13_Post-Trenching-B"],
-                "516-15_SRI": ["516-14_SRI-A", "516-14_SRI-B"]
-            },
-            "517_Crossing-A": {
-                "517-10_Crossing-A1": ["517-11_Mattress_Installation-A1", "517-12_Pipelaying-A1", "517-13_SRI-A1"],
-                "517-20_Crossing-A2": ["517-21_Mattress_Installation-A1", "517-22_Pipelaying-A1", "517-23_SRI-A1"],
-                "517-30_Crossing-A3": ["517-31_Mattress_Installation-A1", "517-33_SRI-A1", "517-51_Pipelaying-A1"]
-            },
-            "518_Crossing-B": {
-                "518-10_Crossing-B1": ["518-11_Mattress_Installation-B1", "518-12_Pipelaying-B1", "518-13_SRI-B1"],
-                "518-20_Crossing-B2": ["518-21_Mattress_Installation-B1", "518-22_Pipelaying-B1", "518-23_SRI-B1"],
-                "518-30_Crossing-B3": ["518-31_Mattress_Installation-B1", "518-33_SRI-B1", "518-51_Pipelaying-B1"]
+            "330_Offshore": {
+                "331_Trench 2": ["331-00_General", "331-10_Pipelaying A", "331-20_Post-Trenching-A", "331-30_SRI-A", "331-40_Pipelaying B", "331-50_Post-Trenching-B", "331-60_SRI-B"],
+                "332_Trench 3": ["332-00_General", "332-10_Pipelaying A", "332-20_Post-Trenching-A", "332-30_SRI-A", "332-40_Pipelaying B", "332-50_Post-Trenching-B", "332-60_SRI-B"],
+                "333_Trench 4": ["333-00_General", "333-10_Pipelaying A", "333-20_Post-Trenching-A", "333-30_SRI-A", "333-40_Pipelaying B", "333-50_Post-Trenching-B", "333-60_SRI-B"],
+                "334_Trench 5": ["334-00_General", "334-10_Pipelaying A", "334-20_Post-Trenching-A", "334-30_SRI-A", "334-40_Pipelaying B", "334-50_Post-Trenching-B", "334-60_SRI-B", "334-70_Backfilling A", "334-80_Backfilling B"],
+                "335_Trench 6": ["335-00_General", "335-10_Pipelaying A", "335-20_Post-Trenching-A", "335-30_SRI-A", "335-40_Pipelaying B", "335-50_Post-Trenching-B", "335-60_SRI-B", "335-70_Backfilling A", "335-80_Backfilling B"],
+                "336_Trench 7": ["336-00_General", "336-10_Pipelaying A", "336-20_Post-Trenching-A", "336-30_SRI-A", "336-40_Pipelaying B", "336-50_Post-Trenching-B", "336-60_SRI-B", "336-70_Backfilling A", "336-80_Backfilling B"],
+                "337_Midline_Tie-in": ["337-00_General", "337-10_Dredging", "337-20_Pipelaying A", "337-30_Pipelaying B", "337-40_Post-Trenching-A", "337-50_Post-Trenching-B", "337-60_SRI-A", "337-70_SRI-B"],
+                "338_Crossing-A": ["338-11_A1 Mattress Installation", "338-12_A1 Pipelaying", "338-13_A1 SRI", "338-21_A2 Mattress Installation", "338-22_A2 Pipelaying", "338-23_A2 SRI", "338-31_A3 Mattress Installation", "338-32_A3 Pipelaying", "338-33_A3 SRI"],
+                "339_Crossing-B": ["339-11_B1 Mattress Installation", "339-12_B1 Pipelaying", "339-13_B1 SRI", "339-21_B2 Mattress Installation", "339-22_B2 Pipelaying", "339-23_B2 SRI", "339-31_B3 Mattress Installation", "339-32_B3 Pipelaying", "339-33_B3 SRI"]
             }
         }
     }
@@ -267,7 +228,7 @@ def logout():
 def forgot_password():
     return render_template('forgot_password.html')
 
-# --- ADMIN ROUTE ---
+# --- ADMIN ROUTES ---
 @app.route('/system_config_hidden', methods=['GET', 'POST'])
 @login_required
 def hidden_config():
@@ -306,18 +267,6 @@ def hidden_config():
     departments = DropdownOption.query.filter_by(category='Department').order_by(DropdownOption.name.asc()).all()
     return render_template('hidden_admin.html', schema_json=json.dumps(schema), requestors=requestors, departments=departments)
 
-# --- WORKFLOW ROUTES ---
-@app.route('/')
-@login_required
-def dashboard():
-    session['dashboard_view'] = 'user'
-    all_tasks = SurveyTask.query.order_by(SurveyTask.start_time.desc()).all()
-
-    # Check if the current user is an admin
-    is_admin = current_user.email in ADMIN_EMAILS
-
-    return render_template('dashboard.html', name=current_user.name, tasks=all_tasks, is_admin=is_admin)
-
 @app.route('/admin_dashboard')
 @login_required
 def admin_dashboard():
@@ -330,6 +279,104 @@ def admin_dashboard():
     all_tasks = SurveyTask.query.order_by(SurveyTask.start_time.desc()).all()
     users = User.query.order_by(User.name.asc()).all()
     return render_template('admin_dashboard.html', name=current_user.name, tasks=all_tasks, users=users)
+
+@app.route('/run_migration')
+@login_required
+def run_migration():
+    # Only let Admins run this!
+    if current_user.email not in ADMIN_EMAILS:
+        flash('Access Denied: Admins only.', 'error')
+        return redirect(url_for('dashboard'))
+
+    tasks = SurveyTask.query.all()
+    updates = []
+    
+    for task in tasks:
+        old_path = f"{task.area} ➔ {task.location} ➔ {task.sub_location} ➔ {task.work_scope}"
+        changed = False
+        
+        # --- 1. FIX THE 200 SERIES ---
+        if task.area == '200_Onshore_Area_Scope':
+            task.area = '200_Onshore-Land'
+            changed = True
+            if task.location == '211_Taichung':
+                task.location = '210_Taichung'
+                if task.sub_location in ['N/A', None, '']:
+                    task.sub_location = '219_Others' if 'Others' in str(task.work_scope) else '211_General'
+                elif task.sub_location == '211-10_AHDD': task.sub_location = '212_AHDD'
+                elif task.sub_location == '211-20_Tienli': task.sub_location = '213_Tienli'
+                elif task.sub_location == '211-30_Berth37': task.sub_location = '214_Berth37'
+            elif task.location == '212_Tunghsiao':
+                task.location = '220_Tunghsiao'
+                if task.sub_location in ['N/A', None, '']: task.sub_location = '229_Others'
+                elif task.sub_location == '212-10_Temp Platform': task.sub_location = '221_Temp Platform'
+                elif task.sub_location == '212-20_Inside Plant': task.sub_location = '222_Inside Plant'
+                
+        # --- 2. MERGE 300, 400, 500 INTO 300_Marine ---
+        elif task.area == '300_General_Marine':
+            task.area = '300_Marine'
+            task.location = '310_General'
+            changed = True
+            if task.sub_location in ['N/A', None, '']:
+                if 'Survey' in str(task.work_scope): task.sub_location = '311_Surveys'
+                elif '314' in str(task.location): task.sub_location = '312_Design'
+                elif '315' in str(task.location): task.sub_location = '313_Quantity'
+        
+        elif task.area == '400_Nearshore_Area_Scope':
+            task.area = '300_Marine'
+            task.location = '320_Nearshore'
+            changed = True
+            if task.location == '411_Taichung' and task.sub_location in ['N/A', None, '']: task.sub_location = '321_General'
+            elif task.sub_location == '411-20_Trench 1': task.sub_location = '322_Trench 1'
+            elif task.sub_location == '412-20_Trench 8': task.sub_location = '323_Trench 8'
+            
+        elif task.area == '500_Offshore_Area_Scope':
+            task.area = '300_Marine'
+            task.location = '330_Offshore'
+            changed = True
+            old_loc = str(task.location)
+            if '510_Trench 2' in old_loc: task.sub_location = '331_Trench 2'
+            elif '511_Trench 3' in old_loc: task.sub_location = '332_Trench 3'
+            elif '512_Trench 4' in old_loc: task.sub_location = '333_Trench 4'
+            elif '513_Trench 5' in old_loc: task.sub_location = '334_Trench 5'
+            elif '514_Trench 6' in old_loc: task.sub_location = '335_Trench 6'
+            elif '515_Trench 7' in old_loc: task.sub_location = '336_Trench 7'
+            elif '516_Midline' in old_loc: task.sub_location = '337_Midline_Tie-in'
+            elif '517_Crossing-A' in old_loc: task.sub_location = '338_Crossing-A'
+            elif '518_Crossing-B' in old_loc: task.sub_location = '339_Crossing-B'
+
+        # If the script flagged a change, record it for the report
+        if changed:
+            new_path = f"{task.area} ➔ {task.location} ➔ {task.sub_location} ➔ {task.work_scope}"
+            updates.append(f"<div style='margin-bottom:15px; padding:10px; border:1px solid #ccc; background:#fff; border-radius:5px;'><strong>Task ID: {task.id}</strong><br><span style='color:#dc3545;'>OLD: {old_path}</span><br><span style='color:#28a745;'>NEW: {new_path}</span></div>")
+            
+    # ==========================================
+    # PHASE 2 TRIGGER (DO NOT UNCOMMENT YET)
+    # db.session.commit() 
+    # ==========================================
+
+    html_log = "".join(updates)
+    if not html_log: html_log = "<p>No tasks found that require updating! Your database is fully compatible.</p>"
+    
+    return f"""
+    <div style="font-family: Arial; padding: 20px; background: #f4f7f6;">
+        <h2 style="color: #0056b3;">Migration Dry Run</h2>
+        <p><strong>Found {len(updates)} tasks to update.</strong> Review the changes below. <strong style="color:red;">No data has been saved to the database yet.</strong></p>
+        <div style="max-width: 800px;">{html_log}</div>
+    </div>
+    """
+
+# --- WORKFLOW ROUTES ---
+@app.route('/')
+@login_required
+def dashboard():
+    session['dashboard_view'] = 'user'
+    all_tasks = SurveyTask.query.order_by(SurveyTask.start_time.desc()).all()
+
+    # Check if the current user is an admin
+    is_admin = current_user.email in ADMIN_EMAILS
+
+    return render_template('dashboard.html', name=current_user.name, tasks=all_tasks, is_admin=is_admin)
 
 @app.route('/new_task', methods=['GET', 'POST'])
 @login_required
