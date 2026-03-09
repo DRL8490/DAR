@@ -3,7 +3,7 @@ import io
 from flask import send_file
 import os, json
 import traceback
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -18,6 +18,11 @@ if db_url.startswith("postgres://"):
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'super_secret_key_thpp_survey_2026'
+ADMIN_EMAILS = [
+    'daryll.enano@nmdc-group.com',
+    'mohamad.hediarto@nmdc-group.com',
+    'mok.heng@nmdc-group.com'
+] # Add any other admin emails here!
 
 db = SQLAlchemy(app)
 login_manager = LoginManager()
@@ -239,11 +244,17 @@ def login():
         email = request.form.get('email').strip().lower()
         password = request.form.get('password')
         user = User.query.filter_by(email=email).first()
+        
         if user and check_password_hash(user.password_hash, password):
             login_user(user)
-            return redirect(url_for('dashboard'))
+            # SMART LOGIN: Check if they are on the VIP list
+            if user.email in ADMIN_EMAILS:
+                return redirect(url_for('admin_dashboard'))
+            else:
+                return redirect(url_for('dashboard'))
         else:
             flash('Invalid credentials.', 'error')
+            
     return render_template('login.html')
 
 @app.route('/logout')
@@ -262,7 +273,10 @@ def forgot_password():
 def hidden_config():
     config = AppConfig.query.first()
     schema = json.loads(config.schema_data)
-    
+    # THE BOUNCER
+    if current_user.email not in ADMIN_EMAILS:
+        flash('Access Denied: Admins only.', 'error')
+        return redirect(url_for('dashboard'))
     if request.method == 'POST':
         action = request.form.get('action')
         if action == 'add_requestor':
@@ -296,8 +310,26 @@ def hidden_config():
 @app.route('/')
 @login_required
 def dashboard():
+    session['dashboard_view'] = 'user'
     all_tasks = SurveyTask.query.order_by(SurveyTask.start_time.desc()).all()
-    return render_template('dashboard.html', name=current_user.name, tasks=all_tasks)
+
+    # Check if the current user is an admin
+    is_admin = current_user.email in ADMIN_EMAILS
+
+    return render_template('dashboard.html', name=current_user.name, tasks=all_tasks, is_admin=is_admin)
+
+@app.route('/admin_dashboard')
+@login_required
+def admin_dashboard():
+    # THE BOUNCER
+    if current_user.email not in ADMIN_EMAILS:
+        flash('Access Denied: You do not have Admin privileges.', 'error')
+        return redirect(url_for('dashboard'))
+
+    session['dashboard_view'] = 'admin'
+    all_tasks = SurveyTask.query.order_by(SurveyTask.start_time.desc()).all()
+    users = User.query.order_by(User.name.asc()).all()
+    return render_template('admin_dashboard.html', name=current_user.name, tasks=all_tasks, users=users)
 
 @app.route('/new_task', methods=['GET', 'POST'])
 @login_required
@@ -354,7 +386,7 @@ def new_task():
             db.session.add(new_survey)
             db.session.commit()
             flash('New task opened successfully!', 'success')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
             
         requestors = Requestor.query.all()
         req_dict = {}
@@ -387,7 +419,7 @@ def edit_task(task_id):
         
         if current_user.name not in [task.surveyor_name, task.assigned_to]:
             flash('Unauthorized to edit this task.', 'error')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
 
         if request.method == 'POST':
             req_dept = request.form.get('requestor_dept')
@@ -409,7 +441,7 @@ def edit_task(task_id):
 
             db.session.commit()
             flash('Task updated successfully!', 'success')
-            return redirect(url_for('dashboard'))
+            return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
 
         config = AppConfig.query.first()
         schema_json = config.schema_data if config else "{}"
@@ -470,12 +502,12 @@ def close_task(task_id):
     task = SurveyTask.query.get_or_404(task_id)
     if current_user.name not in [task.surveyor_name, task.assigned_to]:
         flash('Unauthorized.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
         
     closing_remarks = request.form.get('closing_remarks')
     if not closing_remarks:
         flash('Closing remarks are mandatory.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
 
     task.remarks = f"{task.remarks} | Closed: {closing_remarks}" if task.remarks else f"Closed: {closing_remarks}"
     if request.form.get('deliverable_link'):
@@ -485,7 +517,7 @@ def close_task(task_id):
     task.end_time = datetime.utcnow()
     db.session.commit()
     flash('Task closed and logged!', 'success')
-    return redirect(url_for('dashboard'))
+    return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
 
 @app.route('/cancel_task/<int:task_id>', methods=['POST'])
 @login_required
@@ -493,19 +525,19 @@ def cancel_task(task_id):
     task = SurveyTask.query.get_or_404(task_id)
     if current_user.name not in [task.surveyor_name, task.assigned_to]:
         flash('Unauthorized.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
         
     cancel_reason = request.form.get('cancel_reason')
     if not cancel_reason:
         flash('Cancel reason is mandatory.', 'error')
-        return redirect(url_for('dashboard'))
+        return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
         
     task.remarks = f"{task.remarks} | CANCELED: {cancel_reason}" if task.remarks else f"CANCELED: {cancel_reason}"
     task.status = 'Canceled'
     task.end_time = datetime.utcnow()
     db.session.commit()
     flash('Task canceled.', 'error')
-    return redirect(url_for('dashboard'))
+    return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
 
 @app.route('/reports')
 @login_required

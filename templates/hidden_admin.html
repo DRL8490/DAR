@@ -19,7 +19,7 @@
 <body>
     <div class="header">
         <h2>⚙️ Hidden System Configuration</h2>
-        <a href="/" class="btn-back">Back to Dashboard</a>
+        <a href="{{ url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard') }}" class="btn-back">Back to Dashboard</a>
     </div>
     
     {% with messages = get_flashed_messages() %}

@@ -46,7 +46,7 @@
             <div class="form-group"><label>Opening Remarks:</label><textarea name="remarks" rows="3">{{ task.remarks or '' }}</textarea></div>
             
             <button type="submit">Save Changes</button>
-            <a href="/" style="display: block; text-align: center; margin-top: 15px; color: #666; text-decoration: none;">Cancel</a>
+            <a href="{{ url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard') }}" style="display: block; text-align: center; margin-top: 15px; color: #666; text-decoration: none;">Cancel</a>
         </form>
     </div>
 
