@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Active Tasks - NMDC</title>
     <style>
+        /* Base Styles */
         body { font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; background-color: #f4f7f6; padding: 20px; margin: 0; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
         .btn-new { background-color: #0056b3; color: white; padding: 10px 15px; text-decoration: none; border-radius: 6px; font-weight: bold; }
@@ -33,9 +34,6 @@
         .badge-Closed { background: #28a745; }
         .badge-Canceled { background: #dc3545; }
 
-        .task-body { display: none; margin-top: 15px; padding-top: 15px; border-top: 1px dashed #ccc; }
-        .task-detail { font-size: 14px; color: #444; margin: 6px 0; }
-        
         .action-area { margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
         .btn-action { color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; text-decoration: none; }
         .btn-close { background-color: #28a745; }
@@ -44,6 +42,19 @@
         
         .action-form { display: none; flex-direction: column; gap: 8px; margin-top: 10px; padding: 12px; background: #f9f9f9; border-radius: 6px; border: 1px solid #ddd; width: 100%; box-sizing: border-box; }
         .action-input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+
+        /* FULL TASK MODAL STYLES */
+        .task-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+        .task-modal-box { background: white; width: 90%; max-width: 800px; max-height: 90vh; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 5px 20px rgba(0,0,0,0.4); }
+        .task-modal-header { background: #f8f9fa; padding: 15px 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: flex-start; }
+        .task-modal-close { font-size: 28px; cursor: pointer; color: #888; line-height: 1; border: none; background: none; font-weight: bold; }
+        .task-modal-close:hover { color: #dc3545; }
+        .task-modal-body { display: flex; flex-wrap: wrap; padding: 20px; overflow-y: auto; gap: 20px; }
+        .task-modal-left { flex: 2; min-width: 300px; }
+        .task-modal-right { flex: 1; min-width: 200px; background: #f8f9fa; padding: 15px; border-radius: 6px; border: 1px solid #eee; }
+        .task-modal-footer { background: #f8f9fa; padding: 15px 20px; border-top: 1px solid #ddd; display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+        .meta-item { margin-bottom: 12px; font-size: 13px; color: #222; }
+        .meta-item strong { color: #555; display: block; margin-bottom: 3px; text-transform: uppercase; font-size: 11px; }
     </style>
 </head>
 <body>
@@ -82,13 +93,7 @@
         </div>
     </div>
 
-    </div>
-
-    <div id="taskCountDisplay" style="font-size: 14px; font-weight: bold; color: #0056b3; margin-bottom: 15px;">
-        Loading task count...
-    </div>
-
-    <p id="noTasksMsg" style="text-align: center; color: #777; margin-top: 50px; display: none;">No tasks match this filter configuration.</p>
+    <div id="taskCountDisplay" style="font-size: 14px; font-weight: bold; color: #0056b3; margin-bottom: 15px;">Loading task count...</div>
     <p id="noTasksMsg" style="text-align: center; color: #777; margin-top: 50px; display: none;">No tasks match this filter configuration.</p>
 
     <div id="taskContainer">
@@ -100,9 +105,26 @@
         {% set scope_code = task.work_scope.split('_', 1)[0] if task.work_scope and '_' in task.work_scope else '' %}
         {% set scope_text = task.work_scope.split('_', 1)[-1].replace('_', ' ') if task.work_scope and '_' in task.work_scope else task.work_scope %}
         
-        <div class="task-card" data-status="{{ task.status }}" data-date="{{ task.start_time.strftime('%Y-%m-%d') }}" data-mine="{% if name == task.assigned_to %}true{% else %}false{% endif %}">
+        <div class="task-card" 
+             data-id="{{ task.id }}"
+             data-status="{{ task.status }}" 
+             data-date="{{ task.start_time.strftime('%Y-%m-%d') }}" 
+             data-assigned="{{ task.assigned_to }}"
+             data-mine="{% if name == task.assigned_to or name == task.surveyor_name %}true{% else %}false{% endif %}"
+             data-creator="{{ task.surveyor_name }}"
+             data-task-str="{{ task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else 'UNKNOWN-'~task.id }}"
+             data-path="📁 {{ area_clean }} {% if loc_clean %}➔ {{ loc_clean }}{% endif %} {% if sub_clean %}➔ {{ sub_clean }}{% endif %} ➔ {{ scope_text }}"
+             data-remarks="{{ task.remarks or '' }}"
+             data-links="{{ task.reference_links or '' }}"
+             data-deliverable="{{ task.deliverable_link or '' }}"
+             data-req="{{ task.requestor or '' }}"
+             data-cat="{{ task.task_category or '' }}"
+             data-disc="{{ task.action_required or '' }}"
+             data-inst="{{ task.instrument or '' }}"
+             data-start="{{ task.start_time.strftime('%Y-%m-%d %H:%M') if task.start_time else '' }}"
+             data-end="{{ task.end_time.strftime('%Y-%m-%d %H:%M') if task.end_time else 'Pending' }}">
             
-            <div class="task-header" onclick="toggleCard('body-{{ task.id }}')">
+            <div class="task-header" onclick="openTaskModal(this.parentElement)">
                 <div style="flex: 1;">
                     <div class="task-line-1">
                         {{ task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else 'UNKNOWN-'~task.id }} 
@@ -111,7 +133,6 @@
                         {% if loc_clean %} | {{ loc_clean }}{% endif %}
                         {% if sub_clean %} | {{ sub_clean }}{% endif %}
                         {% if scope_text %} | {{ scope_text }}{% endif %}
-                        {% if task.action_required %} | {{ task.action_required }}{% endif %}
                     </div>
                     <div class="task-line-2">
                         Requested by: {{ task.requestor }} | Assigned to: {{ task.assigned_to }}
@@ -119,78 +140,85 @@
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <span class="status-badge badge-{{ task.status }}">{{ task.status }}</span>
-                    <span style="font-size: 12px; color: #888;">▼</span>
+                    <span style="font-size: 16px; color: #0056b3; font-weight: bold;" title="View Details">⤢</span>
                 </div>
             </div>
-            
-            <div class="task-body" id="body-{{ task.id }}">
-                {% if task.reference_links %}
-                <p class="task-detail"><strong>References:</strong> {% for link in task.reference_links.split(' | ') %}<a href="{{ link }}" target="_blank" style="color: #0056b3; text-decoration: underline;">[Link {{ loop.index }}]</a> {% endfor %}</p>
-                {% endif %}
-                <p class="task-detail"><strong>Opening Remarks:</strong> {{ task.remarks.split('| Closed:')[0].split('| CANCELED:')[0] if task.remarks else 'None' }}</p>
-                
-                {% if task.status != 'Open' %}
-                <p class="task-detail" style="color: #333; background: #f1f1f1; padding: 5px; border-radius: 4px;">
-                    <strong>Closing Notes:</strong> {{ task.remarks.split('|')[1] if task.remarks and '|' in task.remarks else 'None' }}
-                </p>
-                {% endif %}
-                
-                {% if task.status == 'Open' %}
-                    <div class="action-area">
-                        {% if name == task.surveyor_name or name == task.assigned_to %}
-                            <a href="/edit_task/{{ task.id }}" class="btn-action btn-edit">✏️ Edit</a>
-                            <button class="btn-action btn-close" onclick="document.getElementById('closeForm-{{ task.id }}').style.display='flex'">Complete</button>
-                            <button class="btn-action btn-cancel" onclick="document.getElementById('cancelForm-{{ task.id }}').style.display='flex'">Cancel</button>
-                            
-                            <form id="closeForm-{{ task.id }}" action="/close_task/{{ task.id }}" method="POST" class="action-form">
-                                <input type="text" name="closing_remarks" class="action-input" placeholder="Result/Closing remarks (Required)..." required>
-                                <input type="url" name="deliverable_link" class="action-input" placeholder="OneDrive Deliverable Link (Optional)...">
-                                <button type="submit" class="btn-action btn-close">Confirm Close</button>
-                            </form>
-                            
-                            <form id="cancelForm-{{ task.id }}" action="/cancel_task/{{ task.id }}" method="POST" class="action-form">
-                                <input type="text" name="cancel_reason" class="action-input" placeholder="Reason for cancellation (Required)..." required>
-                                <button type="submit" class="btn-action btn-cancel">Confirm Cancel</button>
-                            </form>
-                        {% else %}
-                            <span style="font-size: 12px; font-style: italic; color: #888;">Only creator/assignee can edit or close.</span>
-                        {% endif %}
-                    </div>
-                {% endif %}
-            </div>
-
         </div>
         {% endfor %}
     </div>
     
     <div style="text-align: center; margin-top: 30px;">
-     {% if is_admin %}
-     <a href="/admin_dashboard" style="color: #28a745; font-weight: bold; text-decoration: none; margin-right: 20px;">Switch to Admin View</a>
-     {% endif %}
+        {% if is_admin %}
+        <a href="/admin_dashboard" style="color: #28a745; font-weight: bold; text-decoration: none; margin-right: 20px;">Switch to Admin View</a>
+        {% endif %}
+        <a href="/logout" style="color: #dc3545; text-decoration: none;">Logout ({{ name }})</a>
+    </div>
 
-     <a href="/logout" style="color: #dc3545; text-decoration: none;">Logout ({{ name }})</a>
- </div>
+    <div class="task-modal-overlay" id="fullTaskModal">
+        <div class="task-modal-box">
+            <div class="task-modal-header">
+                <div>
+                    <h3 id="modalTaskId" style="margin:0 0 5px 0; color:#111; font-family: monospace;">Task ID</h3>
+                    <div id="modalTaskPath" style="font-size:13px; color:#555; font-weight: bold;">Path</div>
+                </div>
+                <button class="task-modal-close" onclick="closeTaskModal()">&times;</button>
+            </div>
+            <div class="task-modal-body">
+                <div class="task-modal-left">
+                    <h4 style="margin-top:0; color:#0056b3; border-bottom: 2px solid #eee; padding-bottom:5px;">📝 Remarks & Notes</h4>
+                    <p id="modalRemarks" style="font-size:14px; color:#333; line-height: 1.5; white-space: pre-wrap;"></p>
+
+                    <h4 style="color:#0056b3; border-bottom: 2px solid #eee; padding-bottom:5px; margin-top:25px;">🔗 Deliverables & References</h4>
+                    <div id="modalLinks" style="font-size:14px; line-height: 1.8;"></div>
+                </div>
+                <div class="task-modal-right">
+                    <h4 style="margin-top:0; color:#0056b3; border-bottom: 1px solid #ccc; padding-bottom:5px;">📌 Task Details</h4>
+                    <div class="meta-item"><strong>Status</strong> <span id="modalStatusBadge"></span></div>
+                    <div class="meta-item"><strong>Requested By</strong> <span id="modalReq"></span></div>
+                    <div class="meta-item"><strong>Assigned To</strong> <span id="modalAssign"></span></div>
+                    <div class="meta-item"><strong>Creator</strong> <span id="modalCreator"></span></div>
+                    <div class="meta-item"><strong>Activity Type</strong> <span id="modalCat"></span></div>
+                    <div class="meta-item"><strong>Discipline</strong> <span id="modalDisc"></span></div>
+                    <div class="meta-item"><strong>Instrument</strong> <span id="modalInst"></span></div>
+                    <h4 style="color:#0056b3; border-bottom: 1px solid #ccc; padding-bottom:5px; margin-top:20px;">⏱️ Timeline</h4>
+                    <div class="meta-item"><strong>Opened</strong> <span id="modalStart"></span></div>
+                    <div class="meta-item"><strong>Closed</strong> <span id="modalEnd"></span></div>
+                </div>
+            </div>
+            <div class="task-modal-footer" id="modalActionArea">
+                <a id="modalEditBtn" href="#" class="btn-action btn-edit">✏️ Edit</a>
+                <button id="modalCompleteBtn" class="btn-action btn-close" onclick="document.getElementById('modalCloseForm').style.display='flex'; this.style.display='none'; document.getElementById('modalCancelTaskBtn').style.display='none';">Complete Task</button>
+                <button id="modalCancelTaskBtn" class="btn-action btn-cancel" onclick="document.getElementById('modalCancelForm').style.display='flex'; this.style.display='none'; document.getElementById('modalCompleteBtn').style.display='none';">Cancel Task</button>
+                
+                <form id="modalCloseForm" action="" method="POST" class="action-form" style="width:100%; display:none;">
+                    <input type="text" name="closing_remarks" class="action-input" placeholder="Result/Closing remarks (Required)..." required>
+                    <input type="url" name="deliverable_link" class="action-input" placeholder="OneDrive Deliverable Link (Optional)...">
+                    <button type="submit" class="btn-action btn-close" style="margin-top:5px;">Confirm Close</button>
+                </form>
+                
+                <form id="modalCancelForm" action="" method="POST" class="action-form" style="width:100%; display:none;">
+                    <input type="text" name="cancel_reason" class="action-input" placeholder="Reason for cancellation (Required)..." required>
+                    <button type="submit" class="btn-action btn-cancel" style="margin-top:5px;">Confirm Cancel</button>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <script>
-        // Use a Set to track multiple active filters at once
-        let activeStatuses = new Set(['All']); // Defaults to 'All'
+        // Filters & Logic
+        let activeStatuses = new Set(['All']);
         let isMineActive = false;
-
-        function toggleCard(id) {
-            let el = document.getElementById(id);
-            el.style.display = el.style.display === 'block' ? 'none' : 'block';
-        }
 
         function toggleStatus(status) {
             if (status === 'All') {
                 activeStatuses.clear();
                 activeStatuses.add('All');
             } else {
-                activeStatuses.delete('All'); // Turn off 'All' if a specific status is clicked
+                activeStatuses.delete('All');
                 if (activeStatuses.has(status)) {
-                    activeStatuses.delete(status); // Turn off if it was already on
+                    activeStatuses.delete(status);
                 } else {
-                    activeStatuses.add(status); // Turn on
+                    activeStatuses.add(status);
                 }
             }
             updateFilterUI();
@@ -198,7 +226,7 @@
         }
 
         function toggleMine() {
-            isMineActive = !isMineActive; // Flips between true and false
+            isMineActive = !isMineActive;
             updateFilterUI();
             applyFilters();
         }
@@ -229,26 +257,20 @@
                 const date = card.dataset.date;
                 const isMine = card.dataset.mine === 'true';
 
-                // 1. Status Check Logic
                 let matchesStatus = false;
-                if (activeStatuses.has('All')) {
-                    matchesStatus = true;
-                } else if (activeStatuses.has(status)) {
+                if (activeStatuses.has('All') || activeStatuses.has(status)) {
                     matchesStatus = true;
                 }
 
-                // 2. Ownership Check Logic
                 let matchesMine = true;
                 if (isMineActive && !isMine) {
-                    matchesMine = false; // Hides task if "Assigned to Me" is checked but task isn't yours
+                    matchesMine = false;
                 }
 
-                // 3. Final Verification
                 if (matchesStatus && matchesMine) {
                     show = true;
                 }
 
-                // 4. Date Check (Overrides everything else)
                 if (show) {
                     if (dStart && date < dStart) show = false;
                     if (dEnd && date > dEnd) show = false;
@@ -257,23 +279,100 @@
                 card.style.display = show ? 'block' : 'none';
                 if(show) visibleCount++;
             });
-// ADD THIS NEW LINE RIGHT HERE:
+
             document.getElementById('taskCountDisplay').innerText = `Showing ${visibleCount} task${visibleCount === 1 ? '' : 's'}`;
             document.getElementById('noTasksMsg').style.display = visibleCount === 0 ? 'block' : 'none';
         }
 
-        window.onload = () => {
-            updateFilterUI();
-            applyFilters();
-        };
-
-        // Live Clock Script
+        // Live Clock
         function updateClock() {
             const now = new Date();
             document.getElementById('liveClock').innerText = now.toLocaleString();
         }
         setInterval(updateClock, 1000);
         updateClock();
+
+        window.onload = () => {
+            updateFilterUI();
+            applyFilters();
+        };
+
+        // Modal Logic
+        function openTaskModal(card) {
+            document.getElementById('modalTaskId').innerText = '📋 ' + card.dataset.taskStr;
+            document.getElementById('modalTaskPath').innerText = card.dataset.path;
+            
+            let rawRemarks = card.dataset.remarks;
+            let remarksHtml = "";
+            if (rawRemarks.includes('| Closed:')) {
+                let parts = rawRemarks.split('| Closed:');
+                remarksHtml = `<strong>Opening Remarks:</strong><br>${parts[0] || 'None'}<br><br><strong style="color:#28a745;">Closing Notes:</strong><br>${parts[1]}`;
+            } else if (rawRemarks.includes('| CANCELED:')) {
+                let parts = rawRemarks.split('| CANCELED:');
+                remarksHtml = `<strong>Opening Remarks:</strong><br>${parts[0] || 'None'}<br><br><strong style="color:#dc3545;">Cancel Reason:</strong><br>${parts[1]}`;
+            } else {
+                remarksHtml = rawRemarks || "<span style='color:#888; font-style:italic;'>No remarks provided.</span>";
+            }
+            document.getElementById('modalRemarks').innerHTML = remarksHtml;
+
+            let rawLinks = card.dataset.links;
+            let rawDeliv = card.dataset.deliverable;
+            let linksHtml = "";
+            if (rawLinks) {
+                let links = rawLinks.split(' | ');
+                links.forEach((l, i) => linksHtml += `<div><a href="${l}" target="_blank" style="color:#0056b3; text-decoration:none; font-weight:bold;">[↗ Reference Link ${i+1}]</a></div>`);
+            }
+            if (rawDeliv) {
+                linksHtml += `<div style="margin-top:8px;"><a href="${rawDeliv}" target="_blank" style="color:#28a745; text-decoration:none; font-weight:bold;">[↗ Final Deliverable]</a></div>`;
+            }
+            document.getElementById('modalLinks').innerHTML = linksHtml || "<span style='color:#888; font-style:italic;'>No links attached.</span>";
+
+            let status = card.dataset.status;
+            let badge = document.getElementById('modalStatusBadge');
+            badge.innerText = status;
+            badge.className = 'status-badge badge-' + status;
+
+            document.getElementById('modalReq').innerText = card.dataset.req;
+            document.getElementById('modalAssign').innerText = card.dataset.assigned;
+            document.getElementById('modalCreator').innerText = card.dataset.creator;
+            document.getElementById('modalCat').innerText = card.dataset.cat;
+            document.getElementById('modalDisc').innerText = card.dataset.disc;
+            document.getElementById('modalInst').innerText = card.dataset.inst;
+            document.getElementById('modalStart').innerText = card.dataset.start;
+            document.getElementById('modalEnd').innerText = card.dataset.end;
+
+            let taskId = card.dataset.id;
+            let isMine = card.dataset.mine === 'true';
+            
+            document.getElementById('modalCloseForm').style.display = 'none';
+            document.getElementById('modalCancelForm').style.display = 'none';
+
+            if (status === 'Open' && isMine) {
+                document.getElementById('modalEditBtn').href = '/edit_task/' + taskId;
+                document.getElementById('modalCloseForm').action = '/close_task/' + taskId;
+                document.getElementById('modalCancelForm').action = '/cancel_task/' + taskId;
+                
+                document.getElementById('modalEditBtn').style.display = 'block';
+                document.getElementById('modalCompleteBtn').style.display = 'block';
+                document.getElementById('modalCancelTaskBtn').style.display = 'block';
+                document.getElementById('modalActionArea').style.display = 'flex';
+            } else {
+                document.getElementById('modalActionArea').style.display = 'none';
+            }
+
+            document.getElementById('fullTaskModal').style.display = 'flex';
+        }
+
+        function closeTaskModal() {
+            document.getElementById('fullTaskModal').style.display = 'none';
+        }
+
+        window.onclick = function(event) {
+            let modal = document.getElementById('fullTaskModal');
+            if (event.target === modal) {
+                closeTaskModal();
+            }
+        }
     </script>
 </body>
 </html>
