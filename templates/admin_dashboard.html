@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Active Tasks - NMDC</title>
+    <title>Admin Dashboard - NMDC</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; background-color: #f4f7f6; padding: 20px; margin: 0; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; flex-wrap: wrap; gap: 10px; }
         .btn-new { background-color: #0056b3; color: white; padding: 10px 15px; text-decoration: none; border-radius: 6px; font-weight: bold; }
+        .btn-warning { background-color: #ffc107; color: black; }
         
         .flash-container { margin-bottom: 20px; }
         .flash-msg { padding: 12px 15px; border-radius: 6px; font-weight: bold; margin-bottom: 10px; font-size: 14px; }
@@ -19,6 +20,7 @@
         .btn-filter:hover { background: #ddd; }
         .btn-filter.active { background: #0056b3; color: white; border-color: #0056b3; }
         .date-input { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+        .user-dropdown { padding: 8px 12px; border-radius: 20px; border: 1px solid #ccc; font-weight: bold; font-size: 13px; color: #333; outline: none; }
         
         .task-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; border-left: 5px solid #ffc107; transition: all 0.2s; }
         .task-card[data-status="Closed"] { border-left-color: #28a745; opacity: 0.8; }
@@ -48,10 +50,14 @@
 </head>
 <body>
     <div class="header">
-        <div id="liveClock" style="font-size: 14px; color: #555; font-weight: bold; margin-bottom: 15px;">Loading time...</div>
-        <h2>Active Survey Tasks</h2>
-        <a href="/new_task" class="btn-new">+ Open New Task</a>
+        <h2>Active Survey Task - Admin</h2>
+        <div style="display: flex; gap: 10px;">
+            <a href="/system_config_hidden" class="btn-new btn-warning">⚙️ Config</a>
+            <a href="/new_task" class="btn-new">+ Open New Task</a>
+        </div>
     </div>
+    
+    <div id="liveClock" style="font-size: 14px; color: #555; font-weight: bold; margin-bottom: 15px;">Loading time...</div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -68,10 +74,16 @@
     <div class="filter-bar">
         <strong style="font-size: 14px; color: #333;">Filters:</strong>
         <button class="btn-filter" id="btnAll" onclick="toggleStatus('All')">All</button>
-        <button class="btn-filter" id="btnOpen" onclick="toggleStatus('Open')">Open</button>
+        <button class="btn-filter active" id="btnOpen" onclick="toggleStatus('Open')">Open</button>
         <button class="btn-filter" id="btnClosed" onclick="toggleStatus('Closed')">Closed</button>
         <button class="btn-filter" id="btnCanceled" onclick="toggleStatus('Canceled')">Canceled</button>
-        <button class="btn-filter" id="btnMine" onclick="toggleMine()">Assigned to Me</button>
+        
+        <select id="userFilter" class="user-dropdown" onchange="applyFilters()">
+            <option value="All">All Users</option>
+            {% for u in users %}
+            <option value="{{ u.name }}">{{ u.name }}</option>
+            {% endfor %}
+        </select>
         
         <div style="margin-left: auto; display: flex; align-items: center; gap: 5px;">
             <span style="font-size: 13px; color: #555;">From:</span>
@@ -81,14 +93,17 @@
             <button onclick="clearDates()" style="background: none; border: none; color: #dc3545; cursor: pointer; font-weight: bold;" title="Clear Dates">X</button>
         </div>
     </div>
-
-    </div>
+</div>
 
     <div id="taskCountDisplay" style="font-size: 14px; font-weight: bold; color: #0056b3; margin-bottom: 15px;">
         Loading task count...
     </div>
 
     <p id="noTasksMsg" style="text-align: center; color: #777; margin-top: 50px; display: none;">No tasks match this filter configuration.</p>
+    <div style="margin-bottom: 20px;">
+        <a href="/reports" style="color: #0056b3; font-weight: bold; text-decoration: none;">📊 Open Report Generation Wizard</a>
+    </div>
+
     <p id="noTasksMsg" style="text-align: center; color: #777; margin-top: 50px; display: none;">No tasks match this filter configuration.</p>
 
     <div id="taskContainer">
@@ -100,7 +115,7 @@
         {% set scope_code = task.work_scope.split('_', 1)[0] if task.work_scope and '_' in task.work_scope else '' %}
         {% set scope_text = task.work_scope.split('_', 1)[-1].replace('_', ' ') if task.work_scope and '_' in task.work_scope else task.work_scope %}
         
-        <div class="task-card" data-status="{{ task.status }}" data-date="{{ task.start_time.strftime('%Y-%m-%d') }}" data-mine="{% if name == task.assigned_to %}true{% else %}false{% endif %}">
+        <div class="task-card" data-status="{{ task.status }}" data-date="{{ task.start_time.strftime('%Y-%m-%d') }}" data-assigned="{{ task.assigned_to }}">
             
             <div class="task-header" onclick="toggleCard('body-{{ task.id }}')">
                 <div style="flex: 1;">
@@ -137,24 +152,20 @@
                 
                 {% if task.status == 'Open' %}
                     <div class="action-area">
-                        {% if name == task.surveyor_name or name == task.assigned_to %}
-                            <a href="/edit_task/{{ task.id }}" class="btn-action btn-edit">✏️ Edit</a>
-                            <button class="btn-action btn-close" onclick="document.getElementById('closeForm-{{ task.id }}').style.display='flex'">Complete</button>
-                            <button class="btn-action btn-cancel" onclick="document.getElementById('cancelForm-{{ task.id }}').style.display='flex'">Cancel</button>
-                            
-                            <form id="closeForm-{{ task.id }}" action="/close_task/{{ task.id }}" method="POST" class="action-form">
-                                <input type="text" name="closing_remarks" class="action-input" placeholder="Result/Closing remarks (Required)..." required>
-                                <input type="url" name="deliverable_link" class="action-input" placeholder="OneDrive Deliverable Link (Optional)...">
-                                <button type="submit" class="btn-action btn-close">Confirm Close</button>
-                            </form>
-                            
-                            <form id="cancelForm-{{ task.id }}" action="/cancel_task/{{ task.id }}" method="POST" class="action-form">
-                                <input type="text" name="cancel_reason" class="action-input" placeholder="Reason for cancellation (Required)..." required>
-                                <button type="submit" class="btn-action btn-cancel">Confirm Cancel</button>
-                            </form>
-                        {% else %}
-                            <span style="font-size: 12px; font-style: italic; color: #888;">Only creator/assignee can edit or close.</span>
-                        {% endif %}
+                        <a href="/edit_task/{{ task.id }}" class="btn-action btn-edit">✏️ Edit</a>
+                        <button class="btn-action btn-close" onclick="document.getElementById('closeForm-{{ task.id }}').style.display='flex'">Complete</button>
+                        <button class="btn-action btn-cancel" onclick="document.getElementById('cancelForm-{{ task.id }}').style.display='flex'">Cancel</button>
+                        
+                        <form id="closeForm-{{ task.id }}" action="/close_task/{{ task.id }}" method="POST" class="action-form">
+                            <input type="text" name="closing_remarks" class="action-input" placeholder="Result/Closing remarks (Required)..." required>
+                            <input type="url" name="deliverable_link" class="action-input" placeholder="OneDrive Deliverable Link (Optional)...">
+                            <button type="submit" class="btn-action btn-close">Confirm Close</button>
+                        </form>
+                        
+                        <form id="cancelForm-{{ task.id }}" action="/cancel_task/{{ task.id }}" method="POST" class="action-form">
+                            <input type="text" name="cancel_reason" class="action-input" placeholder="Reason for cancellation (Required)..." required>
+                            <button type="submit" class="btn-action btn-cancel">Confirm Cancel</button>
+                        </form>
                     </div>
                 {% endif %}
             </div>
@@ -164,17 +175,20 @@
     </div>
     
     <div style="text-align: center; margin-top: 30px;">
-     {% if is_admin %}
-     <a href="/admin_dashboard" style="color: #28a745; font-weight: bold; text-decoration: none; margin-right: 20px;">Switch to Admin View</a>
-     {% endif %}
-
-     <a href="/logout" style="color: #dc3545; text-decoration: none;">Logout ({{ name }})</a>
- </div>
+        <a href="/" style="color: #0056b3; text-decoration: none; font-weight: bold; margin-right: 20px;">Switch to User View</a>
+        <a href="/logout" style="color: #dc3545; text-decoration: none;">Logout ({{ name }})</a>
+    </div>
 
     <script>
-        // Use a Set to track multiple active filters at once
-        let activeStatuses = new Set(['All']); // Defaults to 'All'
-        let isMineActive = false;
+        // Live Clock Script
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('liveClock').innerText = now.toLocaleString();
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        let activeStatuses = new Set(['Open']); // Defaults to 'Open'
 
         function toggleCard(id) {
             let el = document.getElementById(id);
@@ -186,19 +200,13 @@
                 activeStatuses.clear();
                 activeStatuses.add('All');
             } else {
-                activeStatuses.delete('All'); // Turn off 'All' if a specific status is clicked
+                activeStatuses.delete('All'); 
                 if (activeStatuses.has(status)) {
-                    activeStatuses.delete(status); // Turn off if it was already on
+                    activeStatuses.delete(status); 
                 } else {
-                    activeStatuses.add(status); // Turn on
+                    activeStatuses.add(status); 
                 }
             }
-            updateFilterUI();
-            applyFilters();
-        }
-
-        function toggleMine() {
-            isMineActive = !isMineActive; // Flips between true and false
             updateFilterUI();
             applyFilters();
         }
@@ -208,7 +216,6 @@
             document.getElementById('btnOpen').classList.toggle('active', activeStatuses.has('Open'));
             document.getElementById('btnClosed').classList.toggle('active', activeStatuses.has('Closed'));
             document.getElementById('btnCanceled').classList.toggle('active', activeStatuses.has('Canceled'));
-            document.getElementById('btnMine').classList.toggle('active', isMineActive);
         }
 
         function clearDates() {
@@ -221,13 +228,14 @@
             const cards = document.querySelectorAll('.task-card');
             const dStart = document.getElementById('dateStart').value;
             const dEnd = document.getElementById('dateEnd').value;
+            const selectedUser = document.getElementById('userFilter').value;
             let visibleCount = 0;
 
             cards.forEach(card => {
                 let show = false;
                 const status = card.dataset.status;
                 const date = card.dataset.date;
-                const isMine = card.dataset.mine === 'true';
+                const assignedTo = card.dataset.assigned;
 
                 // 1. Status Check Logic
                 let matchesStatus = false;
@@ -237,18 +245,18 @@
                     matchesStatus = true;
                 }
 
-                // 2. Ownership Check Logic
-                let matchesMine = true;
-                if (isMineActive && !isMine) {
-                    matchesMine = false; // Hides task if "Assigned to Me" is checked but task isn't yours
+                // 2. Admin User Dropdown Check Logic
+                let matchesUser = true;
+                if (selectedUser !== 'All' && assignedTo !== selectedUser) {
+                    matchesUser = false;
                 }
 
                 // 3. Final Verification
-                if (matchesStatus && matchesMine) {
+                if (matchesStatus && matchesUser) {
                     show = true;
                 }
 
-                // 4. Date Check (Overrides everything else)
+                // 4. Date Check
                 if (show) {
                     if (dStart && date < dStart) show = false;
                     if (dEnd && date > dEnd) show = false;
@@ -266,14 +274,6 @@
             updateFilterUI();
             applyFilters();
         };
-
-        // Live Clock Script
-        function updateClock() {
-            const now = new Date();
-            document.getElementById('liveClock').innerText = now.toLocaleString();
-        }
-        setInterval(updateClock, 1000);
-        updateClock();
     </script>
 </body>
 </html>
