@@ -1,0 +1,144 @@
+Office Admin Works
+    ➔ Internal Coordination Meetings
+        - Face to Face
+	- Teams
+	- PC
+    ➔ External Meetings
+        - Face to Face
+	- Teams
+	- PC
+    ➔ Survey Input - ICQP 
+        - Face to Face
+	- Teams
+	- PC
+    ➔ Survey Input - Others 
+        - Face to Face
+	- Teams
+	- PC
+    ➔ Survey Reports 
+        - Teams
+	- PC	
+	- Excel
+Land Survey
+    ➔ Pre-Survey
+        - GNSS Rover
+	- Total Station
+	- Lidar
+	- Drone
+    ➔ Progress Survey
+        - GNSS Rover
+	- Total Station
+	- Lidar
+	- Drone
+    ➔ Post-Survey
+        - GNSS Rover
+	- Total Station
+	- Lidar
+	- Drone
+    ➔ As-built Survey
+        - GNSS Rover
+	- Total Station
+	- Lidar
+	- Drone
+    ➔ Check Survey
+        - GNSS Rover
+	- Total Station
+	- Levelling Machine
+    ➔ Tender Survey
+        - GNSS Rover
+	- Total Station
+	- Lidar
+	- Drone
+    ➔ Setting-Out Survey
+        - GNSS Rover
+	- Total Station
+    ➔ Stake-Out/Marking
+        - GNSS Rover
+	- Total Station
+    ➔ Benchmark Verification
+        - GNSS Rover
+	- Total Station
+    ➔ Stockpile Survey
+        - GNSS Rover
+	- Total Station
+	- Lidar Equipment
+	- Drone 
+    ➔ GI Survey
+        - GNSS Rover
+	- Total Station
+
+Bathymetric Survey
+    ➔ Tender Survey
+        - MBES - WS166 
+	- SBES
+    ➔ Pre-Survey
+        - MBES - WS166 
+	- SBES
+    ➔ Progress Survey
+        - MBES - WS166 
+	- SBES
+    ➔ Post Survey
+        - MBES - WS166 
+	- SBES
+    ➔ As-Built Survey
+        - MBES - WS166 
+	- SBES
+
+Geophysical Survey
+    ➔ Geophysical Presurvey
+        - Maggy
+	- SSS
+	- SBP
+    ➔ Geophysical Check Survey
+        - Maggy
+	- SSS
+	- SBP
+    ➔ Geophysical Progress survey
+        - Maggy
+	- SSS
+	- SBP
+    ➔ Geophysical Survey Post-Processing
+	- Reporting
+	- CAD
+
+Survey Data Deliverables
+    ➔ Design Creation/Revision
+        - PDS
+	- Terramodel
+	- Civil3D
+	- CAD
+    ➔ Volume Calculation
+        - PDS
+	- Terramodel
+	- Civil3D
+    ➔ Data Volume Calculation
+        - PDS
+	- Terramodel
+	- Civil3D
+ 	- Excel
+
+Equipment Configuration
+    ➔ Background Files Creation
+        - PDS
+	- Terramodel
+	- Civil3D
+	- CAD
+    ➔ Guidance Files Creation
+        - PDS
+	- Terramodel
+	- Civil3D
+	- CAD
+    ➔ Survey Software Configuration
+        - PDS
+	- DTPS 
+	- Terramodel
+	- Civil3D
+	- CAD
+	- PC
+    ➔ Survey Calibration/Troubleshooting
+        - PDS
+	- DTPS 
+	- CAD
+	- PC
+	- Others
+

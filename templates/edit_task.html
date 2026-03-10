@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Edit Task - NMDC</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         body { font-family: Arial; background-color: #f4f7f6; padding: 20px; max-width: 600px; margin: auto; }
         .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-top: 5px solid #ffc107; }
@@ -13,6 +14,7 @@
         button { background-color: #ffc107; color: black; border: none; padding: 12px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 10px; font-weight: bold; }
         .btn-add { background-color: #6c757d; color: white; width: 40px; padding: 10px; font-weight: bold; }
         .btn-remove { background-color: #dc3545; color: white; width: 40px; padding: 10px; font-weight: bold; }
+        .smart-box { background: #e9ecef; padding: 12px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 15px; }
     </style>
 </head>
 <body>
@@ -22,16 +24,54 @@
             
             <div class="form-group"><label>Requestor Dept:</label><select name="requestor_dept" id="reqDept" onchange="updateReqNames()" required><option value="">-- Select Dept --</option></select></div>
             <div class="form-group"><label>Requestor Name:</label><select name="requestor_name" id="reqName" required><option value="">-- Select Name --</option></select></div>
-            <div class="form-group"><label>Assigned To:</label><select name="assigned_to" required><option value="">-- Select Team Member --</option>{% for u in users %}<option value="{{ u.name }}">{{ u.name }}</option>{% endfor %}</select></div>
-            <div class="form-group"><label>Activity Type:</label><select name="task_category" required><option value="">-- Select Category --</option>{% for cat in categories %}<option value="{{ cat.name }}">{{ cat.name }}</option>{% endfor %}</select></div>
             
+            <div class="form-group" id="surveyor_container">
+                <label>Assigned To</label>
+                {% if task.assigned_to %}
+                    {% for assignee in task.assigned_to.split(', ') %}
+                        <div style="display: flex; gap: 5px; margin-bottom: 5px;">
+                            <select name="assigned_to" style="flex: 1;" required>
+                                <option value="">-- Select Surveyor --</option>
+                                {% for u in users %}
+                                    <option value="{{ u.name }}" {% if u.name == assignee %}selected{% endif %}>{{ u.name }}</option>
+                                {% endfor %}
+                            </select>
+                            {% if loop.index > 1 %}
+                            <button type="button" class="btn-remove" onclick="this.parentElement.remove()"><i class="fas fa-trash"></i></button>
+                            {% else %}
+                            <button type="button" class="btn-add" style="background-color: #28a745;" onclick="addSurveyorDropdown()"><i class="fas fa-plus"></i></button>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div style="display: flex; gap: 5px; margin-bottom: 5px;">
+                        <select name="assigned_to" style="flex: 1;" required>
+                            <option value="">-- Select Surveyor --</option>
+                            {% for u in users %}
+                                <option value="{{ u.name }}">{{ u.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="button" class="btn-add" style="background-color: #28a745;" onclick="addSurveyorDropdown()"><i class="fas fa-plus"></i></button>
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="smart-box">
+                <label style="color: #0056b3;"><i class="fas fa-bolt"></i> Quick Find (Smart Search)</label>
+                <input list="smart_task_list" id="smart_task_input" style="width: 100%; box-sizing: border-box;" placeholder="Type keyword (e.g. Progress)..." onchange="applySmartTask()">
+                <datalist id="smart_task_list"></datalist>
+            </div>
+
+            <div class="form-group"><label>Activity Type:</label><select name="task_category" id="task_category" onchange="updateActions()" required><option value="">-- Select Category --</option></select></div>
+            <div class="form-group"><label>Action Required/Discipline:</label><select name="action_required" id="action_required" onchange="updateInstruments()" required><option value="">-- Select Action --</option></select></div>
+            <div class="form-group"><label>Instrument:</label><select name="instrument" id="instrument" required><option value="">-- Select Instrument --</option></select></div>
+            
+            <hr>
+
             <div class="form-group"><label>Area:</label><select name="area" id="areaDropdown" onchange="updateLocations()" required></select></div>
             <div class="form-group"><label>Location:</label><select name="location" id="locationDropdown" onchange="updateSubLocations()"></select></div>
             <div class="form-group"><label>Sub-Location:</label><select name="sub_location" id="subLocationDropdown" onchange="updateWorkScopes()"></select></div>
             <div class="form-group"><label>Work Scope:</label><select name="work_scope" id="workScopeDropdown" required></select></div>
-
-            <div class="form-group"><label>Instrument:</label><select name="instrument" required><option value="">-- Select Instrument --</option>{% for inst in instruments %}<option value="{{ inst.name }}">{{ inst.name }}</option>{% endfor %}</select></div>
-            <div class="form-group"><label>Action Required/Discipline:</label><select name="action_required" required><option value="">-- Select Action --</option>{% for act in actions %}<option value="{{ act.name }}">{{ act.name }}</option>{% endfor %}</select></div>
 
             <div class="form-group" id="link-container">
                 <label>Reference File Links:</label>
@@ -53,7 +93,23 @@
     <script>
         function addLink() { let d = document.createElement('div'); d.style.cssText = "display:flex; gap:5px; margin-bottom:5px;"; d.innerHTML = '<input type="url" name="reference_link" style="flex:1;"><button type="button" class="btn-remove" onclick="this.parentElement.remove()">X</button>'; document.getElementById('link-container').appendChild(d); }
 
- let reqTree = {{ req_dict_json | safe }};
+        function addSurveyorDropdown() {
+            let container = document.getElementById('surveyor_container');
+            let d = document.createElement('div');
+            d.style.cssText = "display:flex; gap:5px; margin-bottom:5px;";
+            d.innerHTML = `
+                <select name="assigned_to" style="flex: 1;" required>
+                    <option value="">-- Select Additional Surveyor --</option>
+                    {% for u in users %}
+                        <option value="{{ u.name }}">{{ u.name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="button" class="btn-remove" onclick="this.parentElement.remove()"><i class="fas fa-trash"></i></button>
+            `;
+            container.appendChild(d);
+        }
+
+        let reqTree = {{ req_dict_json | safe }};
         function popReqDepts() { let d = document.getElementById("reqDept"); Object.keys(reqTree).sort().forEach(x => { let o = document.createElement("option"); o.value = x; o.innerHTML = x; d.appendChild(o); }); }
         function updateReqNames() { let d = document.getElementById("reqDept").value; let n = document.getElementById("reqName"); n.innerHTML = '<option value="">-- Select Name --</option>'; if (d && reqTree[d]) { reqTree[d].sort().forEach(x => { let o = document.createElement("option"); o.value = x; o.innerHTML = x; n.appendChild(o); }); } }
         popReqDepts();
@@ -66,20 +122,65 @@
         function updateWorkScopes() { let a = document.getElementById("areaDropdown").value; let l = document.getElementById("locationDropdown").value; let s = document.getElementById("subLocationDropdown").value; popD("workScopeDropdown", (a && l && s && schema[a][l][s]) ? schema[a][l][s] : []); }
         loadAreas();
 
- // ----------------------------------------
-        // PRE-FILL EXISTING TASK DATA (WITH LEGACY SAFENET)
+        // --- TASK CASCADE & SMART SEARCH ---
+        let actData = {{ activities_json | safe }};
+        const actSelect = document.getElementById('task_category');
+        const reqActSelect = document.getElementById('action_required');
+        const instSelect = document.getElementById('instrument');
+
+        Object.keys(actData).sort().forEach(act => { actSelect.add(new Option(act, act)); });
+
+        function updateActions() {
+            reqActSelect.innerHTML = '<option value="">-- Select Action --</option>';
+            instSelect.innerHTML = '<option value="">-- Select Instrument --</option>';
+            const act = actSelect.value;
+            if(act && actData[act]) { Object.keys(actData[act]).sort().forEach(req => { reqActSelect.add(new Option(req, req)); }); }
+        }
+
+        function updateInstruments() {
+            instSelect.innerHTML = '<option value="">-- Select Instrument --</option>';
+            const act = actSelect.value;
+            const req = reqActSelect.value;
+            if(act && req && actData[act][req]) { actData[act][req].forEach(inst => { instSelect.add(new Option(inst, inst)); }); }
+        }
+
+        const smartList = document.getElementById('smart_task_list');
+        let taskCombinations = {}; 
+        for (const [act, actions] of Object.entries(actData)) {
+            for (const [req, insts] of Object.entries(actions)) {
+                insts.forEach(inst => {
+                    const comboStr = `${act} ➔ ${req} ➔ ${inst}`;
+                    taskCombinations[comboStr] = { act, req, inst };
+                    let option = document.createElement('option');
+                    option.value = comboStr;
+                    smartList.appendChild(option);
+                });
+            }
+        }
+
+        function applySmartTask() {
+            const inputVal = document.getElementById('smart_task_input').value;
+            const combo = taskCombinations[inputVal];
+            if (combo) {
+                setSafeVal('task_category', combo.act); updateActions(); 
+                setSafeVal('action_required', combo.req); updateInstruments(); 
+                setSafeVal('instrument', combo.inst);
+            }
+        }
+
         // ----------------------------------------
-function setSafeVal(idOrName, val) {
+        // PRE-FILL EXISTING TASK DATA
+        // ----------------------------------------
+        function setSafeVal(idOrName, val) {
             if (!val || val === "N/A" || val === "None") return;
             let el = document.getElementById(idOrName) || document.querySelector(`[name="${idOrName}"]`);
             if (!el) return;
             
-            // Invisible Safenet: Creates the option but hides the warning label
             let exists = Array.from(el.options).some(opt => opt.value === val);
             if (!exists) {
                 let opt = document.createElement('option');
                 opt.value = val;
-                opt.innerHTML = val; // Removed the " (Legacy)" text!
+                opt.innerHTML = val; 
                 el.appendChild(opt);
             }
             el.value = val;
@@ -87,10 +188,9 @@ function setSafeVal(idOrName, val) {
 
         let tData = {{ task_json | safe }};
         if (tData) {
-            setSafeVal('assigned_to', tData.assigned_to);
-            setSafeVal('task_category', tData.task_category);
+            setSafeVal('task_category', tData.task_category); updateActions();
+            setSafeVal('action_required', tData.action_required); updateInstruments();
             setSafeVal('instrument', tData.instrument);
-            setSafeVal('action_required', tData.action_required);
             
             setSafeVal('reqDept', tData.req_dept); updateReqNames();
             setSafeVal('reqName', tData.req_name);

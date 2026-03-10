@@ -1,0 +1,177 @@
+📁 100_Office
+    📁 110_Taichung
+        📁 111_Survey_Internal
+            📄 111-00_General
+            📄 111-10_Personnel_Files
+            📄 111-20_Personnel_Planning
+            📄 111-30_Survey_Subcon
+        📁 112_NMDC_Internal
+            📄 112-00_General
+            📄 112-10_Admin
+            📄 112-20_Subcon_Tech_Review
+            📄 112-30_ENERGY
+        📁 113_Project-External
+            📄 113-00_General
+            📄 113-10_TPC-POE
+    📁 120_Abu_Dhabi
+        📁 121_STS
+            📄 121-10_KPI
+            📄 121-20_WSR
+        📁 122_ADMIN
+            📄 122-00_General
+            📄 122-10_Timesheet
+            📄 122-20_TRF
+        📁 123_SWS
+            📄 123-10_Equipment_List
+            📄 123-20_SEM
+            📄 123-30_AHO
+
+📁 200_Onshore-Land
+    📁 210_Taichung
+        📁 211_General
+            📄 211-00_General
+        📁 212_AHDD
+            📄 212-00_General
+            📄 212-10_Trial Pits
+            📄 212-20_Thruster Pit
+            📄 212-30_Crossover Pits
+            📄 212-40_Grit Tank
+            📄 212-50_Drainage
+        📁 213_Tienli
+            📄 213-00_General
+        📁 214_Berth37
+            📄 214-00_General
+        📁 219_Others
+            📄 219-00_Others
+    📁 220_Tunghsiao
+        📁 221_Temp Platform
+            📄 221-00_General
+            📄 221-10_Trial Pits
+            📄 221-20_Thruster Pit
+            📄 221-30_Crossover Pits
+            📄 221-40_Grit Tank
+            📄 221-50_Drainage
+            📄 221-60_Microtunneling
+        📁 222_Inside Plant
+            📄 222-00_General
+            📄 222-10_Trial Pits
+            📄 222-20_Crossover Pits
+        📁 229_Others
+            📄 229-00_Others
+
+📁 300_Marine
+    📁 310_General
+        📁 311_Surveys
+            📄 311-10_Pre-Surveys
+            📄 311-20_Progress-Surveys
+            📄 311-30_Post-Surveys
+        📁 312_Design
+            📄 312-00_General
+            📄 312-10_DXF_Backgrounds
+            📄 312-20_Routelines
+            📄 312-30_3DM+Outlines
+        📁 313_Quantity
+            📄 313-10_ICQP_Format
+            📄 313-20_CECI_Format
+            📄 313-30_Other_Formats
+    📁 320_Nearshore
+        📁 321_General
+            📄 321-00_General
+        📁 322_Trench 1
+            📄 322-00_General
+            📄 322-10_Dredging
+            📄 322-20_Pipelaying A
+            📄 322-30_Pipelaying B
+            📄 322-40_SRI
+            📄 322-50_Backfilling
+        📁 323_Trench 8
+            📄 323-00_General
+            📄 323-10_Dredging
+            📄 323-20_Pipelaying A
+            📄 323-30_Pipelaying B
+            📄 323-40_SRI
+            📄 323-50_Backfilling
+    📁 330_Offshore
+        📁 331_Trench 2
+            📄 331-00_General
+            📄 331-10_Pipelaying A
+            📄 331-20_Post-Trenching-A
+            📄 331-30_SRI-A
+            📄 331-40_Pipelaying B
+            📄 331-50_Post-Trenching-B
+            📄 331-60_SRI-B
+        📁 332_Trench 3
+            📄 332-00_General
+            📄 332-10_Pipelaying A
+            📄 332-20_Post-Trenching-A
+            📄 332-30_SRI-A
+            📄 332-40_Pipelaying B
+            📄 332-50_Post-Trenching-B
+            📄 332-60_SRI-B
+        📁 333_Trench 4
+            📄 333-00_General
+            📄 333-10_Pipelaying A
+            📄 333-20_Post-Trenching-A
+            📄 333-30_SRI-A
+            📄 333-40_Pipelaying B
+            📄 333-50_Post-Trenching-B
+            📄 333-60_SRI-B
+        📁 334_Trench 5
+            📄 334-00_General
+            📄 334-10_Pipelaying A
+            📄 334-20_Post-Trenching-A
+            📄 334-30_SRI-A
+            📄 334-40_Pipelaying B
+            📄 334-50_Post-Trenching-B
+            📄 334-60_SRI-B
+            📄 334-70_Backfilling A
+            📄 334-80_Backfilling B
+        📁 335_Trench 6
+            📄 335-00_General
+            📄 335-10_Pipelaying A
+            📄 335-20_Post-Trenching-A
+            📄 335-30_SRI-A
+            📄 335-40_Pipelaying B
+            📄 335-50_Post-Trenching-B
+            📄 335-60_SRI-B
+            📄 335-70_Backfilling A
+            📄 335-80_Backfilling B
+        📁 336_Trench 7
+            📄 336-00_General
+            📄 336-10_Pipelaying A
+            📄 336-20_Post-Trenching-A
+            📄 336-30_SRI-A
+            📄 336-40_Pipelaying B
+            📄 336-50_Post-Trenching-B
+            📄 336-60_SRI-B
+            📄 336-70_Backfilling A
+            📄 336-80_Backfilling B
+        📁 337_Midline_Tie-in
+            📄 337-00_General
+            📄 337-10_Dredging
+            📄 337-20_Pipelaying A
+            📄 337-30_Pipelaying B
+            📄 337-40_Post-Trenching-A
+            📄 337-50_Post-Trenching-B
+            📄 337-60_SRI-A
+            📄 337-70_SRI-B
+        📁 338_Crossing-A
+            📄 338-11_A1 Mattress Installation
+            📄 338-12_A1 Pipelaying
+            📄 338-13_A1 SRI
+            📄 338-21_A2 Mattress Installation
+            📄 338-22_A2 Pipelaying
+            📄 338-23_A2 SRI
+            📄 338-31_A3 Mattress Installation
+            📄 338-32_A3 Pipelaying
+            📄 338-33_A3 SRI
+        📁 339_Crossing-B
+            📄 339-11_B1 Mattress Installation
+            📄 339-12_B1 Pipelaying
+            📄 339-13_B1 SRI
+            📄 339-21_B2 Mattress Installation
+            📄 339-22_B2 Pipelaying
+            📄 339-23_B2 SRI
+            📄 339-31_B3 Mattress Installation
+            📄 339-32_B3 Pipelaying
+            📄 339-33_B3 SRI

@@ -1,0 +1,55 @@
+Level 1: Activity Types (Parents)
+1.Land Survey
+2.Bathymetric Survey
+3.Geophysical Survey
+4.Design Creation/Revision
+5.Volume Calculation
+6.Vessel PDS Update
+
+Level 2: Actions Required (Children)
+Progress Acq Survey
+Check survey
+Setting out Survey
+Stake-out/Marking
+Benchmark Verification Survey
+Stockpile Survey
+GI Survey
+
+Maggy/SSS/SBP Pre Survey
+Maggy/SSS/SBP Check Survey
+Maggy/SSS/SBP Progress Survey
+
+Pre Survey
+Post Survey
+As Built Survey
+Tender Survey
+Design Qty
+Progress Qty
+Tender Qty
+Post Construction Qty / As Build
+Progress Drw
+Pre Survey Drw
+Post Survey Drw
+As Build Drw
+Tender Drw
+Check Survey Drw
+Calibration
+Survey Update
+System Check
+
+Level 3: Instruments (Grandchildren)
+GNSS Rover
+Total Station
+Level Machine
+Measuring Tape
+CAD
+PDS/Terramodel
+Teams
+PC
+Maggy
+SSS
+SBP
+MBES
+SBES
+
+Others (Specify on remarks)

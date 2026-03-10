@@ -38,19 +38,9 @@ class User(UserMixin, db.Model):
     name = db.Column(db.String(100), nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
 
-class Requestor(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    department = db.Column(db.String(100), nullable=False)
-    name = db.Column(db.String(100), nullable=False)
-
 class AppConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     schema_data = db.Column(db.Text, default="{}") 
-
-class DropdownOption(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    category = db.Column(db.String(50), nullable=False) 
-    name = db.Column(db.String(100), nullable=False)
 
 class PresetTask(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -89,83 +79,129 @@ class SurveyTask(db.Model):
 with app.app_context():
     db.create_all()
     
-    # 1. NEW 4-LEVEL PV ARCHITECTURE TREE
-    fancy_tree = {
-        "100_Office": {
-            "110_Taichung": {
-                "111_Survey_Internal": ["111-00_General", "111-10_Personnel_Files", "111-20_Personnel_Planning", "111-30_Survey_Subcon"],
-                "112_NMDC_Internal": ["112-00_General", "112-10_Admin", "112-20_Subcon_Tech_Review", "112-30_ENERGY"],
-                "113_Project-External": ["113-00_General", "113-10_TPC-POE"]
+    # 1. THE NEW MASTER JSON ENGINE
+    master_config = {
+        "file_tree": {
+            "100_Office": {
+                "110_Taichung": {
+                    "111_Survey_Internal": ["111-00_General", "111-10_Personnel_Files", "111-20_Personnel_Planning", "111-30_Survey_Subcon"],
+                    "112_NMDC_Internal": ["112-00_General", "112-10_Admin", "112-20_Subcon_Tech_Review", "112-30_ENERGY"],
+                    "113_Project-External": ["113-00_General", "113-10_TPC-POE"]
+                },
+                "120_Abu_Dhabi": {
+                    "121_STS": ["121-10_KPI", "121-20_WSR"],
+                    "122_ADMIN": ["122-00_General", "122-10_Timesheet", "122-20_TRF"],
+                    "123_SWS": ["123-10_Equipment_List", "123-20_SEM", "123-30_AHO"]
+                }
             },
-            "120_Abu_Dhabi": {
-                "121_STS": ["121-10_KPI", "121-20_WSR"],
-                "122_ADMIN": ["122-00_General", "122-10_Timesheet", "122-20_TRF"],
-                "123_SWS": ["123-10_Equipment_List", "123-20_SEM", "123-30_AHO"]
+            "200_Onshore-Land": {
+                "210_Taichung": {
+                    "211_General": ["211-00_General"],
+                    "212_AHDD": ["212-00_General", "212-10_Trial Pits", "212-20_Thruster Pit", "212-30_Crossover Pits", "212-40_Grit Tank", "212-50_Drainage"],
+                    "213_Tienli": ["213-00_General"],
+                    "214_Berth37": ["214-00_General"],
+                    "219_Others": ["219-00_Others"]
+                },
+                "220_Tunghsiao": {
+                    "221_Temp Platform": ["221-00_General", "221-10_Trial Pits", "221-20_Thruster Pit", "221-30_Crossover Pits", "221-40_Grit Tank", "221-50_Drainage", "221-60_Microtunneling"],
+                    "222_Inside Plant": ["222-00_General", "222-10_Trial Pits", "222-20_Crossover Pits"],
+                    "229_Others": ["229-00_Others"]
+                }
+            },
+            "300_Marine": {
+                "310_General": {
+                    "311_Surveys": ["311-10_Pre-Surveys", "311-20_Progress-Surveys", "311-30_Post-Surveys"],
+                    "312_Design": ["312-00_General", "312-10_DXF_Backgrounds", "312-20_Routelines", "312-30_3DM+Outlines"],
+                    "313_Quantity": ["313-10_ICQP_Format", "313-20_CECI_Format", "313-30_Other_Formats"]
+                },
+                "320_Nearshore": {
+                    "321_General": ["321-00_General"],
+                    "322_Trench 1": ["322-00_General", "322-10_Dredging", "322-20_Pipelaying A", "322-30_Pipelaying B", "322-40_SRI", "322-50_Backfilling"],
+                    "323_Trench 8": ["323-00_General", "323-10_Dredging", "323-20_Pipelaying A", "323-30_Pipelaying B", "323-40_SRI", "323-50_Backfilling"]
+                },
+                "330_Offshore": {
+                    "331_Trench 2": ["331-00_General", "331-10_Pipelaying A", "331-20_Post-Trenching-A", "331-30_SRI-A", "331-40_Pipelaying B", "331-50_Post-Trenching-B", "331-60_SRI-B"],
+                    "332_Trench 3": ["332-00_General", "332-10_Pipelaying A", "332-20_Post-Trenching-A", "332-30_SRI-A", "332-40_Pipelaying B", "332-50_Post-Trenching-B", "332-60_SRI-B"],
+                    "333_Trench 4": ["333-00_General", "333-10_Pipelaying A", "333-20_Post-Trenching-A", "333-30_SRI-A", "333-40_Pipelaying B", "333-50_Post-Trenching-B", "333-60_SRI-B"],
+                    "334_Trench 5": ["334-00_General", "334-10_Pipelaying A", "334-20_Post-Trenching-A", "334-30_SRI-A", "334-40_Pipelaying B", "334-50_Post-Trenching-B", "334-60_SRI-B", "334-70_Backfilling A", "334-80_Backfilling B"],
+                    "335_Trench 6": ["335-00_General", "335-10_Pipelaying A", "335-20_Post-Trenching-A", "335-30_SRI-A", "335-40_Pipelaying B", "335-50_Post-Trenching-B", "335-60_SRI-B", "335-70_Backfilling A", "335-80_Backfilling B"],
+                    "336_Trench 7": ["336-00_General", "336-10_Pipelaying A", "336-20_Post-Trenching-A", "336-30_SRI-A", "336-40_Pipelaying B", "336-50_Post-Trenching-B", "336-60_SRI-B", "336-70_Backfilling A", "336-80_Backfilling B"],
+                    "337_Midline_Tie-in": ["337-00_General", "337-10_Dredging", "337-20_Pipelaying A", "337-30_Pipelaying B", "337-40_Post-Trenching-A", "337-50_Post-Trenching-B", "337-60_SRI-A", "337-70_SRI-B"],
+                    "338_Crossing-A": ["338-11_A1 Mattress Installation", "338-12_A1 Pipelaying", "338-13_A1 SRI", "338-21_A2 Mattress Installation", "338-22_A2 Pipelaying", "338-23_A2 SRI", "338-31_A3 Mattress Installation", "338-32_A3 Pipelaying", "338-33_A3 SRI"],
+                    "339_Crossing-B": ["339-11_B1 Mattress Installation", "339-12_B1 Pipelaying", "339-13_B1 SRI", "339-21_B2 Mattress Installation", "339-22_B2 Pipelaying", "339-23_B2 SRI", "339-31_B3 Mattress Installation", "339-32_B3 Pipelaying", "339-33_B3 SRI"]
+                }
             }
         },
-        "200_Onshore-Land": {
-            "210_Taichung": {
-                "211_General": ["211-00_General"],
-                "212_AHDD": ["212-00_General", "212-10_Trial Pits", "212-20_Thruster Pit", "212-30_Crossover Pits", "212-40_Grit Tank", "212-50_Drainage"],
-                "213_Tienli": ["213-00_General"],
-                "214_Berth37": ["214-00_General"],
-                "219_Others": ["219-00_Others"]
-            },
-            "220_Tunghsiao": {
-                "221_Temp Platform": ["221-00_General", "221-10_Trial Pits", "221-20_Thruster Pit", "221-30_Crossover Pits", "221-40_Grit Tank", "221-50_Drainage", "221-60_Microtunneling"],
-                "222_Inside Plant": ["222-00_General", "222-10_Trial Pits", "222-20_Crossover Pits"],
-                "229_Others": ["229-00_Others"]
-            }
+        "requestors": {
+            "Logistic": ["Gabe Venema", "Chiao Lin", "Vicky Zeng", "Jamie Tseng", "Madge Lin"],
+            "Survey": ["Mok Wai Heng", "Daryll Enano", "Roderick Gonzales Clavel", "Mohamad Abror Hediarto", "Danilo Bartolome", "Mateo Moralleda"],
+            "Offshore": ["Walaa Ezzat Gomaa", "Peter Wu", "Kah Chong Ng", "Chun Lai Low", "Evan Su"],
+            "Onshore & Dredging": ["Sven Van Guyse", "Haris Andreou", "Eason Ko", "Shiao-Yin Pai", "Chun-Yuan Cheng", "Ibrahim Yalciner", "Subin Vaniyakandiyil", "Katharine Lien", "Berk Savaser", "Harsha Anudeep Botta", "Ayman Sohad Wahby", "Georgios Zormpas", "Nandhu Chandran Kuttikkattu", "Kevin Shen", "Hunter Hsieh", "Lucas Ho", "Yu-Jen LIN"],
+            "Quality": ["Oon Kwee Yin", "Victor Wang", "Win Hua Wong", "Allen Cheng", "Renan Torno", "Jake Lu", "James Huang", "Bill Ku", "Chien-Hua Chang", "Carol Kao", "Tim Dai", "Yuan-His Chang", "Toh Lin Sid", "Khairul Aswan Bin Saari"],
+            "HSE": ["Sam Yeh", "Paul Tong", "Raymond Huang", "Sean Chu", "Jacqueline Peng", "Jin Wang", "Jeffrey Liu", "Kong Yong Won", "Jet Lee", "Ben Cheng", "Elson Liu", "Sue Peng", "Noah Hsieh", "Yu-Ju Tang", "Vic Wang"],
+            "Subcontracts": ["Stewart Ho"],
+            "Procurement": ["Karen Fan"],
+            "Project Control": ["Ajith John", "Bijo Mathew", "Shang Tse Lee", "Gerard Gonzales Batucan", "Daniel Widjaja", "Joseph Lin", "Eugenia Shen", "Siew-Peng Yap", "Jessica Liu", "Nestor Esler", "Dennis Laga"],
+            "Contract": ["Yoon Choy Low", "Tim Lee", "Li Hao Kuo"],
+            "ADM": ["Chih Hua Chen", "Becky Wang", "Sylvia Liu", "Benny Yang"],
+            "HR": ["Sophie Tseng", "Veronica Hsu", "Patty Lin"],
+            "Finance": ["Sharon", "Jimmy Chiu", "Steven Chnag"],
+            "Project": ["Ayman Elsherif", "Eric Van Meerendonk", "Richard Stam", "Alex George", "Leo Ho", "Sathyanarayana Dixit", "Gerald Chen"]
         },
-        "300_Marine": {
-            "310_General": {
-                "311_Surveys": ["311-10_Pre-Surveys", "311-20_Progress-Surveys", "311-30_Post-Surveys"],
-                "312_Design": ["312-00_General", "312-10_DXF_Backgrounds", "312-20_Routelines", "312-30_3DM+Outlines"],
-                "313_Quantity": ["313-10_ICQP_Format", "313-20_CECI_Format", "313-30_Other_Formats"]
+        "activities": {
+            "Office Admin Works": {
+                "Internal Coordination Meetings": ["Face to Face", "Teams", "PC"],
+                "External Meetings": ["Face to Face", "Teams", "PC"],
+                "Survey Input - ICQP": ["Face to Face", "Teams", "PC"],
+                "Survey Input - Others": ["Face to Face", "Teams", "PC"],
+                "Survey Reports": ["Teams", "PC", "Excel"]
             },
-            "320_Nearshore": {
-                "321_General": ["321-00_General"],
-                "322_Trench 1": ["322-00_General", "322-10_Dredging", "322-20_Pipelaying A", "322-30_Pipelaying B", "322-40_SRI", "322-50_Backfilling"],
-                "323_Trench 8": ["323-00_General", "323-10_Dredging", "323-20_Pipelaying A", "323-30_Pipelaying B", "323-40_SRI", "323-50_Backfilling"]
+            "Land Survey": {
+                "Pre-Survey": ["GNSS Rover", "Total Station", "Lidar", "Drone"],
+                "Progress Survey": ["GNSS Rover", "Total Station", "Lidar", "Drone"],
+                "Post-Survey": ["GNSS Rover", "Total Station", "Lidar", "Drone"],
+                "As-built Survey": ["GNSS Rover", "Total Station", "Lidar", "Drone"],
+                "Check Survey": ["GNSS Rover", "Total Station", "Levelling Machine"],
+                "Tender Survey": ["GNSS Rover", "Total Station", "Lidar", "Drone"],
+                "Setting-Out Survey": ["GNSS Rover", "Total Station"],
+                "Stake-Out/Marking": ["GNSS Rover", "Total Station"],
+                "Benchmark Verification": ["GNSS Rover", "Total Station"],
+                "Stockpile Survey": ["GNSS Rover", "Total Station", "Lidar Equipment", "Drone"],
+                "GI Survey": ["GNSS Rover", "Total Station"]
             },
-            "330_Offshore": {
-                "331_Trench 2": ["331-00_General", "331-10_Pipelaying A", "331-20_Post-Trenching-A", "331-30_SRI-A", "331-40_Pipelaying B", "331-50_Post-Trenching-B", "331-60_SRI-B"],
-                "332_Trench 3": ["332-00_General", "332-10_Pipelaying A", "332-20_Post-Trenching-A", "332-30_SRI-A", "332-40_Pipelaying B", "332-50_Post-Trenching-B", "332-60_SRI-B"],
-                "333_Trench 4": ["333-00_General", "333-10_Pipelaying A", "333-20_Post-Trenching-A", "333-30_SRI-A", "333-40_Pipelaying B", "333-50_Post-Trenching-B", "333-60_SRI-B"],
-                "334_Trench 5": ["334-00_General", "334-10_Pipelaying A", "334-20_Post-Trenching-A", "334-30_SRI-A", "334-40_Pipelaying B", "334-50_Post-Trenching-B", "334-60_SRI-B", "334-70_Backfilling A", "334-80_Backfilling B"],
-                "335_Trench 6": ["335-00_General", "335-10_Pipelaying A", "335-20_Post-Trenching-A", "335-30_SRI-A", "335-40_Pipelaying B", "335-50_Post-Trenching-B", "335-60_SRI-B", "335-70_Backfilling A", "335-80_Backfilling B"],
-                "336_Trench 7": ["336-00_General", "336-10_Pipelaying A", "336-20_Post-Trenching-A", "336-30_SRI-A", "336-40_Pipelaying B", "336-50_Post-Trenching-B", "336-60_SRI-B", "336-70_Backfilling A", "336-80_Backfilling B"],
-                "337_Midline_Tie-in": ["337-00_General", "337-10_Dredging", "337-20_Pipelaying A", "337-30_Pipelaying B", "337-40_Post-Trenching-A", "337-50_Post-Trenching-B", "337-60_SRI-A", "337-70_SRI-B"],
-                "338_Crossing-A": ["338-11_A1 Mattress Installation", "338-12_A1 Pipelaying", "338-13_A1 SRI", "338-21_A2 Mattress Installation", "338-22_A2 Pipelaying", "338-23_A2 SRI", "338-31_A3 Mattress Installation", "338-32_A3 Pipelaying", "338-33_A3 SRI"],
-                "339_Crossing-B": ["339-11_B1 Mattress Installation", "339-12_B1 Pipelaying", "339-13_B1 SRI", "339-21_B2 Mattress Installation", "339-22_B2 Pipelaying", "339-23_B2 SRI", "339-31_B3 Mattress Installation", "339-32_B3 Pipelaying", "339-33_B3 SRI"]
+            "Bathymetric Survey": {
+                "Tender Survey": ["MBES  WS166", "SBES"],
+                "Pre-Survey": ["MBES  WS166", "SBES"],
+                "Progress Survey": ["MBES  WS166", "SBES"],
+                "Post Survey": ["MBES  WS166", "SBES"],
+                "As-Built Survey": ["MBES  WS166", "SBES"]
+            },
+            "Geophysical Survey": {
+                "Geophysical Presurvey": ["Maggy", "SSS", "SBP"],
+                "Geophysical Check Survey": ["Maggy", "SSS", "SBP"],
+                "Geophysical Progress survey": ["Maggy", "SSS", "SBP"],
+                "Geophysical Survey Post-Processing": ["Reporting", "CAD"]
+            },
+            "Survey Data Deliverables": {
+                "Design Creation/Revision": ["PDS", "Terramodel", "Civil3D", "CAD"],
+                "Volume Calculation": ["PDS", "Terramodel", "Civil3D"],
+                "Data Volume Calculation": ["PDS", "Terramodel", "Civil3D", "Excel"]
+            },
+            "Equipment Configuration": {
+                "Background Files Creation": ["PDS", "Terramodel", "Civil3D", "CAD"],
+                "Guidance Files Creation": ["PDS", "Terramodel", "Civil3D", "CAD"],
+                "Survey Software Configuration": ["PDS", "DTPS", "Terramodel", "Civil3D", "CAD", "PC"],
+                "Survey Calibration/Troubleshooting": ["PDS", "DTPS", "CAD", "PC", "Others"]
             }
         }
     }
     
-    # 2. Force the database to use the PV Tree
+    # 2. SEED THE DATABASE
     config = AppConfig.query.first()
     if not config: 
-        db.session.add(AppConfig(schema_data=json.dumps(fancy_tree)))
+        db.session.add(AppConfig(schema_data=json.dumps(master_config)))
     else: 
-        config.schema_data = json.dumps(fancy_tree)
-        
-    # 3. Force the dropdowns to update to the PV Register options
-    old_cat = DropdownOption.query.filter_by(category='TaskCategory', name='Land').first()
-    if old_cat or not DropdownOption.query.first():
-        DropdownOption.query.filter_by(category='TaskCategory').delete()
-        DropdownOption.query.filter_by(category='ActionRequired').delete()
-        
-        initial_dropdowns = [
-            ('Department', 'SURVEY'), ('Department', 'OPERATIONS'), ('Department', 'DREDGING'), ('Department', 'QA/QC'), ('Department', 'ENERGY'), ('Department', 'SAFETY'), ('Department', 'OFFICE/ADMIN'), ('Department', 'LOGISTICS'), ('Department', 'OTHERS (Specify on remarks)'),
-            ('Instrument', 'Rover'), ('Instrument', 'Total Station'), ('Instrument', 'Level Machine'), ('Instrument', 'Measuring Tape'), ('Instrument', 'CAD'), ('Instrument', 'PDS/Terramodel'), ('Instrument', 'Teams'), ('Instrument', 'PC'), ('Instrument', 'Others (Specify on remarks)')
-        ]
-        for cat, name in initial_dropdowns: db.session.add(DropdownOption(category=cat, name=name))
-        
-        new_activities = ["Land Survey", "Bathymetric Survey", "Bathymetric & Land Survey", "Volume Calculation", "Drone Survey", "Geophysical Survey", "Lidar Survey", "Excavator Survey", "Tender Survey", "Survey Update", "System Check", "Vessel PDS Update"]
-        new_actions = ["Progress Survey", "TSHD/CSD progress survey", "Check survey", "Setting out Survey", "Benchmark Verification Survey", "Stockpile Survey", "GI Survey", "Preloading Survey", "QW Blocks Survey", "QW Bedding Survey", "Concrete Casting Survey", "Pilling Survey", "Maggy/SSS/SBP Pre Survey", "Maggy/SSS/SBP Check Survey", "Maggy/SSS/SBP Progress Survey", "Pre Survey", "Post Survey", "As Build Survey", "Tender Survey", "Design Qty", "Progress Qty", "Tender Qty", "Post Construction Qty / As Build", "Progress Drw", "Pre Survey Drw", "Post Survey Drw", "As Build Drw", "Tender Drw", "Check Survey Drw", "Calibration", "Survey Update", "System Check"]
-        
-        for act in new_activities: db.session.add(DropdownOption(category='TaskCategory', name=act))
-        for req in new_actions: db.session.add(DropdownOption(category='ActionRequired', name=req))
+        config.schema_data = json.dumps(master_config)
 
     db.session.commit()
 
@@ -208,7 +244,6 @@ def login():
         
         if user and check_password_hash(user.password_hash, password):
             login_user(user)
-            # SMART LOGIN: Check if they are on the VIP list
             if user.email in ADMIN_EMAILS:
                 return redirect(url_for('admin_dashboard'))
             else:
@@ -228,49 +263,18 @@ def logout():
 def forgot_password():
     return render_template('forgot_password.html')
 
-# --- ADMIN ROUTES ---
-@app.route('/system_config_hidden', methods=['GET', 'POST'])
+# --- WORKFLOW ROUTES ---
+@app.route('/')
 @login_required
-def hidden_config():
-    config = AppConfig.query.first()
-    schema = json.loads(config.schema_data)
-    # THE BOUNCER
-    if current_user.email not in ADMIN_EMAILS:
-        flash('Access Denied: Admins only.', 'error')
-        return redirect(url_for('dashboard'))
-    if request.method == 'POST':
-        action = request.form.get('action')
-        if action == 'add_requestor':
-            db.session.add(Requestor(department=request.form.get('department'), name=request.form.get('name').capitalize()))
-        elif action == 'add_dropdown':
-            db.session.add(DropdownOption(category=request.form.get('category'), name=request.form.get('new_value')))
-        else:
-            area = request.form.get('area')
-            loc = request.form.get('location')
-            sub = request.form.get('sub_location')
-            scope = request.form.get('work_scope')
-            if action == 'add_area' and area:
-                if area not in schema: schema[area] = {}
-            elif action == 'add_location' and area and loc:
-                if area in schema and loc not in schema[area]: schema[area][loc] = {}
-            elif action == 'add_subloc' and area and loc and sub:
-                if area in schema and loc in schema[area] and sub not in schema[area][loc]: schema[area][loc][sub] = []
-            elif action == 'add_scope' and area and loc and sub and scope:
-                if area in schema and loc in schema[area] and sub in schema[area][loc]:
-                    if scope not in schema[area][loc][sub]: schema[area][loc][sub].append(scope)
-            config.schema_data = json.dumps(schema)
-        db.session.commit()
-        flash('Database Updated!', 'success')
-        return redirect(url_for('hidden_config'))
-        
-    requestors = Requestor.query.all()
-    departments = DropdownOption.query.filter_by(category='Department').order_by(DropdownOption.name.asc()).all()
-    return render_template('hidden_admin.html', schema_json=json.dumps(schema), requestors=requestors, departments=departments)
+def dashboard():
+    session['dashboard_view'] = 'user'
+    all_tasks = SurveyTask.query.order_by(SurveyTask.start_time.desc()).all()
+    is_admin = current_user.email in ADMIN_EMAILS
+    return render_template('dashboard.html', name=current_user.name, tasks=all_tasks, is_admin=is_admin)
 
 @app.route('/admin_dashboard')
 @login_required
 def admin_dashboard():
-    # THE BOUNCER
     if current_user.email not in ADMIN_EMAILS:
         flash('Access Denied: You do not have Admin privileges.', 'error')
         return redirect(url_for('dashboard'))
@@ -280,134 +284,111 @@ def admin_dashboard():
     users = User.query.order_by(User.name.asc()).all()
     return render_template('admin_dashboard.html', name=current_user.name, tasks=all_tasks, users=users)
 
-@app.route('/run_migration')
+# --- SYSTEM CONFIG ROUTE (Restored to fix crash) ---
+@app.route('/system_config_hidden', methods=['GET', 'POST'])
 @login_required
-def run_migration():
-    # Only let Admins run this!
+def hidden_config():
+    config = AppConfig.query.first()
+    master_schema = json.loads(config.schema_data) if config else {}
+    
+    if "file_tree" not in master_schema: master_schema["file_tree"] = {}
+    if "requestors" not in master_schema: master_schema["requestors"] = {}
+    if "activities" not in master_schema: master_schema["activities"] = {}
+
     if current_user.email not in ADMIN_EMAILS:
         flash('Access Denied: Admins only.', 'error')
         return redirect(url_for('dashboard'))
-
-    tasks = SurveyTask.query.all()
-    updates = []
-    
-    for task in tasks:
-        old_path = f"{task.area} ➔ {task.location} ➔ {task.sub_location} ➔ {task.work_scope}"
-        changed = False
         
-        # --- 1. FIX THE 200 SERIES ---
-        if task.area == '200_Onshore_Area_Scope':
-            task.area = '200_Onshore-Land'
-            changed = True
-            if task.location == '211_Taichung':
-                task.location = '210_Taichung'
-                if task.sub_location in ['N/A', None, '']:
-                    task.sub_location = '219_Others' if 'Others' in str(task.work_scope) else '211_General'
-                elif task.sub_location == '211-10_AHDD': task.sub_location = '212_AHDD'
-                elif task.sub_location == '211-20_Tienli': task.sub_location = '213_Tienli'
-                elif task.sub_location == '211-30_Berth37': task.sub_location = '214_Berth37'
-            elif task.location == '212_Tunghsiao':
-                task.location = '220_Tunghsiao'
-                if task.sub_location in ['N/A', None, '']: task.sub_location = '229_Others'
-                elif task.sub_location == '212-10_Temp Platform': task.sub_location = '221_Temp Platform'
-                elif task.sub_location == '212-20_Inside Plant': task.sub_location = '222_Inside Plant'
-                
-        # --- 2. MERGE 300, 400, 500 INTO 300_Marine ---
-        elif task.area == '300_General_Marine':
-            task.area = '300_Marine'
-            task.location = '310_General'
-            changed = True
-            if task.sub_location in ['N/A', None, '']:
-                if 'Survey' in str(task.work_scope): task.sub_location = '311_Surveys'
-                elif '314' in str(task.location): task.sub_location = '312_Design'
-                elif '315' in str(task.location): task.sub_location = '313_Quantity'
+    if request.method == 'POST':
+        action = request.form.get('action')
         
-        elif task.area == '400_Nearshore_Area_Scope':
-            task.area = '300_Marine'
-            task.location = '320_Nearshore'
-            changed = True
-            if task.location == '411_Taichung' and task.sub_location in ['N/A', None, '']: task.sub_location = '321_General'
-            elif task.sub_location == '411-20_Trench 1': task.sub_location = '322_Trench 1'
-            elif task.sub_location == '412-20_Trench 8': task.sub_location = '323_Trench 8'
-            
-        elif task.area == '500_Offshore_Area_Scope':
-            task.area = '300_Marine'
-            task.location = '330_Offshore'
-            changed = True
-            old_loc = str(task.location)
-            if '510_Trench 2' in old_loc: task.sub_location = '331_Trench 2'
-            elif '511_Trench 3' in old_loc: task.sub_location = '332_Trench 3'
-            elif '512_Trench 4' in old_loc: task.sub_location = '333_Trench 4'
-            elif '513_Trench 5' in old_loc: task.sub_location = '334_Trench 5'
-            elif '514_Trench 6' in old_loc: task.sub_location = '335_Trench 6'
-            elif '515_Trench 7' in old_loc: task.sub_location = '336_Trench 7'
-            elif '516_Midline' in old_loc: task.sub_location = '337_Midline_Tie-in'
-            elif '517_Crossing-A' in old_loc: task.sub_location = '338_Crossing-A'
-            elif '518_Crossing-B' in old_loc: task.sub_location = '339_Crossing-B'
+        if action == 'add_dept':
+            dept = request.form.get('department').strip()
+            if dept and dept not in master_schema['requestors']: master_schema['requestors'][dept] = []
+        elif action == 'delete_dept':
+            dept = request.form.get('department')
+            if dept in master_schema['requestors']: del master_schema['requestors'][dept]
+        elif action == 'add_requestor':
+            dept = request.form.get('department')
+            name = request.form.get('name').strip()
+            if dept in master_schema['requestors'] and name not in master_schema['requestors'][dept]:
+                master_schema['requestors'][dept].append(name)
+                master_schema['requestors'][dept].sort()
+        elif action == 'delete_requestor':
+            dept = request.form.get('department')
+            name = request.form.get('name')
+            if dept in master_schema['requestors'] and name in master_schema['requestors'][dept]:
+                master_schema['requestors'][dept].remove(name)
 
-        # If the script flagged a change, record it for the report
-        if changed:
-            new_path = f"{task.area} ➔ {task.location} ➔ {task.sub_location} ➔ {task.work_scope}"
-            updates.append(f"<div style='margin-bottom:15px; padding:10px; border:1px solid #ccc; background:#fff; border-radius:5px;'><strong>Task ID: {task.id}</strong><br><span style='color:#dc3545;'>OLD: {old_path}</span><br><span style='color:#28a745;'>NEW: {new_path}</span></div>")
-            
-    # ==========================================
-    # PHASE 2 TRIGGER (DO NOT UNCOMMENT YET)
-    db.session.commit() 
-    # ==========================================
+        elif action == 'add_activity':
+            act = request.form.get('activity').strip()
+            if act and act not in master_schema['activities']: master_schema['activities'][act] = {}
+        elif action == 'delete_activity':
+            act = request.form.get('activity')
+            if act in master_schema['activities']: del master_schema['activities'][act]
+        elif action == 'add_action':
+            act = request.form.get('activity')
+            req_action = request.form.get('req_action').strip()
+            if act in master_schema['activities'] and req_action not in master_schema['activities'][act]:
+                master_schema['activities'][act][req_action] = []
+        elif action == 'delete_action':
+            act = request.form.get('activity')
+            req_action = request.form.get('req_action')
+            if act in master_schema['activities'] and req_action in master_schema['activities'][act]:
+                del master_schema['activities'][act][req_action]
+        elif action == 'add_instrument':
+            act = request.form.get('activity')
+            req_action = request.form.get('req_action')
+            inst = request.form.get('instrument').strip()
+            if act in master_schema['activities'] and req_action in master_schema['activities'][act]:
+                if inst not in master_schema['activities'][act][req_action]:
+                    master_schema['activities'][act][req_action].append(inst)
+                    master_schema['activities'][act][req_action].sort()
+        elif action == 'delete_instrument':
+            act = request.form.get('activity')
+            req_action = request.form.get('req_action')
+            inst = request.form.get('instrument')
+            if act in master_schema['activities'] and req_action in master_schema['activities'][act]:
+                if inst in master_schema['activities'][act][req_action]:
+                    master_schema['activities'][act][req_action].remove(inst)
 
-    html_log = "".join(updates)
-    if not html_log: html_log = "<p>No tasks found that require updating! Your database is fully compatible.</p>"
-    
-    return f"""
-    <div style="font-family: Arial; padding: 20px; background: #f4f7f6;">
-        <h2 style="color: #0056b3;">Migration Dry Run</h2>
-        <p><strong>Found {len(updates)} tasks to update.</strong> Review the changes below. <strong style="color:red;">No data has been saved to the database yet.</strong></p>
-        <div style="max-width: 800px;">{html_log}</div>
-    </div>
-    """
-
-# --- WORKFLOW ROUTES ---
-@app.route('/')
-@login_required
-def dashboard():
-    session['dashboard_view'] = 'user'
-    all_tasks = SurveyTask.query.order_by(SurveyTask.start_time.desc()).all()
-
-    # Check if the current user is an admin
-    is_admin = current_user.email in ADMIN_EMAILS
-
-    return render_template('dashboard.html', name=current_user.name, tasks=all_tasks, is_admin=is_admin)
+        config.schema_data = json.dumps(master_schema)
+        db.session.commit()
+        flash('System Configuration Updated!', 'success')
+        return redirect(url_for('hidden_config'))
+        
+    return render_template('hidden_admin.html', master_schema_json=json.dumps(master_schema))
 
 @app.route('/new_task', methods=['GET', 'POST'])
 @login_required
 def new_task():
     try:
         config = AppConfig.query.first()
-        schema_json = config.schema_data if config else "{}"
+        master_schema = json.loads(config.schema_data) if config else {}
+        
+        file_tree = master_schema.get("file_tree", {})
+        req_dict = master_schema.get("requestors", {})
+        activities_data = master_schema.get("activities", {})
         
         preset_id = request.args.get('preset_id')
         loaded_preset_dict = None
-        
         if preset_id:
             preset = PresetTask.query.filter_by(id=preset_id, user_id=current_user.id).first()
             if preset:
                 loaded_preset_dict = {
-                    'req_dept': preset.req_dept or "",
-                    'req_name': preset.req_name or "",
-                    'assigned_to': preset.assigned_to or "",
-                    'task_category': preset.task_category or "",
-                    'area': preset.area or "",
-                    'location': preset.location or "",
-                    'sub_location': preset.sub_location or "",
-                    'work_scope': preset.work_scope or "",
-                    'instrument': preset.instrument or "",
-                    'action_required': preset.action_required or ""
+                    'req_dept': preset.req_dept or "", 'req_name': preset.req_name or "", 'assigned_to': preset.assigned_to or "",
+                    'task_category': preset.task_category or "", 'area': preset.area or "", 'location': preset.location or "",
+                    'sub_location': preset.sub_location or "", 'work_scope': preset.work_scope or "",
+                    'instrument': preset.instrument or "", 'action_required': preset.action_required or ""
                 }
-        
+                
         if request.method == 'POST':
             req_dept = request.form.get('requestor_dept')
             req_name = request.form.get('requestor_name')
             merged_requestor = f"{req_dept} - {req_name}"
+            
+            assigned_list = request.form.getlist('assigned_to')
+            assigned_str = ", ".join([a for a in assigned_list if a.strip()])
             
             save_preset = request.form.get('save_preset')
             preset_name = request.form.get('preset_name')
@@ -415,7 +396,7 @@ def new_task():
                 p_name = preset_name or f"{request.form.get('area')} - {request.form.get('work_scope')}"
                 db.session.add(PresetTask(
                     user_id=current_user.id, preset_name=p_name, req_dept=req_dept, req_name=req_name,
-                    assigned_to=request.form.get('assigned_to'), task_category=request.form.get('task_category'),
+                    assigned_to=assigned_str, task_category=request.form.get('task_category'),
                     area=request.form.get('area'), location=request.form.get('location'), 
                     sub_location=request.form.get('sub_location'), work_scope=request.form.get('work_scope'),
                     instrument=request.form.get('instrument'), action_required=request.form.get('action_required')
@@ -425,31 +406,23 @@ def new_task():
             ref_links_str = " | ".join([link for link in ref_links if link.strip()])
 
             new_survey = SurveyTask(
-                surveyor_name=current_user.name, assigned_to=request.form.get('assigned_to'), requestor=merged_requestor,
+                surveyor_name=current_user.name, assigned_to=assigned_str, requestor=merged_requestor,
                 task_category=request.form.get('task_category'), instrument=request.form.get('instrument'), action_required=request.form.get('action_required'),
                 area=request.form.get('area'), location=request.form.get('location'), sub_location=request.form.get('sub_location'),
                 work_scope=request.form.get('work_scope'), remarks=request.form.get('remarks'), reference_links=ref_links_str
             )
             db.session.add(new_survey)
-            db.session.commit()
+            db.session.commit()      
             flash('New task opened successfully!', 'success')
             return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
-            
-        requestors = Requestor.query.all()
-        req_dict = {}
-        for r in requestors:
-            if r.department not in req_dict: req_dict[r.department] = []
-            req_dict[r.department].append(r.name)
             
         user_presets = PresetTask.query.filter_by(user_id=current_user.id).all()
             
         return render_template('new_task.html', 
                                users=User.query.order_by(User.name.asc()).all(), 
                                req_dict_json=json.dumps(req_dict), 
-                               schema_json=schema_json,
-                               categories=DropdownOption.query.filter_by(category='TaskCategory').order_by(DropdownOption.name.asc()).all(), 
-                               instruments=DropdownOption.query.filter_by(category='Instrument').order_by(DropdownOption.name.asc()).all(), 
-                               actions=DropdownOption.query.filter_by(category='ActionRequired').order_by(DropdownOption.name.asc()).all(),
+                               schema_json=json.dumps(file_tree),
+                               activities_json=json.dumps(activities_data),
                                loaded_preset=json.dumps(loaded_preset_dict) if loaded_preset_dict else "null",
                                presets=user_presets)
                                
@@ -464,16 +437,19 @@ def edit_task(task_id):
     try:
         task = SurveyTask.query.get_or_404(task_id)
         
-        if current_user.name not in [task.surveyor_name, task.assigned_to]:
+        assigned_users = [name.strip() for name in task.assigned_to.split(',')] if task.assigned_to else []
+        if current_user.name != task.surveyor_name and current_user.name not in assigned_users:
             flash('Unauthorized to edit this task.', 'error')
             return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
 
         if request.method == 'POST':
             req_dept = request.form.get('requestor_dept')
             req_name = request.form.get('requestor_name')
-            
             task.requestor = f"{req_dept} - {req_name}"
-            task.assigned_to = request.form.get('assigned_to')
+            
+            assigned_list = request.form.getlist('assigned_to')
+            task.assigned_to = ", ".join([a for a in assigned_list if a.strip()])
+            
             task.task_category = request.form.get('task_category')
             task.area = request.form.get('area')
             task.location = request.form.get('location')
@@ -491,23 +467,15 @@ def edit_task(task_id):
             return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
 
         config = AppConfig.query.first()
-        schema_json = config.schema_data if config else "{}"
-        
-        requestors = Requestor.query.all()
-        req_dict = {}
-        for r in requestors:
-            if r.department not in req_dict: req_dict[r.department] = []
-            req_dict[r.department].append(r.name)
+        master_schema = json.loads(config.schema_data) if config else {}
+        file_tree = master_schema.get("file_tree", {})
+        req_dict = master_schema.get("requestors", {})
+        activities_data = master_schema.get("activities", {})
             
         task_dict = {
-            'assigned_to': task.assigned_to or "",
-            'task_category': task.task_category or "",
-            'instrument': task.instrument or "",
-            'action_required': task.action_required or "",
-            'area': task.area or "",
-            'location': task.location or "",
-            'sub_location': task.sub_location or "",
-            'work_scope': task.work_scope or ""
+            'task_category': task.task_category or "", 'instrument': task.instrument or "",
+            'action_required': task.action_required or "", 'area': task.area or "", 'location': task.location or "",
+            'sub_location': task.sub_location or "", 'work_scope': task.work_scope or ""
         }
         
         if task.requestor and " - " in task.requestor:
@@ -520,37 +488,41 @@ def edit_task(task_id):
         except Exception:
             task_id_str = str(task.start_time)
 
+        class ShimOption:
+            def __init__(self, name): self.name = name
+
+        categories = sorted([ShimOption(k) for k in activities_data.keys()], key=lambda x: x.name)
+        actions_set, instruments_set = set(), set()
+        for acts in activities_data.values():
+            for act, insts in acts.items():
+                actions_set.add(act)
+                instruments_set.update(insts)
+        
+        actions = sorted([ShimOption(a) for a in actions_set], key=lambda x: x.name)
+        instruments = sorted([ShimOption(i) for i in instruments_set], key=lambda x: x.name)
+
         return render_template('edit_task.html', 
-                               task=task, 
-                               task_id_str=task_id_str,
+                               task=task, task_id_str=task_id_str,
                                users=User.query.order_by(User.name.asc()).all(), 
                                req_dict_json=json.dumps(req_dict), 
-                               schema_json=schema_json, 
-                               categories=DropdownOption.query.filter_by(category='TaskCategory').order_by(DropdownOption.name.asc()).all(), 
-                               instruments=DropdownOption.query.filter_by(category='Instrument').order_by(DropdownOption.name.asc()).all(), 
-                               actions=DropdownOption.query.filter_by(category='ActionRequired').order_by(DropdownOption.name.asc()).all(),
+                               schema_json=json.dumps(file_tree), 
+                               activities_json=json.dumps(activities_data), # <--- ADD THIS LINE
+                               categories=categories, instruments=instruments, actions=actions,
                                task_json=json.dumps(task_dict))
-                               
+                                  
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
-        return f"""
-        <div style="font-family: monospace; padding: 20px; background: #ffe6e6; border: 2px solid red;">
-            <h2 style="color: red;">DIAGNOSTIC CRASH REPORT</h2>
-            <p><strong>Error:</strong> {str(e)}</p>
-            <h3>Full Traceback:</h3>
-            <pre style="background: white; padding: 10px; border: 1px solid #ccc; overflow-x: auto;">{error_details}</pre>
-        </div>
-        """
+        return f"<div style='padding:20px; border:2px solid red;'><h2 style='color:red;'>CRASH</h2><p>{str(e)}</p><pre>{error_details}</pre></div>"
 
 @app.route('/close_task/<int:task_id>', methods=['POST'])
 @login_required
 def close_task(task_id):
     task = SurveyTask.query.get_or_404(task_id)
-    if current_user.name not in [task.surveyor_name, task.assigned_to]:
+    assigned_users = [name.strip() for name in task.assigned_to.split(',')] if task.assigned_to else []
+    if current_user.name != task.surveyor_name and current_user.name not in assigned_users:
         flash('Unauthorized.', 'error')
         return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
-        
     closing_remarks = request.form.get('closing_remarks')
     if not closing_remarks:
         flash('Closing remarks are mandatory.', 'error')
@@ -570,10 +542,10 @@ def close_task(task_id):
 @login_required
 def cancel_task(task_id):
     task = SurveyTask.query.get_or_404(task_id)
-    if current_user.name not in [task.surveyor_name, task.assigned_to]:
+    assigned_users = [name.strip() for name in task.assigned_to.split(',')] if task.assigned_to else []
+    if current_user.name != task.surveyor_name and current_user.name not in assigned_users:
         flash('Unauthorized.', 'error')
         return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
-        
     cancel_reason = request.form.get('cancel_reason')
     if not cancel_reason:
         flash('Cancel reason is mandatory.', 'error')

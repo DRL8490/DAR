@@ -133,6 +133,7 @@
                         {% if loc_clean %} | {{ loc_clean }}{% endif %}
                         {% if sub_clean %} | {{ sub_clean }}{% endif %}
                         {% if scope_text %} | {{ scope_text }}{% endif %}
+                        {% if task.action_required %} | <span style="color: #0056b3;">{{ task.action_required }}</span>{% endif %}
                     </div>
                     <div class="task-line-2">
                         Requested by: {{ task.requestor }} | Assigned to: {{ task.assigned_to }}

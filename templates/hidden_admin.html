@@ -2,148 +2,224 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>System Config - NMDC</title>
+    <title>Master System Config - Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; padding: 20px; background: #f4f7f6; max-width: 900px; margin: auto; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .btn-back { background: #6c757d; color: white; padding: 10px 15px; text-decoration: none; border-radius: 6px; font-weight: bold; }
-        .card { background: white; padding: 25px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-left: 5px solid #0056b3; }
-        .form-group { margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-        input, select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; flex: 1; min-width: 200px; }
-        button { background: #0056b3; color: white; border: none; cursor: pointer; font-weight: bold; padding: 10px 20px; border-radius: 4px; }
-        h2, h3 { color: #333; margin-top: 0; }
-        .flash { padding: 10px; border-radius: 6px; margin-bottom: 15px; background-color: #d4edda; color: #155724; text-align: center; font-weight: bold; }
+        body { background-color: #f8f9fa; }
+        .config-card { border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px; border: none; }
+        .config-header { background: #0056b3; color: white; border-radius: 12px 12px 0 0 !important; font-weight: bold; }
+        .delete-btn { color: #dc3545; cursor: pointer; border: none; background: none; }
+        .delete-btn:hover { color: #a71d2a; }
+        .list-group-item { display: flex; justify-content: space-between; align-items: center; }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h2>⚙️ Hidden System Configuration</h2>
-        <a href="{{ url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard') }}" class="btn-back">Back to Dashboard</a>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="#"><i class="fas fa-cogs"></i> Master Configuration</a>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-light btn-sm"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
     </div>
-    
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}<div class="flash">{{ messages[0] }}</div>{% endif %}
+</nav>
+
+<div class="container pb-5">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
     {% endwith %}
 
-    <div class="card">
-        <h3>1. Add Requestor Database</h3>
-        <p style="font-size: 13px; color: #666; margin-top: -10px;">Add new personnel to the Requestor Department/Name dropdowns.</p>
-        <form method="POST">
-            <input type="hidden" name="action" value="add_requestor">
-            <div class="form-group">
-                <select name="department" required>
-                    <option value="">-- Select Dept --</option>
-                    {% for dept in departments %}
-                    <option value="{{ dept.name }}">{{ dept.name }}</option>
-                    {% endfor %}
-                </select>
-                <input type="text" name="name" placeholder="Requestor Name..." required>
-                <button type="submit">+ Add Requestor</button>
-            </div>
-        </form>
-    </div>
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card config-card">
+                <div class="card-header config-header"><i class="fas fa-users"></i> Staff & Departments</div>
+                <div class="card-body">
+                    <form method="POST" class="mb-3 d-flex">
+                        <input type="hidden" name="action" value="add_dept">
+                        <input type="text" name="department" class="form-control form-control-sm me-2" placeholder="New Department" required>
+                        <button class="btn btn-primary btn-sm"><i class="fas fa-plus"></i></button>
+                    </form>
 
-    <div class="card">
-        <h3>2. Add Dropdown Value</h3>
-        <p style="font-size: 13px; color: #666; margin-top: -10px;">Inject new Activity Types, Disciplines, or Instruments into the database.</p>
-        <form method="POST">
-            <input type="hidden" name="action" value="add_dropdown">
-            <div class="form-group">
-                <select name="category" required>
-                    <option value="Department">Department</option>
-                    <option value="TaskCategory">Activity Type (Task Category)</option>
-                    <option value="ActionRequired">Discipline (Action Required)</option>
-                    <option value="Instrument">Instrument</option>
-                </select>
-                <input type="text" name="new_value" placeholder="New Option Value..." required>
-                <button type="submit">+ Add Option</button>
-            </div>
-        </form>
-    </div>
+                    <select id="dept_select" class="form-select form-select-sm mb-3" onchange="renderRequestors()">
+                        <option value="">-- Select Department to Manage --</option>
+                    </select>
 
-    <div class="card">
-        <h3>3. Modify Project File Tree</h3>
-        <p style="font-size: 13px; color: #666; margin-top: -10px;">Add new branches to your Area ➔ Location ➔ Sub-Location ➔ Work Scope cascade.</p>
-        
-        <div class="form-group" style="background: #f8f9fa; padding: 15px; border-radius: 6px; border: 1px solid #ddd;">
-            <select id="aDrop" onchange="updateLoc()"></select>
-            <select id="lDrop" onchange="updateSub()"></select>
-            <select id="sDrop"></select>
+                    <form method="POST" id="add_req_form" class="mb-3 d-flex" style="display:none !important;">
+                        <input type="hidden" name="action" value="add_requestor">
+                        <input type="hidden" name="department" id="req_form_dept">
+                        <input type="text" name="name" class="form-control form-control-sm me-2" placeholder="Add Staff Name" required>
+                        <button class="btn btn-success btn-sm"><i class="fas fa-plus"></i></button>
+                    </form>
+
+                    <ul class="list-group list-group-flush" id="requestor_list"></ul>
+                </div>
+            </div>
         </div>
 
-        <form method="POST" style="margin-top: 15px;" onsubmit="return setParent('add_area', null, null)">
-            <input type="hidden" name="action" value="add_area">
-            <div class="form-group"><input type="text" name="area" placeholder="New Level 1 (Area)..." required><button type="submit">+ Add Area</button></div>
-        </form>
-        
-        <form method="POST" onsubmit="return setParent('add_location', 'aDrop', 'hidden_area_loc')">
-            <input type="hidden" name="action" value="add_location">
-            <input type="hidden" name="area" id="hidden_area_loc">
-            <div class="form-group"><input type="text" name="location" placeholder="New Level 2 (Location)..." required><button type="submit" style="background: #28a745;">+ Add to Area</button></div>
-        </form>
+        <div class="col-md-8">
+            <div class="card config-card">
+                <div class="card-header config-header bg-success"><i class="fas fa-tasks"></i> Task Cascade Rules</div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-4">
+                            <label class="fw-bold small">Activity Type</label>
+                            <form method="POST" class="d-flex mb-2">
+                                <input type="hidden" name="action" value="add_activity">
+                                <input type="text" name="activity" class="form-control form-control-sm me-1" placeholder="New Activity" required>
+                                <button class="btn btn-primary btn-sm">+</button>
+                            </form>
+                            <select id="act_select" class="form-select form-select-sm" size="8" onchange="renderActions()"></select>
+                            <form method="POST" class="mt-2 text-end" id="del_act_form">
+                                <input type="hidden" name="action" value="delete_activity">
+                                <input type="hidden" name="activity" id="del_act_val">
+                                <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this entire activity?')"><i class="fas fa-trash"></i> Delete Selected</button>
+                            </form>
+                        </div>
+                        
+                        <div class="col-4">
+                            <label class="fw-bold small">Action Required</label>
+                            <form method="POST" class="d-flex mb-2" id="add_action_form" style="visibility: hidden;">
+                                <input type="hidden" name="action" value="add_action">
+                                <input type="hidden" name="activity" id="action_parent_act">
+                                <input type="text" name="req_action" class="form-control form-control-sm me-1" placeholder="New Action" required>
+                                <button class="btn btn-success btn-sm">+</button>
+                            </form>
+                            <select id="req_act_select" class="form-select form-select-sm" size="8" onchange="renderInstruments()"></select>
+                            <form method="POST" class="mt-2 text-end" id="del_req_act_form" style="visibility: hidden;">
+                                <input type="hidden" name="action" value="delete_action">
+                                <input type="hidden" name="activity" id="del_req_parent_act">
+                                <input type="hidden" name="req_action" id="del_req_val">
+                                <button class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
+                            </form>
+                        </div>
 
-        <form method="POST" onsubmit="return setParent('add_subloc', 'lDrop', 'hidden_loc_sub')">
-            <input type="hidden" name="action" value="add_subloc">
-            <input type="hidden" name="area" id="hidden_area_sub">
-            <input type="hidden" name="location" id="hidden_loc_sub">
-            <div class="form-group"><input type="text" name="sub_location" placeholder="New Level 3 (Sub-Location)..." required><button type="submit" style="background: #17a2b8;">+ Add to Location</button></div>
-        </form>
-
-        <form method="POST" onsubmit="return setParent('add_scope', 'sDrop', 'hidden_sub_scp')">
-            <input type="hidden" name="action" value="add_scope">
-            <input type="hidden" name="area" id="hidden_area_scp">
-            <input type="hidden" name="location" id="hidden_loc_scp">
-            <input type="hidden" name="sub_location" id="hidden_sub_scp">
-            <div class="form-group"><input type="text" name="work_scope" placeholder="New Level 4 (Work Scope)..." required><button type="submit" style="background: #ffc107; color: black;">+ Add to Sub-Loc</button></div>
-        </form>
+                        <div class="col-4">
+                            <label class="fw-bold small">Allowed Instruments</label>
+                            <form method="POST" class="d-flex mb-2" id="add_inst_form" style="visibility: hidden;">
+                                <input type="hidden" name="action" value="add_instrument">
+                                <input type="hidden" name="activity" id="inst_parent_act">
+                                <input type="hidden" name="req_action" id="inst_parent_req">
+                                <input type="text" name="instrument" class="form-control form-control-sm me-1" placeholder="New Inst" required>
+                                <button class="btn btn-warning btn-sm">+</button>
+                            </form>
+                            <ul class="list-group list-group-flush border" id="inst_list" style="height: 185px; overflow-y: auto;"></ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
+</div>
 
-    <script>
-        let schema = {{ schema_json | safe }};
-        
-function pop(id, list) {
-            let el = document.getElementById(id);
-            el.innerHTML = '<option value="">-- Select Parent --</option>';
-            list.sort().forEach(i => el.innerHTML += `<option value="${i}">${i}</option>`);
-        }
-        
-        pop("aDrop", Object.keys(schema));
-        
-        function updateLoc() { 
-            let a = document.getElementById("aDrop").value; 
-            pop("lDrop", a && schema[a] ? Object.keys(schema[a]) : []); 
-            updateSub(); 
-        }
-        
-        function updateSub() { 
-            let a = document.getElementById("aDrop").value; 
-            let l = document.getElementById("lDrop").value; 
-            pop("sDrop", (a && l && schema[a][l]) ? Object.keys(schema[a][l]) : []); 
-        }
+<script id="master_data" type="application/json">
+    {{ master_schema_json | safe }}
+</script>
 
-        function setParent(action, requiredDrop, fieldName) {
-            let a = document.getElementById("aDrop").value; 
-            let l = document.getElementById("lDrop").value; 
-            let s = document.getElementById("sDrop").value;
-            
-            if (requiredDrop && !document.getElementById(requiredDrop).value) { 
-                alert("Please select the parent dropdown from the gray box above first!"); 
-                return false; 
-            }
-            
-            if(action === 'add_location') { document.getElementById('hidden_area_loc').value = a; }
-            if(action === 'add_subloc') { 
-                document.getElementById('hidden_area_sub').value = a; 
-                document.getElementById('hidden_loc_sub').value = l; 
-            }
-            if(action === 'add_scope') { 
-                document.getElementById('hidden_area_scp').value = a; 
-                document.getElementById('hidden_loc_scp').value = l; 
-                document.getElementById('hidden_sub_scp').value = s; 
-            }
-            return true;
+<script>
+    const masterData = JSON.parse(document.getElementById('master_data').textContent);
+    const reqData = masterData.requestors || {};
+    const actData = masterData.activities || {};
+
+    // --- 1. REQUESTOR LOGIC ---
+    const deptSelect = document.getElementById('dept_select');
+    Object.keys(reqData).sort().forEach(dept => {
+        deptSelect.add(new Option(dept, dept));
+    });
+
+    function renderRequestors() {
+        const dept = deptSelect.value;
+        const list = document.getElementById('requestor_list');
+        const form = document.getElementById('add_req_form');
+        document.getElementById('req_form_dept').value = dept;
+        list.innerHTML = '';
+        
+        if (!dept) { form.style.setProperty('display', 'none', 'important'); return; }
+        form.style.setProperty('display', 'flex', 'important');
+        
+        reqData[dept].forEach(name => {
+            list.innerHTML += `
+                <li class="list-group-item py-1 px-2 small">
+                    ${name}
+                    <form method="POST" style="margin:0;">
+                        <input type="hidden" name="action" value="delete_requestor">
+                        <input type="hidden" name="department" value="${dept}">
+                        <input type="hidden" name="name" value="${name}">
+                        <button type="submit" class="delete-btn"><i class="fas fa-times"></i></button>
+                    </form>
+                </li>`;
+        });
+        list.innerHTML += `
+            <li class="list-group-item py-1 px-2 small bg-light text-danger text-center">
+                <form method="POST" style="margin:0;" onsubmit="return confirm('Delete entire department?')">
+                    <input type="hidden" name="action" value="delete_dept">
+                    <input type="hidden" name="department" value="${dept}">
+                    <button type="submit" class="btn btn-link text-danger p-0 m-0 text-decoration-none"><i class="fas fa-trash"></i> Delete Department</button>
+                </form>
+            </li>`;
+    }
+
+    // --- 2. ACTIVITY LOGIC ---
+    const actSelect = document.getElementById('act_select');
+    const reqActSelect = document.getElementById('req_act_select');
+    const instList = document.getElementById('inst_list');
+
+    Object.keys(actData).sort().forEach(act => {
+        actSelect.add(new Option(act, act));
+    });
+
+    function renderActions() {
+        const act = actSelect.value;
+        reqActSelect.innerHTML = '';
+        instList.innerHTML = '';
+        
+        document.getElementById('del_act_val').value = act;
+        document.getElementById('add_action_form').style.visibility = act ? 'visible' : 'hidden';
+        document.getElementById('action_parent_act').value = act;
+        document.getElementById('del_req_act_form').style.visibility = 'hidden';
+        document.getElementById('add_inst_form').style.visibility = 'hidden';
+
+        if(act && actData[act]) {
+            Object.keys(actData[act]).sort().forEach(req => {
+                reqActSelect.add(new Option(req, req));
+            });
         }
-    </script>
+    }
+
+    function renderInstruments() {
+        const act = actSelect.value;
+        const req = reqActSelect.value;
+        instList.innerHTML = '';
+
+        document.getElementById('del_req_act_form').style.visibility = req ? 'visible' : 'hidden';
+        document.getElementById('del_req_parent_act').value = act;
+        document.getElementById('del_req_val').value = req;
+
+        document.getElementById('add_inst_form').style.visibility = req ? 'visible' : 'hidden';
+        document.getElementById('inst_parent_act').value = act;
+        document.getElementById('inst_parent_req').value = req;
+
+        if(act && req && actData[act][req]) {
+            actData[act][req].forEach(inst => {
+                instList.innerHTML += `
+                    <li class="list-group-item py-1 px-2 small">
+                        ${inst}
+                        <form method="POST" style="margin:0;">
+                            <input type="hidden" name="action" value="delete_instrument">
+                            <input type="hidden" name="activity" value="${act}">
+                            <input type="hidden" name="req_action" value="${req}">
+                            <input type="hidden" name="instrument" value="${inst}">
+                            <button type="submit" class="delete-btn"><i class="fas fa-times"></i></button>
+                        </form>
+                    </li>`;
+            });
+        }
+    }
+</script>
 </body>
 </html>

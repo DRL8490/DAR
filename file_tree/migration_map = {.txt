@@ -1,0 +1,55 @@
+migration_map = {
+    # FORMAT: "Old_Area | Old_Location | Old_Sub | Old_Scope"  :  "New_Area | New_Location | New_Sub | New_Scope"
+
+    # --- 200 ONSHORE ---
+    "200_Onshore_Area_Scope | 211_Taichung | N/A | 211-00_General":    "200_Onshore_Area_Scope | 211_Taichung | 211-00_General | 211-00_General",
+    "200_Onshore_Area_Scope | 211_Taichung | N/A | 211-90_Others":     "200_Onshore_Area_Scope | 211_Taichung | 211-90_Others | 211-90_Others",
+    "200_Onshore_Area_Scope | 212_Tunghsiao | N/A | 212-90_Others":    "200_Onshore_Area_Scope | 212_Tunghsiao | 212-90_Others | 212-90_Others",
+
+    # --- 300 MARINE ---
+    "300_General_Marine | N/A | N/A | 311_Pre-Surveys":                "300_General_Marine | 310_Marine_Ops | 311_Marine_Surveys | 311_Pre-Surveys",
+    "300_General_Marine | N/A | N/A | 312_Progress-Surveys":           "300_General_Marine | 310_Marine_Ops | 311_Marine_Surveys | 312_Progress-Surveys",
+    "300_General_Marine | N/A | N/A | 313_Post-Surveys":               "300_General_Marine | 310_Marine_Ops | 311_Marine_Surveys | 313_Post-Surveys",
+    "300_General_Marine | N/A | 314_Design | 314-41_General":          "300_General_Marine | 310_Marine_Ops | 314_Design | 314-41_General",
+    "300_General_Marine | N/A | 314_Design | 314-42_DXF_Backgrounds":  "YOUR NEW PATH HERE",
+    "300_General_Marine | N/A | 314_Design | 314-43_Routelines":       "YOUR NEW PATH HERE",
+    "300_General_Marine | N/A | 314_Design | 314-44_3DM+Outlines":     "YOUR NEW PATH HERE",
+    "300_General_Marine | N/A | 315_Quantity | 315-51_ICQP_Format":    "YOUR NEW PATH HERE",
+    "300_General_Marine | N/A | 315_Quantity | 315-52_CECI_Format":    "YOUR NEW PATH HERE",
+    "300_General_Marine | N/A | 315_Quantity | 315-53_Other_Formats":  "YOUR NEW PATH HERE",
+
+    # --- 400 NEARSHORE ---
+    "400_Nearshore_Area_Scope | 411_Taichung | N/A | 411-10_General":  "YOUR NEW PATH HERE",
+    "400_Nearshore_Area_Scope | 412_Tunghsiao | N/A | 412-10_General": "YOUR NEW PATH HERE",
+
+    # --- 500 OFFSHORE ---
+    "500_Offshore_Area_Scope | 510_Trench 2 | N/A | 510-11_General":           "YOUR NEW PATH HERE",
+    "500_Offshore_Area_Scope | 510_Trench 2 | N/A | 510-12_Pipelaying A":      "YOUR NEW PATH HERE",
+    "500_Offshore_Area_Scope | 510_Trench 2 | N/A | 510-12_Post-Trenching-B":  "YOUR NEW PATH HERE",
+    "500_Offshore_Area_Scope | 510_Trench 2 | N/A | 510-14_SRI-A":             "YOUR NEW PATH HERE",
+    "500_Offshore_Area_Scope | 510_Trench 2 | N/A | 510-15_Pipelaying B":      "YOUR NEW PATH HERE",
+    "500_Offshore_Area_Scope | 510_Trench 2 | N/A | 510-16_Post-Trenching-A":  "YOUR NEW PATH HERE",
+    "500_Offshore_Area_Scope | 510_Trench 2 | N/A | 510-17_SRI-B":             "YOUR NEW PATH HERE",
+    
+    "500_Offshore_Area_Scope | 511_Trench 3 | N/A | 511-11_General":           "YOUR NEW PATH HERE",
+    "500_Offshore_Area_Scope | 511_Trench 3 | N/A | 511-12_Pipelaying A":      "YOUR NEW PATH HERE",
+    "500_Offshore_Area_Scope | 511_Trench 3 | N/A | 511-13_Post-Trenching-A":  "YOUR NEW PATH HERE",
+    "500_Offshore_Area_Scope | 511_Trench 3 | N/A | 511-14_SRI-A":             "YOUR NEW PATH HERE",
+    "500_Offshore_Area_Scope | 511_Trench 3 | N/A | 511-15_Pipelaying B":      "YOUR NEW PATH HERE",
+    "500_Offshore_Area_Scope | 511_Trench 3 | N/A | 511-16_Post-Trenching-B":  "YOUR NEW PATH HERE",
+    "500_Offshore_Area_Scope | 511_Trench 3 | N/A | 511-17_SRI-B":             "YOUR NEW PATH HERE",
+    
+    "500_Offshore_Area_Scope | 512_Trench 4 | N/A | 512-11_General":           "YOUR NEW PATH HERE",
+    "500_Offshore_Area_Scope | 512_Trench 4 | N/A | 512-12_Pipelaying A":      "YOUR NEW PATH HERE",
+    "500_Offshore_Area_Scope | 512_Trench 4 | N/A | 512-13_Post-Trenching-A":  "YOUR NEW PATH HERE",
+    "500_Offshore_Area_Scope | 512_Trench 4 | N/A | 512-14_SRI-A":             "YOUR NEW PATH HERE",
+    "500_Offshore_Area_Scope | 512_Trench 4 | N/A | 512-15_Pipelaying B":      "YOUR NEW PATH HERE",
+    "500_Offshore_Area_Scope | 512_Trench 4 | N/A | 512-16_Post-Trenching-B":  "YOUR NEW PATH HERE",
+    "500_Offshore_Area_Scope | 512_Trench 4 | N/A | 512-17_SRI-B":             "YOUR NEW PATH HERE",
+
+    "500_Offshore_Area_Scope | 513_Trench 5 | N/A | 513-11_General":           "YOUR NEW PATH HERE",
+    "500_Offshore_Area_Scope | 514_Trench 6 | N/A | 514-11_General":           "YOUR NEW PATH HERE",
+    "500_Offshore_Area_Scope | 515_Trench 7 | N/A | 515-11_General":           "YOUR NEW PATH HERE",
+    "500_Offshore_Area_Scope | 516_Midline_Tie-in | N/A | 516-11_General":     "YOUR NEW PATH HERE",
+    "500_Offshore_Area_Scope | 516_Midline_Tie-in | N/A | 516-12_Dredging":    "YOUR NEW PATH HERE",
+}

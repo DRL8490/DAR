@@ -2,176 +2,318 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Open Task - NMDC</title>
+    <title>Open New Task</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { font-family: Arial; background-color: #f4f7f6; padding: 20px; max-width: 600px; margin: auto; }
-        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .form-group { margin-bottom: 15px; display: flex; flex-direction: column; }
-        label { font-weight: bold; margin-bottom: 5px; font-size: 14px; color: #444; }
-        select, input, textarea { padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; }
-        button { background-color: #0056b3; color: white; border: none; padding: 12px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 10px; }
-        .btn-add { background-color: #6c757d; color: white; width: 40px; margin-top: 0; padding: 10px; font-weight: bold; }
-        .btn-remove { background-color: #dc3545; color: white; width: 40px; margin-top: 0; padding: 10px; font-weight: bold; }
-        
-        /* Modal Styles */
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; }
-        .modal-box { background: white; padding: 25px; border-radius: 10px; width: 90%; max-width: 350px; text-align: center; }
-        .modal-btn { margin-top: 10px; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; border: none; width: 100%; }
-        .btn-yes { background: #28a745; color: white; }
-        .btn-no { background: #6c757d; color: white; }
-        .btn-never { background: #dc3545; color: white; }
+        body { background-color: #f8f9fa; }
+        .form-card { border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: none; }
+        .form-header { background: #0056b3; color: white; border-radius: 12px 12px 0 0 !important; font-weight: bold; }
+        .tree-folder { cursor: pointer; color: #0056b3; font-weight: bold; }
+        .tree-scope { cursor: pointer; color: #198754; margin-left: 20px; }
+        .tree-scope:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h2>Open New Task</h2>
-        <div style="background: #e9ecef; padding: 10px; border-radius: 6px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
-            <strong style="font-size: 14px; color: #333;">Quick Start:</strong>
-            <select onchange="if(this.value) window.location.href='/new_task?preset_id=' + this.value;" style="padding: 8px; flex: 1; border-radius: 4px; border: 1px solid #ccc;">
-                <option value="">-- Load a saved Preset Task --</option>
-                {% for p in presets %}
-                <option value="{{ p.id }}">{{ p.preset_name }}</option>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="#"><i class="fas fa-plus-circle"></i> Open New Task</a>
+        <a href="{{ url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard') }}" class="btn btn-outline-light btn-sm"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
+    </div>
+</nav>
+
+<div class="container pb-5">
+    <form method="POST">
+        <div class="row">
+            <div class="col-md-6 mb-4">
+                <div class="card form-card h-100">
+                    <div class="card-header form-header"><i class="fas fa-users"></i> Staff & Task Details</div>
+                    <div class="card-body">
+                        
+                        <div class="mb-3" id="surveyor_container">
+                            <label class="form-label fw-bold small">Assigned To</label>
+                            <div class="input-group mb-2">
+                                <select class="form-select" name="assigned_to" required>
+                                    <option value="">-- Select Surveyor --</option>
+                                    {% for u in users %}
+                                        <option value="{{ u.name }}">{{ u.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button class="btn btn-outline-success" type="button" onclick="addSurveyorDropdown()"><i class="fas fa-plus"></i></button>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-8">
+                                <label class="form-label fw-bold small">Requestor Name (Searchable)</label>
+                                <input list="requestor_list" class="form-control" id="requestor_name" name="requestor_name" placeholder="Type to search..." onchange="autoFillDept()" required>
+                                <datalist id="requestor_list"></datalist>
+                            </div>
+                            <div class="col-4">
+                                <label class="form-label fw-bold small">Department</label>
+                                <input type="text" class="form-control bg-light" id="requestor_dept" name="requestor_dept" readonly required>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <div class="mb-3 p-3 bg-light border rounded">
+                            <label class="form-label fw-bold text-primary"><i class="fas fa-bolt"></i> Quick Find (Smart Search)</label>
+                            <input list="smart_task_list" class="form-control border-primary" id="smart_task_input" placeholder="Type keyword (e.g., Progress, Drone)..." onchange="applySmartTask()">
+                            <datalist id="smart_task_list"></datalist>
+                            <small class="text-muted d-block mt-1">Select a combination to auto-fill the 3 boxes below.</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Activity Type</label>
+                            <select class="form-select" id="task_category" name="task_category" onchange="updateActions()" required>
+                                <option value="">-- Select Activity --</option>
+                            </select>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label class="form-label fw-bold small">Action Required</label>
+                                <select class="form-select" id="action_required" name="action_required" onchange="updateInstruments()" required>
+                                    <option value="">-- Select Action --</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label fw-bold small">Instrument</label>
+                                <select class="form-select" id="instrument" name="instrument" required>
+                                    <option value="">-- Select Instrument --</option>
+                                </select>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6 mb-4">
+                <div class="card form-card h-100">
+                    <div class="card-header form-header bg-success"><i class="fas fa-map-marker-alt"></i> Location & Scope</div>
+                    <div class="card-body">
+                        
+                        <label class="form-label fw-bold small">Find Project Scope</label>
+                        <div class="input-group mb-4">
+                            <button class="btn btn-success" type="button" data-bs-toggle="modal" data-bs-target="#treeModal"><i class="fas fa-folder-open"></i> Browse Tree</button>
+                            <span class="input-group-text bg-light text-muted">OR</span>
+                            <input type="text" class="form-control" id="location_code" placeholder="Enter Location Code (e.g. 338-12)" oninput="searchLocationCode()">
+                        </div>
+
+                        <div class="p-3 bg-light border rounded mb-3 text-center">
+                            <strong class="text-secondary d-block mb-1">Selected Path:</strong>
+                            <div id="path_display" class="text-primary fw-bold" style="font-size: 1.1rem;">[ None Selected ]</div>
+                        </div>
+
+                        <input type="hidden" name="area" id="hidden_area" required>
+                        <input type="hidden" name="location" id="hidden_location" required>
+                        <input type="hidden" name="sub_location" id="hidden_sub" required>
+                        <input type="hidden" name="work_scope" id="hidden_scope" required>
+                        
+                        <div class="mb-3 mt-4">
+                            <label class="form-label fw-bold small"><i class="fas fa-link"></i> Reference Links / Files</label>
+                            <div id="links_container">
+                                <input type="text" class="form-control mb-2" name="reference_link" placeholder="Paste SharePoint, OneDrive, or File link here...">
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary mt-1" onclick="addReferenceLink()"><i class="fas fa-plus"></i> Add Another Link</button>
+                        </div>
+                        <div class="mb-3 mt-4">
+                            <label class="form-label fw-bold small">Remarks</label>
+                            <textarea class="form-control" name="remarks" rows="2"></textarea>
+                        </div>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-end">
+            <button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-save"></i> Submit Task</button>
+        </div>
+    </form>
+</div>
+
+<div class="modal fade" id="treeModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="fas fa-folder-open"></i> Project Directory Explorer</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="tree_modal_body">
+            </div>
+        </div>
+    </div>
+</div>
+
+<script id="req_data" type="application/json">{{ req_dict_json | safe }}</script>
+<script id="tree_data" type="application/json">{{ schema_json | safe }}</script>
+<script id="act_data" type="application/json">{{ activities_json | safe }}</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const reqData = JSON.parse(document.getElementById('req_data').textContent);
+    const fileTree = JSON.parse(document.getElementById('tree_data').textContent);
+    const actData = JSON.parse(document.getElementById('act_data').textContent);
+
+    function addSurveyorDropdown() {
+        const container = document.getElementById('surveyor_container');
+        const div = document.createElement('div');
+        div.className = 'input-group mb-2';
+        div.innerHTML = `
+            <select class="form-select" name="assigned_to" required>
+                <option value="">-- Select Additional Surveyor --</option>
+                {% for u in users %}
+                    <option value="{{ u.name }}">{{ u.name }}</option>
                 {% endfor %}
             </select>
-        </div>
-        <form id="taskForm" action="/new_task" method="POST">
-            
-            <div class="form-group"><label>Requestor Dept:</label><select name="requestor_dept" id="reqDept" onchange="updateReqNames()" required><option value="">-- Select Dept --</option></select></div>
-            <div class="form-group"><label>Requestor Name:</label><select name="requestor_name" id="reqName" required><option value="">-- Select Name --</option></select></div>
-            <div class="form-group"><label>Assigned To:</label><select name="assigned_to" required><option value="">-- Select Team Member --</option>{% for u in users %}<option value="{{ u.name }}">{{ u.name }}</option>{% endfor %}</select></div>
-            <div class="form-group"><label>Activity Type:</label><select name="task_category" required><option value="">-- Select Category --</option>{% for cat in categories %}<option value="{{ cat.name }}">{{ cat.name }}</option>{% endfor %}</select></div>
-            
-            <div class="form-group"><label>Area:</label><select name="area" id="areaDropdown" onchange="updateLocations()" required></select></div>
-            <div class="form-group"><label>Location:</label><select name="location" id="locationDropdown" onchange="updateSubLocations()"></select></div>
-            <div class="form-group"><label>Sub-Location:</label><select name="sub_location" id="subLocationDropdown" onchange="updateWorkScopes()"></select></div>
-            <div class="form-group"><label>Work Scope:</label><select name="work_scope" id="workScopeDropdown" required></select></div>
+            <button class="btn btn-outline-danger" type="button" onclick="this.parentElement.remove()"><i class="fas fa-trash"></i></button>
+        `;
+        container.appendChild(div);
+    }
 
-            <div class="form-group"><label>Instrument:</label><select name="instrument" required><option value="">-- Select Instrument --</option>{% for inst in instruments %}<option value="{{ inst.name }}">{{ inst.name }}</option>{% endfor %}</select></div>
-            <div class="form-group"><label>Action Required/ Discipline:</label><select name="action_required" required><option value="">-- Select Action --</option>{% for act in actions %}<option value="{{ act.name }}">{{ act.name }}</option>{% endfor %}</select></div>
-
-            <div class="form-group" id="link-container">
-                <label>Reference File Links (Optional):</label>
-                <div style="display: flex; gap: 5px; margin-bottom: 5px;"><input type="url" name="reference_link" placeholder="Paste link..." style="flex: 1;"><button type="button" class="btn-add" onclick="addLink()">+</button></div>
-            </div>
-
-            <div class="form-group"><label>Opening Remarks:</label><textarea name="remarks" rows="2" placeholder="Any initial notes..."></textarea></div>
-            
-            <div style="margin-bottom: 15px; display: flex; align-items: center;">
-                <input type="checkbox" id="chkPreset" style="width: auto; margin-right: 10px;">
-                <label for="chkPreset" style="margin: 0;">Add to Preset List</label>
-            </div>
-            
-            <input type="hidden" name="save_preset" id="hiddenSavePreset" value="false">
-            <input type="hidden" name="preset_name" id="hiddenPresetName" value="">
-
-            <button type="submit">Open Task</button>
-            <a href="{{ url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard') }}" style="display: block; text-align: center; margin-top: 15px; color: #666; text-decoration: none;">Cancel</a>
-        </form>
-    </div>
-
-    <div class="modal-overlay" id="presetModal">
-        <div class="modal-box">
-            <h3 id="modalTitle">Save as Preset?</h3>
-            <p id="modalText">Do you want to make this a Preset Task?</p>
-            <input type="text" id="modalNameInput" placeholder="Preset Name (Optional)" style="width: 100%; box-sizing: border-box; padding: 10px; margin-bottom: 15px; border-radius: 4px; border: 1px solid #ccc;">
-            <button class="modal-btn btn-yes" onclick="submitTask('yes')">Yes, Save Preset</button>
-            <button class="modal-btn btn-no" id="btnNo" onclick="submitTask('no')">No, just Open Task</button>
-            <button class="modal-btn btn-never" id="btnNever" onclick="submitTask('never')">Don't Ask Again</button>
-        </div>
-    </div>
-
-    <script>
-        function addLink() { let d = document.createElement('div'); d.style.cssText = "display:flex; gap:5px; margin-bottom:5px;"; d.innerHTML = '<input type="url" name="reference_link" style="flex:1;"><button type="button" class="btn-remove" onclick="this.parentElement.remove()">X</button>'; document.getElementById('link-container').appendChild(d); }
-
-let reqTree = {{ req_dict_json | safe }};
-        function popReqDepts() { let d = document.getElementById("reqDept"); Object.keys(reqTree).sort().forEach(x => { let o = document.createElement("option"); o.value = x; o.innerHTML = x; d.appendChild(o); }); }
-        function updateReqNames() { let d = document.getElementById("reqDept").value; let n = document.getElementById("reqName"); n.innerHTML = '<option value="">-- Select Name --</option>'; if (d && reqTree[d]) { reqTree[d].sort().forEach(x => { let o = document.createElement("option"); o.value = x; o.innerHTML = x; n.appendChild(o); }); } }
-        popReqDepts();
-
-        let schema = {{ schema_json | safe }};
-        function popD(id, list) { let d = document.getElementById(id); d.innerHTML = '<option value="">-- Select --</option>'; list.sort().forEach(x => { let o = document.createElement('option'); o.value = x; o.innerHTML = x; d.appendChild(o); }); }
-        function loadAreas() { popD("areaDropdown", Object.keys(schema)); updateLocations(); }
-        function updateLocations() { let a = document.getElementById("areaDropdown").value; popD("locationDropdown", a && schema[a] ? Object.keys(schema[a]) : []); updateSubLocations(); }
-        function updateSubLocations() { let a = document.getElementById("areaDropdown").value; let l = document.getElementById("locationDropdown").value; popD("subLocationDropdown", (a && l && schema[a][l]) ? Object.keys(schema[a][l]) : []); updateWorkScopes(); }
-        function updateWorkScopes() { let a = document.getElementById("areaDropdown").value; let l = document.getElementById("locationDropdown").value; let s = document.getElementById("subLocationDropdown").value; popD("workScopeDropdown", (a && l && s && schema[a][l][s]) ? schema[a][l][s] : []); }
-        loadAreas();
-
-// ----------------------------------------
-        // PRESET AUTO-FILL LOGIC (WITH LEGACY SAFENET)
-        // ----------------------------------------
-function setSafeVal(idOrName, val) {
-            if (!val || val === "N/A" || val === "None") return;
-            let el = document.getElementById(idOrName) || document.querySelector(`[name="${idOrName}"]`);
-            if (!el) return;
-            
-            // Invisible Safenet: Creates the option but hides the warning label
-            let exists = Array.from(el.options).some(opt => opt.value === val);
-            if (!exists) {
-                let opt = document.createElement('option');
-                opt.value = val;
-                opt.innerHTML = val; // Removed the " (Legacy)" text!
-                el.appendChild(opt);
-            }
-            el.value = val;
-        }
-
-        let loadedPreset = {{ loaded_preset | safe }};
-        if (loadedPreset) {
-            setSafeVal('assigned_to', loadedPreset.assigned_to);
-            setSafeVal('task_category', loadedPreset.task_category);
-            setSafeVal('instrument', loadedPreset.instrument);
-            setSafeVal('action_required', loadedPreset.action_required);
-            
-            setSafeVal('reqDept', loadedPreset.req_dept); updateReqNames();
-            setSafeVal('reqName', loadedPreset.req_name);
-            
-            setSafeVal('areaDropdown', loadedPreset.area); updateLocations();
-            setSafeVal('locationDropdown', loadedPreset.location); updateSubLocations();
-            setSafeVal('subLocationDropdown', loadedPreset.sub_location); updateWorkScopes();
-            setSafeVal('workScopeDropdown', loadedPreset.work_scope);
-        }
-
-        // ----------------------------------------
-        // POPUP MODAL LOGIC
-        // ----------------------------------------
-        let isSubmitting = false;
-        document.getElementById('taskForm').addEventListener('submit', function(e) {
-            if (isSubmitting) return; // Prevent loop
-            e.preventDefault();
-
-            let wantsPreset = document.getElementById('chkPreset').checked;
-            let dontAsk = localStorage.getItem('dontAskPreset') === 'true';
-
-            if (wantsPreset) {
-                // They checked the box manually
-                document.getElementById('modalTitle').innerText = "Name Your Preset";
-                document.getElementById('modalText').innerText = "Give this preset a name so you can find it later.";
-                document.getElementById('btnNo').style.display = 'none';
-                document.getElementById('btnNever').style.display = 'none';
-                document.getElementById('presetModal').style.display = 'flex';
-            } else if (!dontAsk) {
-                // They didn't check it, and haven't silenced the prompt
-                document.getElementById('modalTitle').innerText = "Save as Preset?";
-                document.getElementById('modalText').innerText = "Do you want to make this a Preset Task?";
-                document.getElementById('btnNo').style.display = 'block';
-                document.getElementById('btnNever').style.display = 'block';
-                document.getElementById('presetModal').style.display = 'flex';
-            } else {
-                // They silenced the prompt, just submit
-                submitTask('no');
-            }
+    // --- 1. REQUESTOR SEARCH & AUTOFILL ---
+    const datalist = document.getElementById('requestor_list');
+    let requestorMap = {}; 
+    for (const [dept, names] of Object.entries(reqData)) {
+        names.forEach(name => {
+            requestorMap[name] = dept;
+            let option = document.createElement('option');
+            option.value = name;
+            option.text = `(${dept})`; 
+            datalist.appendChild(option);
         });
+    }
+    function autoFillDept() {
+        const name = document.getElementById('requestor_name').value.trim();
+        document.getElementById('requestor_dept').value = requestorMap[name] || '';
+    }
 
-        function submitTask(action) {
-            if (action === 'never') localStorage.setItem('dontAskPreset', 'true');
-            if (action === 'yes') {
-                document.getElementById('hiddenSavePreset').value = 'true';
-                document.getElementById('hiddenPresetName').value = document.getElementById('modalNameInput').value;
-            }
-            isSubmitting = true;
-            document.getElementById('taskForm').submit();
+    // --- 2. TASK CASCADING DROPDOWNS ---
+    const actSelect = document.getElementById('task_category');
+    const reqActSelect = document.getElementById('action_required');
+    const instSelect = document.getElementById('instrument');
+
+    Object.keys(actData).sort().forEach(act => { actSelect.add(new Option(act, act)); });
+
+    function updateActions() {
+        reqActSelect.innerHTML = '<option value="">-- Select Action --</option>';
+        instSelect.innerHTML = '<option value="">-- Select Instrument --</option>';
+        const act = actSelect.value;
+        if(act && actData[act]) {
+            Object.keys(actData[act]).sort().forEach(req => { reqActSelect.add(new Option(req, req)); });
         }
-    </script>
+    }
+
+    function updateInstruments() {
+        instSelect.innerHTML = '<option value="">-- Select Instrument --</option>';
+        const act = actSelect.value;
+        const req = reqActSelect.value;
+        if(act && req && actData[act][req]) {
+            actData[act][req].forEach(inst => { instSelect.add(new Option(inst, inst)); });
+        }
+    }
+
+    // --- 2.5 SMART TASK SEARCH ---
+    const smartList = document.getElementById('smart_task_list');
+    let taskCombinations = {}; 
+
+    for (const [act, actions] of Object.entries(actData)) {
+        for (const [req, insts] of Object.entries(actions)) {
+            insts.forEach(inst => {
+                const comboStr = `${act} ➔ ${req} ➔ ${inst}`;
+                taskCombinations[comboStr] = { act, req, inst };
+                let option = document.createElement('option');
+                option.value = comboStr;
+                smartList.appendChild(option);
+            });
+        }
+    }
+
+    function applySmartTask() {
+        const inputVal = document.getElementById('smart_task_input').value;
+        const combo = taskCombinations[inputVal];
+        if (combo) {
+            actSelect.value = combo.act;
+            updateActions(); 
+            reqActSelect.value = combo.req;
+            updateInstruments(); 
+            instSelect.value = combo.inst;
+        }
+    }
+
+    // --- 3. DUAL-ENTRY FILE TREE ---
+    function searchLocationCode() {
+        const code = document.getElementById('location_code').value.toLowerCase().trim();
+        if(!code || code.length < 3) return; 
+        for(const [area, locs] of Object.entries(fileTree)) {
+            for(const [loc, subs] of Object.entries(locs)) {
+                for(const [sub, scopes] of Object.entries(subs)) {
+                    for(const scope of scopes) {
+                        if(scope.toLowerCase().includes(code) || sub.toLowerCase().includes(code)) {
+                            setPath(area, loc, sub, scope);
+                            return; 
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    const modalBody = document.getElementById('tree_modal_body');
+    let treeHTML = '<ul class="list-unstyled">';
+    for(const [area, locs] of Object.entries(fileTree)) {
+        treeHTML += `<li><div class="tree-folder mt-2"><i class="fas fa-folder"></i> ${area}</div><ul class="list-unstyled ms-4">`;
+        for(const [loc, subs] of Object.entries(locs)) {
+            treeHTML += `<li><div class="tree-folder"><i class="fas fa-folder-open text-warning"></i> ${loc}</div><ul class="list-unstyled ms-4">`;
+            for(const [sub, scopes] of Object.entries(subs)) {
+                treeHTML += `<li><div class="tree-folder"><i class="fas fa-map-pin text-danger"></i> ${sub}</div><ul class="list-unstyled ms-3">`;
+                for(const scope of scopes) {
+                    treeHTML += `<li><div class="tree-scope py-1" onclick="selectFromModal('${area}', '${loc}', '${sub}', '${scope}')"><i class="fas fa-file-alt text-success"></i> ${scope}</div></li>`;
+                }
+                treeHTML += `</ul></li>`;
+            }
+            treeHTML += `</ul></li>`;
+        }
+        treeHTML += `</ul></li>`;
+    }
+    treeHTML += '</ul>';
+    modalBody.innerHTML = treeHTML;
+
+    function selectFromModal(area, loc, sub, scope) {
+        setPath(area, loc, sub, scope);
+        const modal = bootstrap.Modal.getInstance(document.getElementById('treeModal'));
+        modal.hide();
+        document.getElementById('location_code').value = ''; 
+    }
+
+    function setPath(area, loc, sub, scope) {
+        document.getElementById('hidden_area').value = area;
+        document.getElementById('hidden_location').value = loc;
+        document.getElementById('hidden_sub').value = sub;
+        document.getElementById('hidden_scope').value = scope;
+        
+        document.getElementById('path_display').innerHTML = `
+            ${area} <i class="fas fa-caret-right text-muted mx-1"></i> 
+            ${loc} <i class="fas fa-caret-right text-muted mx-1"></i> 
+            ${sub} <i class="fas fa-caret-right text-muted mx-1"></i> 
+            <span class="text-success">${scope}</span>
+        `;
+    }
+
+    // --- 4. DYNAMIC UI HELPERS ---
+    function addReferenceLink() {
+        const container = document.getElementById('links_container');
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'form-control mb-2';
+        input.name = 'reference_link';
+        input.placeholder = 'Paste another link here...';
+        container.appendChild(input);
+    }
+</script>
 </body>
 </html>
