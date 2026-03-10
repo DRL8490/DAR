@@ -652,8 +652,7 @@ def generate_dtr():
 
     except Exception as e:
         flash(f'Error generating report: {str(e)}', 'error')
-        return redirect(url_for('reports'))@app.route('/export_excel')
-@login_required
+        return redirect(url_for('reports'))@login_required
 def export_excel():
     tasks = SurveyTask.query.order_by(SurveyTask.start_time.asc()).all()
     
