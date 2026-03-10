@@ -8,6 +8,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
+from docxtpl import DocxTemplate  # <--- NEW ENGINE IMPORTED HERE
 
 app = Flask(__name__)
 
@@ -284,7 +285,6 @@ def admin_dashboard():
     users = User.query.order_by(User.name.asc()).all()
     return render_template('admin_dashboard.html', name=current_user.name, tasks=all_tasks, users=users)
 
-# --- SYSTEM CONFIG ROUTE (Restored to fix crash) ---
 @app.route('/system_config_hidden', methods=['GET', 'POST'])
 @login_required
 def hidden_config():
@@ -506,7 +506,7 @@ def edit_task(task_id):
                                users=User.query.order_by(User.name.asc()).all(), 
                                req_dict_json=json.dumps(req_dict), 
                                schema_json=json.dumps(file_tree), 
-                               activities_json=json.dumps(activities_data), # <--- ADD THIS LINE
+                               activities_json=json.dumps(activities_data),
                                categories=categories, instruments=instruments, actions=actions,
                                task_json=json.dumps(task_dict))
                                   
@@ -558,13 +558,101 @@ def cancel_task(task_id):
     flash('Task canceled.', 'error')
     return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
 
+
+# --- REPORT GENERATOR ROUTES ---
 @app.route('/reports')
 @login_required
 def reports():
-    all_tasks = SurveyTask.query.order_by(SurveyTask.start_time.desc()).all()
-    return render_template('reports.html', tasks=all_tasks)
+    # Render the UI for the Report Generation Wizard
+    return render_template('reports.html')
 
-@app.route('/export_excel')
+@app.route('/generate_dtr', methods=['POST'])
+@login_required
+def generate_dtr():
+    try:
+        target_date_str = request.form.get('dtr_date')
+        if not target_date_str:
+            flash('Please select a date to generate the DTR.', 'error')
+            return redirect(url_for('reports'))
+
+        target_date = datetime.strptime(target_date_str, '%Y-%m-%d')
+        next_day = target_date + timedelta(days=1)
+        
+        display_date = target_date.strftime('%d.%m.%Y')
+        day_of_week = target_date.strftime('%A')
+
+        daily_tasks = SurveyTask.query.filter(
+            SurveyTask.start_time >= target_date,
+            SurveyTask.start_time < next_day
+        ).all()
+
+        # --- 1. NEW DATA CLEANING & PHRASE FORMATTER ---
+        marine_vessels = []
+        
+        for t in daily_tasks:
+            loc = t.location.split('_', 1)[-1].replace('_', ' ') if t.location and t.location != 'N/A' else ''
+            sub = t.sub_location.split('_', 1)[-1].replace('_', ' ') if t.sub_location and t.sub_location != 'N/A' else ''
+            scope = t.work_scope.split('_', 1)[-1].replace('_', ' ') if t.work_scope and t.work_scope != 'N/A' else ''
+            
+            # Format: "Location - SubLocation | Scope Action Required"
+            loc_parts = " - ".join([p for p in [loc, sub] if p])
+            if loc_parts and scope:
+                t.action_phrase = f"{loc_parts} | {scope} {t.action_required}"
+            elif scope:
+                t.action_phrase = f"{scope} | {t.action_required}"
+            else:
+                t.action_phrase = f"{t.action_required}"
+
+            # Check for Marine Vessels
+            if t.task_category in ['Bathymetric Survey', 'Geophysical Survey']:
+                company = "EGST" if "WS166" in str(t.instrument) else "NMDC"
+                vessel_entry = f"Vessel Name: {t.instrument} | Company: {company} | Surveyor: {t.assigned_to or t.surveyor_name}"
+                if vessel_entry not in marine_vessels:
+                    marine_vessels.append(vessel_entry)
+
+        # --- 2. BUCKET THE TASKS (including 310, 320, 330) ---
+        office_tasks = [t for t in daily_tasks if t.area and t.area.startswith('100')]
+        land_tasks = [t for t in daily_tasks if t.area and t.area.startswith('200')]
+        
+        marine_general = [t for t in daily_tasks if t.area and t.area.startswith('310')]
+        marine_nearshore = [t for t in daily_tasks if t.area and t.area.startswith('320')]
+        marine_offshore = [t for t in daily_tasks if t.area and t.area.startswith('330')]
+
+        open_tasks = SurveyTask.query.filter_by(status='Open').all()
+        for t in open_tasks:
+            t.clean_scope = t.work_scope.split('_', 1)[-1].replace('_', ' ') if t.work_scope else 'Unknown'
+
+        # --- 3. LOAD TEMPLATE AND RENDER ---
+        template_path = os.path.join(app.root_path, 'static', 'report_templates', 'DTR_Template.docx')
+        if not os.path.exists(template_path):
+            flash('Template file missing!', 'error')
+            return redirect(url_for('reports'))
+            
+        doc = DocxTemplate(template_path)
+
+        context = {
+            'target_date': display_date,
+            'day_of_week': day_of_week,
+            'office_tasks': office_tasks,
+            'land_tasks': land_tasks,
+            'marine_general': marine_general,
+            'marine_nearshore': marine_nearshore,
+            'marine_offshore': marine_offshore,
+            'marine_vessels': marine_vessels,
+            'open_tasks': open_tasks
+        }
+        doc.render(context)
+
+        output = io.BytesIO()
+        doc.save(output)
+        output.seek(0)
+
+        filename = f"{target_date.strftime('%Y%m%d')}-DTR-Report.docx"
+        return send_file(output, download_name=filename, as_attachment=True)
+
+    except Exception as e:
+        flash(f'Error generating report: {str(e)}', 'error')
+        return redirect(url_for('reports'))@app.route('/export_excel')
 @login_required
 def export_excel():
     tasks = SurveyTask.query.order_by(SurveyTask.start_time.asc()).all()

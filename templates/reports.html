@@ -2,265 +2,53 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Report Wizard - NMDC</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; background-color: #f4f7f6; padding: 20px; margin: 0; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .btn-back { background: #6c757d; color: white; padding: 10px 15px; text-decoration: none; border-radius: 6px; font-weight: bold; }
-        
-        /* Layout */
-        .wizard-container { display: flex; gap: 20px; align-items: flex-start; }
-        .sidebar { width: 340px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); flex-shrink: 0; }
-        .preview-area { flex: 1; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); overflow-x: auto; min-height: 500px; }
-        
-        /* UI Elements */
-        .form-control { width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        .btn-apply { background: #28a745; color: white; width: 100%; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-bottom: 10px; }
-        .btn-print { background: #0056b3; color: white; width: 100%; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; display: block; text-align: center; text-decoration: none; box-sizing: border-box; margin-bottom: 10px; }
-        .btn-excel { background: #17a2b8; color: white; width: 100%; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; display: block; text-align: center; text-decoration: none; box-sizing: border-box; margin-bottom: 10px; }
-        .btn-concat { background: #17a2b8; color: white; width: 100%; padding: 10px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-bottom: 20px; }
-        
-        /* Drag and Drop List */
-        .col-list { border: 1px solid #eee; border-radius: 4px; margin-bottom: 20px; background: #fafafa; }
-        .col-item { padding: 10px 15px; border-bottom: 1px solid #eee; background: white; cursor: grab; display: flex; align-items: center; gap: 10px; transition: background 0.2s; }
-        .col-item:last-child { border-bottom: none; }
-        .col-item:active { cursor: grabbing; }
-        .col-item.dragging { opacity: 0.5; }
-        .drag-handle { color: #999; cursor: grab; font-size: 18px; }
-
-        /* Table Styles */
-        table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
-        th { background-color: #f8f9fa; color: #333; font-weight: bold; white-space: nowrap; }
-
-        /* Print Specific CSS */
-        @media print {
-            body { background: white; padding: 0; }
-            .no-print { display: none !important; }
-            .preview-area { box-shadow: none; padding: 0; }
-            .print-header { display: block !important; }
-            table { width: 100%; }
-            th, td { border: 1px solid #333; padding: 8px; }
-            th { background-color: #eee !important; -webkit-print-color-adjust: exact; }
-            @page { margin: 1cm; size: landscape; }
-        }
+        body { background-color: #f8f9fa; padding-top: 40px; }
+        .wizard-card { max-width: 600px; margin: 0 auto; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none; }
+        .wizard-header { background: #0056b3; color: white; border-radius: 12px 12px 0 0 !important; padding: 20px; text-align: center; }
     </style>
 </head>
 <body>
-    <div class="header no-print">
-        <h2>Report Generation Wizard</h2>
-        <a href="/" class="btn-back">Back to Dashboard</a>
+
+<div class="container">
+    <div class="mb-3 text-center">
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
     </div>
 
-    <div class="wizard-container">
-        
-        <div class="sidebar no-print">
-            <h3 style="margin-top: 0;">1. Header Designer</h3>
-            <input type="text" id="hdrLogo" class="form-control" placeholder="Logo Image URL (Optional)">
-            <input type="text" id="hdrTitle" class="form-control" placeholder="Report Title (e.g. Daily Survey Report)">
-            <input type="text" id="hdrSubtitle" class="form-control" placeholder="Subtitle / Date / Company">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }} alert-dismissible fade show" style="max-width: 600px; margin: 0 auto 20px auto;">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
 
-            <h3>2. Concatenate Columns</h3>
-            <p style="font-size: 12px; color: #666; margin-top: 0;">Merge two fields into a single column to save space.</p>
-            <div style="display: flex; gap: 5px; margin-bottom: 12px;">
-                <select id="concatCol1" class="form-control" style="margin: 0;">
-                    <option value="0">ID</option><option value="1">Status</option><option value="2">Date</option><option value="3">Area</option>
-                    <option value="4">Location</option><option value="5">Work Scope</option><option value="6">Category</option>
-                    <option value="7">Action Req.</option><option value="8">Assigned To</option><option value="9">Opening Remarks</option><option value="10">Closing Remarks</option>
-                </select>
-                <select id="concatCol2" class="form-control" style="margin: 0;">
-                    <option value="0">ID</option><option value="1">Status</option><option value="2">Date</option><option value="3">Area</option>
-                    <option value="4" selected>Location</option><option value="5">Work Scope</option><option value="6">Category</option>
-                    <option value="7">Action Req.</option><option value="8">Assigned To</option><option value="9">Opening Remarks</option><option value="10">Closing Remarks</option>
-                </select>
-            </div>
-            <div style="display: flex; gap: 5px; margin-bottom: 12px;">
-                <input type="text" id="concatSep" class="form-control" placeholder="Separator (e.g. ' | ')" value=" | " style="flex: 1; margin: 0;">
-                <input type="text" id="concatName" class="form-control" placeholder="New Col Name" value="Area | Location" style="flex: 2; margin: 0;">
-            </div>
-            <button onclick="addConcatColumn()" class="btn-concat">+ Create Merged Column</button>
-
-            <h3>3. Column Configuration</h3>
-            <p style="font-size: 12px; color: #666; margin-top: 0;">Drag the ☰ handles to reorder. Uncheck to hide.</p>
-            
-            <div class="col-list" id="dragContainer">
-                <div class="col-item" draggable="true" data-col="0"><span class="drag-handle">☰</span><input type="checkbox" checked> ID</div>
-                <div class="col-item" draggable="true" data-col="1"><span class="drag-handle">☰</span><input type="checkbox" checked> Status</div>
-                <div class="col-item" draggable="true" data-col="2"><span class="drag-handle">☰</span><input type="checkbox" checked> Date Opened</div>
-                <div class="col-item" draggable="true" data-col="3"><span class="drag-handle">☰</span><input type="checkbox" checked> Area</div>
-                <div class="col-item" draggable="true" data-col="4"><span class="drag-handle">☰</span><input type="checkbox" checked> Location</div>
-                <div class="col-item" draggable="true" data-col="5"><span class="drag-handle">☰</span><input type="checkbox" checked> Work Scope</div>
-                <div class="col-item" draggable="true" data-col="6"><span class="drag-handle">☰</span><input type="checkbox" checked> Category</div>
-                <div class="col-item" draggable="true" data-col="7"><span class="drag-handle">☰</span><input type="checkbox" checked> Action Req.</div>
-                <div class="col-item" draggable="true" data-col="8"><span class="drag-handle">☰</span><input type="checkbox" checked> Assigned To</div>
-                <div class="col-item" draggable="true" data-col="9"><span class="drag-handle">☰</span><input type="checkbox" checked> Opening Remarks</div>
-                <div class="col-item" draggable="true" data-col="10"><span class="drag-handle">☰</span><input type="checkbox" checked> Closing Remarks</div>
-            </div>
-
-            <button onclick="applyReportConfig()" class="btn-apply">Update Preview</button>
-            
-            <a href="/export_excel" class="btn-excel" style="background: #28a745;">📊 Export Master Register (.xlsx)</a>
-            
-            <button onclick="window.print()" class="btn-print">🖨️ Print Custom PDF</button>
+    <div class="card wizard-card">
+        <div class="card-header wizard-header">
+            <h3 class="mb-0"><i class="fas fa-file-word"></i> DTR Auto-Generator</h3>
+            <p class="mb-0 small opacity-75">Select a date to generate the Daily Task Report.</p>
         </div>
-
-        <div class="preview-area">
+        <div class="card-body p-4">
             
-            <div id="print-header" class="print-header" style="display: none; text-align: center; margin-bottom: 20px; position: relative; min-height: 80px;">
-                <img id="print-logo" src="" style="position: absolute; left: 0; top: 0; max-height: 80px; max-width: 180px; display: none;">
-                <h1 id="print-title" style="margin: 0; color: #333; padding-top: 10px;">NMDC Survey Report</h1>
-                <h3 id="print-subtitle" style="margin: 5px 0; color: #666;">Generated Report</h3>
-                <hr style="border: 1px solid #ccc; clear: both; margin-top: 25px;">
-            </div>
+            <form action="{{ url_for('generate_dtr') }}" method="POST">
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Target Report Date</label>
+                    <input type="date" name="dtr_date" class="form-control form-control-lg" required>
+                </div>
+                
+                <button type="submit" class="btn btn-success btn-lg w-100"><i class="fas fa-download"></i> Generate & Download DTR (.docx)</button>
+            </form>
 
-            <table id="reportTable">
-                <thead>
-                    <tr class="raw-row">
-                        <th>ID</th> <th>Status</th> <th>Date</th> <th>Area</th> <th>Location</th> <th>Work Scope</th> <th>Category</th> <th>Action Req.</th> <th>Assigned To</th> <th>Opening Remarks</th> <th>Closing Remarks</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for task in tasks %}
-                    <tr class="raw-row">
-                        <td>#{{ task.id }}</td>
-                        <td>{{ task.status }}</td>
-                        <td>{{ task.start_time.strftime('%Y-%m-%d') }}</td>
-                        <td>{{ task.area }}</td>
-                        <td>{{ task.location or '-' }} | {{ task.sub_location or '-' }}</td>
-                        <td>{{ task.work_scope }}</td>
-                        <td>{{ task.task_category }}</td>
-                        <td>{{ task.action_required }} ({{ task.instrument }})</td>
-                        <td>{{ task.assigned_to }}</td>
-                        <td>{{ task.remarks.split('| Closed:')[0] if task.remarks else '-' }}</td>
-                        <td>{{ task.remarks.split('| Closed:')[1] if task.remarks and '| Closed:' in task.remarks else '-' }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
         </div>
-
     </div>
+</div>
 
-    <script>
-        // --- 1. Drag and Drop Engine ---
-        let draggedItem = null;
-        
-        function attachDragEvents(item) {
-            item.addEventListener('dragstart', function(e) { draggedItem = this; setTimeout(() => this.classList.add('dragging'), 0); });
-            item.addEventListener('dragend', function() { this.classList.remove('dragging'); draggedItem = null; });
-            item.addEventListener('dragover', function(e) { e.preventDefault(); });
-            item.addEventListener('dragenter', function(e) { e.preventDefault(); this.style.background = '#e9ecef'; });
-            item.addEventListener('dragleave', function() { this.style.background = 'white'; });
-            item.addEventListener('drop', function(e) {
-                e.preventDefault();
-                this.style.background = 'white';
-                if (this !== draggedItem) {
-                    let allItems = [...this.parentNode.children];
-                    let draggedPos = allItems.indexOf(draggedItem);
-                    let thisPos = allItems.indexOf(this);
-                    if (draggedPos < thisPos) this.parentNode.insertBefore(draggedItem, this.nextSibling);
-                    else this.parentNode.insertBefore(draggedItem, this);
-                }
-            });
-        }
-        document.querySelectorAll('.col-item').forEach(attachDragEvents);
-
-        // --- 2. Dynamic Concatenate Feature ---
-        function addConcatColumn() {
-            let c1 = document.getElementById('concatCol1').value;
-            let c2 = document.getElementById('concatCol2').value;
-            let sep = document.getElementById('concatSep').value;
-            let name = document.getElementById('concatName').value || 'Merged Column';
-            
-            let container = document.getElementById('dragContainer');
-            let div = document.createElement('div');
-            div.className = 'col-item';
-            div.setAttribute('draggable', 'true');
-            div.setAttribute('data-concat-c1', c1);
-            div.setAttribute('data-concat-c2', c2);
-            div.setAttribute('data-concat-sep', sep);
-            div.setAttribute('data-concat-name', name);
-            
-            div.innerHTML = `<span class="drag-handle">☰</span><input type="checkbox" checked> <strong style="color:#17a2b8; margin-left:5px;">[Merged]</strong> ${name} <button onclick="this.parentElement.remove()" style="margin-left:auto; background:#dc3545; color:white; border:none; border-radius:3px; cursor:pointer; padding: 2px 6px;">X</button>`;
-            
-            attachDragEvents(div);
-            container.appendChild(div);
-        }
-
-        // --- 3. Report Builder Logic ---
-        window.onload = () => {
-            const table = document.getElementById("reportTable");
-            const rows = Array.from(table.rows);
-            window.originalData = rows.map(row => Array.from(row.children)); 
-        };
-
-        function applyReportConfig() {
-            // Apply Header Logo & Text
-            let logoUrl = document.getElementById('hdrLogo').value;
-            let logoImg = document.getElementById('print-logo');
-            if(logoUrl) { logoImg.src = logoUrl; logoImg.style.display = 'block'; } else { logoImg.style.display = 'none'; }
-            
-            document.getElementById('print-title').innerText = document.getElementById('hdrTitle').value || 'NMDC Survey Report';
-            document.getElementById('print-subtitle').innerText = document.getElementById('hdrSubtitle').value || new Date().toLocaleDateString();
-
-            // Read Sidebar UI State
-            const configItems = document.querySelectorAll('.col-item');
-            const activeCols = [];
-            
-            configItems.forEach(item => {
-                if(item.querySelector('input').checked) {
-                    if (item.hasAttribute('data-concat-c1')) {
-                        activeCols.push({
-                            type: 'concat',
-                            c1: parseInt(item.getAttribute('data-concat-c1')),
-                            c2: parseInt(item.getAttribute('data-concat-c2')),
-                            sep: item.getAttribute('data-concat-sep'),
-                            name: item.getAttribute('data-concat-name')
-                        });
-                    } else {
-                        activeCols.push({ type: 'standard', index: parseInt(item.getAttribute('data-col')) });
-                    }
-                }
-            });
-
-            // Rebuild the DOM Table
-            const table = document.getElementById("reportTable");
-            table.innerHTML = ""; 
-
-            window.originalData.forEach((originalCells, rowIndex) => {
-                let tr = document.createElement("tr");
-                
-                activeCols.forEach(colDef => {
-                    if (colDef.type === 'standard') {
-                        tr.appendChild(originalCells[colDef.index].cloneNode(true));
-                    } else if (colDef.type === 'concat') {
-                        let newCell = document.createElement(rowIndex === 0 ? "th" : "td");
-                        if (rowIndex === 0) {
-                            newCell.innerText = colDef.name; 
-                        } else {
-                            let text1 = originalCells[colDef.c1].innerText.trim();
-                            let text2 = originalCells[colDef.c2].innerText.trim();
-                            
-                            if(text1 && text2 && text1 !== '-' && text2 !== '-') newCell.innerText = text1 + colDef.sep + text2;
-                            else if (text1 && text1 !== '-') newCell.innerText = text1;
-                            else if (text2 && text2 !== '-') newCell.innerText = text2;
-                            else newCell.innerText = '-';
-                        }
-                        tr.appendChild(newCell);
-                    }
-                });
-                
-                if (rowIndex === 0) {
-                    let thead = document.createElement("thead");
-                    thead.appendChild(tr);
-                    table.appendChild(thead);
-                    table.appendChild(document.createElement("tbody"));
-                } else {
-                    table.tBodies[0].appendChild(tr);
-                }
-            });
-        }
-    </script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
