@@ -9,9 +9,10 @@
         body { background-color: #f8f9fa; }
         .form-card { border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: none; }
         .form-header { background: #0056b3; color: white; border-radius: 12px 12px 0 0 !important; font-weight: bold; }
-        .tree-folder { cursor: pointer; color: #0056b3; font-weight: bold; }
-        .tree-scope { cursor: pointer; color: #198754; margin-left: 20px; }
-        .tree-scope:hover { text-decoration: underline; }
+        .tree-folder { cursor: pointer; color: #0056b3; font-weight: bold; user-select: none; transition: color 0.2s; }
+        .tree-folder:hover { color: #ffc107; }
+        .tree-scope { cursor: pointer; color: #198754; margin-left: 20px; user-select: none; }
+        .tree-scope:hover { text-decoration: underline; color: #146c43; }
     </style>
 </head>
 <body>
@@ -47,7 +48,7 @@
                         <div class="row mb-3">
                             <div class="col-8">
                                 <label class="form-label fw-bold small">Requestor Name (Searchable)</label>
-                                <input list="requestor_list" class="form-control" id="requestor_name" name="requestor_name" placeholder="Type to search..." onchange="autoFillDept()" required>
+                                <input list="requestor_list" class="form-control" id="requestor_name" name="requestor_name" placeholder="Type to search..." oninput="autoFillDept()" required>
                                 <datalist id="requestor_list"></datalist>
                             </div>
                             <div class="col-4">
@@ -60,9 +61,9 @@
 
                         <div class="mb-3 p-3 bg-light border rounded">
                             <label class="form-label fw-bold text-primary"><i class="fas fa-bolt"></i> Quick Find (Smart Search)</label>
-                            <input list="smart_task_list" class="form-control border-primary" id="smart_task_input" placeholder="Type keyword (e.g., Progress, Drone)..." onchange="applySmartTask()">
+                            <input list="smart_task_list" class="form-control border-primary" id="smart_task_input" placeholder="Type keyword (e.g., Progress, Drone)..." oninput="applySmartTask()">
                             <datalist id="smart_task_list"></datalist>
-                            <small class="text-muted d-block mt-1">Select a combination to auto-fill the 3 boxes below.</small>
+                            <small class="text-muted d-block mt-1">Select a full combination from the dropdown to auto-fill below.</small>
                         </div>
 
                         <div class="mb-3">
@@ -100,7 +101,8 @@
                         <div class="input-group mb-4">
                             <button class="btn btn-success" type="button" data-bs-toggle="modal" data-bs-target="#treeModal"><i class="fas fa-folder-open"></i> Browse Tree</button>
                             <span class="input-group-text bg-light text-muted">OR</span>
-                            <input type="text" class="form-control" id="location_code" placeholder="Enter Location Code (e.g. 338-12)" oninput="searchLocationCode()">
+                            <input list="loc_search_list" class="form-control" id="location_code" placeholder="Search Code (e.g. 338-12)..." oninput="applyLocationSearch()">
+                            <datalist id="loc_search_list"></datalist>
                         </div>
 
                         <div class="p-3 bg-light border rounded mb-3 text-center">
@@ -246,31 +248,61 @@
     }
 
     // --- 3. DUAL-ENTRY FILE TREE ---
-    function searchLocationCode() {
-        const code = document.getElementById('location_code').value.toLowerCase().trim();
-        if(!code || code.length < 3) return; 
-        for(const [area, locs] of Object.entries(fileTree)) {
-            for(const [loc, subs] of Object.entries(locs)) {
-                for(const [sub, scopes] of Object.entries(subs)) {
-                    for(const scope of scopes) {
-                        if(scope.toLowerCase().includes(code) || sub.toLowerCase().includes(code)) {
-                            setPath(area, loc, sub, scope);
-                            return; 
-                        }
-                    }
+    const locSearchList = document.getElementById('loc_search_list');
+    let locCombinations = {}; 
+    for(const [area, locs] of Object.entries(fileTree)) {
+        for(const [loc, subs] of Object.entries(locs)) {
+            for(const [sub, scopes] of Object.entries(subs)) {
+                for(const scope of scopes) {
+                    const searchStr = `${scope} (${loc})`;
+                    locCombinations[searchStr] = { area, loc, sub, scope };
+                    let option = document.createElement('option');
+                    option.value = searchStr;
+                    locSearchList.appendChild(option);
                 }
             }
         }
     }
 
+    function applyLocationSearch() {
+        const val = document.getElementById('location_code').value;
+        const match = locCombinations[val];
+        if(match) {
+            setPath(match.area, match.loc, match.sub, match.scope);
+            document.getElementById('location_code').blur(); 
+        }
+    }
+
+    // COLLAPSIBLE MODAL BUILDER
     const modalBody = document.getElementById('tree_modal_body');
     let treeHTML = '<ul class="list-unstyled">';
+    let fId = 0;
+    
     for(const [area, locs] of Object.entries(fileTree)) {
-        treeHTML += `<li><div class="tree-folder mt-2"><i class="fas fa-folder"></i> ${area}</div><ul class="list-unstyled ms-4">`;
+        fId++; let areaId = fId;
+        // Area is visible by default
+        treeHTML += `<li>
+            <div class="tree-folder py-1" onclick="toggleFolder('f_${areaId}', 'i_${areaId}')">
+                <i class="fas fa-folder" id="i_${areaId}"></i> ${area}
+            </div>
+            <ul class="list-unstyled ms-4 border-start border-2 border-primary ps-2" id="f_${areaId}" style="display:none;">`;
+        
         for(const [loc, subs] of Object.entries(locs)) {
-            treeHTML += `<li><div class="tree-folder"><i class="fas fa-folder-open text-warning"></i> ${loc}</div><ul class="list-unstyled ms-4">`;
+            fId++; let locId = fId;
+            treeHTML += `<li>
+                <div class="tree-folder py-1" onclick="toggleFolder('f_${locId}', 'i_${locId}')">
+                    <i class="fas fa-folder text-warning" id="i_${locId}"></i> ${loc}
+                </div>
+                <ul class="list-unstyled ms-4 border-start border-2 border-warning ps-2" id="f_${locId}" style="display:none;">`;
+            
             for(const [sub, scopes] of Object.entries(subs)) {
-                treeHTML += `<li><div class="tree-folder"><i class="fas fa-map-pin text-danger"></i> ${sub}</div><ul class="list-unstyled ms-3">`;
+                fId++; let subId = fId;
+                treeHTML += `<li>
+                    <div class="tree-folder py-1" onclick="toggleFolder('f_${subId}', 'i_${subId}')">
+                        <i class="fas fa-folder text-danger" id="i_${subId}"></i> ${sub}
+                    </div>
+                    <ul class="list-unstyled ms-3 border-start border-2 border-danger ps-2" id="f_${subId}" style="display:none;">`;
+                
                 for(const scope of scopes) {
                     treeHTML += `<li><div class="tree-scope py-1" onclick="selectFromModal('${area}', '${loc}', '${sub}', '${scope}')"><i class="fas fa-file-alt text-success"></i> ${scope}</div></li>`;
                 }
@@ -282,6 +314,21 @@
     }
     treeHTML += '</ul>';
     modalBody.innerHTML = treeHTML;
+
+    // Helper for Accordion Toggle
+    window.toggleFolder = function(folderId, iconId) {
+        const folder = document.getElementById(folderId);
+        const icon = document.getElementById(iconId);
+        if(folder.style.display === 'none') {
+            folder.style.display = 'block';
+            icon.classList.remove('fa-folder');
+            icon.classList.add('fa-folder-open');
+        } else {
+            folder.style.display = 'none';
+            icon.classList.remove('fa-folder-open');
+            icon.classList.add('fa-folder');
+        }
+    };
 
     function selectFromModal(area, loc, sub, scope) {
         setPath(area, loc, sub, scope);
