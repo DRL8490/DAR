@@ -741,25 +741,55 @@ def generate_dtr():
         traceback.print_exc()
         flash(f'Error generating report: {str(e)}', 'error')
         return redirect(url_for('reports'))
+@app.route('/export_excel')
+@login_required
 def export_excel():
+    # Fetch all tasks from oldest to newest to ensure proper sequential numbering
     tasks = SurveyTask.query.order_by(SurveyTask.start_time.asc()).all()
     
     data = []
+    month_counters = {} 
+    
     for i, task in enumerate(tasks, 1):
-        task_id_str = task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else f"UNKNOWN-{task.id}"
+        # --- 1. GENERATE DYNAMIC REFERENCE NUMBERS ---
+        if task.start_time:
+            month_str = task.start_time.strftime('%m')
+        else:
+            month_str = '00' 
+            
+        if month_str not in month_counters:
+            month_counters[month_str] = 1
+        else:
+            month_counters[month_str] += 1
+            
+        # FORMAT UPDATE: Now uses 3 digits (001, 002... 999)
+        seq_num = f"{month_counters[month_str]:03d}"
         
+        req_ref = f"TW_{month_str}{seq_num}"
+        survey_ref = f"TW_SU_{month_str}{seq_num}"
+
+        # --- 2. CLEAN THE DESCRIPTION TEXT ---
+        loc = task.location.split('_', 1)[-1].replace('_', ' ') if task.location and task.location != 'N/A' else ''
+        sub = task.sub_location.split('_', 1)[-1].replace('_', ' ') if task.sub_location and task.sub_location != 'N/A' else ''
+        scope = task.work_scope.split('_', 1)[-1].replace('_', ' ') if task.work_scope and task.work_scope != 'N/A' else ''
+        
+        raw_parts = [loc, sub, scope, task.action_required]
+        clean_parts = [p.strip() for p in raw_parts if p and p.strip().lower() != 'general']
+        desc_phrase = " ".join(clean_parts)
+
+        # --- 3. APPEND TO EXCEL ROW ---
         data.append({
             'Tender / Project Ref.': '20012',
             'Sl No': i,
             'Activity Type': task.task_category,
             'Discipline': task.action_required,
-            'Requestor Ref. #': '', 
-            'Survey Ref. #': task_id_str,
+            'Requestor Ref. #': req_ref, 
+            'Survey Ref. #': survey_ref,
             'Requestor': task.requestor,
             'Assigned to': task.assigned_to,
             'Date/Time Received': task.start_time.strftime('%Y-%m-%d %H:%M') if task.start_time else '',
             'Date/Time Completed': task.end_time.strftime('%Y-%m-%d %H:%M') if task.end_time else '',
-            'Description of Survey Works / Survey Volume Calculation': f"{task.area} - {task.location or ''} - {task.work_scope}",
+            'Description of Survey Works / Survey Volume Calculation': desc_phrase,
             'Special Conditions / Remarks': task.remarks or ''
         })
     
@@ -790,7 +820,6 @@ def export_excel():
     output.seek(0)
     filename = f"2510_QA-20-FM-003-13_Master_SAR-SVR_Register_{datetime.utcnow().strftime('%Y%m%d')}.xlsx"
     
-    return send_file(output, download_name=filename, as_attachment=True)  
- 
+    return send_file(output, download_name=filename, as_attachment=True) 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)

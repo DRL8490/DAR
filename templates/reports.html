@@ -6,22 +6,31 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; padding-top: 40px; }
-        .wizard-card { max-width: 600px; margin: 0 auto; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none; }
-        .wizard-header { background: #0056b3; color: white; border-radius: 12px 12px 0 0 !important; padding: 20px; text-align: center; }
+        body { background-color: #f4f7f6; padding-top: 30px; }
+        .wizard-card { border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: none; transition: transform 0.2s; }
+        .wizard-card:hover { transform: translateY(-5px); box-shadow: 0 8px 15px rgba(0,0,0,0.1); }
+        .card-header { color: white; border-radius: 12px 12px 0 0 !important; padding: 15px; font-weight: bold; text-align: center; }
+        
+        /* Color Coding for Report Types */
+        .bg-dtr { background: #0d6efd; } /* Blue for Daily */
+        .bg-wsr { background: #fd7e14; } /* Orange for Weekly */
+        .bg-tpc { background: #6f42c1; } /* Purple for Client */
+        .bg-kpi { background: #198754; } /* Green for Excel/Data */
+        .bg-wiz { background: #343a40; } /* Dark for Custom Wizard */
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div class="mb-3 text-center">
-        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
+<div class="container pb-5">
+    <div class="mb-4 text-center">
+        <h2 class="fw-bold text-secondary mb-3"><i class="fas fa-chart-pie"></i> Enterprise Reporting Suite</h2>
+        <a href="{{ url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard') }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}
-                <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }} alert-dismissible fade show" style="max-width: 600px; margin: 0 auto 20px auto;">
+                <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }} alert-dismissible fade show">
                     {{ message }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
@@ -29,23 +38,101 @@
         {% endif %}
     {% endwith %}
 
-    <div class="card wizard-card">
-        <div class="card-header wizard-header">
-            <h3 class="mb-0"><i class="fas fa-file-word"></i> DTR Auto-Generator</h3>
-            <p class="mb-0 small opacity-75">Select a date to generate the Daily Task Report.</p>
-        </div>
-        <div class="card-body p-4">
-            
-            <form action="{{ url_for('generate_dtr') }}" method="POST">
-                <div class="mb-4">
-                    <label class="form-label fw-bold">Target Report Date</label>
-                    <input type="date" name="dtr_date" class="form-control form-control-lg" required>
+    <div class="row mb-4">
+        
+        <div class="col-md-4">
+            <div class="card wizard-card h-100">
+                <div class="card-header bg-dtr">
+                    <h5 class="mb-0"><i class="fas fa-calendar-day"></i> DTR Generator</h5>
                 </div>
-                
-                <button type="submit" class="btn btn-success btn-lg w-100"><i class="fas fa-download"></i> Generate & Download DTR (.docx)</button>
-            </form>
-
+                <div class="card-body d-flex flex-column">
+                    <p class="small text-muted text-center mb-3">Generates the Daily Task Report formatted by Location and Surveyor (.docx)</p>
+                    <form action="{{ url_for('generate_dtr') }}" method="POST" class="mt-auto">
+                        <label class="form-label fw-bold small">Target Date</label>
+                        <input type="date" name="dtr_date" class="form-control mb-3" required>
+                        <button type="submit" class="btn btn-primary w-100"><i class="fas fa-download"></i> Generate DTR</button>
+                    </form>
+                </div>
+            </div>
         </div>
+
+        <div class="col-md-4">
+            <div class="card wizard-card h-100">
+                <div class="card-header bg-wsr">
+                    <h5 class="mb-0"><i class="fas fa-calendar-week"></i> WSR Generator</h5>
+                </div>
+                <div class="card-body d-flex flex-column">
+                    <p class="small text-muted text-center mb-3">Generates the comprehensive Weekly Survey Report from Monday to Sunday (.docx)</p>
+                    <form action="#" method="POST" class="mt-auto">
+                        <label class="form-label fw-bold small">Select Week (Mon-Sun)</label>
+                        <input type="week" name="wsr_week" class="form-control mb-3" required>
+                        <button type="button" class="btn btn-warning w-100 text-white" disabled><i class="fas fa-tools"></i> Under Construction</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card wizard-card h-100">
+                <div class="card-header bg-tpc">
+                    <h5 class="mb-0"><i class="fas fa-file-contract"></i> TPC Weekly</h5>
+                </div>
+                <div class="card-body d-flex flex-column">
+                    <p class="small text-muted text-center mb-3">Generates the Client-facing Weekly Report (1 Table, 2 Bulleted Lists) (.docx)</p>
+                    <form action="#" method="POST" class="mt-auto">
+                        <label class="form-label fw-bold small">Select Week</label>
+                        <input type="week" name="tpc_week" class="form-control mb-3" required>
+                        <button type="button" class="btn btn-secondary w-100" style="background-color: #6f42c1; border: none;" disabled><i class="fas fa-tools"></i> Under Construction</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="row">
+
+        <div class="col-md-6 mb-4">
+            <div class="card wizard-card h-100">
+                <div class="card-header bg-kpi">
+                    <h5 class="mb-0"><i class="fas fa-file-excel"></i> KPI Master Register</h5>
+                </div>
+                <div class="card-body d-flex flex-column">
+                    <p class="small text-muted text-center mb-3">Exports the sequential Master Register tracking sheets for KPI management (.xlsx)</p>
+                    <form action="{{ url_for('export_excel') }}" method="GET" class="mt-auto">
+                        <div class="alert alert-light border text-center p-2 mb-3 small">
+                            Currently exports all-time database data. Month filtering coming soon!
+                        </div>
+                        <button type="submit" class="btn btn-success w-100"><i class="fas fa-file-download"></i> Download KPI Excel</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <div class="card wizard-card h-100">
+                <div class="card-header bg-wiz">
+                    <h5 class="mb-0"><i class="fas fa-magic"></i> Custom Report Wizard</h5>
+                </div>
+                <div class="card-body d-flex flex-column">
+                    <p class="small text-muted text-center mb-3">Build custom queries. Filter by specific dates, vessels, surveyors, or file paths.</p>
+                    <form action="#" method="POST" class="mt-auto">
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label class="form-label fw-bold small">Start Date</label>
+                                <input type="date" class="form-control">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label fw-bold small">End Date</label>
+                                <input type="date" class="form-control">
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-dark w-100" disabled><i class="fas fa-tools"></i> Under Construction</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
     </div>
 </div>
 
