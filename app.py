@@ -351,7 +351,59 @@ def hidden_config():
             if act in master_schema['activities'] and req_action in master_schema['activities'][act]:
                 if inst in master_schema['activities'][act][req_action]:
                     master_schema['activities'][act][req_action].remove(inst)
+# --- FILE TREE ACTIONS ---
+        elif action == 'add_area':
+            area = request.form.get('area').strip()
+            if area and area not in master_schema['file_tree']:
+                master_schema['file_tree'][area] = {}
+        elif action == 'delete_area':
+            area = request.form.get('area')
+            if area in master_schema['file_tree']:
+                del master_schema['file_tree'][area]
 
+        elif action == 'add_location':
+            area = request.form.get('area')
+            loc = request.form.get('location').strip()
+            if area in master_schema['file_tree'] and loc not in master_schema['file_tree'][area]:
+                master_schema['file_tree'][area][loc] = {}
+        elif action == 'delete_location':
+            area = request.form.get('area')
+            loc = request.form.get('location')
+            if area in master_schema['file_tree'] and loc in master_schema['file_tree'][area]:
+                del master_schema['file_tree'][area][loc]
+
+        elif action == 'add_sub':
+            area = request.form.get('area')
+            loc = request.form.get('location')
+            sub = request.form.get('sub_location').strip()
+            if area in master_schema['file_tree'] and loc in master_schema['file_tree'][area]:
+                if sub not in master_schema['file_tree'][area][loc]:
+                    master_schema['file_tree'][area][loc][sub] = []
+        elif action == 'delete_sub':
+            area = request.form.get('area')
+            loc = request.form.get('location')
+            sub = request.form.get('sub_location')
+            if area in master_schema['file_tree'] and loc in master_schema['file_tree'][area]:
+                if sub in master_schema['file_tree'][area][loc]:
+                    del master_schema['file_tree'][area][loc][sub]
+
+        elif action == 'add_scope':
+            area = request.form.get('area')
+            loc = request.form.get('location')
+            sub = request.form.get('sub_location')
+            scope = request.form.get('scope').strip()
+            if area in master_schema['file_tree'] and loc in master_schema['file_tree'][area] and sub in master_schema['file_tree'][area][loc]:
+                if scope not in master_schema['file_tree'][area][loc][sub]:
+                    master_schema['file_tree'][area][loc][sub].append(scope)
+                    master_schema['file_tree'][area][loc][sub].sort()
+        elif action == 'delete_scope':
+            area = request.form.get('area')
+            loc = request.form.get('location')
+            sub = request.form.get('sub_location')
+            scope = request.form.get('scope')
+            if area in master_schema['file_tree'] and loc in master_schema['file_tree'][area] and sub in master_schema['file_tree'][area][loc]:
+                if scope in master_schema['file_tree'][area][loc][sub]:
+                    master_schema['file_tree'][area][loc][sub].remove(scope)
         config.schema_data = json.dumps(master_schema)
         db.session.commit()
         flash('System Configuration Updated!', 'success')

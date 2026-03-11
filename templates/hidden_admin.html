@@ -47,7 +47,7 @@
                     </form>
 
                     <select id="dept_select" class="form-select form-select-sm mb-3" onchange="renderRequestors()">
-                        <option value="">-- Select Department to Manage --</option>
+                        <option value="">-- Select Department --</option>
                     </select>
 
                     <form method="POST" id="add_req_form" class="mb-3 d-flex" style="display:none !important;">
@@ -75,10 +75,10 @@
                                 <button class="btn btn-primary btn-sm">+</button>
                             </form>
                             <select id="act_select" class="form-select form-select-sm" size="8" onchange="renderActions()"></select>
-                            <form method="POST" class="mt-2 text-end" id="del_act_form">
+                            <form method="POST" class="mt-2 text-end" id="del_act_form" style="visibility: hidden;">
                                 <input type="hidden" name="action" value="delete_activity">
                                 <input type="hidden" name="activity" id="del_act_val">
-                                <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this entire activity?')"><i class="fas fa-trash"></i> Delete Selected</button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete this entire activity?')"><i class="fas fa-trash"></i></button>
                             </form>
                         </div>
                         
@@ -115,6 +115,81 @@
             </div>
         </div>
     </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card config-card">
+                <div class="card-header config-header bg-warning text-dark"><i class="fas fa-folder-tree"></i> Project Directory (File Tree Config)</div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-3">
+                            <label class="fw-bold small">Area (Level 1)</label>
+                            <form method="POST" class="d-flex mb-2">
+                                <input type="hidden" name="action" value="add_area">
+                                <input type="text" name="area" class="form-control form-control-sm me-1" placeholder="New Area" required>
+                                <button class="btn btn-primary btn-sm">+</button>
+                            </form>
+                            <select id="area_select" class="form-select form-select-sm" size="10" onchange="renderLocations()"></select>
+                            <form method="POST" class="mt-2 text-end" id="del_area_form" style="visibility: hidden;">
+                                <input type="hidden" name="action" value="delete_area">
+                                <input type="hidden" name="area" id="del_area_val">
+                                <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete entire Area and all sub-folders?')"><i class="fas fa-trash"></i></button>
+                            </form>
+                        </div>
+                        
+                        <div class="col-3">
+                            <label class="fw-bold small">Location (Level 2)</label>
+                            <form method="POST" class="d-flex mb-2" id="add_loc_form" style="visibility: hidden;">
+                                <input type="hidden" name="action" value="add_location">
+                                <input type="hidden" name="area" id="loc_parent_area">
+                                <input type="text" name="location" class="form-control form-control-sm me-1" placeholder="New Location" required>
+                                <button class="btn btn-success btn-sm">+</button>
+                            </form>
+                            <select id="loc_select" class="form-select form-select-sm" size="10" onchange="renderSubs()"></select>
+                            <form method="POST" class="mt-2 text-end" id="del_loc_form" style="visibility: hidden;">
+                                <input type="hidden" name="action" value="delete_location">
+                                <input type="hidden" name="area" id="del_loc_parent_area">
+                                <input type="hidden" name="location" id="del_loc_val">
+                                <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete Location?')"><i class="fas fa-trash"></i></button>
+                            </form>
+                        </div>
+
+                        <div class="col-3">
+                            <label class="fw-bold small">Sub-Location (Level 3)</label>
+                            <form method="POST" class="d-flex mb-2" id="add_sub_form" style="visibility: hidden;">
+                                <input type="hidden" name="action" value="add_sub">
+                                <input type="hidden" name="area" id="sub_parent_area">
+                                <input type="hidden" name="location" id="sub_parent_loc">
+                                <input type="text" name="sub_location" class="form-control form-control-sm me-1" placeholder="New Sub-Location" required>
+                                <button class="btn btn-warning btn-sm">+</button>
+                            </form>
+                            <select id="sub_select" class="form-select form-select-sm" size="10" onchange="renderScopes()"></select>
+                            <form method="POST" class="mt-2 text-end" id="del_sub_form" style="visibility: hidden;">
+                                <input type="hidden" name="action" value="delete_sub">
+                                <input type="hidden" name="area" id="del_sub_parent_area">
+                                <input type="hidden" name="location" id="del_sub_parent_loc">
+                                <input type="hidden" name="sub_location" id="del_sub_val">
+                                <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete Sub-Location?')"><i class="fas fa-trash"></i></button>
+                            </form>
+                        </div>
+
+                        <div class="col-3">
+                            <label class="fw-bold small">Work Scope (Level 4)</label>
+                            <form method="POST" class="d-flex mb-2" id="add_scope_form" style="visibility: hidden;">
+                                <input type="hidden" name="action" value="add_scope">
+                                <input type="hidden" name="area" id="scope_parent_area">
+                                <input type="hidden" name="location" id="scope_parent_loc">
+                                <input type="hidden" name="sub_location" id="scope_parent_sub">
+                                <input type="text" name="scope" class="form-control form-control-sm me-1" placeholder="New Scope" required>
+                                <button class="btn btn-info btn-sm text-white">+</button>
+                            </form>
+                            <ul class="list-group list-group-flush border" id="scope_list" style="height: 220px; overflow-y: auto;"></ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script id="master_data" type="application/json">
@@ -125,6 +200,7 @@
     const masterData = JSON.parse(document.getElementById('master_data').textContent);
     const reqData = masterData.requestors || {};
     const actData = masterData.activities || {};
+    const treeData = masterData.file_tree || {};
 
     // --- 1. REQUESTOR LOGIC ---
     const deptSelect = document.getElementById('dept_select');
@@ -214,6 +290,98 @@
                             <input type="hidden" name="activity" value="${act}">
                             <input type="hidden" name="req_action" value="${req}">
                             <input type="hidden" name="instrument" value="${inst}">
+                            <button type="submit" class="delete-btn"><i class="fas fa-times"></i></button>
+                        </form>
+                    </li>`;
+            });
+        }
+    }
+
+    // --- 3. FILE TREE LOGIC ---
+    const areaSelect = document.getElementById('area_select');
+    const locSelect = document.getElementById('loc_select');
+    const subSelect = document.getElementById('sub_select');
+    const scopeList = document.getElementById('scope_list');
+
+    Object.keys(treeData).sort().forEach(area => {
+        areaSelect.add(new Option(area, area));
+    });
+
+    function renderLocations() {
+        const area = areaSelect.value;
+        locSelect.innerHTML = '';
+        subSelect.innerHTML = '';
+        scopeList.innerHTML = '';
+
+        document.getElementById('del_area_val').value = area;
+        document.getElementById('del_area_form').style.visibility = area ? 'visible' : 'hidden';
+
+        document.getElementById('add_loc_form').style.visibility = area ? 'visible' : 'hidden';
+        document.getElementById('loc_parent_area').value = area;
+        
+        document.getElementById('del_loc_form').style.visibility = 'hidden';
+        document.getElementById('add_sub_form').style.visibility = 'hidden';
+        document.getElementById('del_sub_form').style.visibility = 'hidden';
+        document.getElementById('add_scope_form').style.visibility = 'hidden';
+
+        if(area && treeData[area]) {
+            Object.keys(treeData[area]).sort().forEach(loc => {
+                locSelect.add(new Option(loc, loc));
+            });
+        }
+    }
+
+    function renderSubs() {
+        const area = areaSelect.value;
+        const loc = locSelect.value;
+        subSelect.innerHTML = '';
+        scopeList.innerHTML = '';
+
+        document.getElementById('del_loc_val').value = loc;
+        document.getElementById('del_loc_parent_area').value = area;
+        document.getElementById('del_loc_form').style.visibility = loc ? 'visible' : 'hidden';
+
+        document.getElementById('add_sub_form').style.visibility = loc ? 'visible' : 'hidden';
+        document.getElementById('sub_parent_area').value = area;
+        document.getElementById('sub_parent_loc').value = loc;
+
+        document.getElementById('del_sub_form').style.visibility = 'hidden';
+        document.getElementById('add_scope_form').style.visibility = 'hidden';
+
+        if(area && loc && treeData[area][loc]) {
+            Object.keys(treeData[area][loc]).sort().forEach(sub => {
+                subSelect.add(new Option(sub, sub));
+            });
+        }
+    }
+
+    function renderScopes() {
+        const area = areaSelect.value;
+        const loc = locSelect.value;
+        const sub = subSelect.value;
+        scopeList.innerHTML = '';
+
+        document.getElementById('del_sub_val').value = sub;
+        document.getElementById('del_sub_parent_area').value = area;
+        document.getElementById('del_sub_parent_loc').value = loc;
+        document.getElementById('del_sub_form').style.visibility = sub ? 'visible' : 'hidden';
+
+        document.getElementById('add_scope_form').style.visibility = sub ? 'visible' : 'hidden';
+        document.getElementById('scope_parent_area').value = area;
+        document.getElementById('scope_parent_loc').value = loc;
+        document.getElementById('scope_parent_sub').value = sub;
+
+        if(area && loc && sub && treeData[area][loc][sub]) {
+            treeData[area][loc][sub].forEach(scope => {
+                scopeList.innerHTML += `
+                    <li class="list-group-item py-1 px-2 small">
+                        ${scope}
+                        <form method="POST" style="margin:0;">
+                            <input type="hidden" name="action" value="delete_scope">
+                            <input type="hidden" name="area" value="${area}">
+                            <input type="hidden" name="location" value="${loc}">
+                            <input type="hidden" name="sub_location" value="${sub}">
+                            <input type="hidden" name="scope" value="${scope}">
                             <button type="submit" class="delete-btn"><i class="fas fa-times"></i></button>
                         </form>
                     </li>`;
