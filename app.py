@@ -637,7 +637,7 @@ def generate_dtr():
             SurveyTask.start_time < next_day
         ).all()
 
-        # --- NEW DATA AGGREGATION ENGINE ---
+        # --- DATA AGGREGATION ENGINE ---
         dtr_groups = {}
 
         for t in daily_tasks:
@@ -646,9 +646,10 @@ def generate_dtr():
             sub = t.sub_location.split('_', 1)[-1].replace('_', ' ') if t.sub_location and t.sub_location != 'N/A' else ''
             scope = t.work_scope.split('_', 1)[-1].replace('_', ' ') if t.work_scope and t.work_scope != 'N/A' else ''
             
-            # Create a punchy bullet-point phrase (e.g. "Trench 1 - Progress Survey")
-            parts = [p for p in [loc, sub, scope, t.action_required] if p]
-            t.action_phrase = " - ".join(parts)
+            raw_parts = [loc, sub, scope, t.action_required]
+            clean_parts = [p.strip() for p in raw_parts if p and p.strip().lower() != 'general']
+            
+            t.action_phrase = " ".join(clean_parts)
 
             # 2. Get Surveyors
             assigned = t.assigned_to if t.assigned_to else t.surveyor_name
@@ -688,7 +689,19 @@ def generate_dtr():
             for s in surveyors:
                 dtr_groups[group_key]["surveyors"].add(s)
                 
-            dtr_groups[group_key]["tasks"].append(t.action_phrase)
+            # --- 5. NEW: INJECT REMARKS FOR VESSELS ---
+            task_bullet = t.action_phrase
+            
+            # If it is a vessel, append the remarks to the bullet point
+            if group_type in ['hydro', 'vessel'] and t.remarks:
+                if task_bullet:
+                    # e.g., "Trench 1 Progress Survey - Standby Bad Weather"
+                    task_bullet = f"{task_bullet} - {t.remarks}"
+                else:
+                    # If there is no action phrase, just print the remark
+                    task_bullet = t.remarks
+
+            dtr_groups[group_key]["tasks"].append(task_bullet)
 
         # --- SORT THE GROUPS FOR THE REPORT ---
         report_blocks = []
