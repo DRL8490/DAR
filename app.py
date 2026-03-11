@@ -607,168 +607,251 @@ def cancel_task(task_id):
     db.session.commit()
     flash('Task canceled.', 'error')
     return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
-
-
 # --- REPORT GENERATOR ROUTES ---
 @app.route('/reports')
 @login_required
 def reports():
-    # Render the UI for the Report Generation Wizard
     return render_template('reports.html')
+
 @app.route('/generate_dtr', methods=['POST'])
 @login_required
 def generate_dtr():
     try:
         target_date_str = request.form.get('dtr_date')
-        if not target_date_str:
-            flash('Please select a date to generate the DTR.', 'error')
-            return redirect(url_for('reports'))
+        if not target_date_str: return redirect(url_for('reports'))
 
         target_date = datetime.strptime(target_date_str, '%Y-%m-%d')
         next_day = target_date + timedelta(days=1)
         
-        display_date = target_date.strftime('%d.%m.%Y')
-        day_of_week = target_date.strftime('%A')
-
+        # 1. GET CLOSED TASKS FOR DTR BODY
         daily_tasks = SurveyTask.query.filter(
             SurveyTask.start_time >= target_date,
-            SurveyTask.start_time < next_day
+            SurveyTask.start_time < next_day,
+            SurveyTask.status == 'Closed' # ONLY SHOWS CLOSED TASKS
         ).all()
 
-        # --- NEW DATA AGGREGATION ENGINE ---
         dtr_groups = {}
-
         for t in daily_tasks:
-            # 1. Clean the location and scope names
             loc = t.location.split('_', 1)[-1].replace('_', ' ') if t.location and t.location != 'N/A' else ''
             sub = t.sub_location.split('_', 1)[-1].replace('_', ' ') if t.sub_location and t.sub_location != 'N/A' else ''
             scope = t.work_scope.split('_', 1)[-1].replace('_', ' ') if t.work_scope and t.work_scope != 'N/A' else ''
             
             raw_parts = [loc, sub, scope, t.action_required]
             clean_parts = [p.strip() for p in raw_parts if p and p.strip().lower() != 'general']
-            
             t.action_phrase = " ".join(clean_parts)
-
-            # --- 2. EXTRACT ONLY OPENING REMARKS ---
+            
             raw_remark = t.remarks or ""
-            # This slices off any closing or cancellation notes
             opening_remark = raw_remark.split("| Closed:")[0].split("| CANCELED:")[0].strip()
 
-            # 3. Get Surveyors
             assigned = t.assigned_to if t.assigned_to else t.surveyor_name
             surveyors = [s.strip() for s in assigned.split(',') if s.strip()]
 
-            # 4. Determine the Group
             group_type = "inline"
             boat_name = ""
             
             if "WS166" in str(t.instrument) or "WS166" in raw_remark:
-                group_key = "EGST Hydro Survey"
-                group_type = "hydro"
-                boat_name = "WS166"
+                group_key, group_type, boat_name = "EGST Hydro Survey", "hydro", "WS166"
             elif "Arzana" in str(t.instrument) or "Arzana" in str(t.work_scope) or "Arzana" in raw_remark:
-                group_key = "Arzana"
-                group_type = "vessel"
+                group_key, group_type = "Arzana", "vessel"
             elif t.area and t.area.startswith('100'):
-                group_key = "Wuqi Office"
-                group_type = "inline"
+                group_key, group_type = "Wuqi Office", "inline"
             elif t.area and t.area.startswith('200'):
-                group_key = "Onshore-Land"
-                group_type = "inline"
+                group_key, group_type = "Onshore-Land", "inline"
             else:
-                group_key = "Marine Offshore"
-                group_type = "inline"
+                group_key, group_type = "Marine Offshore", "inline"
 
-            # 5. Add to the Group
             if group_key not in dtr_groups:
-                dtr_groups[group_key] = {
-                    "title": group_key,
-                    "type": group_type,
-                    "surveyors": set(),
-                    "tasks": [],
-                    "boat": boat_name
-                }
+                dtr_groups[group_key] = {"title": group_key, "type": group_type, "surveyors": set(), "tasks": [], "boat": boat_name}
             
-            for s in surveyors:
-                dtr_groups[group_key]["surveyors"].add(s)
+            for s in surveyors: dtr_groups[group_key]["surveyors"].add(s)
                 
-            # --- 6. INJECT OPENING REMARKS FOR ALL TASKS ---
             task_bullet = t.action_phrase
-            if opening_remark:
-                if task_bullet:
-                    task_bullet = f"{task_bullet} - {opening_remark}"
-                else:
-                    task_bullet = opening_remark
-
+            if opening_remark: task_bullet = f"{task_bullet} - {opening_remark}" if task_bullet else opening_remark
             dtr_groups[group_key]["tasks"].append(task_bullet)
 
-        # --- SORT THE GROUPS FOR THE REPORT ---
         report_blocks = []
         sort_order = ["Wuqi Office", "EGST Hydro Survey", "Arzana", "Onshore-Land", "Marine Offshore"]
-        
         for key in sort_order:
             if key in dtr_groups:
-                data = dtr_groups[key]
-                data["surveyors"] = ", ".join(sorted(list(data["surveyors"])))
-                report_blocks.append(data)
-                
+                dtr_groups[key]["surveyors"] = ", ".join(sorted(list(dtr_groups[key]["surveyors"])))
+                report_blocks.append(dtr_groups[key])
         for key, data in dtr_groups.items():
             if key not in sort_order:
                 data["surveyors"] = ", ".join(sorted(list(data["surveyors"])))
                 report_blocks.append(data)
 
+        # 2. GET OPEN TASKS FOR OUTSTANDING ACTIONS (NAMES REMOVED)
+        open_tasks = SurveyTask.query.filter_by(status='Open').all()
+        outstanding_tasks = []
+        for t in open_tasks:
+            loc = t.location.split('_', 1)[-1].replace('_', ' ') if t.location and t.location != 'N/A' else ''
+            sub = t.sub_location.split('_', 1)[-1].replace('_', ' ') if t.sub_location and t.sub_location != 'N/A' else ''
+            scope = t.work_scope.split('_', 1)[-1].replace('_', ' ') if t.work_scope and t.work_scope != 'N/A' else ''
+            raw = [loc, sub, scope, t.action_required]
+            clean = [p.strip() for p in raw if p and p.strip().lower() != 'general']
+            outstanding_tasks.append(" ".join(clean))
+
         template_path = os.path.join(app.root_path, 'static', 'report_templates', 'DTR_Template.docx')
-        if not os.path.exists(template_path):
-            flash('Template file missing!', 'error')
-            return redirect(url_for('reports'))
-            
         doc = DocxTemplate(template_path)
         context = {
             'target_date': display_date,
             'day_of_week': day_of_week,
-            'report_blocks': report_blocks
+            'report_blocks': report_blocks,
+            'outstanding_tasks': outstanding_tasks
         }
         doc.render(context)
-
         output = io.BytesIO()
         doc.save(output)
         output.seek(0)
-        filename = f"{target_date.strftime('%Y%m%d')}-DTR-Report.docx"
-        return send_file(output, download_name=filename, as_attachment=True)
-
+        return send_file(output, download_name=f"{target_date.strftime('%Y%m%d')}-DTR-Report.docx", as_attachment=True)
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        flash(f'Error generating report: {str(e)}', 'error')
+        flash(f'Error: {str(e)}', 'error')
         return redirect(url_for('reports'))
-@app.route('/export_excel')
+
+@app.route('/generate_wsr', methods=['POST'])
+@login_required
+def generate_wsr():
+    try:
+        week_str = request.form.get('wsr_week')
+        if not week_str: return redirect(url_for('reports'))
+        year, week = map(int, week_str.split('-W'))
+        # Calculate the Monday of the selected week
+        start_date = datetime.strptime(f'{year}-W{week}-1', "%Y-W%W-%w")
+        
+        days_data = []
+        for i in range(7):
+            current_day = start_date + timedelta(days=i)
+            next_day = current_day + timedelta(days=1)
+            
+            daily_tasks = SurveyTask.query.filter(
+                SurveyTask.start_time >= current_day,
+                SurveyTask.start_time < next_day,
+                SurveyTask.status == 'Closed'
+            ).all()
+            
+            dtr_groups = {}
+            for t in daily_tasks:
+                loc = t.location.split('_', 1)[-1].replace('_', ' ') if t.location and t.location != 'N/A' else ''
+                sub = t.sub_location.split('_', 1)[-1].replace('_', ' ') if t.sub_location and t.sub_location != 'N/A' else ''
+                scope = t.work_scope.split('_', 1)[-1].replace('_', ' ') if t.work_scope and t.work_scope != 'N/A' else ''
+                clean_parts = [p.strip() for p in [loc, sub, scope, t.action_required] if p and p.strip().lower() != 'general']
+                t.action_phrase = " ".join(clean_parts)
+                opening_remark = (t.remarks or "").split("| Closed:")[0].split("| CANCELED:")[0].strip()
+                surveyors = [s.strip() for s in (t.assigned_to or t.surveyor_name).split(',') if s.strip()]
+
+                group_type, boat_name = "inline", ""
+                if "WS166" in str(t.instrument) or "WS166" in opening_remark: group_key, group_type, boat_name = "EGST Hydro Survey", "hydro", "WS166"
+                elif "Arzana" in str(t.instrument) or "Arzana" in str(t.work_scope) or "Arzana" in opening_remark: group_key, group_type = "Arzana", "vessel"
+                elif t.area and t.area.startswith('100'): group_key = "Wuqi Office"
+                elif t.area and t.area.startswith('200'): group_key = "Onshore-Land"
+                else: group_key = "Marine Offshore"
+
+                if group_key not in dtr_groups: dtr_groups[group_key] = {"title": group_key, "type": group_type, "surveyors": set(), "tasks": [], "boat": boat_name}
+                for s in surveyors: dtr_groups[group_key]["surveyors"].add(s)
+                task_bullet = f"{t.action_phrase} - {opening_remark}" if opening_remark and t.action_phrase else (t.action_phrase or opening_remark)
+                dtr_groups[group_key]["tasks"].append(task_bullet)
+
+            report_blocks = []
+            sort_order = ["Wuqi Office", "EGST Hydro Survey", "Arzana", "Onshore-Land", "Marine Offshore"]
+            for key in sort_order:
+                if key in dtr_groups:
+                    dtr_groups[key]["surveyors"] = ", ".join(sorted(list(dtr_groups[key]["surveyors"])))
+                    report_blocks.append(dtr_groups[key])
+            for key, data in dtr_groups.items():
+                if key not in sort_order:
+                    data["surveyors"] = ", ".join(sorted(list(data["surveyors"])))
+                    report_blocks.append(data)
+                    
+            days_data.append({'date_string': current_day.strftime('%d.%m.%Y %A'), 'blocks': report_blocks})
+            
+        template_path = os.path.join(app.root_path, 'static', 'report_templates', 'WSR_Template.docx')
+        doc = DocxTemplate(template_path)
+        context = {'start_date': start_date.strftime('%d.%m.%Y'), 'end_date': (start_date + timedelta(days=6)).strftime('%d.%m.%Y'), 'days': days_data}
+        doc.render(context)
+        output = io.BytesIO()
+        doc.save(output)
+        output.seek(0)
+        return send_file(output, download_name=f"WSR_{week_str}.docx", as_attachment=True)
+    except Exception as e:
+        flash(f'Error: {str(e)}', 'error')
+        return redirect(url_for('reports'))
+
+@app.route('/generate_tpc', methods=['POST'])
+@login_required
+def generate_tpc():
+    try:
+        week_str = request.form.get('tpc_week')
+        if not week_str: return redirect(url_for('reports'))
+        year, week = map(int, week_str.split('-W'))
+        start_date = datetime.strptime(f'{year}-W{week}-1', "%Y-W%W-%w")
+        end_date = start_date + timedelta(days=7)
+        
+        weekly_tasks = SurveyTask.query.filter(SurveyTask.start_time >= start_date, SurveyTask.start_time < end_date, SurveyTask.status == 'Closed').all()
+        done_set = set()
+        for t in weekly_tasks:
+            loc = t.location.split('_', 1)[-1].replace('_', ' ') if t.location and t.location != 'N/A' else ''
+            scope = t.work_scope.split('_', 1)[-1].replace('_', ' ') if t.work_scope and t.work_scope != 'N/A' else ''
+            clean_parts = [p.strip() for p in [loc, scope, t.action_required] if p and p.strip().lower() != 'general']
+            phrase = " ".join(clean_parts)
+            if phrase: done_set.add(phrase)
+            
+        open_tasks = SurveyTask.query.filter_by(status='Open').all()
+        planned_set = set()
+        for t in open_tasks:
+            loc = t.location.split('_', 1)[-1].replace('_', ' ') if t.location and t.location != 'N/A' else ''
+            scope = t.work_scope.split('_', 1)[-1].replace('_', ' ') if t.work_scope and t.work_scope != 'N/A' else ''
+            clean_parts = [p.strip() for p in [loc, scope, t.action_required] if p and p.strip().lower() != 'general']
+            phrase = " ".join(clean_parts)
+            if phrase: planned_set.add(phrase)
+            
+        template_path = os.path.join(app.root_path, 'static', 'report_templates', 'TPC_Template.docx')
+        doc = DocxTemplate(template_path)
+        context = {
+            'start_date': start_date.strftime('%d %b %Y'), 'end_date': (start_date + timedelta(days=6)).strftime('%d %b %Y'),
+            'done_activities': list(done_set), 'planned_activities': list(planned_set)
+        }
+        doc.render(context)
+        output = io.BytesIO()
+        doc.save(output)
+        output.seek(0)
+        return send_file(output, download_name=f"TPC_{week_str}.docx", as_attachment=True)
+    except Exception as e:
+        flash(f'Error: {str(e)}', 'error')
+        return redirect(url_for('reports'))
+
+@app.route('/export_excel', methods=['POST'])
 @login_required
 def export_excel():
-    # Fetch all tasks from oldest to newest to ensure proper sequential numbering
-    tasks = SurveyTask.query.order_by(SurveyTask.start_time.asc()).all()
+    kpi_month = request.form.get('kpi_month') 
+    target_year, target_month = None, None
+    if kpi_month:
+        target_year, target_month = kpi_month.split('-')
+
+    all_tasks = SurveyTask.query.order_by(SurveyTask.start_time.asc()).all()
+    # KPI FILTER: Removes non-survey items
+    excluded = ["External Meeting", "Internal Coordination Meeting", "Survey Reports", "Damage report", "Item", "Request", "SEM Update"]
+    tasks = [t for t in all_tasks if t.action_required not in excluded]
     
     data = []
     month_counters = {} 
+    display_index = 1
     
-    for i, task in enumerate(tasks, 1):
-        # --- 1. GENERATE DYNAMIC REFERENCE NUMBERS ---
-        if task.start_time:
-            month_str = task.start_time.strftime('%m')
-        else:
-            month_str = '00' 
-            
-        if month_str not in month_counters:
-            month_counters[month_str] = 1
-        else:
-            month_counters[month_str] += 1
-            
-        # FORMAT UPDATE: Now uses 3 digits (001, 002... 999)
-        seq_num = f"{month_counters[month_str]:03d}"
+    for task in tasks:
+        month_str = task.start_time.strftime('%m') if task.start_time else '00' 
+        year_str = task.start_time.strftime('%Y') if task.start_time else '0000'
         
+        if month_str not in month_counters: month_counters[month_str] = 1
+        else: month_counters[month_str] += 1
+            
+        seq_num = f"{month_counters[month_str]:03d}"
         req_ref = f"TW_{month_str}{seq_num}"
         survey_ref = f"TW_SU_{month_str}{seq_num}"
 
-        # --- 2. CLEAN THE DESCRIPTION TEXT ---
+        # If a specific month was selected, we skip appending tasks from other months
+        if target_month and target_year:
+            if month_str != target_month or year_str != target_year:
+                continue
+
         loc = task.location.split('_', 1)[-1].replace('_', ' ') if task.location and task.location != 'N/A' else ''
         sub = task.sub_location.split('_', 1)[-1].replace('_', ' ') if task.sub_location and task.sub_location != 'N/A' else ''
         scope = task.work_scope.split('_', 1)[-1].replace('_', ' ') if task.work_scope and task.work_scope != 'N/A' else ''
@@ -777,49 +860,35 @@ def export_excel():
         clean_parts = [p.strip() for p in raw_parts if p and p.strip().lower() != 'general']
         desc_phrase = " ".join(clean_parts)
 
-        # --- 3. APPEND TO EXCEL ROW ---
         data.append({
-            'Tender / Project Ref.': '20012',
-            'Sl No': i,
-            'Activity Type': task.task_category,
-            'Discipline': task.action_required,
-            'Requestor Ref. #': req_ref, 
-            'Survey Ref. #': survey_ref,
-            'Requestor': task.requestor,
-            'Assigned to': task.assigned_to,
+            'Tender / Project Ref.': '20012', 'Sl No': display_index, 'Activity Type': task.task_category, 'Discipline': task.action_required,
+            'Requestor Ref. #': req_ref, 'Survey Ref. #': survey_ref, 'Requestor': task.requestor, 'Assigned to': task.assigned_to,
             'Date/Time Received': task.start_time.strftime('%Y-%m-%d %H:%M') if task.start_time else '',
             'Date/Time Completed': task.end_time.strftime('%Y-%m-%d %H:%M') if task.end_time else '',
-            'Description of Survey Works / Survey Volume Calculation': desc_phrase,
-            'Special Conditions / Remarks': task.remarks or ''
+            'Description of Survey Works': desc_phrase, 'Special Conditions / Remarks': task.remarks or ''
         })
+        display_index += 1
     
     df = pd.DataFrame(data)
     output = io.BytesIO()
-    
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, startrow=2, sheet_name='Master Register')
         worksheet = writer.sheets['Master Register']
-        
         worksheet.cell(row=1, column=5, value="SURVEY ACTIVITY MASTER REGISTER")
         
-        current_month = datetime.utcnow().strftime("%B %Y").upper()
-        worksheet.cell(row=2, column=1, value=f"MONTH OF {current_month} - SURVEY TEAM")
+        header_month = datetime.strptime(kpi_month, "%Y-%m").strftime('%B %Y').upper() if kpi_month else datetime.utcnow().strftime('%B %Y').upper()
+        worksheet.cell(row=2, column=1, value=f"MONTH OF {header_month} - SURVEY TEAM")
         
         for column in worksheet.columns:
             max_length = 0
             column = [cell for cell in column]
             for cell in column:
-                try:
-                    if len(str(cell.value)) > max_length:
-                        max_length = len(cell.value)
-                except:
-                    pass
-            adjusted_width = (max_length + 2)
-            worksheet.column_dimensions[column[0].column_letter].width = adjusted_width
+                try: max_length = max(max_length, len(str(cell.value)))
+                except: pass
+            worksheet.column_dimensions[column[0].column_letter].width = (max_length + 2)
 
     output.seek(0)
-    filename = f"2510_QA-20-FM-003-13_Master_SAR-SVR_Register_{datetime.utcnow().strftime('%Y%m%d')}.xlsx"
-    
-    return send_file(output, download_name=filename, as_attachment=True) 
+    return send_file(output, download_name=f"Master_Register_{kpi_month or 'All'}.xlsx", as_attachment=True)
+ 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
