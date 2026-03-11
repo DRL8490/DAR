@@ -23,7 +23,24 @@
         <a href="{{ url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard') }}" class="btn btn-outline-light btn-sm"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
     </div>
 </nav>
-
+{% if presets %}
+    <div class="card mb-4" style="border-left: 5px solid #0dcaf0;">
+        <div class="card-body py-2">
+            <div class="row align-items-center">
+                <div class="col-auto fw-bold text-info"><i class="fas fa-star"></i> Load Preset:</div>
+                <div class="col">
+                    <select class="form-select form-select-sm" onchange="if(this.value) window.location.href='?preset_id=' + this.value;">
+                        <option value="">-- Choose a saved preset --</option>
+                        {% for p in presets %}
+                            <option value="{{ p.id }}">{{ p.preset_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-auto"><a href="?clear=1" class="btn btn-sm btn-outline-secondary">Clear</a></div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 <div class="container pb-5">
     <form method="POST">
         <div class="row">
