@@ -25,17 +25,18 @@
             <div class="form-group"><label>Requestor Dept:</label><select name="requestor_dept" id="reqDept" onchange="updateReqNames()" required><option value="">-- Select Dept --</option></select></div>
             <div class="form-group"><label>Requestor Name:</label><select name="requestor_name" id="reqName" required><option value="">-- Select Name --</option></select></div>
             
+            <datalist id="user_list">
+                {% for u in users %}
+                    <option value="{{ u.name }}"></option>
+                {% endfor %}
+            </datalist>
+
             <div class="form-group" id="surveyor_container">
                 <label>Assigned To</label>
                 {% if task.assigned_to %}
                     {% for assignee in task.assigned_to.split(', ') %}
                         <div style="display: flex; gap: 5px; margin-bottom: 5px;">
-                            <select name="assigned_to" style="flex: 1;" required>
-                                <option value="">-- Select Surveyor --</option>
-                                {% for u in users %}
-                                    <option value="{{ u.name }}" {% if u.name == assignee %}selected{% endif %}>{{ u.name }}</option>
-                                {% endfor %}
-                            </select>
+                            <input list="user_list" name="assigned_to" value="{{ assignee }}" placeholder="Type custom name or select user..." style="flex: 1; padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px;" required>
                             {% if loop.index > 1 %}
                             <button type="button" class="btn-remove" onclick="this.parentElement.remove()"><i class="fas fa-trash"></i></button>
                             {% else %}
@@ -45,12 +46,7 @@
                     {% endfor %}
                 {% else %}
                     <div style="display: flex; gap: 5px; margin-bottom: 5px;">
-                        <select name="assigned_to" style="flex: 1;" required>
-                            <option value="">-- Select Surveyor --</option>
-                            {% for u in users %}
-                                <option value="{{ u.name }}">{{ u.name }}</option>
-                            {% endfor %}
-                        </select>
+                        <input list="user_list" name="assigned_to" placeholder="Type custom name or select user..." style="flex: 1; padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px;" required>
                         <button type="button" class="btn-add" style="background-color: #28a745;" onclick="addSurveyorDropdown()"><i class="fas fa-plus"></i></button>
                     </div>
                 {% endif %}
@@ -98,12 +94,7 @@
             let d = document.createElement('div');
             d.style.cssText = "display:flex; gap:5px; margin-bottom:5px;";
             d.innerHTML = `
-                <select name="assigned_to" style="flex: 1;" required>
-                    <option value="">-- Select Additional Surveyor --</option>
-                    {% for u in users %}
-                        <option value="{{ u.name }}">{{ u.name }}</option>
-                    {% endfor %}
-                </select>
+                <input list="user_list" name="assigned_to" placeholder="Type custom name or select user..." style="flex: 1; padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px;" required>
                 <button type="button" class="btn-remove" onclick="this.parentElement.remove()"><i class="fas fa-trash"></i></button>
             `;
             container.appendChild(d);

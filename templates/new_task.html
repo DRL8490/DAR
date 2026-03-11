@@ -32,15 +32,16 @@
                     <div class="card-header form-header"><i class="fas fa-users"></i> Staff & Task Details</div>
                     <div class="card-body">
                         
+                        <datalist id="user_list">
+                            {% for u in users %}
+                                <option value="{{ u.name }}"></option>
+                            {% endfor %}
+                        </datalist>
+
                         <div class="mb-3" id="surveyor_container">
                             <label class="form-label fw-bold small">Assigned To</label>
                             <div class="input-group mb-2">
-                                <select class="form-select" name="assigned_to" required>
-                                    <option value="">-- Select Surveyor --</option>
-                                    {% for u in users %}
-                                        <option value="{{ u.name }}">{{ u.name }}</option>
-                                    {% endfor %}
-                                </select>
+                                <input list="user_list" class="form-control" name="assigned_to" placeholder="Type custom name or select user..." required>
                                 <button class="btn btn-outline-success" type="button" onclick="addSurveyorDropdown()"><i class="fas fa-plus"></i></button>
                             </div>
                         </div>
@@ -166,12 +167,7 @@
         const div = document.createElement('div');
         div.className = 'input-group mb-2';
         div.innerHTML = `
-            <select class="form-select" name="assigned_to" required>
-                <option value="">-- Select Additional Surveyor --</option>
-                {% for u in users %}
-                    <option value="{{ u.name }}">{{ u.name }}</option>
-                {% endfor %}
-            </select>
+            <input list="user_list" class="form-control" name="assigned_to" placeholder="Type custom name or select user..." required>
             <button class="btn btn-outline-danger" type="button" onclick="this.parentElement.remove()"><i class="fas fa-trash"></i></button>
         `;
         container.appendChild(div);

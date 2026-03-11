@@ -637,7 +637,7 @@ def generate_dtr():
             SurveyTask.start_time < next_day
         ).all()
 
-        # --- DATA AGGREGATION ENGINE ---
+        # --- NEW DATA AGGREGATION ENGINE ---
         dtr_groups = {}
 
         for t in daily_tasks:
@@ -651,19 +651,24 @@ def generate_dtr():
             
             t.action_phrase = " ".join(clean_parts)
 
-            # 2. Get Surveyors
+            # --- 2. EXTRACT ONLY OPENING REMARKS ---
+            raw_remark = t.remarks or ""
+            # This slices off any closing or cancellation notes
+            opening_remark = raw_remark.split("| Closed:")[0].split("| CANCELED:")[0].strip()
+
+            # 3. Get Surveyors
             assigned = t.assigned_to if t.assigned_to else t.surveyor_name
             surveyors = [s.strip() for s in assigned.split(',') if s.strip()]
 
-            # 3. Determine the Group
+            # 4. Determine the Group
             group_type = "inline"
             boat_name = ""
             
-            if "WS166" in str(t.instrument) or "WS166" in str(t.remarks):
+            if "WS166" in str(t.instrument) or "WS166" in raw_remark:
                 group_key = "EGST Hydro Survey"
                 group_type = "hydro"
                 boat_name = "WS166"
-            elif "Arzana" in str(t.instrument) or "Arzana" in str(t.work_scope) or "Arzana" in str(t.remarks):
+            elif "Arzana" in str(t.instrument) or "Arzana" in str(t.work_scope) or "Arzana" in raw_remark:
                 group_key = "Arzana"
                 group_type = "vessel"
             elif t.area and t.area.startswith('100'):
@@ -676,7 +681,7 @@ def generate_dtr():
                 group_key = "Marine Offshore"
                 group_type = "inline"
 
-            # 4. Add to the Group
+            # 5. Add to the Group
             if group_key not in dtr_groups:
                 dtr_groups[group_key] = {
                     "title": group_key,
@@ -689,17 +694,13 @@ def generate_dtr():
             for s in surveyors:
                 dtr_groups[group_key]["surveyors"].add(s)
                 
-            # --- 5. NEW: INJECT REMARKS FOR VESSELS ---
+            # --- 6. INJECT OPENING REMARKS FOR ALL TASKS ---
             task_bullet = t.action_phrase
-            
-            # If it is a vessel, append the remarks to the bullet point
-            if group_type in ['hydro', 'vessel'] and t.remarks:
+            if opening_remark:
                 if task_bullet:
-                    # e.g., "Trench 1 Progress Survey - Standby Bad Weather"
-                    task_bullet = f"{task_bullet} - {t.remarks}"
+                    task_bullet = f"{task_bullet} - {opening_remark}"
                 else:
-                    # If there is no action phrase, just print the remark
-                    task_bullet = t.remarks
+                    task_bullet = opening_remark
 
             dtr_groups[group_key]["tasks"].append(task_bullet)
 
@@ -713,20 +714,17 @@ def generate_dtr():
                 data["surveyors"] = ", ".join(sorted(list(data["surveyors"])))
                 report_blocks.append(data)
                 
-        # Catch any outliers
         for key, data in dtr_groups.items():
             if key not in sort_order:
                 data["surveyors"] = ", ".join(sorted(list(data["surveyors"])))
                 report_blocks.append(data)
 
-        # LOAD AND RENDER
         template_path = os.path.join(app.root_path, 'static', 'report_templates', 'DTR_Template.docx')
         if not os.path.exists(template_path):
             flash('Template file missing!', 'error')
             return redirect(url_for('reports'))
             
         doc = DocxTemplate(template_path)
-
         context = {
             'target_date': display_date,
             'day_of_week': day_of_week,
@@ -737,7 +735,6 @@ def generate_dtr():
         output = io.BytesIO()
         doc.save(output)
         output.seek(0)
-
         filename = f"{target_date.strftime('%Y%m%d')}-DTR-Report.docx"
         return send_file(output, download_name=filename, as_attachment=True)
 
