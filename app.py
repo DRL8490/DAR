@@ -197,14 +197,12 @@ with app.app_context():
         }
     }
     
-    # 2. SEED THE DATABASE
+# 2. SEED THE DATABASE
     config = AppConfig.query.first()
     if not config: 
+        # Only inject the hardcoded data if the database is 100% empty
         db.session.add(AppConfig(schema_data=json.dumps(master_config)))
-    else: 
-        config.schema_data = json.dumps(master_config)
-
-    db.session.commit()
+        db.session.commit()
 
 @login_manager.user_loader
 def load_user(user_id):
