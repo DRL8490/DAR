@@ -617,7 +617,6 @@ def cancel_task(task_id):
 def reports():
     # Render the UI for the Report Generation Wizard
     return render_template('reports.html')
-
 @app.route('/generate_dtr', methods=['POST'])
 @login_required
 def generate_dtr():
@@ -638,43 +637,76 @@ def generate_dtr():
             SurveyTask.start_time < next_day
         ).all()
 
-        # --- 1. NEW DATA CLEANING & PHRASE FORMATTER ---
-        marine_vessels = []
-        
+        # --- NEW DATA AGGREGATION ENGINE ---
+        dtr_groups = {}
+
         for t in daily_tasks:
+            # 1. Clean the location and scope names
             loc = t.location.split('_', 1)[-1].replace('_', ' ') if t.location and t.location != 'N/A' else ''
             sub = t.sub_location.split('_', 1)[-1].replace('_', ' ') if t.sub_location and t.sub_location != 'N/A' else ''
             scope = t.work_scope.split('_', 1)[-1].replace('_', ' ') if t.work_scope and t.work_scope != 'N/A' else ''
             
-            # Format: "Location - SubLocation | Scope Action Required"
-            loc_parts = " - ".join([p for p in [loc, sub] if p])
-            if loc_parts and scope:
-                t.action_phrase = f"{loc_parts} | {scope} {t.action_required}"
-            elif scope:
-                t.action_phrase = f"{scope} | {t.action_required}"
+            # Create a punchy bullet-point phrase (e.g. "Trench 1 - Progress Survey")
+            parts = [p for p in [loc, sub, scope, t.action_required] if p]
+            t.action_phrase = " - ".join(parts)
+
+            # 2. Get Surveyors
+            assigned = t.assigned_to if t.assigned_to else t.surveyor_name
+            surveyors = [s.strip() for s in assigned.split(',') if s.strip()]
+
+            # 3. Determine the Group
+            group_type = "inline"
+            boat_name = ""
+            
+            if "WS166" in str(t.instrument) or "WS166" in str(t.remarks):
+                group_key = "EGST Hydro Survey"
+                group_type = "hydro"
+                boat_name = "WS166"
+            elif "Arzana" in str(t.instrument) or "Arzana" in str(t.work_scope) or "Arzana" in str(t.remarks):
+                group_key = "Arzana"
+                group_type = "vessel"
+            elif t.area and t.area.startswith('100'):
+                group_key = "Wuqi Office"
+                group_type = "inline"
+            elif t.area and t.area.startswith('200'):
+                group_key = "Onshore-Land"
+                group_type = "inline"
             else:
-                t.action_phrase = f"{t.action_required}"
+                group_key = "Marine Offshore"
+                group_type = "inline"
 
-            # Check for Marine Vessels
-            if t.task_category in ['Bathymetric Survey', 'Geophysical Survey']:
-                company = "EGST" if "WS166" in str(t.instrument) else "NMDC"
-                vessel_entry = f"Vessel Name: {t.instrument} | Company: {company} | Surveyor: {t.assigned_to or t.surveyor_name}"
-                if vessel_entry not in marine_vessels:
-                    marine_vessels.append(vessel_entry)
+            # 4. Add to the Group
+            if group_key not in dtr_groups:
+                dtr_groups[group_key] = {
+                    "title": group_key,
+                    "type": group_type,
+                    "surveyors": set(),
+                    "tasks": [],
+                    "boat": boat_name
+                }
+            
+            for s in surveyors:
+                dtr_groups[group_key]["surveyors"].add(s)
+                
+            dtr_groups[group_key]["tasks"].append(t.action_phrase)
 
-        # --- 2. BUCKET THE TASKS (including 310, 320, 330) ---
-        office_tasks = [t for t in daily_tasks if t.area and t.area.startswith('100')]
-        land_tasks = [t for t in daily_tasks if t.area and t.area.startswith('200')]
+        # --- SORT THE GROUPS FOR THE REPORT ---
+        report_blocks = []
+        sort_order = ["Wuqi Office", "EGST Hydro Survey", "Arzana", "Onshore-Land", "Marine Offshore"]
         
-        marine_general = [t for t in daily_tasks if t.area and t.area.startswith('310')]
-        marine_nearshore = [t for t in daily_tasks if t.area and t.area.startswith('320')]
-        marine_offshore = [t for t in daily_tasks if t.area and t.area.startswith('330')]
+        for key in sort_order:
+            if key in dtr_groups:
+                data = dtr_groups[key]
+                data["surveyors"] = ", ".join(sorted(list(data["surveyors"])))
+                report_blocks.append(data)
+                
+        # Catch any outliers
+        for key, data in dtr_groups.items():
+            if key not in sort_order:
+                data["surveyors"] = ", ".join(sorted(list(data["surveyors"])))
+                report_blocks.append(data)
 
-        open_tasks = SurveyTask.query.filter_by(status='Open').all()
-        for t in open_tasks:
-            t.clean_scope = t.work_scope.split('_', 1)[-1].replace('_', ' ') if t.work_scope else 'Unknown'
-
-        # --- 3. LOAD TEMPLATE AND RENDER ---
+        # LOAD AND RENDER
         template_path = os.path.join(app.root_path, 'static', 'report_templates', 'DTR_Template.docx')
         if not os.path.exists(template_path):
             flash('Template file missing!', 'error')
@@ -685,13 +717,7 @@ def generate_dtr():
         context = {
             'target_date': display_date,
             'day_of_week': day_of_week,
-            'office_tasks': office_tasks,
-            'land_tasks': land_tasks,
-            'marine_general': marine_general,
-            'marine_nearshore': marine_nearshore,
-            'marine_offshore': marine_offshore,
-            'marine_vessels': marine_vessels,
-            'open_tasks': open_tasks
+            'report_blocks': report_blocks
         }
         doc.render(context)
 
@@ -703,8 +729,10 @@ def generate_dtr():
         return send_file(output, download_name=filename, as_attachment=True)
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         flash(f'Error generating report: {str(e)}', 'error')
-        return redirect(url_for('reports'))@login_required
+        return redirect(url_for('reports'))
 def export_excel():
     tasks = SurveyTask.query.order_by(SurveyTask.start_time.asc()).all()
     
