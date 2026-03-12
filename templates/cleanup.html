@@ -34,6 +34,13 @@
         <i class="fas fa-exclamation-triangle"></i> WARNING: Deleting a task here is permanent. It will be completely wiped from the SQL database and cannot be recovered.
     </div>
 
+    <div class="mb-3">
+        <div class="input-group">
+            <span class="input-group-text bg-dark border-secondary text-light"><i class="fas fa-search"></i></span>
+            <input type="text" id="taskSearch" class="form-control bg-dark text-light border-secondary" placeholder="Type a keyword to filter tasks (e.g., test, legacy, 2025)...">
+        </div>
+    </div>
+
     <div class="table-responsive bg-dark p-3 rounded border border-secondary">
         <table class="table table-dark table-striped table-hover align-middle">
             <thead>
@@ -48,7 +55,7 @@
             </thead>
             <tbody>
                 {% for task in tasks %}
-                <tr>
+                <tr class="task-row">
                     <td><strong>{{ task.id }}</strong></td>
                     <td>{{ task.start_time.strftime('%Y-%m-%d') if task.start_time else 'Unknown' }}</td>
                     <td>
@@ -76,5 +83,24 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    document.getElementById('taskSearch').addEventListener('keyup', function() {
+        let filter = this.value.toLowerCase();
+        let rows = document.querySelectorAll('.task-row');
+
+        rows.forEach(row => {
+            // Get all text inside the current row
+            let text = row.textContent.toLowerCase();
+            
+            // Toggle visibility based on the filter match
+            if (text.includes(filter)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+</script>
 </body>
 </html>
