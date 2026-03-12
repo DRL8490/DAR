@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Task Archive - NMDC</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #212529; color: #f8f9fa; padding-top: 40px; }
+        .table { color: #f8f9fa; }
+        .table-dark { background-color: #343a40; }
+        .remark-col { max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .remark-col:hover { white-space: normal; word-wrap: break-word; }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid px-4 pb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-bold text-info"><i class="fas fa-archive"></i> Database Archive</h2>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-light"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div class="alert alert-secondary text-dark fw-bold">
+        <i class="fas fa-info-circle"></i> Tasks older than 30 days are automatically moved here to keep your main dashboard fast. Restoring a task will move it back to the main dashboard.
+    </div>
+
+    <div class="mb-3">
+        <div class="input-group">
+            <span class="input-group-text bg-dark border-secondary text-light"><i class="fas fa-search"></i></span>
+            <input type="text" id="taskSearch" class="form-control bg-dark text-light border-secondary" placeholder="Type a keyword to search archived tasks...">
+        </div>
+    </div>
+
+    <div class="table-responsive bg-dark p-3 rounded border border-secondary">
+        <table class="table table-dark table-striped table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Date Opened</th>
+                    <th>Status</th>
+                    <th>Assigned To</th>
+                    <th>Work Scope / Description</th>
+                    <th>Action Required</th>
+                    <th>Remarks</th>
+                    <th class="text-end">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for task in tasks %}
+                <tr class="task-row">
+                    <td><strong>{{ task.id }}</strong></td>
+                    <td>{{ task.start_time.strftime('%Y-%m-%d') if task.start_time else 'Unknown' }}</td>
+                    <td><span class="badge bg-secondary">{{ task.status }}</span></td>
+                    <td>{{ task.assigned_to }}</td>
+                    <td class="small">{{ task.work_scope }}</td>
+                    <td class="small">{{ task.action_required }}</td>
+                    <td class="small remark-col" title="{{ task.remarks }}">{{ task.remarks }}</td>
+                    <td class="text-end">
+                        <form action="{{ url_for('restore_task', task_id=task.id) }}" method="POST">
+                            <button type="submit" class="btn btn-sm btn-info fw-bold text-dark"><i class="fas fa-undo"></i> Restore</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not tasks %}
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">No tasks currently in the archive.</td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    document.getElementById('taskSearch').addEventListener('keyup', function() {
+        let filter = this.value.toLowerCase();
+        let rows = document.querySelectorAll('.task-row');
+
+        rows.forEach(row => {
+            let text = row.textContent.toLowerCase();
+            if (text.includes(filter)) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    });
+</script>
+</body>
+</html>

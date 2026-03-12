@@ -263,6 +263,42 @@ def forgot_password():
     return render_template('forgot_password.html')
 
 # --- WORKFLOW ROUTES ---
+@app.route('/archive')
+@login_required
+def archive_page():
+    # Strictly limit this to admins just like the cleanup page
+    if current_user.email not in ADMIN_EMAILS:
+        flash('Access Denied: You do not have permission to view the archive.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    # Fetch ONLY tasks that have been marked as 'Archived'
+    archived_tasks = SurveyTask.query.filter_by(status='Archived').order_by(SurveyTask.start_time.desc()).all()
+    
+    return render_template('archive.html', tasks=archived_tasks)
+
+@app.route('/restore_task/<int:task_id>', methods=['POST'])
+@login_required
+def restore_task(task_id):
+    if current_user.email not in ADMIN_EMAILS:
+        return "Unauthorized", 403
+        
+    task = SurveyTask.query.get_or_404(task_id)
+    try:
+        # Change the status back to 'Closed' so it reappears on the main dashboard
+        task.status = 'Closed'
+        
+        # Log the action in the remarks
+        restore_note = f"RESTORED FROM ARCHIVE: {datetime.utcnow().strftime('%Y-%m-%d')}"
+        task.remarks = f"{task.remarks} | {restore_note}" if task.remarks else restore_note
+        
+        db.session.commit()
+        flash(f'Task {task_id} was successfully restored to the dashboard.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error restoring task: {str(e)}', 'error')
+        
+    # Send the user back to the page they clicked the button from
+    return redirect(request.referrer or url_for('archive_page'))
 @app.route('/cleanup')
 @login_required
 def cleanup_tasks():
