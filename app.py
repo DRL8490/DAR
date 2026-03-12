@@ -1053,7 +1053,8 @@ def export_excel():
         if kpi_month:
             target_year, target_month = kpi_month.split('-')
 
-        all_tasks = SurveyTask.query.order_by(SurveyTask.start_time.asc()).all()
+            # Grab only completed work (both active Closed and 30-day Archived tasks)
+            all_tasks = SurveyTask.query.filter(SurveyTask.status.in_(['Closed', 'Archived'])).order_by(SurveyTask.start_time.asc()).all()
         
         # KPI FILTER FIX: Case-insensitive substring match handles both singular and plurals
         excluded_keywords = ["external meeting", "internal coordination", "survey report", "damage report", "item", "request", "sem update"]

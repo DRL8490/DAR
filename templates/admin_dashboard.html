@@ -60,15 +60,20 @@
     </style>
 </head>
 <body>
-    <div class="header">
-        <h2>Active Survey Task - Admin</h2>
-        <div style="display: flex; gap: 10px;">
-            <a href="/system_config_hidden" class="btn-new btn-warning">⚙️ Config</a>
-            <a href="/new_task" class="btn-new">+ Open New Task</a>
+    <div class="header" style="align-items: flex-start;">
+        <div>
+            <h2 style="margin-top: 0;">Active Survey Task - Admin</h2>
+            <div id="liveClock" style="font-size: 14px; color: #555; font-weight: bold;">Loading time...</div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: flex-end;">
+            <div style="display: flex; gap: 10px;">
+                <a href="/system_config_hidden" class="btn-new btn-warning">⚙️ Config</a>
+                <a href="/new_task" class="btn-new">+ Open New Task</a>
+            </div>
+            <span style="color: #333; font-weight: bold; margin-top: 8px;">👤 {{ name }}</span>
+            <a href="/logout" style="color: #dc3545; text-decoration: none; font-size: 12px; font-weight: bold; margin-top: 4px;">🚪 Logout</a>
         </div>
     </div>
-    
-    <div id="liveClock" style="font-size: 14px; color: #555; font-weight: bold; margin-bottom: 15px;">Loading time...</div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -95,16 +100,20 @@
             <option value="{{ u.name }}">{{ u.name }}</option>
             {% endfor %}
         </select>
+
+        <input type="text" id="adminKeywordSearch" class="date-input" style="flex-grow: 1; min-width: 200px; padding: 8px;" placeholder="Keyword search (complements filters)..." onkeyup="applyFilters()">
         
-        <div style="margin-left: auto; display: flex; align-items: center; gap: 5px;">
-            <span style="font-size: 13px; color: #555;">From:</span>
-            <input type="date" id="dateStart" class="date-input" onchange="applyFilters()">
-            <span style="font-size: 13px; color: #555;">To:</span>
-            <input type="date" id="dateEnd" class="date-input" onchange="applyFilters()">
-            <button onclick="clearDates()" style="background: none; border: none; color: #dc3545; cursor: pointer; font-weight: bold;" title="Clear Dates">X</button>
+        <div style="margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 5px;">
+                <span style="font-size: 13px; color: #555;">From:</span>
+                <input type="date" id="dateStart" class="date-input" onchange="applyFilters()">
+                <span style="font-size: 13px; color: #555;">To:</span>
+                <input type="date" id="dateEnd" class="date-input" onchange="applyFilters()">
+                <button onclick="clearDates()" style="background: none; border: none; color: #dc3545; cursor: pointer; font-weight: bold;" title="Clear Dates">X</button>
+            </div>
+            <a href="/" style="color: #0056b3; font-size: 12px; font-weight: bold; text-decoration: none; border: 1px solid #0056b3; padding: 3px 8px; border-radius: 4px;">🔁 Switch to User View</a>
         </div>
     </div>
-
     <div style="margin-bottom: 20px;">
         <a href="/reports" style="color: #0056b3; font-weight: bold; text-decoration: none;">📊 Open Report Generation Wizard</a>
     </div>
@@ -257,6 +266,7 @@
             const dStart = document.getElementById('dateStart').value;
             const dEnd = document.getElementById('dateEnd').value;
             const selectedUser = document.getElementById('userFilter').value;
+            const keyword = document.getElementById('adminKeywordSearch').value.toLowerCase(); // NEW
             let visibleCount = 0;
 
             cards.forEach(card => {
@@ -265,19 +275,26 @@
                 const date = card.dataset.date;
                 const assignedTo = card.dataset.assigned || "";
                 const creator = card.dataset.creator || "";
+                const textContent = card.textContent.toLowerCase(); // NEW
 
                 let matchesStatus = false;
                 if (activeStatuses.has('All') || activeStatuses.has(status)) {
                     matchesStatus = true;
                 }
 
-                // FIXED: Now uses .includes() to search inside the string for multiple names!
                 let matchesUser = true;
                 if (selectedUser !== 'All' && !assignedTo.includes(selectedUser) && creator !== selectedUser) {
                     matchesUser = false;
                 }
 
-                if (matchesStatus && matchesUser) {
+                // NEW: Check if the text matches the keyword
+                let matchesKeyword = true;
+                if (keyword && !textContent.includes(keyword)) {
+                    matchesKeyword = false;
+                }
+
+                // It must pass ALL filters to be shown
+                if (matchesStatus && matchesUser && matchesKeyword) {
                     show = true;
                 }
 

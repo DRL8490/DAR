@@ -58,10 +58,16 @@
     </style>
 </head>
 <body>
-    <div class="header">
-        <div id="liveClock" style="font-size: 14px; color: #555; font-weight: bold; margin-bottom: 15px;">Loading time...</div>
-        <h2>Active Survey Tasks</h2>
-        <a href="/new_task" class="btn-new">+ Open New Task</a>
+    <div class="header" style="align-items: flex-start;">
+        <div>
+            <h2 style="margin-top: 0;">Active Survey Tasks</h2>
+            <div id="liveClock" style="font-size: 14px; color: #555; font-weight: bold;">Loading time...</div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: flex-end;">
+            <a href="/new_task" class="btn-new">+ Open New Task</a>
+            <span style="color: #333; font-weight: bold; margin-top: 8px;">👤 {{ name }}</span>
+            <a href="/logout" style="color: #dc3545; text-decoration: none; font-size: 12px; font-weight: bold; margin-top: 4px;">🚪 Logout</a>
+        </div>
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -76,6 +82,16 @@
         {% endif %}
     {% endwith %}
 
+    {% set my_open_count = namespace(value=0) %}
+    {% for task in tasks %}
+        {% if task.status == 'Open' and task.assigned_to and name in task.assigned_to %}
+            {% set my_open_count.value = my_open_count.value + 1 %}
+        {% endif %}
+    {% endfor %}
+    <div style="background-color: #e3f2fd; border-left: 5px solid #0dcaf0; padding: 12px 20px; border-radius: 6px; margin-bottom: 20px; font-weight: bold; color: #055160;">
+        📋 You currently have <span style="background: #dc3545; color: white; padding: 2px 8px; border-radius: 12px; font-size: 14px; margin: 0 4px;">{{ my_open_count.value }}</span> open task(s) assigned to you.
+    </div>
+    
     <div class="filter-bar">
         <strong style="font-size: 14px; color: #333;">Filters:</strong>
         <button class="btn-filter" id="btnAll" onclick="toggleStatus('All')">All</button>
