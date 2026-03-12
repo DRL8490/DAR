@@ -11,11 +11,11 @@
         .wizard-card:hover { transform: translateY(-5px); box-shadow: 0 8px 15px rgba(0,0,0,0.1); }
         .card-header { color: white; border-radius: 12px 12px 0 0 !important; padding: 15px; font-weight: bold; text-align: center; }
         
-        .bg-dtr { background: #0d6efd; } /* Blue for Daily */
-        .bg-wsr { background: #fd7e14; } /* Orange for Weekly */
-        .bg-tpc { background: #6f42c1; } /* Purple for Client */
-        .bg-kpi { background: #198754; } /* Green for Excel/Data */
-        .bg-wiz { background: #343a40; } /* Dark for Custom Wizard */
+        .bg-dtr { background: #0d6efd; } 
+        .bg-wsr { background: #fd7e14; } 
+        .bg-tpc { background: #6f42c1; } 
+        .bg-kpi { background: #198754; } 
+        .bg-wiz { background: #343a40; } 
     </style>
 </head>
 <body>
@@ -25,6 +25,17 @@
         <h2 class="fw-bold text-secondary mb-3"><i class="fas fa-chart-pie"></i> Reporting Page</h2>
         <a href="{{ url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard') }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
     </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
 
     <div class="row mb-4">
         <div class="col-md-4">
@@ -75,7 +86,7 @@
             <div class="card wizard-card h-100">
                 <div class="card-header bg-kpi"><h5 class="mb-0"><i class="fas fa-file-excel"></i> KPI Master Register</h5></div>
                 <div class="card-body d-flex flex-column">
-                    <p class="small text-muted text-center mb-3">Monthly KPI Tracking Sheet (.xlsx)<br><em>*Automatically excludes non-survey items (Meetings, Reports, etc.)</em></p>
+                    <p class="small text-muted text-center mb-3">Monthly KPI Tracking Sheet (.xlsx)<br><em>*Automatically excludes non-survey items.</em></p>
                     <form action="/export_excel" method="POST" class="mt-auto">
                         <label class="form-label fw-bold small">Select Target Month</label>
                         <input type="month" name="kpi_month" class="form-control mb-3" required>
