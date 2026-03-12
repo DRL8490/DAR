@@ -292,6 +292,7 @@ def delete_task(task_id):
         flash(f'Error deleting task: {str(e)}', 'error')
         
     return redirect(url_for('cleanup_tasks'))
+
 @app.route('/migrate', methods=['GET', 'POST'])
 @login_required
 def migrate_data():
@@ -307,79 +308,93 @@ def migrate_data():
 
         try:
             excel_file = pd.ExcelFile(file)
-            sheet_names = excel_file.sheet_names
-            
-            target_sheet = None
-            for name in sheet_names:
-                if 'master' in name.lower():
-                    target_sheet = name
-                    break
-            if not target_sheet:
-                target_sheet = sheet_names[0]
+            target_sheet = next((s for s in excel_file.sheet_names if 'master' in s.lower()), excel_file.sheet_names[0])
 
-            # 1. Read normally
-            df = pd.read_excel(file, sheet_name=target_sheet)
-            df.columns = df.columns.astype(str).str.strip() 
-            
-            # 2. Try header=1
-            if 'From Date' not in df.columns:
-                df = pd.read_excel(file, sheet_name=target_sheet, header=1)
-                df.columns = df.columns.astype(str).str.strip()
-            
-            # 3. Hunt for the header
-            if 'From Date' not in df.columns:
-                for i, r in df.iterrows():
-                    if 'From Date' in r.astype(str).values:
-                        df.columns = r.astype(str).str.strip()
-                        df = df.iloc[i+1:] 
-                        break
-            
-            if 'From Date' not in df.columns:
-                flash("Error: Could not find 'From Date' column. Please check your Excel headers.", 'error')
+            # 1. READ RAW GRID (No Headers)
+            df_raw = pd.read_excel(file, sheet_name=target_sheet, header=None)
+            df_raw = df_raw.fillna('')
+
+            header_row_idx = -1
+            col_map = {}
+
+            # 2. SCAN FOR COORDINATES
+            for idx, row in df_raw.iterrows():
+                row_vals = [str(x).strip().lower() for x in row.values]
+                
+                # If this row contains our key columns, memorize their exact index numbers
+                if 'from date' in row_vals or 'description of survey daily activities' in row_vals:
+                    header_row_idx = idx
+                    for col_idx, val in enumerate(row_vals):
+                        if 'from date' in val: col_map['date'] = col_idx
+                        elif 'requestor' in val: col_map['req'] = col_idx
+                        elif 'pic' in val or 'assigned to' in val: col_map['pic'] = col_idx
+                        elif 'involve' in val: col_map['person'] = col_idx
+                        elif 'activity type' in val: col_map['act'] = col_idx
+                        elif 'discipline' in val: col_map['disc'] = col_idx
+                        elif 'description' in val or 'daily activities' in val: col_map['desc'] = col_idx
+                        elif 'detail' in val or 'condition' in val: col_map['rem1'] = col_idx
+                        elif 'remarks' in val: col_map['rem2'] = col_idx
+                        elif 'store' in val: col_map['store'] = col_idx
+                    break
+                    
+            if header_row_idx == -1:
+                flash("Error: Could not find headers (like 'From Date'). Check file format.", 'error')
                 return redirect(url_for('migrate_data'))
 
-            df = df.fillna('')
             migrated_count = 0
-            
-            for index, row in df.iterrows():
-                date_val = row.get('From Date', '')
-                desc = str(row.get('Description of Survey Daily activities', '')).strip()
-                
-                if not str(date_val).strip() and not desc:
-                    continue
-                    
-                # --- FIXED DATETIME CONVERSION ---
-                # Forces Pandas to evaluate the date, converting blanks/errors to NaT
-                parsed_date = pd.to_datetime(date_val, errors='coerce')
-                
-                # Check if it is NaT (Not a Time)
-                if pd.isna(parsed_date):
-                    # Fallback to current time if the date is completely missing/corrupted
-                    start_date = datetime.utcnow()
-                else:
-                    # Convert safe Pandas Timestamp into a native Python datetime for SQL
-                    start_date = parsed_date.to_pydatetime()
 
-                req = str(row.get('Requestor', '')).strip()
-                pic = str(row.get('PIC / Assigned to', '')).strip()
-                person_inv = str(row.get('Person Involve', '')).strip()
-                assigned = pic if pic else person_inv
+            # 3. EXTRACT BY COORDINATES (Skipping the header row)
+            for idx in range(header_row_idx + 1, len(df_raw)):
+                row = df_raw.iloc[idx].values
                 
-                act_type = str(row.get('Activity Type', '')).strip()
-                disc = str(row.get('Discipline', '')).strip()
+                # Helper function to safely grab data by its column number
+                def get_val(key):
+                    if key in col_map and col_map[key] < len(row):
+                        return str(row[col_map[key]]).strip()
+                    return ''
+
+                date_val = get_val('date')
+                desc = get_val('desc')
+
+                if not date_val and not desc:
+                    continue
+
+                # --- BULLETPROOF DATETIME CONVERSION ---
+                try:
+                    clean_date = str(date_val).strip().lower()
+                    
+                    # Explicitly block Pandas 'NaT', 'nan', or empty strings
+                    if not clean_date or clean_date in ['nat', 'nan', 'none']:
+                        start_date = datetime.utcnow()
+                    else:
+                        parsed = pd.to_datetime(date_val, errors='coerce')
+                        if pd.isna(parsed):
+                            start_date = datetime.utcnow()
+                        else:
+                            start_date = parsed.to_pydatetime()
+                except:
+                    start_date = datetime.utcnow()
+
+                req = get_val('req')
+                pic = get_val('pic')
+                person = get_val('person')
+                assigned = pic if pic else person
                 
-                remarks1 = str(row.get('Detail Data / Condition', '')).strip()
-                remarks2 = str(row.get('Remarks', '')).strip()
-                store_in = str(row.get('Store in', '')).strip()
+                act = get_val('act')
+                disc = get_val('disc')
+                
+                rem1 = get_val('rem1')
+                rem2 = get_val('rem2')
+                store = get_val('store')
                 
                 safe_scope = (desc[:95] + '...') if len(desc) > 95 else desc
                 if not safe_scope: safe_scope = "Historical_Task"
                 
                 full_remarks = []
                 if desc and len(desc) > 95: full_remarks.append(f"Full Description: {desc}")
-                if remarks1: full_remarks.append(f"Details: {remarks1}")
-                if remarks2: full_remarks.append(f"Remarks: {remarks2}")
-                if store_in: full_remarks.append(f"Legacy Path: {store_in}")
+                if rem1: full_remarks.append(f"Details: {rem1}")
+                if rem2: full_remarks.append(f"Remarks: {rem2}")
+                if store: full_remarks.append(f"Legacy Path: {store}")
                 combined_remarks = " | ".join(full_remarks)
 
                 year_month = start_date.strftime('%Y_%m')
@@ -388,7 +403,7 @@ def migrate_data():
                     surveyor_name="Legacy_Import",
                     assigned_to=assigned[:100],
                     requestor=req[:100],
-                    task_category=act_type[:100],
+                    task_category=act[:100],
                     action_required=disc[:100],
                     instrument="Legacy_Data",
                     area="900_Legacy_Data",
@@ -404,16 +419,15 @@ def migrate_data():
                 migrated_count += 1
 
             db.session.commit()
-            flash(f'Successfully migrated {migrated_count} historical tasks from sheet "{target_sheet}"!', 'success')
+            flash(f'Successfully migrated {migrated_count} historical tasks!', 'success')
             return redirect(url_for('admin_dashboard'))
             
         except Exception as e:
             db.session.rollback()
-            import traceback
             flash(f'Migration Error: {str(e)}', 'error')
             return redirect(url_for('migrate_data'))
 
-    return render_template('migration.html')@app.route('/')
+    return render_template('migration.html')
 @login_required
 def dashboard():
     session['dashboard_view'] = 'user'
