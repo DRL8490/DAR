@@ -263,6 +263,97 @@ def forgot_password():
     return render_template('forgot_password.html')
 
 # --- WORKFLOW ROUTES ---
+@app.route('/migrate', methods=['GET', 'POST'])
+@login_required
+def migrate_data():
+    if current_user.email not in ADMIN_EMAILS:
+        flash('Access Denied: Admins only.', 'error')
+        return redirect(url_for('dashboard'))
+
+    if request.method == 'POST':
+        file = request.files.get('excel_file')
+        if not file or not file.filename.endswith(('.xlsx', '.xls')):
+            flash('Please upload a valid Excel file.', 'error')
+            return redirect(url_for('migrate_data'))
+
+        try:
+            # Tell Pandas to strictly read the "Master" sheet of your old Excel file
+            df = pd.read_excel(file, sheet_name='Master') 
+            df = df.fillna('')
+            
+            migrated_count = 0
+            for index, row in df.iterrows():
+                # Skip empty/corrupted rows
+                if not str(row.get('From Date', '')) and not str(row.get('Description of Survey Daily activities', '')):
+                    continue
+                    
+                date_val = row.get('From Date', '')
+                if pd.api.types.is_datetime64_any_dtype(date_val):
+                    start_date = date_val
+                else:
+                    try: start_date = pd.to_datetime(date_val)
+                    except: start_date = datetime.utcnow()
+
+                req = str(row.get('Requestor', '')).strip()
+                pic = str(row.get('PIC / Assigned to', '')).strip()
+                person_inv = str(row.get('Person Involve', '')).strip()
+                assigned = pic if pic else person_inv
+                
+                act_type = str(row.get('Activity Type', '')).strip()
+                disc = str(row.get('Discipline', '')).strip()
+                desc = str(row.get('Description of Survey Daily activities', '')).strip()
+                
+                remarks1 = str(row.get('Detail Data / Condition', '')).strip()
+                remarks2 = str(row.get('Remarks', '')).strip()
+                store_in = str(row.get('Store in', '')).strip()
+                
+                # --- WORK SCOPE RULE ---
+                # Truncate to 95 chars so it doesn't crash the database limits
+                safe_scope = (desc[:95] + '...') if len(desc) > 95 else desc
+                if not safe_scope: safe_scope = "Historical_Task"
+                
+                # Combine ALL old text columns into one pristine master remark
+                full_remarks = []
+                if desc and len(desc) > 95: full_remarks.append(f"Full Description: {desc}")
+                if remarks1: full_remarks.append(f"Details: {remarks1}")
+                if remarks2: full_remarks.append(f"Remarks: {remarks2}")
+                if store_in: full_remarks.append(f"Legacy Path: {store_in}")
+                combined_remarks = " | ".join(full_remarks)
+
+                # --- SUB-LOCATION RULE ---
+                # Categorize by Year_Month (e.g. 2025_03)
+                year_month = start_date.strftime('%Y_%m') if pd.notnull(start_date) else 'Unknown_Date'
+
+                task = SurveyTask(
+                    surveyor_name="Legacy_Import",
+                    assigned_to=assigned[:100],
+                    requestor=req[:100],
+                    task_category=act_type[:100],
+                    action_required=disc[:100],
+                    instrument="Legacy_Data",
+                    area="900_Legacy_Data",
+                    location="DPR_Import",
+                    sub_location=year_month,
+                    work_scope=safe_scope,
+                    remarks=combined_remarks,
+                    status="Closed",
+                    start_time=start_date,
+                    end_time=start_date # Automatically marked complete
+                )
+                db.session.add(task)
+                migrated_count += 1
+
+            db.session.commit()
+            flash(f'Successfully migrated {migrated_count} historical tasks!', 'success')
+            return redirect(url_for('admin_dashboard'))
+            
+        except Exception as e:
+            db.session.rollback()
+            import traceback
+            flash(f'Migration Error: {str(e)}', 'error')
+            return redirect(url_for('migrate_data'))
+
+    return render_template('migration.html')
 @app.route('/')
 @login_required
 def dashboard():
@@ -784,11 +875,27 @@ def generate_tpc():
     try:
         week_str = request.form.get('tpc_week')
         if not week_str: return redirect(url_for('reports'))
-        year, week = map(int, week_str.split('-W'))
-        start_date = datetime.strptime(f'{year}-W{week}-1', "%Y-W%W-%w")
-        end_date = start_date + timedelta(days=7)
         
-        weekly_tasks = SurveyTask.query.filter(SurveyTask.start_time >= start_date, SurveyTask.start_time < end_date, SurveyTask.status == 'Closed').all()
+        year, week = map(int, week_str.split('-W'))
+        
+        # 1. Grab the Monday of the selected week
+        monday_date = datetime.strptime(f'{year}-W{week}-1', "%Y-W%W-%w")
+        
+        # 2. Rewind 3 days to get the previous Friday (Start Date)
+        start_date = monday_date - timedelta(days=3)
+        
+        # 3. Add 7 full days for the database query cutoff (Strictly covers up to Thursday 23:59:59)
+        query_end_date = start_date + timedelta(days=7)
+        
+        # 4. Display End Date (Thursday) for the Word Document tags
+        display_end_date = start_date + timedelta(days=6)
+        
+        weekly_tasks = SurveyTask.query.filter(
+            SurveyTask.start_time >= start_date, 
+            SurveyTask.start_time < query_end_date, 
+            SurveyTask.status == 'Closed'
+        ).all()
+        
         done_set = set()
         for t in weekly_tasks:
             loc = t.location.split('_', 1)[-1].replace('_', ' ') if t.location and t.location != 'N/A' else ''
@@ -808,19 +915,26 @@ def generate_tpc():
             
         template_path = os.path.join(app.root_path, 'static', 'report_templates', 'TPC_Template.docx')
         doc = DocxTemplate(template_path)
+        
         context = {
-            'start_date': start_date.strftime('%d %b %Y'), 'end_date': (start_date + timedelta(days=6)).strftime('%d %b %Y'),
-            'done_activities': list(done_set), 'planned_activities': list(planned_set)
+            'start_date': start_date.strftime('%d %b %Y'), 
+            'end_date': display_end_date.strftime('%d %b %Y'),
+            'done_activities': list(done_set), 
+            'planned_activities': list(planned_set)
         }
         doc.render(context)
+        
         output = io.BytesIO()
         doc.save(output)
         output.seek(0)
-        return send_file(output, download_name=f"TPC_{week_str}.docx", as_attachment=True)
+        
+        # Generates a clean filename like: TPC_Report_20260227_to_20260305.docx
+        filename = f"TPC_Report_{start_date.strftime('%Y%m%d')}_to_{display_end_date.strftime('%Y%m%d')}.docx"
+        return send_file(output, download_name=filename, as_attachment=True)
+        
     except Exception as e:
         flash(f'TPC Generation Failed. Ensure TPC_Template.docx exists. Error: {str(e)}', 'error')
         return redirect(url_for('reports'))
-
 @app.route('/export_excel', methods=['POST'])
 @login_required
 def export_excel():
