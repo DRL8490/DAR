@@ -277,17 +277,52 @@ def migrate_data():
             return redirect(url_for('migrate_data'))
 
         try:
-            # Tell Pandas to strictly read the "Master" sheet of your old Excel file
-            df = pd.read_excel(file, sheet_name='Master') 
-            df = df.fillna('')
+            excel_file = pd.ExcelFile(file)
+            sheet_names = excel_file.sheet_names
             
+            target_sheet = None
+            for name in sheet_names:
+                if 'master' in name.lower():
+                    target_sheet = name
+                    break
+            if not target_sheet:
+                target_sheet = sheet_names[0]
+
+            # --- THE BULLETPROOF HEADER SCANNER ---
+            # 1. Read normally
+            df = pd.read_excel(file, sheet_name=target_sheet)
+            df.columns = df.columns.astype(str).str.strip() # Strip invisible spaces!
+            
+            # 2. If 'From Date' isn't found, try treating Row 2 as the header (header=1)
+            if 'From Date' not in df.columns:
+                df = pd.read_excel(file, sheet_name=target_sheet, header=1)
+                df.columns = df.columns.astype(str).str.strip()
+            
+            # 3. If STILL not found, hunt through every row until we find the headers
+            if 'From Date' not in df.columns:
+                for i, r in df.iterrows():
+                    if 'From Date' in r.astype(str).values:
+                        df.columns = r.astype(str).str.strip()
+                        df = df.iloc[i+1:] # Set everything below this row as the data
+                        break
+            
+            # 4. If we absolutely cannot find it, stop and warn the user instead of silently failing
+            if 'From Date' not in df.columns:
+                flash("Error: Could not find 'From Date' column. Please check your Excel headers.", 'error')
+                return redirect(url_for('migrate_data'))
+
+            df = df.fillna('')
             migrated_count = 0
+            
             for index, row in df.iterrows():
-                # Skip empty/corrupted rows
-                if not str(row.get('From Date', '')) and not str(row.get('Description of Survey Daily activities', '')):
+                # Extract values using the stripped column names
+                date_val = row.get('From Date', '')
+                desc = str(row.get('Description of Survey Daily activities', '')).strip()
+                
+                # Skip truly empty rows
+                if not str(date_val).strip() and not desc:
                     continue
                     
-                date_val = row.get('From Date', '')
                 if pd.api.types.is_datetime64_any_dtype(date_val):
                     start_date = date_val
                 else:
@@ -301,18 +336,14 @@ def migrate_data():
                 
                 act_type = str(row.get('Activity Type', '')).strip()
                 disc = str(row.get('Discipline', '')).strip()
-                desc = str(row.get('Description of Survey Daily activities', '')).strip()
                 
                 remarks1 = str(row.get('Detail Data / Condition', '')).strip()
                 remarks2 = str(row.get('Remarks', '')).strip()
                 store_in = str(row.get('Store in', '')).strip()
                 
-                # --- WORK SCOPE RULE ---
-                # Truncate to 95 chars so it doesn't crash the database limits
                 safe_scope = (desc[:95] + '...') if len(desc) > 95 else desc
                 if not safe_scope: safe_scope = "Historical_Task"
                 
-                # Combine ALL old text columns into one pristine master remark
                 full_remarks = []
                 if desc and len(desc) > 95: full_remarks.append(f"Full Description: {desc}")
                 if remarks1: full_remarks.append(f"Details: {remarks1}")
@@ -320,8 +351,6 @@ def migrate_data():
                 if store_in: full_remarks.append(f"Legacy Path: {store_in}")
                 combined_remarks = " | ".join(full_remarks)
 
-                # --- SUB-LOCATION RULE ---
-                # Categorize by Year_Month (e.g. 2025_03)
                 year_month = start_date.strftime('%Y_%m') if pd.notnull(start_date) else 'Unknown_Date'
 
                 task = SurveyTask(
@@ -338,13 +367,13 @@ def migrate_data():
                     remarks=combined_remarks,
                     status="Closed",
                     start_time=start_date,
-                    end_time=start_date # Automatically marked complete
+                    end_time=start_date 
                 )
                 db.session.add(task)
                 migrated_count += 1
 
             db.session.commit()
-            flash(f'Successfully migrated {migrated_count} historical tasks!', 'success')
+            flash(f'Successfully migrated {migrated_count} historical tasks from sheet "{target_sheet}"!', 'success')
             return redirect(url_for('admin_dashboard'))
             
         except Exception as e:
