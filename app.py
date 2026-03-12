@@ -263,6 +263,35 @@ def forgot_password():
     return render_template('forgot_password.html')
 
 # --- WORKFLOW ROUTES ---
+@app.route('/cleanup')
+@login_required
+def cleanup_tasks():
+    # STRICT ADMIN PROTECTION
+    if current_user.email not in ADMIN_EMAILS:
+        flash('Access Denied: You do not have permission to view this page.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    # Fetch all tasks from newest to oldest
+    tasks = SurveyTask.query.order_by(SurveyTask.start_time.desc()).all()
+    return render_template('cleanup.html', tasks=tasks)
+
+@app.route('/delete_task/<int:task_id>', methods=['POST'])
+@login_required
+def delete_task(task_id):
+    # STRICT ADMIN PROTECTION
+    if current_user.email not in ADMIN_EMAILS:
+        return "Unauthorized", 403
+        
+    task = SurveyTask.query.get_or_404(task_id)
+    try:
+        db.session.delete(task)
+        db.session.commit()
+        flash(f'Task {task_id} was permanently deleted.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error deleting task: {str(e)}', 'error')
+        
+    return redirect(url_for('cleanup_tasks'))
 @app.route('/migrate', methods=['GET', 'POST'])
 @login_required
 def migrate_data():
@@ -288,25 +317,23 @@ def migrate_data():
             if not target_sheet:
                 target_sheet = sheet_names[0]
 
-            # --- THE BULLETPROOF HEADER SCANNER ---
             # 1. Read normally
             df = pd.read_excel(file, sheet_name=target_sheet)
-            df.columns = df.columns.astype(str).str.strip() # Strip invisible spaces!
+            df.columns = df.columns.astype(str).str.strip() 
             
-            # 2. If 'From Date' isn't found, try treating Row 2 as the header (header=1)
+            # 2. Try header=1
             if 'From Date' not in df.columns:
                 df = pd.read_excel(file, sheet_name=target_sheet, header=1)
                 df.columns = df.columns.astype(str).str.strip()
             
-            # 3. If STILL not found, hunt through every row until we find the headers
+            # 3. Hunt for the header
             if 'From Date' not in df.columns:
                 for i, r in df.iterrows():
                     if 'From Date' in r.astype(str).values:
                         df.columns = r.astype(str).str.strip()
-                        df = df.iloc[i+1:] # Set everything below this row as the data
+                        df = df.iloc[i+1:] 
                         break
             
-            # 4. If we absolutely cannot find it, stop and warn the user instead of silently failing
             if 'From Date' not in df.columns:
                 flash("Error: Could not find 'From Date' column. Please check your Excel headers.", 'error')
                 return redirect(url_for('migrate_data'))
@@ -315,19 +342,23 @@ def migrate_data():
             migrated_count = 0
             
             for index, row in df.iterrows():
-                # Extract values using the stripped column names
                 date_val = row.get('From Date', '')
                 desc = str(row.get('Description of Survey Daily activities', '')).strip()
                 
-                # Skip truly empty rows
                 if not str(date_val).strip() and not desc:
                     continue
                     
-                if pd.api.types.is_datetime64_any_dtype(date_val):
-                    start_date = date_val
+                # --- FIXED DATETIME CONVERSION ---
+                # Forces Pandas to evaluate the date, converting blanks/errors to NaT
+                parsed_date = pd.to_datetime(date_val, errors='coerce')
+                
+                # Check if it is NaT (Not a Time)
+                if pd.isna(parsed_date):
+                    # Fallback to current time if the date is completely missing/corrupted
+                    start_date = datetime.utcnow()
                 else:
-                    try: start_date = pd.to_datetime(date_val)
-                    except: start_date = datetime.utcnow()
+                    # Convert safe Pandas Timestamp into a native Python datetime for SQL
+                    start_date = parsed_date.to_pydatetime()
 
                 req = str(row.get('Requestor', '')).strip()
                 pic = str(row.get('PIC / Assigned to', '')).strip()
@@ -351,7 +382,7 @@ def migrate_data():
                 if store_in: full_remarks.append(f"Legacy Path: {store_in}")
                 combined_remarks = " | ".join(full_remarks)
 
-                year_month = start_date.strftime('%Y_%m') if pd.notnull(start_date) else 'Unknown_Date'
+                year_month = start_date.strftime('%Y_%m')
 
                 task = SurveyTask(
                     surveyor_name="Legacy_Import",
@@ -382,8 +413,7 @@ def migrate_data():
             flash(f'Migration Error: {str(e)}', 'error')
             return redirect(url_for('migrate_data'))
 
-    return render_template('migration.html')
-@app.route('/')
+    return render_template('migration.html')@app.route('/')
 @login_required
 def dashboard():
     session['dashboard_view'] = 'user'
