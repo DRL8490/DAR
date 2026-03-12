@@ -464,6 +464,8 @@ def migrate_data():
             return redirect(url_for('migrate_data'))
 
     return render_template('migration.html')
+
+@app.route('/')
 @login_required
 def dashboard():
     session['dashboard_view'] = 'user'
