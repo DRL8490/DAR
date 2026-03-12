@@ -126,7 +126,7 @@
              data-status="{{ task.status }}" 
              data-date="{{ task.start_time.strftime('%Y-%m-%d') }}" 
              data-assigned="{{ task.assigned_to }}"
-             data-mine="{% if name == task.assigned_to or name == task.surveyor_name %}true{% else %}false{% endif %}"
+             data-mine="{% if (task.assigned_to and name in task.assigned_to) or name == task.surveyor_name %}true{% else %}false{% endif %}"
              data-creator="{{ task.surveyor_name }}"
              data-task-str="{{ task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else 'UNKNOWN-'~task.id }}"
              data-path="📁 {{ area_clean }} {% if loc_clean %}➔ {{ loc_clean }}{% endif %} {% if sub_clean %}➔ {{ sub_clean }}{% endif %} ➔ {{ scope_text }}"
@@ -263,15 +263,17 @@
                 let show = false;
                 const status = card.dataset.status;
                 const date = card.dataset.date;
-                const assignedTo = card.dataset.assigned;
+                const assignedTo = card.dataset.assigned || "";
+                const creator = card.dataset.creator || "";
 
                 let matchesStatus = false;
                 if (activeStatuses.has('All') || activeStatuses.has(status)) {
                     matchesStatus = true;
                 }
 
+                // FIXED: Now uses .includes() to search inside the string for multiple names!
                 let matchesUser = true;
-                if (selectedUser !== 'All' && assignedTo !== selectedUser) {
+                if (selectedUser !== 'All' && !assignedTo.includes(selectedUser) && creator !== selectedUser) {
                     matchesUser = false;
                 }
 

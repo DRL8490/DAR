@@ -608,6 +608,7 @@ def cancel_task(task_id):
     flash('Task canceled.', 'error')
     return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
 # --- REPORT GENERATOR ROUTES ---
+# --- REPORT GENERATOR ROUTES ---
 @app.route('/reports')
 @login_required
 def reports():
@@ -627,7 +628,7 @@ def generate_dtr():
         daily_tasks = SurveyTask.query.filter(
             SurveyTask.start_time >= target_date,
             SurveyTask.start_time < next_day,
-            SurveyTask.status == 'Closed' # ONLY SHOWS CLOSED TASKS
+            SurveyTask.status == 'Closed' 
         ).all()
 
         dtr_groups = {}
@@ -680,24 +681,26 @@ def generate_dtr():
                 data["surveyors"] = ", ".join(sorted(list(data["surveyors"])))
                 report_blocks.append(data)
 
-        # 2. GET OPEN TASKS FOR OUTSTANDING ACTIONS (NAMES REMOVED)
+        # 2. GET OPEN TASKS FOR OUTSTANDING ACTIONS 
         open_tasks = SurveyTask.query.filter_by(status='Open').all()
-        outstanding_tasks = []
+        outstanding_set = set() # Use a set to prevent duplicate lines
         for t in open_tasks:
             loc = t.location.split('_', 1)[-1].replace('_', ' ') if t.location and t.location != 'N/A' else ''
             sub = t.sub_location.split('_', 1)[-1].replace('_', ' ') if t.sub_location and t.sub_location != 'N/A' else ''
             scope = t.work_scope.split('_', 1)[-1].replace('_', ' ') if t.work_scope and t.work_scope != 'N/A' else ''
             raw = [loc, sub, scope, t.action_required]
             clean = [p.strip() for p in raw if p and p.strip().lower() != 'general']
-            outstanding_tasks.append(" ".join(clean))
+            phrase = " ".join(clean)
+            if phrase:
+                outstanding_set.add(phrase)
 
         template_path = os.path.join(app.root_path, 'static', 'report_templates', 'DTR_Template.docx')
         doc = DocxTemplate(template_path)
         context = {
-            'target_date': display_date,
-            'day_of_week': day_of_week,
+            'target_date': target_date.strftime('%d.%m.%Y'),
+            'day_of_week': target_date.strftime('%A'),
             'report_blocks': report_blocks,
-            'outstanding_tasks': outstanding_tasks
+            'outstanding_tasks': list(outstanding_set)
         }
         doc.render(context)
         output = io.BytesIO()
@@ -705,7 +708,7 @@ def generate_dtr():
         output.seek(0)
         return send_file(output, download_name=f"{target_date.strftime('%Y%m%d')}-DTR-Report.docx", as_attachment=True)
     except Exception as e:
-        flash(f'Error: {str(e)}', 'error')
+        flash(f'DTR Generation Failed. Ensure DTR_Template.docx exists. Error: {str(e)}', 'error')
         return redirect(url_for('reports'))
 
 @app.route('/generate_wsr', methods=['POST'])
@@ -715,7 +718,6 @@ def generate_wsr():
         week_str = request.form.get('wsr_week')
         if not week_str: return redirect(url_for('reports'))
         year, week = map(int, week_str.split('-W'))
-        # Calculate the Monday of the selected week
         start_date = datetime.strptime(f'{year}-W{week}-1', "%Y-W%W-%w")
         
         days_data = []
@@ -773,7 +775,7 @@ def generate_wsr():
         output.seek(0)
         return send_file(output, download_name=f"WSR_{week_str}.docx", as_attachment=True)
     except Exception as e:
-        flash(f'Error: {str(e)}', 'error')
+        flash(f'WSR Generation Failed. Ensure WSR_Template.docx exists. Error: {str(e)}', 'error')
         return redirect(url_for('reports'))
 
 @app.route('/generate_tpc', methods=['POST'])
@@ -816,79 +818,89 @@ def generate_tpc():
         output.seek(0)
         return send_file(output, download_name=f"TPC_{week_str}.docx", as_attachment=True)
     except Exception as e:
-        flash(f'Error: {str(e)}', 'error')
+        flash(f'TPC Generation Failed. Ensure TPC_Template.docx exists. Error: {str(e)}', 'error')
         return redirect(url_for('reports'))
 
 @app.route('/export_excel', methods=['POST'])
 @login_required
 def export_excel():
-    kpi_month = request.form.get('kpi_month') 
-    target_year, target_month = None, None
-    if kpi_month:
-        target_year, target_month = kpi_month.split('-')
+    try:
+        kpi_month = request.form.get('kpi_month') 
+        target_year, target_month = None, None
+        if kpi_month:
+            target_year, target_month = kpi_month.split('-')
 
-    all_tasks = SurveyTask.query.order_by(SurveyTask.start_time.asc()).all()
-    # KPI FILTER: Removes non-survey items
-    excluded = ["External Meeting", "Internal Coordination Meeting", "Survey Reports", "Damage report", "Item", "Request", "SEM Update"]
-    tasks = [t for t in all_tasks if t.action_required not in excluded]
-    
-    data = []
-    month_counters = {} 
-    display_index = 1
-    
-    for task in tasks:
-        month_str = task.start_time.strftime('%m') if task.start_time else '00' 
-        year_str = task.start_time.strftime('%Y') if task.start_time else '0000'
+        all_tasks = SurveyTask.query.order_by(SurveyTask.start_time.asc()).all()
         
-        if month_str not in month_counters: month_counters[month_str] = 1
-        else: month_counters[month_str] += 1
+        # KPI FILTER FIX: Case-insensitive substring match handles both singular and plurals
+        excluded_keywords = ["external meeting", "internal coordination", "survey report", "damage report", "item", "request", "sem update"]
+        
+        tasks = []
+        for t in all_tasks:
+            if t.action_required:
+                if any(ex in t.action_required.lower() for ex in excluded_keywords):
+                    continue
+            tasks.append(t)
+        
+        data = []
+        month_counters = {} 
+        display_index = 1
+        
+        for task in tasks:
+            month_str = task.start_time.strftime('%m') if task.start_time else '00' 
+            year_str = task.start_time.strftime('%Y') if task.start_time else '0000'
             
-        seq_num = f"{month_counters[month_str]:03d}"
-        req_ref = f"TW_{month_str}{seq_num}"
-        survey_ref = f"TW_SU_{month_str}{seq_num}"
+            if month_str not in month_counters: month_counters[month_str] = 1
+            else: month_counters[month_str] += 1
+                
+            seq_num = f"{month_counters[month_str]:03d}"
+            req_ref = f"TW_{month_str}{seq_num}"
+            survey_ref = f"TW_SU_{month_str}{seq_num}"
 
-        # If a specific month was selected, we skip appending tasks from other months
-        if target_month and target_year:
-            if month_str != target_month or year_str != target_year:
-                continue
+            if target_month and target_year:
+                if month_str != target_month or year_str != target_year:
+                    continue
 
-        loc = task.location.split('_', 1)[-1].replace('_', ' ') if task.location and task.location != 'N/A' else ''
-        sub = task.sub_location.split('_', 1)[-1].replace('_', ' ') if task.sub_location and task.sub_location != 'N/A' else ''
-        scope = task.work_scope.split('_', 1)[-1].replace('_', ' ') if task.work_scope and task.work_scope != 'N/A' else ''
+            loc = task.location.split('_', 1)[-1].replace('_', ' ') if task.location and task.location != 'N/A' else ''
+            sub = task.sub_location.split('_', 1)[-1].replace('_', ' ') if task.sub_location and task.sub_location != 'N/A' else ''
+            scope = task.work_scope.split('_', 1)[-1].replace('_', ' ') if task.work_scope and task.work_scope != 'N/A' else ''
+            
+            raw_parts = [loc, sub, scope, task.action_required]
+            clean_parts = [p.strip() for p in raw_parts if p and p.strip().lower() != 'general']
+            desc_phrase = " ".join(clean_parts)
+
+            data.append({
+                'Tender / Project Ref.': '20012', 'Sl No': display_index, 'Activity Type': task.task_category, 'Discipline': task.action_required,
+                'Requestor Ref. #': req_ref, 'Survey Ref. #': survey_ref, 'Requestor': task.requestor, 'Assigned to': task.assigned_to,
+                'Date/Time Received': task.start_time.strftime('%Y-%m-%d %H:%M') if task.start_time else '',
+                'Date/Time Completed': task.end_time.strftime('%Y-%m-%d %H:%M') if task.end_time else '',
+                'Description of Survey Works': desc_phrase, 'Special Conditions / Remarks': task.remarks or ''
+            })
+            display_index += 1
         
-        raw_parts = [loc, sub, scope, task.action_required]
-        clean_parts = [p.strip() for p in raw_parts if p and p.strip().lower() != 'general']
-        desc_phrase = " ".join(clean_parts)
+        df = pd.DataFrame(data)
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, startrow=2, sheet_name='Master Register')
+            worksheet = writer.sheets['Master Register']
+            worksheet.cell(row=1, column=5, value="SURVEY ACTIVITY MASTER REGISTER")
+            
+            header_month = datetime.strptime(kpi_month, "%Y-%m").strftime('%B %Y').upper() if kpi_month else datetime.utcnow().strftime('%B %Y').upper()
+            worksheet.cell(row=2, column=1, value=f"MONTH OF {header_month} - SURVEY TEAM")
+            
+            for column in worksheet.columns:
+                max_length = 0
+                column = [cell for cell in column]
+                for cell in column:
+                    try: max_length = max(max_length, len(str(cell.value)))
+                    except: pass
+                worksheet.column_dimensions[column[0].column_letter].width = (max_length + 2)
 
-        data.append({
-            'Tender / Project Ref.': '20012', 'Sl No': display_index, 'Activity Type': task.task_category, 'Discipline': task.action_required,
-            'Requestor Ref. #': req_ref, 'Survey Ref. #': survey_ref, 'Requestor': task.requestor, 'Assigned to': task.assigned_to,
-            'Date/Time Received': task.start_time.strftime('%Y-%m-%d %H:%M') if task.start_time else '',
-            'Date/Time Completed': task.end_time.strftime('%Y-%m-%d %H:%M') if task.end_time else '',
-            'Description of Survey Works': desc_phrase, 'Special Conditions / Remarks': task.remarks or ''
-        })
-        display_index += 1
-    
-    df = pd.DataFrame(data)
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, startrow=2, sheet_name='Master Register')
-        worksheet = writer.sheets['Master Register']
-        worksheet.cell(row=1, column=5, value="SURVEY ACTIVITY MASTER REGISTER")
-        
-        header_month = datetime.strptime(kpi_month, "%Y-%m").strftime('%B %Y').upper() if kpi_month else datetime.utcnow().strftime('%B %Y').upper()
-        worksheet.cell(row=2, column=1, value=f"MONTH OF {header_month} - SURVEY TEAM")
-        
-        for column in worksheet.columns:
-            max_length = 0
-            column = [cell for cell in column]
-            for cell in column:
-                try: max_length = max(max_length, len(str(cell.value)))
-                except: pass
-            worksheet.column_dimensions[column[0].column_letter].width = (max_length + 2)
+        output.seek(0)
+        return send_file(output, download_name=f"Master_Register_{kpi_month or 'All'}.xlsx", as_attachment=True)
+    except Exception as e:
+        flash(f'KPI Excel Generation Failed. Error: {str(e)}', 'error')
+        return redirect(url_for('reports'))
 
-    output.seek(0)
-    return send_file(output, download_name=f"Master_Register_{kpi_month or 'All'}.xlsx", as_attachment=True)
- 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
