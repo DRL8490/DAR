@@ -116,8 +116,34 @@
     </div>
     <div style="margin-bottom: 20px;">
         <a href="/reports" style="color: #0056b3; font-weight: bold; text-decoration: none;">📊 Reports Page</a>
-    </div>
+    </div>{% set pending_users = [] %}
+    {% for u in users %}
+        {% if not u.is_approved %}
+            {% set _ = pending_users.append(u) %}
+        {% endif %}
+    {% endfor %}
 
+    {% if pending_users|length > 0 %}
+    <div style="background: #fff3cd; border-left: 5px solid #ffc107; padding: 15px; margin-bottom: 20px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+        <h4 style="margin-top: 0; margin-bottom: 10px; color: #856404;">⚠️ Pending User Approvals ({{ pending_users|length }})</h4>
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            {% for pu in pending_users %}
+            <tr style="border-bottom: 1px solid #ffeeba;">
+                <td style="padding: 8px 0;"><strong>{{ pu.name }}</strong><br><span style="color:#666; font-size:12px;">{{ pu.email }}</span></td>
+                <td style="text-align: right;">
+                    <form action="/approve_user/{{ pu.id }}" method="POST" style="display:inline;">
+                        <button type="submit" style="background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-right: 5px;">Approve</button>
+                    </form>
+                    <form action="/delete_user/{{ pu.id }}" method="POST" style="display:inline;">
+                        <button type="submit" style="background: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold;" onclick="return confirm('Reject and delete this user completely?');">Reject</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
+    ```
     {% set my_open_count = namespace(value=0) %}
     {% set my_urgent_count = namespace(value=0) %}
     {% for task in tasks %}

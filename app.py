@@ -39,7 +39,7 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     name = db.Column(db.String(100), nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
-
+    is_approved = db.Column(db.Boolean, default=False)      
 class AppConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     schema_data = db.Column(db.Text, default="{}") 
@@ -89,7 +89,12 @@ with app.app_context():
         db.session.commit()
     except Exception:
         db.session.rollback() # Ignores if the column already exists
-
+# NEW: Safely inject the Approval column (Defaults True for existing users)
+    try:
+        db.session.execute(text('ALTER TABLE "user" ADD COLUMN is_approved BOOLEAN DEFAULT TRUE'))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
     # 18. THE INDEXING: Creates a high-speed lookup table for filters
     try:
         db.session.execute(text('CREATE INDEX IF NOT EXISTS idx_status ON survey_task(status)'))
@@ -245,13 +250,19 @@ def register():
         email_prefix = email.split('@')[0]
         name_parts = email_prefix.split('.')
         formatted_name = f"{name_parts[0].capitalize()} {name_parts[1].capitalize()}" if len(name_parts) >= 2 else email_prefix.capitalize()
-        new_user = User(email=email, name=formatted_name, password_hash=generate_password_hash(password, method='pbkdf2:sha256'))
+        
+        # Auto-approve if they are in the VIP Admin list, otherwise require approval
+        is_approved = True if email in ADMIN_EMAILS else False
+        
+        new_user = User(email=email, name=formatted_name, password_hash=generate_password_hash(password, method='pbkdf2:sha256'), is_approved=is_approved)
         db.session.add(new_user)
         db.session.commit()
-        flash('Account created! Please log in.', 'success')
+        
+        if is_approved:
+            flash('Admin Account created! Please log in.', 'success')
+        else:
+            flash('Account created! Please wait for an Admin to approve your access.', 'success')
         return redirect(url_for('login'))
-    return render_template('register.html')
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -260,7 +271,11 @@ def login():
         user = User.query.filter_by(email=email).first()
         
         if user and check_password_hash(user.password_hash, password):
-            login_user(user)
+            if not user.is_approved:
+                flash('Your account is pending admin approval. Please contact management.', 'error')
+                return redirect(url_for('login'))
+                
+            login_user(user)            login_user(user)
             if user.email in ADMIN_EMAILS:
                 return redirect(url_for('admin_dashboard'))
             else:
@@ -359,7 +374,27 @@ def delete_task(task_id):
         flash(f'Error deleting task: {str(e)}', 'error')
         
     return redirect(url_for('cleanup_tasks'))
+@app.route('/approve_user/<int:user_id>', methods=['POST'])
+@login_required
+def approve_user(user_id):
+    if current_user.email not in ADMIN_EMAILS:
+        return "Unauthorized", 403
+    user = User.query.get_or_404(user_id)
+    user.is_approved = True
+    db.session.commit()
+    flash(f'User {user.name} has been approved and can now log in.', 'success')
+    return redirect(url_for('admin_dashboard'))
 
+@app.route('/delete_user/<int:user_id>', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    if current_user.email not in ADMIN_EMAILS:
+        return "Unauthorized", 403
+    user = User.query.get_or_404(user_id)
+    db.session.delete(user)
+    db.session.commit()
+    flash(f'User {user.name} has been rejected and deleted.', 'success')
+    return redirect(url_for('admin_dashboard'))
 @app.route('/migrate', methods=['GET', 'POST'])
 @login_required
 def migrate_data():
