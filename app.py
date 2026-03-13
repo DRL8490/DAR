@@ -83,12 +83,21 @@ with app.app_context():
     db.create_all()
     
     # Safely inject the Urgent column into your existing database without deleting tasks
+    # Safely inject the Urgent column into your existing database
     try:
         db.session.execute(text('ALTER TABLE survey_task ADD COLUMN is_urgent BOOLEAN DEFAULT FALSE'))
         db.session.commit()
     except Exception:
         db.session.rollback() # Ignores if the column already exists
-    
+
+    # 18. THE INDEXING: Creates a high-speed lookup table for filters
+    try:
+        db.session.execute(text('CREATE INDEX IF NOT EXISTS idx_status ON survey_task(status)'))
+        db.session.execute(text('CREATE INDEX IF NOT EXISTS idx_urgent ON survey_task(is_urgent)'))
+        db.session.execute(text('CREATE INDEX IF NOT EXISTS idx_start ON survey_task(start_time)'))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()    
     # 1. THE NEW MASTER JSON ENGINE
     master_config = {
         "file_tree": {
@@ -273,19 +282,27 @@ def forgot_password():
 
 # --- WORKFLOW ROUTES ---
 
-# Auto Archive Logic
+# 16. THE AUTO-ARCHIVE (Background Job Engine)
+from apscheduler.schedulers.background import BackgroundScheduler
+
 def auto_archive_tasks():
-    # Finds Closed tasks older than 31 days and moves them to Archived
-    threshold = datetime.utcnow() - timedelta(days=31)
-    closed_tasks = SurveyTask.query.filter_by(status='Closed').all()
-    changed = False
-    for t in closed_tasks:
-        ref_time = t.end_time or t.start_time
-        if ref_time and ref_time < threshold:
-            t.status = 'Archived'
-            changed = True
-    if changed:
-        db.session.commit()
+    with app.app_context(): # Required to access database in the background
+        threshold = datetime.utcnow() - timedelta(days=31)
+        closed_tasks = SurveyTask.query.filter_by(status='Closed').all()
+        changed = False
+        for t in closed_tasks:
+            ref_time = t.end_time or t.start_time
+            if ref_time and ref_time < threshold:
+                t.status = 'Archived'
+                changed = True
+        if changed:
+            db.session.commit()
+            print(f"Auto-Archive Complete: Moved tasks to archive.")
+
+# Start the background chron-job
+scheduler = BackgroundScheduler()
+scheduler.add_job(func=auto_archive_tasks, trigger="interval", hours=12)
+scheduler.start()
 
 @app.route('/archive')
 @login_required
@@ -478,9 +495,10 @@ def migrate_data():
 @login_required
 def dashboard():
     session['dashboard_view'] = 'user'
-    auto_archive_tasks() # Trigger cleanup
-    # Only pull active and closed tasks, sort by Urgent first
-    all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived').order_by(SurveyTask.is_urgent.desc(), SurveyTask.start_time.desc()).all()
+    # 17. THE PAGINATION: Limit to 300 to protect mobile memory and JS Filters
+    all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived') \
+        .order_by(SurveyTask.is_urgent.desc(), SurveyTask.start_time.desc()) \
+        .limit(300).all()
     is_admin = current_user.email in ADMIN_EMAILS
     return render_template('dashboard.html', name=current_user.name, tasks=all_tasks, is_admin=is_admin)
 
@@ -492,11 +510,12 @@ def admin_dashboard():
         return redirect(url_for('dashboard'))
 
     session['dashboard_view'] = 'admin'
-    auto_archive_tasks() # Trigger cleanup
-    all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived').order_by(SurveyTask.is_urgent.desc(), SurveyTask.start_time.desc()).all()
+    # 17. THE PAGINATION: Limit to 300
+    all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived') \
+        .order_by(SurveyTask.is_urgent.desc(), SurveyTask.start_time.desc()) \
+        .limit(300).all()
     users = User.query.order_by(User.name.asc()).all()
     return render_template('admin_dashboard.html', name=current_user.name, tasks=all_tasks, users=users)
-
 @app.route('/system_config_hidden', methods=['GET', 'POST'])
 @login_required
 def hidden_config():
