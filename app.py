@@ -275,7 +275,7 @@ def login():
                 flash('Your account is pending admin approval. Please contact management.', 'error')
                 return redirect(url_for('login'))
                 
-            login_user(user)            login_user(user)
+            login_user(user)
             if user.email in ADMIN_EMAILS:
                 return redirect(url_for('admin_dashboard'))
             else:
