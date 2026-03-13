@@ -1,4 +1,3 @@
-from sqlalchemy import text
 import pandas as pd
 import io
 from flask import send_file
@@ -10,6 +9,7 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 from docxtpl import DocxTemplate  # <--- NEW ENGINE IMPORTED HERE
+from sqlalchemy import text # <--- REQUIRED FOR URGENT COLUMN DB UPGRADE
 
 app = Flask(__name__)
 
@@ -75,18 +75,16 @@ class SurveyTask(db.Model):
     deliverable_link = db.Column(db.String(500), nullable=True) 
     reference_links = db.Column(db.Text, nullable=True) 
     status = db.Column(db.String(20), default="Open")
+    is_urgent = db.Column(db.Boolean, default=False) # <--- URGENT FLAG ADDED
     start_time = db.Column(db.DateTime, default=datetime.utcnow)
     end_time = db.Column(db.DateTime, nullable=True)
-    status = db.Column(db.String(20), default="Open")
-    is_urgent = db.Column(db.Boolean, default=False) # <--- ADD THIS LINE
-    start_time = db.Column(db.DateTime, default=datetime.utcnow)
 
 with app.app_context():
     db.create_all()
-
-    # Safely add the Urgent column to existing databases
+    
+    # Safely inject the Urgent column into your existing database without deleting tasks
     try:
-        db.session.execute(text('ALTER TABLE survey_task ADD COLUMN is_urgent BOOLEAN DEFAULT 0'))
+        db.session.execute(text('ALTER TABLE survey_task ADD COLUMN is_urgent BOOLEAN DEFAULT FALSE'))
         db.session.commit()
     except Exception:
         db.session.rollback() # Ignores if the column already exists
@@ -274,17 +272,29 @@ def forgot_password():
     return render_template('forgot_password.html')
 
 # --- WORKFLOW ROUTES ---
+
+# Auto Archive Logic
+def auto_archive_tasks():
+    # Finds Closed tasks older than 31 days and moves them to Archived
+    threshold = datetime.utcnow() - timedelta(days=31)
+    closed_tasks = SurveyTask.query.filter_by(status='Closed').all()
+    changed = False
+    for t in closed_tasks:
+        ref_time = t.end_time or t.start_time
+        if ref_time and ref_time < threshold:
+            t.status = 'Archived'
+            changed = True
+    if changed:
+        db.session.commit()
+
 @app.route('/archive')
 @login_required
 def archive_page():
-    # Strictly limit this to admins just like the cleanup page
     if current_user.email not in ADMIN_EMAILS:
         flash('Access Denied: You do not have permission to view the archive.', 'error')
         return redirect(url_for('dashboard'))
     
-    # Fetch ONLY tasks that have been marked as 'Archived'
     archived_tasks = SurveyTask.query.filter_by(status='Archived').order_by(SurveyTask.start_time.desc()).all()
-    
     return render_template('archive.html', tasks=archived_tasks)
 
 @app.route('/restore_task/<int:task_id>', methods=['POST'])
@@ -295,37 +305,30 @@ def restore_task(task_id):
         
     task = SurveyTask.query.get_or_404(task_id)
     try:
-        # Change the status back to 'Closed' so it reappears on the main dashboard
         task.status = 'Closed'
-        
-        # Log the action in the remarks
         restore_note = f"RESTORED FROM ARCHIVE: {datetime.utcnow().strftime('%Y-%m-%d')}"
         task.remarks = f"{task.remarks} | {restore_note}" if task.remarks else restore_note
-        
         db.session.commit()
         flash(f'Task {task_id} was successfully restored to the dashboard.', 'success')
     except Exception as e:
         db.session.rollback()
         flash(f'Error restoring task: {str(e)}', 'error')
         
-    # Send the user back to the page they clicked the button from
     return redirect(request.referrer or url_for('archive_page'))
+
 @app.route('/cleanup')
 @login_required
 def cleanup_tasks():
-    # STRICT ADMIN PROTECTION
     if current_user.email not in ADMIN_EMAILS:
         flash('Access Denied: You do not have permission to view this page.', 'error')
         return redirect(url_for('dashboard'))
     
-    # Fetch all tasks from newest to oldest
     tasks = SurveyTask.query.order_by(SurveyTask.start_time.desc()).all()
     return render_template('cleanup.html', tasks=tasks)
 
 @app.route('/delete_task/<int:task_id>', methods=['POST'])
 @login_required
 def delete_task(task_id):
-    # STRICT ADMIN PROTECTION
     if current_user.email not in ADMIN_EMAILS:
         return "Unauthorized", 403
         
@@ -368,7 +371,6 @@ def migrate_data():
             for idx, row in df_raw.iterrows():
                 row_vals = [str(x).strip().lower() for x in row.values]
                 
-                # If this row contains our key columns, memorize their exact index numbers
                 if 'from date' in row_vals or 'description of survey daily activities' in row_vals:
                     header_row_idx = idx
                     for col_idx, val in enumerate(row_vals):
@@ -394,7 +396,6 @@ def migrate_data():
             for idx in range(header_row_idx + 1, len(df_raw)):
                 row = df_raw.iloc[idx].values
                 
-                # Helper function to safely grab data by its column number
                 def get_val(key):
                     if key in col_map and col_map[key] < len(row):
                         return str(row[col_map[key]]).strip()
@@ -406,11 +407,8 @@ def migrate_data():
                 if not date_val and not desc:
                     continue
 
-                # --- BULLETPROOF DATETIME CONVERSION ---
                 try:
                     clean_date = str(date_val).strip().lower()
-                    
-                    # Explicitly block Pandas 'NaT', 'nan', or empty strings
                     if not clean_date or clean_date in ['nat', 'nan', 'none']:
                         start_date = datetime.utcnow()
                     else:
@@ -476,26 +474,13 @@ def migrate_data():
 
     return render_template('migration.html')
 
-def auto_archive_tasks():
-    # Finds Closed tasks older than 31 days and moves them to Archived
-    threshold = datetime.utcnow() - timedelta(days=31)
-    closed_tasks = SurveyTask.query.filter_by(status='Closed').all()
-    changed = False
-    for t in closed_tasks:
-        ref_time = t.end_time or t.start_time
-        if ref_time and ref_time < threshold:
-            t.status = 'Archived'
-            changed = True
-    if changed:
-        db.session.commit()
-
 @app.route('/')
 @login_required
 def dashboard():
     session['dashboard_view'] = 'user'
     auto_archive_tasks() # Trigger cleanup
-    # Only pull active and closed tasks (hides Archived from the main screen)
-    all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived').order_by(SurveyTask.start_time.desc()).all()
+    # Only pull active and closed tasks, sort by Urgent first
+    all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived').order_by(SurveyTask.is_urgent.desc(), SurveyTask.start_time.desc()).all()
     is_admin = current_user.email in ADMIN_EMAILS
     return render_template('dashboard.html', name=current_user.name, tasks=all_tasks, is_admin=is_admin)
 
@@ -508,9 +493,10 @@ def admin_dashboard():
 
     session['dashboard_view'] = 'admin'
     auto_archive_tasks() # Trigger cleanup
-    all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived').order_by(SurveyTask.start_time.desc()).all()
+    all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived').order_by(SurveyTask.is_urgent.desc(), SurveyTask.start_time.desc()).all()
     users = User.query.order_by(User.name.asc()).all()
     return render_template('admin_dashboard.html', name=current_user.name, tasks=all_tasks, users=users)
+
 @app.route('/system_config_hidden', methods=['GET', 'POST'])
 @login_required
 def hidden_config():
@@ -683,14 +669,14 @@ def new_task():
             ref_links = request.form.getlist('reference_link')
             ref_links_str = " | ".join([link for link in ref_links if link.strip()])
 
-            is_urgent = True if request.form.get('is_urgent') else False
+            is_urgent_val = True if request.form.get('is_urgent') else False
 
             new_survey = SurveyTask(
                 surveyor_name=current_user.name, assigned_to=assigned_str, requestor=merged_requestor,
                 task_category=request.form.get('task_category'), instrument=request.form.get('instrument'), action_required=request.form.get('action_required'),
                 area=request.form.get('area'), location=request.form.get('location'), sub_location=request.form.get('sub_location'),
                 work_scope=request.form.get('work_scope'), remarks=request.form.get('remarks'), reference_links=ref_links_str,
-                is_urgent=is_urgent
+                is_urgent=is_urgent_val
             )
             db.session.add(new_survey)
             db.session.commit()      
@@ -721,10 +707,9 @@ def edit_task(task_id):
         assigned_users = [name.strip() for name in task.assigned_to.split(',')] if task.assigned_to else []
         is_admin = current_user.email in ADMIN_EMAILS
         
-        # If not an admin, enforce creator/assignee rules
         if not is_admin and current_user.name != task.surveyor_name and current_user.name not in assigned_users:
             flash('Unauthorized to edit this task.', 'error')
-            return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard')) 
+            return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
 
         if request.method == 'POST':
             req_dept = request.form.get('requestor_dept')
@@ -743,7 +728,7 @@ def edit_task(task_id):
             task.action_required = request.form.get('action_required')
             task.remarks = request.form.get('remarks')
             task.is_urgent = True if request.form.get('is_urgent') else False
-            
+
             ref_links = request.form.getlist('reference_link')
             task.reference_links = " | ".join([link for link in ref_links if link.strip()])
 
@@ -805,7 +790,9 @@ def edit_task(task_id):
 def close_task(task_id):
     task = SurveyTask.query.get_or_404(task_id)
     assigned_users = [name.strip() for name in task.assigned_to.split(',')] if task.assigned_to else []
-    if current_user.name != task.surveyor_name and current_user.name not in assigned_users:
+    is_admin = current_user.email in ADMIN_EMAILS
+    
+    if not is_admin and current_user.name != task.surveyor_name and current_user.name not in assigned_users:
         flash('Unauthorized.', 'error')
         return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
     closing_remarks = request.form.get('closing_remarks')
@@ -828,7 +815,9 @@ def close_task(task_id):
 def cancel_task(task_id):
     task = SurveyTask.query.get_or_404(task_id)
     assigned_users = [name.strip() for name in task.assigned_to.split(',')] if task.assigned_to else []
-    if current_user.name != task.surveyor_name and current_user.name not in assigned_users:
+    is_admin = current_user.email in ADMIN_EMAILS
+    
+    if not is_admin and current_user.name != task.surveyor_name and current_user.name not in assigned_users:
         flash('Unauthorized.', 'error')
         return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
     cancel_reason = request.form.get('cancel_reason')
@@ -842,7 +831,7 @@ def cancel_task(task_id):
     db.session.commit()
     flash('Task canceled.', 'error')
     return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
-# --- REPORT GENERATOR ROUTES ---
+    
 # --- REPORT GENERATOR ROUTES ---
 @app.route('/reports')
 @login_required
@@ -1079,6 +1068,7 @@ def generate_tpc():
     except Exception as e:
         flash(f'TPC Generation Failed. Ensure TPC_Template.docx exists. Error: {str(e)}', 'error')
         return redirect(url_for('reports'))
+
 @app.route('/export_excel', methods=['POST'])
 @login_required
 def export_excel():
@@ -1089,8 +1079,7 @@ def export_excel():
             target_year, target_month = kpi_month.split('-')
 
             # Grab only completed work (both active Closed and 30-day Archived tasks)
-            # Sorts by Urgent first (True before False), then by Start Time
-            all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived').order_by(SurveyTask.is_urgent.desc(), SurveyTask.start_time.desc()).all()
+            all_tasks = SurveyTask.query.filter(SurveyTask.status.in_(['Closed', 'Archived'])).order_by(SurveyTask.start_time.asc()).all()
         
         # KPI FILTER FIX: Case-insensitive substring match handles both singular and plurals
         excluded_keywords = ["external meeting", "internal coordination", "survey report", "damage report", "item", "request", "sem update"]
