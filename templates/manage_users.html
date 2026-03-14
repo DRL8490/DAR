@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Users - NMDC</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; background-color: #f4f7f6; padding: 20px; margin: 0; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .btn-back { background-color: #6c757d; color: white; padding: 10px 15px; text-decoration: none; border-radius: 6px; font-weight: bold; }
+        
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #ddd; font-size: 14px; }
+        th { background-color: #343a40; color: white; }
+        
+        .btn-action { color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; }
+        .btn-deactivate { background: #fd7e14; }
+        .btn-reactivate { background: #17a2b8; }
+        .btn-delete { background: #dc3545; }
+        
+        .row-deactivated { background-color: #f8f9fa; opacity: 0.6; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h2 style="margin: 0; color: #333;">👥 User Management Roster</h2>
+        <a href="/admin_dashboard" class="btn-back">⬅ Back to Dashboard</a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div style="padding: 12px; border-radius: 6px; font-weight: bold; margin-bottom: 15px; background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb;">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <table>
+        <tr>
+            <th>Name & Email</th>
+            <th>System Status</th>
+            <th style="text-align: right;">Administrative Actions</th>
+        </tr>
+        {% for u in users %}
+        {% if u.is_approved %}
+        <tr class="{% if not getattr(u, 'is_active', True) %}row-deactivated{% endif %}">
+            <td>
+                <strong>{{ u.name }}</strong><br>
+                <span style="color:#666; font-size:12px;">{{ u.email }}</span>
+            </td>
+            <td>
+                {% if getattr(u, 'is_active', True) %}
+                    <span style="color: #28a745; font-weight: bold; background: #e8f5e9; padding: 3px 8px; border-radius: 12px; font-size: 12px;">Active</span>
+                {% else %}
+                    <span style="color: #dc3545; font-weight: bold; background: #fdeaea; padding: 3px 8px; border-radius: 12px; font-size: 12px;">Deactivated</span>
+                {% endif %}
+            </td>
+            <td style="text-align: right;">
+                {% if u.email not in ['daryll.enano@nmdc-group.com', 'mohamad.hediarto@nmdc-group.com', 'mok.heng@nmdc-group.com'] %}
+                    
+                    <form action="/toggle_active/{{ u.id }}" method="POST" style="display:inline; margin-right: 5px;">
+                        {% if getattr(u, 'is_active', True) %}
+                            <button type="submit" class="btn-action btn-deactivate" onclick="return confirm('Deactivate {{ u.name }}? They will be blocked from logging in.');">Deactivate</button>
+                        {% else %}
+                            <button type="submit" class="btn-action btn-reactivate">Reactivate</button>
+                        {% endif %}
+                    </form>
+
+                    <form action="/delete_user/{{ u.id }}" method="POST" style="display:inline;">
+                        <button type="submit" class="btn-action btn-delete" onclick="return confirm('DANGER: Permanently wipe {{ u.name }} from the database?');">Hard Delete</button>
+                    </form>
+                    
+                {% else %}
+                    <span style="color: #28a745; font-weight: bold; font-size: 12px;">★ VIP ADMIN</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+    </table>
+</body>
+</html>

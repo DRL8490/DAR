@@ -39,7 +39,8 @@ class User(UserMixin, db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     name = db.Column(db.String(100), nullable=False)
     password_hash = db.Column(db.String(256), nullable=False)
-    is_approved = db.Column(db.Boolean, default=False)      
+    is_approved = db.Column(db.Boolean, default=False)  
+    is_active = db.Column(db.Boolean, default=True)    
 class AppConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     schema_data = db.Column(db.Text, default="{}") 
@@ -81,7 +82,17 @@ class SurveyTask(db.Model):
 
 with app.app_context():
     db.create_all()
-    
+    # Safely inject the Active column
+    try:
+        db.session.execute(text('ALTER TABLE "user" ADD COLUMN is_active BOOLEAN DEFAULT TRUE'))
+        db.session.commit()
+    except Exception:
+        db.session.rollback() 
+        try:
+            db.session.execute(text('ALTER TABLE user ADD COLUMN is_active BOOLEAN DEFAULT 1'))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
     # Safely inject the Urgent column into your existing database without deleting tasks
     # Safely inject the Urgent column into your existing database
     try:
@@ -275,7 +286,9 @@ def login():
             if not user.is_approved:
                 flash('Your account is pending admin approval. Please contact management.', 'error')
                 return redirect(url_for('login'))
-                
+            if not getattr(user, 'is_active', True): # <--- NEW: Blocks deactivated accounts
+                flash('Your account has been deactivated. Please contact an Administrator.', 'error')
+                return redirect(url_for('login'))   
             login_user(user)
             if user.email in ADMIN_EMAILS:
                 return redirect(url_for('admin_dashboard'))
@@ -348,6 +361,27 @@ def restore_task(task_id):
         flash(f'Error restoring task: {str(e)}', 'error')
         
     return redirect(request.referrer or url_for('archive_page'))
+@app.route('/manage_users')
+@login_required
+def manage_users():
+    if current_user.email not in ADMIN_EMAILS:
+        flash('Access Denied: Admins only.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    users = User.query.order_by(User.name.asc()).all()
+    return render_template('manage_users.html', users=users)
+
+@app.route('/toggle_active/<int:user_id>', methods=['POST'])
+@login_required
+def toggle_active(user_id):
+    if current_user.email not in ADMIN_EMAILS:
+        return "Unauthorized", 403
+    user = User.query.get_or_404(user_id)
+    user.is_active = not getattr(user, 'is_active', True) 
+    db.session.commit()
+    status = "reactivated" if user.is_active else "deactivated"
+    flash(f'User {user.name} has been {status}.', 'success')
+    return redirect(url_for('manage_users'))
 
 @app.route('/cleanup')
 @login_required
@@ -741,7 +775,7 @@ def new_task():
         user_presets = PresetTask.query.filter_by(user_id=current_user.id).all()
             
         return render_template('new_task.html', 
-                               users=User.query.order_by(User.name.asc()).all(), 
+                               users=User.query.filter_by(is_approved=True, is_active=True).order_by(User.name.asc()).all(),
                                req_dict_json=json.dumps(req_dict), 
                                schema_json=json.dumps(file_tree),
                                activities_json=json.dumps(activities_data),
@@ -828,7 +862,7 @@ def edit_task(task_id):
 
         return render_template('edit_task.html', 
                                task=task, task_id_str=task_id_str,
-                               users=User.query.order_by(User.name.asc()).all(), 
+                               users=User.query.filter_by(is_approved=True, is_active=True).order_by(User.name.asc()).all(),
                                req_dict_json=json.dumps(req_dict), 
                                schema_json=json.dumps(file_tree), 
                                activities_json=json.dumps(activities_data),
