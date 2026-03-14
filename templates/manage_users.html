@@ -37,7 +37,7 @@
         {% endif %}
     {% endwith %}
 
-    <table>
+<table>
         <tr>
             <th>Name & Email</th>
             <th>System Status</th>
@@ -45,13 +45,13 @@
         </tr>
         {% for u in users %}
         {% if u.is_approved %}
-        <tr class="{% if not getattr(u, 'is_active', True) %}row-deactivated{% endif %}">
+        <tr class="{% if u.is_active == False %}row-deactivated{% endif %}">
             <td>
                 <strong>{{ u.name }}</strong><br>
                 <span style="color:#666; font-size:12px;">{{ u.email }}</span>
             </td>
             <td>
-                {% if getattr(u, 'is_active', True) %}
+                {% if u.is_active != False %}
                     <span style="color: #28a745; font-weight: bold; background: #e8f5e9; padding: 3px 8px; border-radius: 12px; font-size: 12px;">Active</span>
                 {% else %}
                     <span style="color: #dc3545; font-weight: bold; background: #fdeaea; padding: 3px 8px; border-radius: 12px; font-size: 12px;">Deactivated</span>
@@ -61,7 +61,7 @@
                 {% if u.email not in ['daryll.enano@nmdc-group.com', 'mohamad.hediarto@nmdc-group.com', 'mok.heng@nmdc-group.com'] %}
                     
                     <form action="/toggle_active/{{ u.id }}" method="POST" style="display:inline; margin-right: 5px;">
-                        {% if getattr(u, 'is_active', True) %}
+                        {% if u.is_active != False %}
                             <button type="submit" class="btn-action btn-deactivate" onclick="return confirm('Deactivate {{ u.name }}? They will be blocked from logging in.');">Deactivate</button>
                         {% else %}
                             <button type="submit" class="btn-action btn-reactivate">Reactivate</button>
