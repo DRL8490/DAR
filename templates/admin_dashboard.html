@@ -74,6 +74,14 @@
             <a href="/logout" style="color: #dc3545; text-decoration: none; font-size: 12px; font-weight: bold; margin-top: 4px;">🚪 Logout</a>
         </div>
     </div>
+<div style="display: flex; flex-direction: column; align-items: flex-end;">
+            <div style="display: flex; gap: 10px;">
+                <button onclick="toggleAnalytics()" class="btn-new" style="background-color: #17a2b8; border: none; cursor: pointer;">📊 Analytics</button>
+                
+                <a href="/manage_users" class="btn-new" style="background-color: #6c757d;">👥 Users</a>
+                <a href="/system_config_hidden" class="btn-new btn-warning">⚙️ Config</a>
+                <a href="/new_task" class="btn-new">+ Open New Task</a>
+            </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
@@ -100,8 +108,7 @@
             <option value="{{ u.name }}">{{ u.name }}</option>
             {% endfor %}
         </select>
-
-        <input type="text" id="adminKeywordSearch" class="date-input" style="flex-grow: 1; min-width: 200px; padding: 8px;" placeholder="Keyword search (complements filters)..." onkeyup="applyFilters()">
+                <input type="text" id="adminKeywordSearch" class="date-input" style="flex-grow: 1; min-width: 200px; padding: 8px;" placeholder="Keyword search (complements filters)..." onkeyup="applyFilters()">
         
         <div style="margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
             <div style="display: flex; align-items: center; gap: 5px;">
@@ -142,6 +149,112 @@
             {% endfor %}
         </table>
     </div>
+    <div id="analytics-section" style="display: none; background: white; padding: 20px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; border-top: 4px solid #17a2b8;">
+        <h4 style="margin-top: 0; color: #333; margin-bottom: 20px;">📈 Live Pipeline Analytics</h4>
+        
+        <div style="display: flex; flex-wrap: wrap; gap: 20px; justify-content: space-around; align-items: center;">
+            <div style="flex: 1; min-width: 250px; max-width: 300px;">
+                <canvas id="statusChart"></canvas>
+            </div>
+            
+            <div style="flex: 2; min-width: 300px; max-width: 600px;">
+                <canvas id="workloadChart"></canvas>
+            </div>
+        </div>
+    </div>
+    ```
+
+#### **Step 3: Add the Chart.js Brains**
+Scroll to the absolute bottom of `admin_dashboard.html`, right before the closing `</body>` tag. Paste this entire JavaScript block. This dynamically reads your Jinja task data, counts them up, and paints the charts!
+
+```html
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Toggle function for the button
+        function toggleAnalytics() {
+            const section = document.getElementById('analytics-section');
+            if (section.style.display === 'none') {
+                section.style.display = 'block';
+            } else {
+                section.style.display = 'none';
+            }
+        }
+
+        // 1. Data Aggregation Engine
+        const statusCounts = { 'Open': 0, 'Closed': 0, 'Canceled': 0 };
+        const workloadCounts = {}; 
+
+        // Safely loop through Python tasks to build JavaScript data
+        {% for t in tasks %}
+            var tStatus = {{ t.status | tojson }};
+            
+            // Count Statuses
+            if (statusCounts[tStatus] !== undefined) {
+                statusCounts[tStatus]++;
+            } else {
+                statusCounts[tStatus] = 1;
+            }
+
+            // Count Workload (Only count 'Open' tasks for surveyors)
+            {% if t.status == 'Open' %}
+                var assignee = {{ (t.assigned_to or t.surveyor_name) | tojson }};
+                // Split by comma in case multiple people are assigned to one task
+                var splitNames = assignee.split(',');
+                splitNames.forEach(function(name) {
+                    var cleanName = name.trim();
+                    if (cleanName) {
+                        workloadCounts[cleanName] = (workloadCounts[cleanName] || 0) + 1;
+                    }
+                });
+            {% endif %}
+        {% endfor %}
+
+        // 2. Render Status Doughnut Chart
+        const ctxStatus = document.getElementById('statusChart').getContext('2d');
+        new Chart(ctxStatus, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(statusCounts),
+                datasets: [{
+                    data: Object.values(statusCounts),
+                    backgroundColor: ['#ffc107', '#28a745', '#dc3545', '#6c757d'],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: { display: true, text: 'Active Database Breakdown', font: { size: 14 } },
+                    legend: { position: 'bottom' }
+                }
+            }
+        });
+
+        // 3. Render Surveyor Workload Bar Chart
+        const ctxWorkload = document.getElementById('workloadChart').getContext('2d');
+        new Chart(ctxWorkload, {
+            type: 'bar',
+            data: {
+                labels: Object.keys(workloadCounts),
+                datasets: [{
+                    label: 'Active Open Tasks',
+                    data: Object.values(workloadCounts),
+                    backgroundColor: '#0056b3',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                },
+                plugins: {
+                    title: { display: true, text: 'Current Surveyor Workload', font: { size: 14 } },
+                    legend: { display: false }
+                }
+            }
+        });
+    </script>
     {% endif %}
     ```
     {% set my_open_count = namespace(value=0) %}
