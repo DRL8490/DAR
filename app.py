@@ -10,6 +10,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 from docxtpl import DocxTemplate  # <--- NEW ENGINE IMPORTED HERE
 from sqlalchemy import text # <--- REQUIRED FOR URGENT COLUMN DB UPGRADE
+from flask_mail import Mail, Message
+from itsdangerous import URLSafeTimedSerializer
 
 app = Flask(__name__)
 
@@ -316,10 +318,59 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-@app.route('/forgot-password')
+@app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
+    if request.method == 'POST':
+        email = request.form.get('email').strip().lower()
+        user = User.query.filter_by(email=email).first()
+        
+        if user:
+            # Generate a secure token tied specifically to their email
+            token = s.dumps(email, salt='password-reset-salt')
+            reset_url = url_for('reset_password', token=token, _external=True)
+            
+            # Draft the email
+            msg = Message('Password Reset Request - NMDC Survey App', recipients=[email])
+            msg.body = f"Hello {user.name},\n\nTo reset your password, visit the following link:\n{reset_url}\n\nIf you did not make this request, simply ignore this email.\n\nRegards,\nTHPP Survey Admin Team"
+            
+            try:
+                mail.send(msg)
+                flash('If an account exists for that email, a password reset link has been sent.', 'success')
+            except Exception as e:
+                flash(f'Server Error: Could not send email. {str(e)}', 'error')
+        else:
+            # SECURITY BEST PRACTICE: Even if the email doesn't exist, say we sent it to prevent hackers from "guessing" active emails
+            flash('If an account exists for that email, a password reset link has been sent.', 'success')
+            
+        return redirect(url_for('login'))
+        
     return render_template('forgot_password.html')
 
+@app.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    try:
+        # The token expires after 900 seconds (15 minutes)
+        email = s.loads(token, salt='password-reset-salt', max_age=900)
+    except:
+        flash('The password reset link is invalid or has expired.', 'error')
+        return redirect(url_for('forgot_password'))
+
+    if request.method == 'POST':
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        
+        if password != confirm_password:
+            flash('Passwords do not match.', 'error')
+            return redirect(url_for('reset_password', token=token))
+            
+        user = User.query.filter_by(email=email).first()
+        if user:
+            user.password_hash = generate_password_hash(password, method='pbkdf2:sha256')
+            db.session.commit()
+            flash('Your password has been successfully updated! You can now log in.', 'success')
+            return redirect(url_for('login'))
+
+    return render_template('reset_password.html', token=token)
 # --- WORKFLOW ROUTES ---
 
 # 16. THE AUTO-ARCHIVE (Background Job Engine)
