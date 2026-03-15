@@ -389,10 +389,83 @@ def auto_archive_tasks():
         if changed:
             db.session.commit()
             print(f"Auto-Archive Complete: Moved tasks to archive.")
+# 17. THE NIGHTLY KPI BACKUP (Background Job)
+def auto_backup_kpi():
+    with app.app_context(): # Required to access database and mail in the background
+        try:
+            # Gather all data exactly like the Export Excel route
+            all_tasks = SurveyTask.query.filter(SurveyTask.status.in_(['Closed', 'Archived'])).order_by(SurveyTask.start_time.asc()).all()
+            excluded_keywords = ["external meeting", "internal coordination", "survey report", "damage report", "item", "request", "sem update"]
+            
+            tasks = []
+            for t in all_tasks:
+                if t.action_required and any(ex in t.action_required.lower() for ex in excluded_keywords):
+                    continue
+                tasks.append(t)
+            
+            data = []
+            month_counters = {} 
+            display_index = 1
+            
+            for task in tasks:
+                month_str = task.start_time.strftime('%m') if task.start_time else '00' 
+                if month_str not in month_counters: month_counters[month_str] = 1
+                else: month_counters[month_str] += 1
+                    
+                seq_num = f"{month_counters[month_str]:03d}"
+                req_ref = f"TW_{month_str}{seq_num}"
+                survey_ref = f"TW_SU_{month_str}{seq_num}"
+
+                loc = task.location.split('_', 1)[-1].replace('_', ' ') if task.location and task.location != 'N/A' else ''
+                sub = task.sub_location.split('_', 1)[-1].replace('_', ' ') if task.sub_location and task.sub_location != 'N/A' else ''
+                scope = task.work_scope.split('_', 1)[-1].replace('_', ' ') if task.work_scope and task.work_scope != 'N/A' else ''
+                
+                raw_parts = [loc, sub, scope, task.action_required]
+                clean_parts = [p.strip() for p in raw_parts if p and p.strip().lower() != 'general']
+                desc_phrase = " ".join(clean_parts)
+
+                data.append({
+                    'Tender / Project Ref.': '20012', 'Sl No': display_index, 'Activity Type': task.task_category, 'Discipline': task.action_required,
+                    'Requestor Ref. #': req_ref, 'Survey Ref. #': survey_ref, 'Requestor': task.requestor, 'Assigned to': task.assigned_to,
+                    'Date/Time Received': task.start_time.strftime('%Y-%m-%d %H:%M') if task.start_time else '',
+                    'Date/Time Completed': task.end_time.strftime('%Y-%m-%d %H:%M') if task.end_time else '',
+                    'Description of Survey Works': desc_phrase, 'Special Conditions / Remarks': task.remarks or ''
+                })
+                display_index += 1
+            
+            df = pd.DataFrame(data)
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False, startrow=2, sheet_name='Master Register')
+                worksheet = writer.sheets['Master Register']
+                worksheet.cell(row=1, column=5, value="SURVEY ACTIVITY MASTER REGISTER")
+                worksheet.cell(row=2, column=1, value=f"DAILY SYSTEM BACKUP - {datetime.utcnow().strftime('%B %d, %Y').upper()}")
+                
+                for column in worksheet.columns:
+                    max_length = 0
+                    column = [cell for cell in column]
+                    for cell in column:
+                        try: max_length = max(max_length, len(str(cell.value)))
+                        except: pass
+                    worksheet.column_dimensions[column[0].column_letter].width = (max_length + 2)
+
+            output.seek(0)
+            
+            # Email the generated Excel payload to the Admins
+            msg = Message(f"🛡️ THPP Survey - Daily Database Backup ({datetime.utcnow().strftime('%Y-%m-%d')})", recipients=ADMIN_EMAILS)
+            msg.body = "Hello Admins,\n\nAttached is the automated daily backup of the Master Register pipeline.\n\nKeep up the great work!\n- THPP Survey Server"
+            msg.attach(f"THPP_Backup_{datetime.utcnow().strftime('%Y%m%d')}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", output.read())
+            
+            mail.send(msg)
+            print("Daily Backup Executed and Emailed.")
+        except Exception as e:
+            print(f"CRITICAL BACKUP ERROR: {str(e)}")
 
 # Start the background chron-job
 scheduler = BackgroundScheduler()
 scheduler.add_job(func=auto_archive_tasks, trigger="interval", hours=12)
+# NEW: Triggers exactly at 11:59 PM local time (15:59 UTC)
+scheduler.add_job(func=auto_backup_kpi, trigger="cron", hour=15, minute=59) 
 scheduler.start()
 
 @app.route('/archive')
