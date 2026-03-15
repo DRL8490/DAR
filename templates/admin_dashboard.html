@@ -68,7 +68,6 @@
         <div style="display: flex; flex-direction: column; align-items: flex-end;">
             <div style="display: flex; gap: 10px;">
                 <button onclick="toggleAnalytics()" class="btn-new" style="background-color: #17a2b8; border: none; cursor: pointer;">📊 Analytics</button>
-                <a href="/manage_users" class="btn-new" style="background-color: #6c757d;">👥 Users</a>
                 <a href="/system_config_hidden" class="btn-new btn-warning">⚙️ Config</a>
                 <a href="/new_task" class="btn-new">+ Open New Task</a>
             </div>
@@ -482,29 +481,60 @@
             }
         }
 
+        // 1. Data Aggregation Engine
         const statusCounts = { 'Open': 0, 'Closed': 0, 'Canceled': 0 };
-        const workloadCounts = {}; 
+        
+        // Generate the last 7 days dynamically
+        const last7DaysLabels = [];
+        const last7DaysKeys = [];
+        const openedCounts = {};
+        const closedCounts = {};
 
+        for (let i = 6; i >= 0; i--) {
+            let d = new Date();
+            d.setDate(d.getDate() - i);
+            
+            // Format YYYY-MM-DD precisely for matching with Python dates
+            let year = d.getFullYear();
+            let month = String(d.getMonth() + 1).padStart(2, '0');
+            let day = String(d.getDate()).padStart(2, '0');
+            let key = `${year}-${month}-${day}`;
+            
+            // Format a pretty label for the chart (e.g., "Mon, Mar 15")
+            let label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+            
+            last7DaysKeys.push(key);
+            last7DaysLabels.push(label);
+            openedCounts[key] = 0;
+            closedCounts[key] = 0;
+        }
+
+        // Safely loop through Python tasks to build JavaScript data
         {% for t in tasks %}
             var tStatus = {{ t.status | tojson }};
+            
+            // Count overall Statuses for the Doughnut Chart
             if (statusCounts[tStatus] !== undefined) {
                 statusCounts[tStatus]++;
             } else {
                 statusCounts[tStatus] = 1;
             }
 
-            {% if t.status == 'Open' %}
-                var assignee = {{ (t.assigned_to or t.surveyor_name) | tojson }};
-                var splitNames = assignee.split(',');
-                splitNames.forEach(function(name) {
-                    var cleanName = name.trim();
-                    if (cleanName) {
-                        workloadCounts[cleanName] = (workloadCounts[cleanName] || 0) + 1;
-                    }
-                });
+            // Count 7-Day Running Velocity (Opened vs Closed)
+            var startDate = "{{ t.start_time.strftime('%Y-%m-%d') if t.start_time else '' }}";
+            if (openedCounts[startDate] !== undefined) {
+                openedCounts[startDate]++;
+            }
+
+            {% if t.status == 'Closed' and t.end_time %}
+                var endDate = "{{ t.end_time.strftime('%Y-%m-%d') }}";
+                if (closedCounts[endDate] !== undefined) {
+                    closedCounts[endDate]++;
+                }
             {% endif %}
         {% endfor %}
 
+        // 2. Render Status Doughnut Chart
         const ctxStatus = document.getElementById('statusChart').getContext('2d');
         new Chart(ctxStatus, {
             type: 'doughnut',
@@ -525,17 +555,26 @@
             }
         });
 
+        // 3. Render 7-Day Running Velocity Bar Chart
         const ctxWorkload = document.getElementById('workloadChart').getContext('2d');
         new Chart(ctxWorkload, {
             type: 'bar',
             data: {
-                labels: Object.keys(workloadCounts),
-                datasets: [{
-                    label: 'Active Open Tasks',
-                    data: Object.values(workloadCounts),
-                    backgroundColor: '#0056b3',
-                    borderRadius: 4
-                }]
+                labels: last7DaysLabels,
+                datasets: [
+                    {
+                        label: 'Tasks Opened',
+                        data: last7DaysKeys.map(k => openedCounts[k]),
+                        backgroundColor: '#ffc107',
+                        borderRadius: 4
+                    },
+                    {
+                        label: 'Tasks Closed',
+                        data: last7DaysKeys.map(k => closedCounts[k]),
+                        backgroundColor: '#28a745',
+                        borderRadius: 4
+                    }
+                ]
             },
             options: {
                 responsive: true,
@@ -543,8 +582,8 @@
                     y: { beginAtZero: true, ticks: { stepSize: 1 } }
                 },
                 plugins: {
-                    title: { display: true, text: 'Current Surveyor Workload', font: { size: 14 } },
-                    legend: { display: false }
+                    title: { display: true, text: '7-Day Velocity (Opened vs Closed)', font: { size: 14 } },
+                    legend: { position: 'bottom' }
                 }
             }
         });
