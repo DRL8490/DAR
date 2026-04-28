@@ -871,17 +871,17 @@ def new_task():
                 }
                 
             if request.method == 'POST':
-            # --- STRICT BACKEND VALIDATION ---
-            check_area = request.form.get('area')
-            check_scope = request.form.get('work_scope')
+                # --- STRICT BACKEND VALIDATION ---
+                check_area = request.form.get('area')
+                check_scope = request.form.get('work_scope')
             
-            if not check_area or check_area.strip() == '':
-                flash("Validation Error: You must select an Area.", "error")
-                return redirect(request.url)
-            if not check_scope or check_scope.strip() == '':
-                flash("Validation Error: You must select a Work Scope.", "error")
-                return redirect(request.url)
-            # ---------------------------------
+                if not check_area or check_area.strip() == '':
+                    flash("Validation Error: You must select an Area.", "error")
+                    return redirect(request.url)
+                if not check_scope or check_scope.strip() == '':
+                    flash("Validation Error: You must select a Work Scope.", "error")
+                    return redirect(request.url)
+                # ---------------------------------
             
             req_dept = request.form.get('requestor_dept')
             req_name = request.form.get('requestor_name')
