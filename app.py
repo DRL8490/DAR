@@ -922,7 +922,7 @@ def new_task():
                 'req_dept': p.req_dept or "", 'req_name': p.req_name or "", 'assigned_to': p.assigned_to or "",
                 'task_category': p.task_category or "", 'area': p.area or "", 'location': p.location or "",
                 'sub_location': p.sub_location or "", 'work_scope': p.work_scope or "",
-                'instrument': p.instrument or "", 'action_required': p.action_required or ""
+                'instrument': p.instrument or "", 'action_required': p.action_required or "",
                 'remarks': p.remarks or ""
             }
             
