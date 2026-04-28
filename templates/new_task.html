@@ -23,8 +23,9 @@
         <a href="{{ url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard') }}" class="btn btn-outline-light btn-sm"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
     </div>
 </nav>
+
 {% if presets %}
-    <div class="card mb-4" style="border-left: 5px solid #0dcaf0;">
+    <div class="card mb-4 mx-3" style="border-left: 5px solid #0dcaf0;">
         <div class="card-body py-2">
             <div class="row align-items-center">
                 <div class="col-auto fw-bold text-info"><i class="fas fa-star"></i> Load Preset:</div>
@@ -36,12 +37,13 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-auto"><a href="?clear=1" class="btn btn-sm btn-outline-secondary">Clear</a></div>
+                <div class="col-auto"><a href="?" class="btn btn-sm btn-outline-secondary">Clear</a></div>
             </div>
         </div>
     </div>
-    {% endif %}
-    {% with messages = get_flashed_messages(with_categories=true) %}
+{% endif %}
+
+{% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
         <div class="container mt-2 mb-3">
         {% for category, message in messages %}
@@ -54,6 +56,7 @@
         </div>
     {% endif %}
 {% endwith %}
+
 <div class="container pb-5">
     <form method="POST">
         <div class="row">
@@ -162,7 +165,21 @@
                 </div>
             </div>
         </div>
-<div style="margin-bottom: 20px; background: #fff3cd; padding: 10px; border-left: 5px solid #dc3545; border-radius: 4px;">
+
+        <div class="row mb-3 align-items-center bg-light p-3 border rounded mx-0 shadow-sm">
+            <div class="col-md-6">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="save_preset" name="save_preset" value="true" onchange="document.getElementById('preset_name_container').style.display = this.checked ? 'block' : 'none';" style="transform: scale(1.3); margin-right: 10px; cursor: pointer;">
+                    <label class="form-check-label fw-bold text-primary" for="save_preset" style="cursor: pointer;"><i class="fas fa-save"></i> Save these settings as a new Preset</label>
+                </div>
+            </div>
+            <div class="col-md-6" id="preset_name_container" style="display: none;">
+                <input type="text" class="form-control border-primary" name="preset_name" placeholder="Name your preset (e.g., Daily Drone Config)...">
+                <small class="text-muted">If left blank, it will name itself after the Area & Scope.</small>
+            </div>
+        </div>
+
+        <div style="margin-bottom: 20px; background: #fff3cd; padding: 10px; border-left: 5px solid #dc3545; border-radius: 4px;">
             <label style="font-weight: bold; color: #dc3545; cursor: pointer;">
                 <input type="checkbox" name="is_urgent" value="true" style="transform: scale(1.5); margin-right: 10px;">
                 🚨 Mark this task as URGENT
@@ -190,12 +207,14 @@
 <script id="req_data" type="application/json">{{ req_dict_json | safe }}</script>
 <script id="tree_data" type="application/json">{{ schema_json | safe }}</script>
 <script id="act_data" type="application/json">{{ activities_json | safe }}</script>
+<script id="preset_data" type="application/json">{{ loaded_preset | safe }}</script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     const reqData = JSON.parse(document.getElementById('req_data').textContent);
     const fileTree = JSON.parse(document.getElementById('tree_data').textContent);
     const actData = JSON.parse(document.getElementById('act_data').textContent);
+    const loadedPreset = JSON.parse(document.getElementById('preset_data').textContent);
 
     function addSurveyorDropdown() {
         const container = document.getElementById('surveyor_container');
@@ -311,7 +330,6 @@
     
     for(const [area, locs] of Object.entries(fileTree)) {
         fId++; let areaId = fId;
-        // Area is visible by default
         treeHTML += `<li>
             <div class="tree-folder py-1" onclick="toggleFolder('f_${areaId}', 'i_${areaId}')">
                 <i class="fas fa-folder" id="i_${areaId}"></i> ${area}
@@ -392,6 +410,38 @@
         input.placeholder = 'Paste another link here...';
         container.appendChild(input);
     }
+
+    // --- 5. AUTO-LOADER FOR PRESETS ---
+    window.addEventListener('DOMContentLoaded', (event) => {
+        if (loadedPreset) {
+            if (loadedPreset.req_name) {
+                document.getElementById('requestor_name').value = loadedPreset.req_name;
+                autoFillDept(); 
+            }
+            if (loadedPreset.assigned_to) {
+                document.querySelector('input[name="assigned_to"]').value = loadedPreset.assigned_to;
+            }
+            if (loadedPreset.task_category) {
+                actSelect.value = loadedPreset.task_category;
+                updateActions(); 
+                if (loadedPreset.action_required) {
+                    reqActSelect.value = loadedPreset.action_required;
+                    updateInstruments(); 
+                    if (loadedPreset.instrument) {
+                        instSelect.value = loadedPreset.instrument;
+                    }
+                }
+            }
+            if (loadedPreset.area && loadedPreset.work_scope) {
+                setPath(
+                    loadedPreset.area, 
+                    loadedPreset.location || '', 
+                    loadedPreset.sub_location || '', 
+                    loadedPreset.work_scope
+                );
+            }
+        }
+    });
 </script>
 </body>
 </html>
