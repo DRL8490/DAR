@@ -410,18 +410,30 @@ def auto_backup_kpi():
                     continue
                 tasks.append(t)
             
+            # Identify the current target month and year
+            now = datetime.utcnow()
+            target_month_str = now.strftime('%m')
+            target_year_str = now.strftime('%Y')
+            
             data = []
             month_counters = {} 
             display_index = 1
             
             for task in tasks:
                 month_str = task.start_time.strftime('%m') if task.start_time else '00' 
+                year_str = task.start_time.strftime('%Y') if task.start_time else '0000'
+                
+                # 1. ALWAYS count the task to preserve accurate Sequence Numbers (e.g. TW_03005)
                 if month_str not in month_counters: month_counters[month_str] = 1
                 else: month_counters[month_str] += 1
                     
                 seq_num = f"{month_counters[month_str]:03d}"
                 req_ref = f"TW_{month_str}{seq_num}"
                 survey_ref = f"TW_SU_{month_str}{seq_num}"
+
+                # 2. THE FILTER: Skip adding to the Excel file if it is not the current month
+                if month_str != target_month_str or year_str != target_year_str:
+                    continue
 
                 loc = task.location.split('_', 1)[-1].replace('_', ' ') if task.location and task.location != 'N/A' else ''
                 sub = task.sub_location.split('_', 1)[-1].replace('_', ' ') if task.sub_location and task.sub_location != 'N/A' else ''
@@ -446,7 +458,10 @@ def auto_backup_kpi():
                 df.to_excel(writer, index=False, startrow=2, sheet_name='Master Register')
                 worksheet = writer.sheets['Master Register']
                 worksheet.cell(row=1, column=5, value="SURVEY ACTIVITY MASTER REGISTER")
-                worksheet.cell(row=2, column=1, value=f"DAILY SYSTEM BACKUP - {datetime.utcnow().strftime('%B %d, %Y').upper()}")
+                
+                # Update the header to explicitly show the filtered month
+                header_month = now.strftime('%B %Y').upper()
+                worksheet.cell(row=2, column=1, value=f"MONTH OF {header_month} - SURVEY TEAM (AUTO-BACKUP)")
                 
                 for column in worksheet.columns:
                     max_length = 0
@@ -459,9 +474,9 @@ def auto_backup_kpi():
             output.seek(0)
             
             # Email the generated Excel payload to the Admins
-            msg = Message(f"🛡️ THPP Survey - Daily Database Backup ({datetime.utcnow().strftime('%Y-%m-%d')})", recipients=ADMIN_EMAILS)
-            msg.body = "Hello Admins,\n\nAttached is the automated daily backup of the Master Register pipeline.\n\nKeep up the great work!\n- THPP Survey Server"
-            msg.attach(f"THPP_Backup_{datetime.utcnow().strftime('%Y%m%d')}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", output.read())
+            msg = Message(f"🛡️ THPP Survey - Daily Database Backup ({now.strftime('%Y-%m-%d')})", recipients=ADMIN_EMAILS)
+            msg.body = f"Hello Admins,\n\nAttached is the automated daily backup of the Master Register pipeline for {header_month}.\n\nKeep up the great work!\n- THPP Survey Server"
+            msg.attach(f"THPP_Backup_{now.strftime('%Y%m%d')}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", output.read())
             
             mail.send(msg)
             print("Daily Backup Executed and Emailed.")
