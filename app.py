@@ -857,13 +857,6 @@ def new_task():
         req_dict = master_schema.get("requestors", {})
         activities_data = master_schema.get("activities", {})
         
-                    loaded_preset_dict = {
-                    'req_dept': preset.req_dept or "", 'req_name': preset.req_name or "", 'assigned_to': preset.assigned_to or "",
-                    'task_category': preset.task_category or "", 'area': preset.area or "", 'location': preset.location or "",
-                    'sub_location': preset.sub_location or "", 'work_scope': preset.work_scope or "",
-                    'instrument': preset.instrument or "", 'action_required': preset.action_required or ""
-                }
-                
         if request.method == 'POST':
             # --- STRICT BACKEND VALIDATION ---
             check_area = request.form.get('area')
@@ -912,6 +905,7 @@ def new_task():
             db.session.commit()      
             flash('New task opened successfully!', 'success')
             return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
+            
         # --- NEW: BUILD THE UNIQUE USER JSON DICTIONARY ---
         user_presets = PresetTask.query.filter_by(user_id=current_user.id).all()
         presets_dict = {}
@@ -928,14 +922,13 @@ def new_task():
                                req_dict_json=json.dumps(req_dict), 
                                schema_json=json.dumps(file_tree),
                                activities_json=json.dumps(activities_data),
-                               presets_json=json.dumps(presets_dict),  # <--- INJECTED HERE
+                               presets_json=json.dumps(presets_dict),
                                presets=user_presets)
                                
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
-        return f"<h2>DIAGNOSTIC CRASH REPORT (NEW TASK)</h2><p>Error: {str(e)}</p><pre>{error_details}</pre>"    
-        
+        return f"<h2>DIAGNOSTIC CRASH REPORT (NEW TASK)</h2><p>Error: {str(e)}</p><pre>{error_details}</pre>"        
 @app.route('/edit_task/<int:task_id>', methods=['GET', 'POST'])
 @login_required
 def edit_task(task_id):
