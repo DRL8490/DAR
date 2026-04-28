@@ -445,6 +445,11 @@
                 loadedPreset.work_scope
             );
         }
+        
+        // --- NEW: AUTO-FILL REMARKS ---
+        if (loadedPreset.remarks) {
+            document.querySelector('textarea[name="remarks"]').value = loadedPreset.remarks;
+        }
     }
 </script>
 </body>

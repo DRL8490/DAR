@@ -72,6 +72,7 @@ class PresetTask(db.Model):
     work_scope = db.Column(db.String(100))
     instrument = db.Column(db.String(100))
     action_required = db.Column(db.String(100))
+    remarks = db.Column(db.Text, nullable=True)
 
 class SurveyTask(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -96,6 +97,12 @@ class SurveyTask(db.Model):
 with app.app_context():
     db.create_all()
     # Safely inject the Active column
+    # Safely inject the Remarks column into existing Preset tables
+    try:
+        db.session.execute(text('ALTER TABLE preset_task ADD COLUMN remarks TEXT'))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
     try:
         db.session.execute(text('ALTER TABLE "user" ADD COLUMN is_active BOOLEAN DEFAULT TRUE'))
         db.session.commit()
@@ -886,7 +893,8 @@ def new_task():
                     assigned_to=assigned_str, task_category=request.form.get('task_category'),
                     area=request.form.get('area'), location=request.form.get('location'), 
                     sub_location=request.form.get('sub_location'), work_scope=request.form.get('work_scope'),
-                    instrument=request.form.get('instrument'), action_required=request.form.get('action_required')
+                    instrument=request.form.get('instrument'), action_required=request.form.get('action_required'),
+                    remarks=request.form.get('remarks') # <--- ADD THIS LINE
                 ))
             
             ref_links = request.form.getlist('reference_link')
@@ -915,6 +923,7 @@ def new_task():
                 'task_category': p.task_category or "", 'area': p.area or "", 'location': p.location or "",
                 'sub_location': p.sub_location or "", 'work_scope': p.work_scope or "",
                 'instrument': p.instrument or "", 'action_required': p.action_required or ""
+                'remarks': p.remarks or ""
             }
             
         return render_template('new_task.html', 
@@ -1393,6 +1402,23 @@ def export_excel():
     except Exception as e:
         flash(f'KPI Excel Generation Failed. Error: {str(e)}', 'error')
         return redirect(url_for('reports'))
-
+@app.route('/wipe_all_presets')
+@login_required
+def wipe_all_presets():
+    # Security Check: Only VIP Admins can trigger this
+    if current_user.email not in ADMIN_EMAILS:
+        flash('Access Denied: Admins only.', 'error')
+        return redirect(url_for('dashboard'))
+        
+    try:
+        # Delete every row in the PresetTask table
+        deleted_count = db.session.query(PresetTask).delete()
+        db.session.commit()
+        flash(f'Blank Slate Achieved! Successfully deleted {deleted_count} old presets across all users.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error wiping presets: {str(e)}', 'error')
+        
+    return redirect(url_for('admin_dashboard'))
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
