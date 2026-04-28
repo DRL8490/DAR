@@ -870,7 +870,19 @@ def new_task():
                     'instrument': preset.instrument or "", 'action_required': preset.action_required or ""
                 }
                 
-        if request.method == 'POST':
+            if request.method == 'POST':
+            # --- STRICT BACKEND VALIDATION ---
+            check_area = request.form.get('area')
+            check_scope = request.form.get('work_scope')
+            
+            if not check_area or check_area.strip() == '':
+                flash("Validation Error: You must select an Area.", "error")
+                return redirect(request.url)
+            if not check_scope or check_scope.strip() == '':
+                flash("Validation Error: You must select a Work Scope.", "error")
+                return redirect(request.url)
+            # ---------------------------------
+            
             req_dept = request.form.get('requestor_dept')
             req_name = request.form.get('requestor_name')
             merged_requestor = f"{req_dept} - {req_name}"
@@ -936,6 +948,18 @@ def edit_task(task_id):
             return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
 
         if request.method == 'POST':
+            # --- STRICT BACKEND VALIDATION ---
+            check_area = request.form.get('area')
+            check_scope = request.form.get('work_scope')
+            
+            if not check_area or check_area.strip() == '':
+                flash("Validation Error: You must select an Area.", "error")
+                return redirect(request.url)
+            if not check_scope or check_scope.strip() == '':
+                flash("Validation Error: You must select a Work Scope.", "error")
+                return redirect(request.url)
+            # ---------------------------------
+
             req_dept = request.form.get('requestor_dept')
             req_name = request.form.get('requestor_name')
             task.requestor = f"{req_dept} - {req_name}"
