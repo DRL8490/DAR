@@ -846,7 +846,6 @@ def hidden_config():
         return redirect(url_for('hidden_config'))
         
     return render_template('hidden_admin.html', master_schema_json=json.dumps(master_schema))
-
 @app.route('/new_task', methods=['GET', 'POST'])
 @login_required
 def new_task():
@@ -918,9 +917,9 @@ def new_task():
             db.session.commit()      
             flash('New task opened successfully!', 'success')
             return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
-        
-    user_presets = PresetTask.query.filter_by(user_id=current_user.id).all()
-        
+            
+        user_presets = PresetTask.query.filter_by(user_id=current_user.id).all()
+            
         return render_template('new_task.html', 
                                users=User.query.filter_by(is_approved=True, is_active=True).order_by(User.name.asc()).all(),
                                req_dict_json=json.dumps(req_dict), 
@@ -933,7 +932,6 @@ def new_task():
         import traceback
         error_details = traceback.format_exc()
         return f"<h2>DIAGNOSTIC CRASH REPORT (NEW TASK)</h2><p>Error: {str(e)}</p><pre>{error_details}</pre>"
-
 @app.route('/edit_task/<int:task_id>', methods=['GET', 'POST'])
 @login_required
 def edit_task(task_id):
