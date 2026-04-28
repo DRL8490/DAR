@@ -30,14 +30,14 @@
             <div class="row align-items-center">
                 <div class="col-auto fw-bold text-info"><i class="fas fa-star"></i> Load Preset:</div>
                 <div class="col">
-                    <select class="form-select form-select-sm" onchange="if(this.value) window.location.href='?preset_id=' + this.value;">
+                    <select class="form-select form-select-sm" id="presetLoader" onchange="loadPreset()">
                         <option value="">-- Choose a saved preset --</option>
                         {% for p in presets %}
                             <option value="{{ p.id }}">{{ p.preset_name }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-auto"><a href="?" class="btn btn-sm btn-outline-secondary">Clear</a></div>
+                <div class="col-auto"><button type="button" onclick="window.location.reload()" class="btn btn-sm btn-outline-secondary">Clear</button></div>
             </div>
         </div>
     </div>
@@ -207,14 +207,15 @@
 <script id="req_data" type="application/json">{{ req_dict_json | safe }}</script>
 <script id="tree_data" type="application/json">{{ schema_json | safe }}</script>
 <script id="act_data" type="application/json">{{ activities_json | safe }}</script>
-<script id="preset_data" type="application/json">{{ loaded_preset | safe }}</script>
+<script id="presets_data" type="application/json">{{ presets_json | default('{}') | safe }}</script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     const reqData = JSON.parse(document.getElementById('req_data').textContent);
     const fileTree = JSON.parse(document.getElementById('tree_data').textContent);
     const actData = JSON.parse(document.getElementById('act_data').textContent);
-    const loadedPreset = JSON.parse(document.getElementById('preset_data').textContent);
+    // LOAD THE UNIQUE DICTIONARY INTO MEMORY
+    const allPresets = JSON.parse(document.getElementById('presets_data').textContent);
 
     function addSurveyorDropdown() {
         const container = document.getElementById('surveyor_container');
@@ -411,37 +412,40 @@
         container.appendChild(input);
     }
 
-    // --- 5. AUTO-LOADER FOR PRESETS ---
-    window.addEventListener('DOMContentLoaded', (event) => {
-        if (loadedPreset) {
-            if (loadedPreset.req_name) {
-                document.getElementById('requestor_name').value = loadedPreset.req_name;
-                autoFillDept(); 
-            }
-            if (loadedPreset.assigned_to) {
-                document.querySelector('input[name="assigned_to"]').value = loadedPreset.assigned_to;
-            }
-            if (loadedPreset.task_category) {
-                actSelect.value = loadedPreset.task_category;
-                updateActions(); 
-                if (loadedPreset.action_required) {
-                    reqActSelect.value = loadedPreset.action_required;
-                    updateInstruments(); 
-                    if (loadedPreset.instrument) {
-                        instSelect.value = loadedPreset.instrument;
-                    }
+    // --- 5. INSTANT JSON PRESET LOADER (FIXED) ---
+    function loadPreset() {
+        const pId = document.getElementById('presetLoader').value;
+        if (!pId || !allPresets[pId]) return;
+        
+        const loadedPreset = allPresets[pId];
+        
+        if (loadedPreset.req_name) {
+            document.getElementById('requestor_name').value = loadedPreset.req_name;
+            autoFillDept(); 
+        }
+        if (loadedPreset.assigned_to) {
+            document.querySelector('input[name="assigned_to"]').value = loadedPreset.assigned_to;
+        }
+        if (loadedPreset.task_category) {
+            actSelect.value = loadedPreset.task_category;
+            updateActions(); 
+            if (loadedPreset.action_required) {
+                reqActSelect.value = loadedPreset.action_required;
+                updateInstruments(); 
+                if (loadedPreset.instrument) {
+                    instSelect.value = loadedPreset.instrument;
                 }
             }
-            if (loadedPreset.area && loadedPreset.work_scope) {
-                setPath(
-                    loadedPreset.area, 
-                    loadedPreset.location || '', 
-                    loadedPreset.sub_location || '', 
-                    loadedPreset.work_scope
-                );
-            }
         }
-    });
+        if (loadedPreset.area && loadedPreset.work_scope) {
+            setPath(
+                loadedPreset.area, 
+                loadedPreset.location || '', 
+                loadedPreset.sub_location || '', 
+                loadedPreset.work_scope
+            );
+        }
+    }
 </script>
 </body>
 </html>
