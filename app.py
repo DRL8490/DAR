@@ -1067,10 +1067,14 @@ def start_completion(task_id):
     # 1. Grab the ticked boxes from the HTML modal
     selected_folders = request.form.getlist('disciplines')
     
-    # 2. Generate the Formal Request Number (YYYYMMDD-RQ[ID]_[Scope])
-    safe_scope = task.work_scope.split('_', 1)[-1].replace(' ', '') if task.work_scope else "General"
-    req_num = f"{datetime.utcnow().strftime('%Y%m%d')}-RQ{task.id:04d}_{safe_scope}"
+    # 2. Generate the Formal Request Number with Dynamic Offset
+    config = AppConfig.query.first()
+    schema = json.loads(config.schema_data) if config else {}
+    offset = schema.get('rq_offset', 0)
+    display_id = task.id + offset
     
+    safe_scope = task.work_scope.split('_', 1)[-1].replace(' ', '') if task.work_scope else "General"
+    req_num = f"{datetime.utcnow().strftime('%Y%m%d')}-RQ{display_id:04d}_{safe_scope}"    
     # 3. Update the Database Status
     task.status = 'In Progress'
     task.formal_request_number = req_num
@@ -1497,5 +1501,33 @@ def wipe_all_presets():
         flash(f'Error wiping presets: {str(e)}', 'error')
         
     return redirect(url_for('admin_dashboard'))
+@app.route('/sync_rq/<int:last_legacy_rq>')
+@login_required
+def sync_rq(last_legacy_rq):
+    # Security: Only VIP Admins can run the sync
+    if current_user.email not in ADMIN_EMAILS:
+        return "Unauthorized: Admins Only.", 403
+        
+    config = AppConfig.query.first()
+    schema = json.loads(config.schema_data)
+    
+    # Find the highest task ID currently in the database
+    current_max_id = db.session.query(db.func.max(SurveyTask.id)).scalar() or 0
+    
+    # Calculate and save the mathematical offset
+    offset = last_legacy_rq - current_max_id
+    schema['rq_offset'] = offset
+    config.schema_data = json.dumps(schema)
+    db.session.commit()
+    
+    html_response = f"""
+    <div style="font-family: Arial; padding: 40px; text-align: center;">
+        <h2 style="color: #28a745;">✅ Continuity Synced Successfully!</h2>
+        <p style="font-size: 18px;">Your database offset has been securely set to <b>{offset}</b>.</p>
+        <p style="font-size: 18px;">The next task your team generates will officially be: <strong style="color: #0056b3;">RQ-{(current_max_id + 1) + offset:04d}</strong></p>
+        <br><a href="/admin_dashboard" style="padding: 10px 20px; background: #0056b3; color: white; text-decoration: none; border-radius: 6px;">Return to Dashboard</a>
+    </div>
+    """
+    return html_response
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
