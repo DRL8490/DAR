@@ -1,5 +1,5 @@
 import pandas as pd
-import io
+import io, zipfile
 from flask import send_file
 import os, json
 import traceback
@@ -1051,7 +1051,69 @@ def edit_task(task_id):
         import traceback
         error_details = traceback.format_exc()
         return f"<div style='padding:20px; border:2px solid red;'><h2 style='color:red;'>CRASH</h2><p>{str(e)}</p><pre>{error_details}</pre></div>"
+@app.route('/start_completion/<int:task_id>', methods=['POST'])
+@login_required
+def start_completion(task_id):
+    task = SurveyTask.query.get_or_404(task_id)
+    
+    # Security check: Ensure only authorized users can start the task
+    assigned_users = [name.strip() for name in task.assigned_to.split(',')] if task.assigned_to else []
+    is_admin = current_user.email in ADMIN_EMAILS
+    
+    if not is_admin and current_user.name != task.surveyor_name and current_user.name not in assigned_users:
+        flash('Unauthorized to start this task.', 'error')
+        return redirect(request.referrer or url_for('dashboard'))
 
+    # 1. Grab the ticked boxes from the HTML modal
+    selected_folders = request.form.getlist('disciplines')
+    
+    # 2. Generate the Formal Request Number (YYYYMMDD-RQ[ID]_[Scope])
+    safe_scope = task.work_scope.split('_', 1)[-1].replace(' ', '') if task.work_scope else "General"
+    req_num = f"{datetime.utcnow().strftime('%Y%m%d')}-RQ{task.id:04d}_{safe_scope}"
+    
+    # 3. Update the Database Status
+    task.status = 'In Progress'
+    task.formal_request_number = req_num
+    db.session.commit()
+
+    # 4. Build the ZIP File in memory
+    memory_file = io.BytesIO()
+    with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zf:
+        
+        # Helper function to create empty directories inside the ZIP
+        def add_dir(path):
+            zf.writestr(f"{req_num}/{path}/", "")
+
+        # Always add a text file to the root so the user has the basic task details
+        info_text = f"Task ID: {task.id}\nRequest Number: {req_num}\nScope: {task.work_scope}\nRemarks: {task.remarks}\nGenerated: {datetime.utcnow().strftime('%Y-%m-%d')}"
+        zf.writestr(f"{req_num}/00_Task_Details.txt", info_text)
+
+        # 5. Modular Generation based on ticked boxes
+        if 'topo' in selected_folders:
+            add_dir("01_TOPO/01_Raw_Data_and_Photos")
+            add_dir("01_TOPO/02_Processed_Charts")
+        if 'hydro' in selected_folders:
+            add_dir("02_HYDRO/01_Raw_Data_and_SVP")
+            add_dir("02_HYDRO/02_System_Settings_and_Proofs")
+        if 'data' in selected_folders:
+            add_dir("03_DATA_PROCESSING/01_Reference_Inputs")
+            add_dir("03_DATA_PROCESSING/02_Working_Drafts")
+            add_dir("03_DATA_PROCESSING/03_Final_Drawings")
+        if 'mcs' in selected_folders:
+            add_dir("04_MCS_EQUIPMENT/01_Config_Backups_and_Screenshots")
+            add_dir("04_MCS_EQUIPMENT/02_Guidance_and_Design_Files")
+            add_dir("04_MCS_EQUIPMENT/03_Logged_Points")
+        if 'drone' in selected_folders:
+            add_dir("05_DRONE/01_Raw_Images")
+            add_dir("05_DRONE/02_Processed_Deliverables")
+        if 'office' in selected_folders:
+            add_dir("06_REPORTING_AND_ADMIN/01_Client_Submissions")
+            add_dir("06_REPORTING_AND_ADMIN/02_Official_Reports")
+            
+    # 6. Send the ZIP to the user's browser
+    memory_file.seek(0)
+    flash('Task is now In Progress! Your folder structure is downloading.', 'success')
+    return send_file(memory_file, download_name=f"{req_num}.zip", as_attachment=True)
 @app.route('/close_task/<int:task_id>', methods=['POST'])
 @login_required
 def close_task(task_id):

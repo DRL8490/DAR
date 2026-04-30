@@ -22,6 +22,7 @@
         .date-input { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
         
         .task-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; border-left: 5px solid #ffc107; transition: all 0.2s; }
+        .task-card[data-status="In Progress"] { border-left-color: #17a2b8; }
         .task-card[data-status="Closed"] { border-left-color: #28a745; opacity: 0.8; }
         .task-card[data-status="Canceled"] { border-left-color: #dc3545; opacity: 0.8; }
         
@@ -31,11 +32,13 @@
         
         .status-badge { font-size: 12px; padding: 3px 8px; border-radius: 12px; color: white; font-weight: bold; white-space: nowrap; }
         .badge-Open { background: #ffc107; color: black; }
+        .badge-In-Progress { background: #17a2b8; color: white; }
         .badge-Closed { background: #28a745; }
         .badge-Canceled { background: #dc3545; }
 
         .action-area { margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
         .btn-action { color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; text-decoration: none; }
+        .btn-start { background-color: #17a2b8; }
         .btn-close { background-color: #28a745; }
         .btn-cancel { background-color: #dc3545; }
         .btn-edit { background-color: #ffc107; color: black; }
@@ -86,6 +89,7 @@
         <strong style="font-size: 14px; color: #333;">Filters:</strong>
         <button class="btn-filter" id="btnAll" onclick="toggleStatus('All')">All</button>
         <button class="btn-filter active" id="btnOpen" onclick="toggleStatus('Open')">Open</button>
+        <button class="btn-filter" id="btnInProgress" onclick="toggleStatus('In Progress')">In Progress</button>
         <button class="btn-filter" id="btnClosed" onclick="toggleStatus('Closed')">Closed</button>
         <button class="btn-filter" id="btnCanceled" onclick="toggleStatus('Canceled')">Canceled</button>
         <button class="btn-filter" id="btnMine" onclick="toggleMine()">Assigned to Me</button>
@@ -102,7 +106,7 @@
  {% set my_open_count = namespace(value=0) %}
  {% set my_urgent_count = namespace(value=0) %}
  {% for task in tasks %}
-     {% if task.status == 'Open' and task.assigned_to and name in task.assigned_to %}
+     {% if (task.status == 'Open' or task.status == 'In Progress') and task.assigned_to and name in task.assigned_to %}
          {% set my_open_count.value = my_open_count.value + 1 %}
          {% if task.is_urgent %}
              {% set my_urgent_count.value = my_urgent_count.value + 1 %}
@@ -112,7 +116,7 @@
 
  <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
      <div style="flex: 1; background-color: #e3f2fd; border-left: 5px solid #0dcaf0; padding: 12px 20px; border-radius: 6px; font-weight: bold; color: #055160;">
-         📋 You have <span style="background: #0dcaf0; color: white; padding: 2px 8px; border-radius: 12px;">{{ my_open_count.value }}</span> standard open task(s).
+         📋 You have <span style="background: #0dcaf0; color: white; padding: 2px 8px; border-radius: 12px;">{{ my_open_count.value }}</span> standard active task(s).
      </div>
 
      {% if my_urgent_count.value > 0 %}
@@ -156,7 +160,7 @@
             <div class="task-header" onclick="openTaskModal(this.parentElement)">
                 <div style="flex: 1;">
                     <div class="task-line-1">
-                        {% if task.is_urgent and task.status == 'Open' %}
+                        {% if task.is_urgent and (task.status == 'Open' or task.status == 'In Progress') %}
                         <span style="background: #dc3545; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 5px; vertical-align: top;">URGENT</span>
                         {% endif %}
                         {{ task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else 'UNKNOWN-'~task.id }} 
@@ -172,7 +176,7 @@
                     </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
-                    <span class="status-badge badge-{{ task.status }}">{{ task.status }}</span>
+                    <span class="status-badge badge-{{ task.status | replace(' ', '-') }}">{{ task.status }}</span>
                     <span style="font-size: 16px; color: #0056b3; font-weight: bold;" title="View Details">⤢</span>
                 </div>
             </div>
@@ -220,8 +224,9 @@
             </div>
             <div class="task-modal-footer" id="modalActionArea">
                 <a id="modalEditBtn" href="#" class="btn-action btn-edit">✏️ Edit</a>
+                <button id="modalStartBtn" class="btn-action btn-start" onclick="openFolderModal()">▶️ Start Completion</button>
                 <button id="modalCompleteBtn" class="btn-action btn-close" onclick="document.getElementById('modalCloseForm').style.display='flex'; this.style.display='none'; document.getElementById('modalCancelTaskBtn').style.display='none';">Complete Task</button>
-                <button id="modalCancelTaskBtn" class="btn-action btn-cancel" onclick="document.getElementById('modalCancelForm').style.display='flex'; this.style.display='none'; document.getElementById('modalCompleteBtn').style.display='none';">Cancel Task</button>
+                <button id="modalCancelTaskBtn" class="btn-action btn-cancel" onclick="document.getElementById('modalCancelForm').style.display='flex'; this.style.display='none'; document.getElementById('modalCompleteBtn').style.display='none'; document.getElementById('modalStartBtn').style.display='none';">Cancel Task</button>
                 
                 <form id="modalCloseForm" action="" method="POST" class="action-form" style="width:100%; display:none;">
                     <input type="text" name="closing_remarks" class="action-input" placeholder="Result/Closing remarks (Required)..." required>
@@ -237,7 +242,54 @@
         </div>
     </div>
 
+    <div class="task-modal-overlay" id="folderModalWrapper">
+        <div class="task-modal-box" style="max-width: 500px;">
+            <div class="task-modal-header" style="background: #17a2b8; color: white;">
+                <h3 style="margin:0; font-size: 18px;">📁 Initialize Task Folders</h3>
+                <button class="task-modal-close" style="color: white;" onclick="closeFolderModal()">&times;</button>
+            </div>
+            <div class="task-modal-body" style="flex-direction: column; padding: 20px;">
+                <p style="font-size: 14px; color: #555; margin-top: 0;">Select the disciplines involved. The system will generate your Master Task Folder as a ZIP file and change the status to <strong>In Progress</strong>.</p>
+                
+                <form id="folderForm" method="POST" action="" onsubmit="setTimeout(() => window.location.reload(), 1500);" style="display: flex; flex-direction: column; gap: 8px;">
+                    <label style="padding: 12px; border: 1px solid #ccc; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 12px; background: #f9f9f9;">
+                        <input type="checkbox" name="disciplines" value="topo" style="transform: scale(1.3);">
+                        <div style="font-size: 14px;"><strong>1. Topographic</strong> <span style="color:#666; font-size:12px;">(Raw Data, Charts)</span></div>
+                    </label>
+                    <label style="padding: 12px; border: 1px solid #ccc; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 12px; background: #f9f9f9;">
+                        <input type="checkbox" name="disciplines" value="hydro" style="transform: scale(1.3);">
+                        <div style="font-size: 14px;"><strong>2. Hydrographic</strong> <span style="color:#666; font-size:12px;">(Raw Data, SVP, Settings)</span></div>
+                    </label>
+                    <label style="padding: 12px; border: 1px solid #ccc; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 12px; background: #f9f9f9;">
+                        <input type="checkbox" name="disciplines" value="data" style="transform: scale(1.3);">
+                        <div style="font-size: 14px;"><strong>3. Data Processing</strong> <span style="color:#666; font-size:12px;">(References, Drafts, Finals)</span></div>
+                    </label>
+                    <label style="padding: 12px; border: 1px solid #ccc; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 12px; background: #f9f9f9;">
+                        <input type="checkbox" name="disciplines" value="mcs" style="transform: scale(1.3);">
+                        <div style="font-size: 14px;"><strong>4. MCS / Equipment</strong> <span style="color:#666; font-size:12px;">(Backups, Guidance, Logs)</span></div>
+                    </label>
+                    <label style="padding: 12px; border: 1px solid #ccc; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 12px; background: #f9f9f9;">
+                        <input type="checkbox" name="disciplines" value="drone" style="transform: scale(1.3);">
+                        <div style="font-size: 14px;"><strong>5. Drone / Aerial</strong> <span style="color:#666; font-size:12px;">(Images, Deliverables)</span></div>
+                    </label>
+                    <label style="padding: 12px; border: 1px solid #ccc; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 12px; background: #e3f2fd; border-color: #0dcaf0;">
+                        <input type="checkbox" name="disciplines" value="office" checked style="transform: scale(1.3);">
+                        <div style="font-size: 14px;"><strong>6. Office / Chief</strong> <span style="color:#666; font-size:12px;">(Submissions, Reports)</span></div>
+                    </label>
+                    
+                    <div style="margin-top: 15px; display: flex; justify-content: flex-end; gap: 10px;">
+                        <button type="button" class="btn-action btn-cancel" onclick="closeFolderModal()">Cancel</button>
+                        <button type="submit" class="btn-action btn-start">⬇️ Generate & Start</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script>
+        // Global tracker for currently open task
+        window.currentActiveTaskId = null;
+
         // Filters & Logic
         let activeStatuses = new Set(['All']);
         let isMineActive = false;
@@ -267,6 +319,7 @@
         function updateFilterUI() {
             document.getElementById('btnAll').classList.toggle('active', activeStatuses.has('All'));
             document.getElementById('btnOpen').classList.toggle('active', activeStatuses.has('Open'));
+            document.getElementById('btnInProgress').classList.toggle('active', activeStatuses.has('In Progress'));
             document.getElementById('btnClosed').classList.toggle('active', activeStatuses.has('Closed'));
             document.getElementById('btnCanceled').classList.toggle('active', activeStatuses.has('Canceled'));
             document.getElementById('btnMine').classList.toggle('active', isMineActive);
@@ -330,6 +383,9 @@
         };
 
         function openTaskModal(card) {
+            let taskId = card.dataset.id;
+            window.currentActiveTaskId = taskId; // Save globally for the folder modal
+            
             document.getElementById('modalTaskId').innerText = '📋 ' + card.dataset.taskStr;
             document.getElementById('modalTaskPath').innerText = card.dataset.path;
             
@@ -361,7 +417,7 @@
             let status = card.dataset.status;
             let badge = document.getElementById('modalStatusBadge');
             badge.innerText = status;
-            badge.className = 'status-badge badge-' + status;
+            badge.className = 'status-badge badge-' + status.replace(' ', '-');
 
             document.getElementById('modalReq').innerText = card.dataset.req;
             document.getElementById('modalAssign').innerText = card.dataset.assigned;
@@ -372,20 +428,26 @@
             document.getElementById('modalStart').innerText = card.dataset.start;
             document.getElementById('modalEnd').innerText = card.dataset.end;
 
-            let taskId = card.dataset.id;
             let isMine = card.dataset.mine === 'true';
             
             document.getElementById('modalCloseForm').style.display = 'none';
             document.getElementById('modalCancelForm').style.display = 'none';
 
-            if ((status === 'Open' || status === 'Closed') && isMine) {
+            if ((status === 'Open' || status === 'In Progress' || status === 'Closed') && isMine) {
                 document.getElementById('modalEditBtn').href = '/edit_task/' + taskId;
                 document.getElementById('modalEditBtn').style.display = 'block';
                 
-                if (status === 'Open') {
+                document.getElementById('modalStartBtn').style.display = (status === 'Open') ? 'block' : 'none';
+                
+                if (status === 'In Progress') {
                     document.getElementById('modalCloseForm').action = '/close_task/' + taskId;
                     document.getElementById('modalCancelForm').action = '/cancel_task/' + taskId;
                     document.getElementById('modalCompleteBtn').style.display = 'block';
+                    document.getElementById('modalCancelTaskBtn').style.display = 'block';
+                } else if (status === 'Open') {
+                    // Start Completion takes over, but cancel is still an option
+                    document.getElementById('modalCancelForm').action = '/cancel_task/' + taskId;
+                    document.getElementById('modalCompleteBtn').style.display = 'none';
                     document.getElementById('modalCancelTaskBtn').style.display = 'block';
                 } else {
                     document.getElementById('modalCompleteBtn').style.display = 'none';
@@ -404,10 +466,24 @@
             document.getElementById('fullTaskModal').style.display = 'none';
         }
 
+        // FOLDER MODAL CONTROLS
+        function openFolderModal() {
+            document.getElementById('folderForm').action = '/start_completion/' + window.currentActiveTaskId;
+            document.getElementById('fullTaskModal').style.display = 'none'; // Hide main modal
+            document.getElementById('folderModalWrapper').style.display = 'flex'; // Show folder modal
+        }
+
+        function closeFolderModal() {
+            document.getElementById('folderModalWrapper').style.display = 'none';
+        }
+
         window.onclick = function(event) {
-            let modal = document.getElementById('fullTaskModal');
-            if (event.target === modal) {
+            let fullModal = document.getElementById('fullTaskModal');
+            let folderModal = document.getElementById('folderModalWrapper');
+            if (event.target === fullModal) {
                 closeTaskModal();
+            } else if (event.target === folderModal) {
+                closeFolderModal();
             }
         }
     </script>
