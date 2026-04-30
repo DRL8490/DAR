@@ -39,6 +39,8 @@ ADMIN_EMAILS = [
     'daryll.enano@nmdc-group.com',
     'mohamad.hediarto@nmdc-group.com',
     'mok.heng@nmdc-group.com'
+    'rodger.velasco@nmdc-group.com'
+    'denver.renon@nmdc-group.com'
 ]
 
 db = SQLAlchemy(app)
