@@ -451,11 +451,15 @@ def auto_backup_kpi():
                 clean_parts = [p.strip() for p in raw_parts if p and p.strip().lower() != 'general']
                 desc_phrase = " ".join(clean_parts)
 
+                # NEW: Use execution_date for the visual Excel columns if it exists
+                display_start = task.execution_date.strftime('%Y-%m-%d') if task.execution_date else (task.start_time.strftime('%Y-%m-%d %H:%M') if task.start_time else '')
+                display_end = task.execution_date.strftime('%Y-%m-%d') if task.execution_date else (task.end_time.strftime('%Y-%m-%d %H:%M') if task.end_time else '')
+
                 data.append({
                     'Tender / Project Ref.': '20012', 'Sl No': display_index, 'Activity Type': task.task_category, 'Discipline': task.action_required,
                     'Requestor Ref. #': req_ref, 'Survey Ref. #': survey_ref, 'Requestor': task.requestor, 'Assigned to': task.assigned_to,
-                    'Date/Time Received': task.start_time.strftime('%Y-%m-%d %H:%M') if task.start_time else '',
-                    'Date/Time Completed': task.end_time.strftime('%Y-%m-%d %H:%M') if task.end_time else '',
+                    'Date/Time Received': display_start,
+                    'Date/Time Completed': display_end,
                     'Description of Survey Works': desc_phrase, 'Special Conditions / Remarks': task.remarks or ''
                 })
                 display_index += 1
@@ -1417,11 +1421,15 @@ def export_excel():
             clean_parts = [p.strip() for p in raw_parts if p and p.strip().lower() != 'general']
             desc_phrase = " ".join(clean_parts)
 
+            # NEW: Use execution_date for the visual Excel columns if it exists
+            display_start = task.execution_date.strftime('%Y-%m-%d') if task.execution_date else (task.start_time.strftime('%Y-%m-%d %H:%M') if task.start_time else '')
+            display_end = task.execution_date.strftime('%Y-%m-%d') if task.execution_date else (task.end_time.strftime('%Y-%m-%d %H:%M') if task.end_time else '')
+
             data.append({
                 'Tender / Project Ref.': '20012', 'Sl No': display_index, 'Activity Type': task.task_category, 'Discipline': task.action_required,
                 'Requestor Ref. #': req_ref, 'Survey Ref. #': survey_ref, 'Requestor': task.requestor, 'Assigned to': task.assigned_to,
-                'Date/Time Received': task.start_time.strftime('%Y-%m-%d %H:%M') if task.start_time else '',
-                'Date/Time Completed': task.end_time.strftime('%Y-%m-%d %H:%M') if task.end_time else '',
+                'Date/Time Received': display_start,
+                'Date/Time Completed': display_end,
                 'Description of Survey Works': desc_phrase, 'Special Conditions / Remarks': task.remarks or ''
             })
             display_index += 1
