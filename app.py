@@ -10,6 +10,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 from docxtpl import DocxTemplate  # <--- NEW ENGINE IMPORTED HERE
 from sqlalchemy import text # <--- REQUIRED FOR URGENT COLUMN DB UPGRADE
+from sqlalchemy import or_, and_
 from flask_mail import Mail, Message
 from itsdangerous import URLSafeTimedSerializer
 
@@ -92,10 +93,17 @@ class SurveyTask(db.Model):
     status = db.Column(db.String(20), default="Open")
     is_urgent = db.Column(db.Boolean, default=False) # <--- URGENT FLAG ADDED
     start_time = db.Column(db.DateTime, default=datetime.utcnow)
+    execution_date = db.Column(db.Date, nullable=True)
     end_time = db.Column(db.DateTime, nullable=True)
 
 with app.app_context():
     db.create_all()
+    # Safely inject the Execution Date column
+    try:
+        db.session.execute(text('ALTER TABLE survey_task ADD COLUMN execution_date DATE'))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
     # Safely inject the Active column
     # Safely inject the Remarks column into existing Preset tables
     try:
@@ -996,6 +1004,13 @@ def edit_task(task_id):
             task.remarks = request.form.get('remarks')
             task.is_urgent = True if request.form.get('is_urgent') else False
 
+            # NEW: Handle the Execution Date
+            exec_date_str = request.form.get('execution_date')
+            if exec_date_str:
+                task.execution_date = datetime.strptime(exec_date_str, '%Y-%m-%d').date()
+            else:
+                task.execution_date = None # If they clear it, reset to None
+
             ref_links = request.form.getlist('reference_link')
             task.reference_links = " | ".join([link for link in ref_links if link.strip()])
 
@@ -1115,11 +1130,22 @@ def generate_dtr():
         target_date = datetime.strptime(target_date_str, '%Y-%m-%d')
         next_day = target_date + timedelta(days=1)
         
-        # 1. GET CLOSED TASKS FOR DTR BODY
+# 1. GET CLOSED TASKS FOR DTR BODY
+        # We must check if the task has an override date FIRST.
+        from sqlalchemy import or_, and_, func # <--- Make sure these are imported at the top of app.py!
+        
         daily_tasks = SurveyTask.query.filter(
-            SurveyTask.start_time >= target_date,
-            SurveyTask.start_time < next_day,
-            SurveyTask.status == 'Closed' 
+            SurveyTask.status == 'Closed',
+            or_(
+                # Condition A: They manually set the execution date to this target date
+                SurveyTask.execution_date == target_date.date(),
+                # Condition B: They didn't set an override, so we check if the start_time falls on this day
+                and_(
+                    SurveyTask.execution_date == None,
+                    SurveyTask.start_time >= target_date,
+                    SurveyTask.start_time < next_day
+                )
+            )
         ).all()
 
         dtr_groups = {}
@@ -1217,9 +1243,15 @@ def generate_wsr():
             next_day = current_day + timedelta(days=1)
             
             daily_tasks = SurveyTask.query.filter(
-                SurveyTask.start_time >= current_day,
-                SurveyTask.start_time < next_day,
-                SurveyTask.status == 'Closed'
+                SurveyTask.status == 'Closed',
+                or_(
+                    SurveyTask.execution_date == current_day.date(),
+                    and_(
+                        SurveyTask.execution_date == None,
+                        SurveyTask.start_time >= current_day,
+                        SurveyTask.start_time < next_day
+                    )
+                )
             ).all()
             
             dtr_groups = {}

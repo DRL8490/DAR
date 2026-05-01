@@ -15,6 +15,9 @@
         .btn-add { background-color: #6c757d; color: white; width: 40px; padding: 10px; font-weight: bold; }
         .btn-remove { background-color: #dc3545; color: white; width: 40px; padding: 10px; font-weight: bold; }
         .smart-box { background: #e9ecef; padding: 12px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 15px; }
+        
+        /* New CSS for the Override Box */
+        .override-box { background: #fdf2f2; padding: 15px; border-radius: 6px; border-left: 5px solid #dc3545; margin-bottom: 15px; border-right: 1px solid #ecc; border-top: 1px solid #ecc; border-bottom: 1px solid #ecc;}
     </style>
 </head>
 <body>
@@ -77,6 +80,14 @@
                     {% endfor %}
                 {% endif %}
                 <div style="display: flex; gap: 5px; margin-bottom: 5px;"><input type="url" name="reference_link" placeholder="Add new link..." style="flex: 1;"><button type="button" class="btn-add" onclick="addLink()">+</button></div>
+            </div>
+
+            <!-- NEW: Execution Date Override Box -->
+            <div class="override-box form-group">
+                <label style="color: #dc3545; font-size: 15px;"><i class="fas fa-calendar-alt"></i> Backdate Survey Execution</label>
+                <p style="font-size: 12px; color: #666; margin-top: 0; line-height: 1.3;">Only use this if the survey was performed on a different day than when this task was created. This ensures WSR/DTR reports sort correctly without breaking your sequence numbers.</p>
+                <input type="date" id="execution_date" name="execution_date" style="border-color: #f5c6cb;"
+                       value="{{ task.execution_date.strftime('%Y-%m-%d') if task.execution_date else '' }}">
             </div>
 
             <div class="form-group"><label>Opening Remarks:</label><textarea name="remarks" rows="3">{{ task.remarks or '' }}</textarea></div>
