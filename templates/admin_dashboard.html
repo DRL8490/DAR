@@ -146,17 +146,31 @@
     </div>
     {% endif %}
 
-    <div id="analytics-section" style="display: none; background: white; padding: 20px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; border-top: 4px solid #17a2b8;">
+    <<div id="analytics-section" style="display: none; background: white; padding: 20px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; border-top: 4px solid #17a2b8;">
         <h4 style="margin-top: 0; color: #333; margin-bottom: 20px;">📈 Live Pipeline Analytics</h4>
         
-        <div style="display: flex; flex-wrap: wrap; gap: 20px; justify-content: space-around; align-items: center;">
-            <div style="flex: 1; min-width: 250px; max-width: 300px;">
+        <div style="display: flex; flex-wrap: wrap; gap: 20px; justify-content: space-around; align-items: stretch;">
+            
+            <!-- 1. Status Doughnut -->
+            <div style="flex: 1; min-width: 200px; max-width: 250px;">
                 <canvas id="statusChart"></canvas>
             </div>
             
-            <div style="flex: 2; min-width: 300px; max-width: 600px;">
+            <!-- 2. Velocity Bar Chart -->
+            <div style="flex: 2; min-width: 300px; max-width: 500px;">
                 <canvas id="workloadChart"></canvas>
             </div>
+
+            <!-- 3. NEW: 3-Month KPI Summary -->
+            <div style="flex: 1; min-width: 280px; max-width: 350px; background: #fdfdfd; padding: 15px; border-radius: 8px; border: 1px solid #eee; display: flex; flex-direction: column; justify-content: space-between;">
+                <div id="kpiSummaryText" style="font-family: 'Courier New', Courier, monospace; font-size: 14px; color: #000; line-height: 1.5; margin-bottom: 15px;">
+                    <!-- Injected via JS -->
+                </div>
+                <div style="width: 100%; height: 180px;">
+                    <canvas id="kpiMonthChart"></canvas>
+                </div>
+            </div>
+
         </div>
     </div>
     {% set my_open_count = namespace(value=0) %}
@@ -554,7 +568,79 @@
                 }
             }
         });
+        // ... (Existing Workload Chart Logic above) ...
 
+        // --- 4. Render 3-Month KPI Summary ---
+        // Safely load the JSON passed from app.py
+        const kpiData = {{ kpi_summary_json | safe | default('[]') }};
+        
+        if (kpiData && kpiData.length > 0) {
+            const summaryContainer = document.getElementById('kpiSummaryText');
+            let summaryHtml = `3-months KPI Summary:<br>`;
+            
+            let kpiLabels = [];
+            let kpiCounts = [];
+            
+            // Build the Monospace Text 
+            kpiData.forEach(data => {
+                let plural = data.count === 1 ? 'Task' : 'Tasks';
+                summaryHtml += `${data.year} ${data.month_name} (1-${data.end_day}) = ${data.count} ${plural} done<br>`;
+                
+                // Collect labels and numbers for the visual chart below
+                kpiLabels.push(`${data.month_name.substring(0, 3)} '${String(data.year).substring(2)}`);
+                kpiCounts.push(data.count);
+            });
+            
+            summaryContainer.innerHTML = summaryHtml;
+
+            // Custom Chart.js Plugin: Draws the number directly on top of the bars
+            const datalabelsPlugin = {
+                id: 'kpiDatalabels',
+                afterDatasetsDraw: (chart, args, options) => {
+                    const ctx = chart.ctx;
+                    chart.data.datasets.forEach((dataset, i) => {
+                        const meta = chart.getDatasetMeta(i);
+                        meta.data.forEach((bar, index) => {
+                            const data = dataset.data[index];
+                            ctx.fillStyle = '#111';
+                            ctx.font = '12px Arial';
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'bottom';
+                            ctx.fillText(data, bar.x, bar.y - 4);
+                        });
+                    });
+                }
+            };
+
+            // Render the KPI Bar Chart
+            const ctxKpi = document.getElementById('kpiMonthChart').getContext('2d');
+            new Chart(ctxKpi, {
+                type: 'bar',
+                plugins: [datalabelsPlugin], // Inject our custom number plugin
+                data: {
+                    labels: kpiLabels,
+                    datasets: [{
+                        data: kpiCounts,
+                        backgroundColor: '#28a745', // Solid Green
+                        borderRadius: 2,
+                        barPercentage: 0.7
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: { display: true, text: 'Monthly Task Performance Visual', font: { size: 12, weight: 'bold' }, color: '#333' },
+                        legend: { display: false },
+                        tooltip: { enabled: false } // Disabled because numbers are physically painted on
+                    },
+                    scales: {
+                        y: { display: true, beginAtZero: true, suggestedMax: Math.max(...kpiCounts) + (Math.max(...kpiCounts) * 0.2) },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
         // 3. Render 7-Day Running Velocity Bar Chart
         const ctxWorkload = document.getElementById('workloadChart').getContext('2d');
         new Chart(ctxWorkload, {

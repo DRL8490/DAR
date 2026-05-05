@@ -2,6 +2,7 @@ import pandas as pd
 import io
 from flask import send_file
 import os, json
+import calendar
 import traceback
 from flask import Flask, render_template, request, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
@@ -749,12 +750,54 @@ def admin_dashboard():
         return redirect(url_for('dashboard'))
 
     session['dashboard_view'] = 'admin'
-    # 17. THE PAGINATION: Limit to 300
+    
+    # Existing Dashboard Queries
     all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived') \
         .order_by(SurveyTask.is_urgent.desc(), SurveyTask.start_time.desc()) \
         .limit(300).all()
     users = User.query.order_by(User.name.asc()).all()
-    return render_template('admin_dashboard.html', name=current_user.name, tasks=all_tasks, users=users)
+
+    # --- NEW: 3-Month KPI Summary Logic ---
+    now = datetime.now() 
+    months_data = []
+    
+    # Build the calendar bounds for the last 3 months
+    for i in range(2, -1, -1):
+        m = now.month - i
+        y = now.year
+        if m <= 0:
+            m += 12
+            y -= 1
+            
+        if i == 0:
+            end_day = now.day # Current month stops exactly at today
+        else:
+            _, end_day = calendar.monthrange(y, m) # Previous months get full 30/31 days
+        
+        months_data.append({
+            'year': y,
+            'month': m,
+            'month_name': calendar.month_name[m],
+            'end_day': end_day,
+            'key': f"{y}-{m:02d}",
+            'count': 0
+        })
+        
+    # Count all historically completed tasks
+    completed_tasks = SurveyTask.query.filter(SurveyTask.status.in_(['Closed', 'Archived'])).all()
+    for t in completed_tasks:
+        if t.start_time:
+            t_key = t.start_time.strftime('%Y-%m')
+            for md in months_data:
+                if md['key'] == t_key:
+                    md['count'] += 1
+                    break
+                    
+    kpi_summary_json = json.dumps(months_data)
+    # ----------------------------------------
+
+    # Add the kpi_summary_json variable to your render_template
+    return render_template('admin_dashboard.html', name=current_user.name, tasks=all_tasks, users=users, kpi_summary_json=kpi_summary_json)
 @app.route('/system_config_hidden', methods=['GET', 'POST'])
 @login_required
 def hidden_config():
