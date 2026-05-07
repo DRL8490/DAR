@@ -9,8 +9,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
-from docxtpl import DocxTemplate  # <--- NEW ENGINE IMPORTED HERE
-from sqlalchemy import text # <--- REQUIRED FOR URGENT COLUMN DB UPGRADE
+from docxtpl import DocxTemplate 
+from sqlalchemy import text 
 from sqlalchemy import or_, and_
 from flask_mail import Mail, Message
 from itsdangerous import URLSafeTimedSerializer
@@ -24,6 +24,7 @@ if db_url.startswith("postgres://"):
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'super_secret_key_thpp_survey_2026'
+
 # --- EMAIL & TOKEN CONFIGURATION ---
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
@@ -56,6 +57,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     is_approved = db.Column(db.Boolean, default=False)  
     is_active = db.Column(db.Boolean, default=True)    
+
 class AppConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     schema_data = db.Column(db.Text, default="{}") 
@@ -92,7 +94,7 @@ class SurveyTask(db.Model):
     deliverable_link = db.Column(db.String(500), nullable=True) 
     reference_links = db.Column(db.Text, nullable=True) 
     status = db.Column(db.String(20), default="Open")
-    is_urgent = db.Column(db.Boolean, default=False) # <--- URGENT FLAG ADDED
+    is_urgent = db.Column(db.Boolean, default=False) 
     priority = db.Column(db.Integer, default=99)
     start_time = db.Column(db.DateTime, default=datetime.utcnow)
     execution_date = db.Column(db.Date, nullable=True)
@@ -100,7 +102,7 @@ class SurveyTask(db.Model):
 
 with app.app_context():
     db.create_all()
-    # Safely inject the Execution Date column
+    # Safely inject columns
     try:
         db.session.execute(text('ALTER TABLE survey_task ADD COLUMN priority INTEGER DEFAULT 99'))
         db.session.commit()
@@ -111,8 +113,6 @@ with app.app_context():
         db.session.commit()
     except Exception:
         db.session.rollback()
-    # Safely inject the Active column
-    # Safely inject the Remarks column into existing Preset tables
     try:
         db.session.execute(text('ALTER TABLE preset_task ADD COLUMN remarks TEXT'))
         db.session.commit()
@@ -128,20 +128,17 @@ with app.app_context():
             db.session.commit()
         except Exception:
             db.session.rollback()
-    # Safely inject the Urgent column into your existing database without deleting tasks
-    # Safely inject the Urgent column into your existing database
     try:
         db.session.execute(text('ALTER TABLE survey_task ADD COLUMN is_urgent BOOLEAN DEFAULT FALSE'))
         db.session.commit()
     except Exception:
-        db.session.rollback() # Ignores if the column already exists
-# NEW: Safely inject the Approval column (Defaults True for existing users)
+        db.session.rollback() 
     try:
         db.session.execute(text('ALTER TABLE "user" ADD COLUMN is_approved BOOLEAN DEFAULT TRUE'))
         db.session.commit()
     except Exception:
         db.session.rollback()
-    # 18. THE INDEXING: Creates a high-speed lookup table for filters
+        
     try:
         db.session.execute(text('CREATE INDEX IF NOT EXISTS idx_status ON survey_task(status)'))
         db.session.execute(text('CREATE INDEX IF NOT EXISTS idx_urgent ON survey_task(is_urgent)'))
@@ -149,7 +146,7 @@ with app.app_context():
         db.session.commit()
     except Exception:
         db.session.rollback()    
-    # 1. THE NEW MASTER JSON ENGINE
+        
     master_config = {
         "file_tree": {
             "100_Office": {
@@ -266,10 +263,8 @@ with app.app_context():
         }
     }
     
-# 2. SEED THE DATABASE
     config = AppConfig.query.first()
     if not config: 
-        # Only inject the hardcoded data if the database is 100% empty
         db.session.add(AppConfig(schema_data=json.dumps(master_config)))
         db.session.commit()
 
@@ -297,7 +292,6 @@ def register():
         name_parts = email_prefix.split('.')
         formatted_name = f"{name_parts[0].capitalize()} {name_parts[1].capitalize()}" if len(name_parts) >= 2 else email_prefix.capitalize()
         
-        # Auto-approve if they are in the VIP Admin list, otherwise require approval
         is_approved = True if email in ADMIN_EMAILS else False
         
         new_user = User(email=email, name=formatted_name, password_hash=generate_password_hash(password, method='pbkdf2:sha256'), is_approved=is_approved)
@@ -310,6 +304,7 @@ def register():
             flash('Account created! Please wait for an Admin to approve your access.', 'success')
         return redirect(url_for('login'))
     return render_template('register.html')
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -321,7 +316,7 @@ def login():
             if not user.is_approved:
                 flash('Your account is pending admin approval. Please contact management.', 'error')
                 return redirect(url_for('login'))
-            if not getattr(user, 'is_active', True): # <--- NEW: Blocks deactivated accounts
+            if not getattr(user, 'is_active', True): 
                 flash('Your account has been deactivated. Please contact an Administrator.', 'error')
                 return redirect(url_for('login'))   
             login_user(user)
@@ -347,11 +342,9 @@ def forgot_password():
         user = User.query.filter_by(email=email).first()
         
         if user:
-            # Generate a secure token tied specifically to their email
             token = s.dumps(email, salt='password-reset-salt')
             reset_url = url_for('reset_password', token=token, _external=True)
             
-            # Draft the email
             msg = Message('Password Reset Request - NMDC Survey App', recipients=[email])
             msg.body = f"Hello {user.name},\n\nTo reset your password, visit the following link:\n{reset_url}\n\nIf you did not make this request, simply ignore this email.\n\nRegards,\nTHPP Survey Admin Team"
             
@@ -361,7 +354,6 @@ def forgot_password():
             except Exception as e:
                 flash(f'Server Error: Could not send email. {str(e)}', 'error')
         else:
-            # SECURITY BEST PRACTICE: Even if the email doesn't exist, say we sent it to prevent hackers from "guessing" active emails
             flash('If an account exists for that email, a password reset link has been sent.', 'success')
             
         return redirect(url_for('login'))
@@ -371,7 +363,6 @@ def forgot_password():
 @app.route('/reset-password/<token>', methods=['GET', 'POST'])
 def reset_password(token):
     try:
-        # The token expires after 900 seconds (15 minutes)
         email = s.loads(token, salt='password-reset-salt', max_age=900)
     except:
         flash('The password reset link is invalid or has expired.', 'error')
@@ -393,13 +384,12 @@ def reset_password(token):
             return redirect(url_for('login'))
 
     return render_template('reset_password.html', token=token)
-# --- WORKFLOW ROUTES ---
 
-# 16. THE AUTO-ARCHIVE (Background Job Engine)
+# --- WORKFLOW ROUTES ---
 from apscheduler.schedulers.background import BackgroundScheduler
 
 def auto_archive_tasks():
-    with app.app_context(): # Required to access database in the background
+    with app.app_context(): 
         threshold = datetime.utcnow() - timedelta(days=31)
         closed_tasks = SurveyTask.query.filter_by(status='Closed').all()
         changed = False
@@ -411,11 +401,10 @@ def auto_archive_tasks():
         if changed:
             db.session.commit()
             print(f"Auto-Archive Complete: Moved tasks to archive.")
-# 17. THE NIGHTLY KPI BACKUP (Background Job)
+
 def auto_backup_kpi():
-    with app.app_context(): # Required to access database and mail in the background
+    with app.app_context(): 
         try:
-            # Gather all data exactly like the Export Excel route
             all_tasks = SurveyTask.query.filter(SurveyTask.status.in_(['Closed', 'Archived'])).order_by(SurveyTask.start_time.asc()).all()
             excluded_keywords = ["external meeting", "internal coordination", "survey report", "damage report", "item", "request", "sem update"]
             
@@ -425,7 +414,6 @@ def auto_backup_kpi():
                     continue
                 tasks.append(t)
             
-            # Identify the current target month and year
             now = datetime.utcnow()
             target_month_str = now.strftime('%m')
             target_year_str = now.strftime('%Y')
@@ -438,7 +426,6 @@ def auto_backup_kpi():
                 month_str = task.start_time.strftime('%m') if task.start_time else '00' 
                 year_str = task.start_time.strftime('%Y') if task.start_time else '0000'
                 
-                # 1. ALWAYS count the task to preserve accurate Sequence Numbers (e.g. TW_03005)
                 if month_str not in month_counters: month_counters[month_str] = 1
                 else: month_counters[month_str] += 1
                     
@@ -446,7 +433,6 @@ def auto_backup_kpi():
                 req_ref = f"TW_{month_str}{seq_num}"
                 survey_ref = f"TW_SU_{month_str}{seq_num}"
 
-                # 2. THE FILTER: Skip adding to the Excel file if it is not the current month
                 if month_str != target_month_str or year_str != target_year_str:
                     continue
 
@@ -458,7 +444,6 @@ def auto_backup_kpi():
                 clean_parts = [p.strip() for p in raw_parts if p and p.strip().lower() != 'general']
                 desc_phrase = " ".join(clean_parts)
 
-                # NEW: Use execution_date for the visual Excel columns if it exists
                 display_start = task.execution_date.strftime('%Y-%m-%d') if task.execution_date else (task.start_time.strftime('%Y-%m-%d %H:%M') if task.start_time else '')
                 display_end = task.execution_date.strftime('%Y-%m-%d') if task.execution_date else (task.end_time.strftime('%Y-%m-%d %H:%M') if task.end_time else '')
 
@@ -478,7 +463,6 @@ def auto_backup_kpi():
                 worksheet = writer.sheets['Master Register']
                 worksheet.cell(row=1, column=5, value="SURVEY ACTIVITY MASTER REGISTER")
                 
-                # Update the header to explicitly show the filtered month
                 header_month = now.strftime('%B %Y').upper()
                 worksheet.cell(row=2, column=1, value=f"MONTH OF {header_month} - SURVEY TEAM (AUTO-BACKUP)")
                 
@@ -492,7 +476,6 @@ def auto_backup_kpi():
 
             output.seek(0)
             
-            # Email the generated Excel payload to the Admins
             msg = Message(f"🛡️ THPP Survey - Daily Database Backup ({now.strftime('%Y-%m-%d')})", recipients=ADMIN_EMAILS)
             msg.body = f"Hello Admins,\n\nAttached is the automated daily backup of the Master Register pipeline for {header_month}.\n\nKeep up the great work!\n- THPP Survey Server"
             msg.attach(f"THPP_Backup_{now.strftime('%Y%m%d')}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", output.read())
@@ -502,12 +485,90 @@ def auto_backup_kpi():
         except Exception as e:
             print(f"CRITICAL BACKUP ERROR: {str(e)}")
 
-# Start the background chron-job
 scheduler = BackgroundScheduler()
 scheduler.add_job(func=auto_archive_tasks, trigger="interval", hours=12)
-# NEW: Triggers exactly at 11:59 PM local time (15:59 UTC)
 scheduler.add_job(func=auto_backup_kpi, trigger="cron", hour=15, minute=59) 
 scheduler.start()
+
+def escalate_aging_tasks():
+    try:
+        # If a task is Open/In Progress for >48 hours, auto-flag it as URGENT
+        cutoff_time = datetime.utcnow() - timedelta(hours=48)
+        aging_tasks = SurveyTask.query.filter(
+            SurveyTask.status.in_(['Open', 'In Progress']),
+            SurveyTask.start_time < cutoff_time,
+            SurveyTask.is_urgent == False
+        ).all()
+        
+        if aging_tasks:
+            for t in aging_tasks:
+                t.is_urgent = True
+                note = f"⚠️ AUTO-ESCALATED: Idle > 48h"
+                t.remarks = f"{t.remarks} | {note}" if t.remarks else note
+            db.session.commit()
+    except Exception as e:
+        print(f"Escalation Error: {e}")
+
+@app.route('/')
+@login_required
+def dashboard():
+    session['dashboard_view'] = 'user'
+    escalate_aging_tasks()
+    
+    all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived') \
+        .order_by(SurveyTask.is_urgent.desc(), SurveyTask.priority.asc(), SurveyTask.start_time.desc()) \
+        .limit(300).all()
+    is_admin = current_user.email in ADMIN_EMAILS
+    return render_template('dashboard.html', name=current_user.name, tasks=all_tasks, is_admin=is_admin)
+
+@app.route('/admin_dashboard')
+@login_required
+def admin_dashboard():
+    if current_user.email not in ADMIN_EMAILS:
+        flash('Access Denied: You do not have Admin privileges.', 'error')
+        return redirect(url_for('dashboard'))
+
+    session['dashboard_view'] = 'admin'
+    escalate_aging_tasks()
+    
+    all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived') \
+        .order_by(SurveyTask.is_urgent.desc(), SurveyTask.priority.asc(), SurveyTask.start_time.desc()) \
+        .limit(300).all()
+    users = User.query.order_by(User.name.asc()).all()
+
+    # --- 3-Month KPI Summary Logic (FIXES THE 500 CRASH) ---
+    now = datetime.utcnow()
+    months_data = []
+
+    for i in range(2, -1, -1):
+        m = now.month - i
+        y = now.year
+        if m <= 0:
+            m += 12
+            y -= 1
+            
+        if i == 0:
+            end_day = now.day 
+        else:
+            _, end_day = calendar.monthrange(y, m) 
+        
+        months_data.append({
+            'year': y, 'month': m, 'month_name': calendar.month_name[m],
+            'end_day': end_day, 'key': f"{y}-{m:02d}", 'count': 0
+        })
+        
+    completed_tasks = SurveyTask.query.filter(SurveyTask.status.in_(['Closed', 'Archived'])).all()
+    for t in completed_tasks:
+        if t.start_time:
+            t_key = t.start_time.strftime('%Y-%m')
+            for md in months_data:
+                if md['key'] == t_key:
+                    md['count'] += 1
+                    break
+                    
+    kpi_summary_json = json.dumps(months_data)
+
+    return render_template('admin_dashboard.html', name=current_user.name, tasks=all_tasks, users=users, kpi_summary_json=kpi_summary_json)
 
 @app.route('/archive')
 @login_required
@@ -537,6 +598,7 @@ def restore_task(task_id):
         flash(f'Error restoring task: {str(e)}', 'error')
         
     return redirect(request.referrer or url_for('archive_page'))
+
 @app.route('/manage_users')
 @login_required
 def manage_users():
@@ -585,6 +647,7 @@ def delete_task(task_id):
         flash(f'Error deleting task: {str(e)}', 'error')
         
     return redirect(url_for('cleanup_tasks'))
+
 @app.route('/approve_user/<int:user_id>', methods=['POST'])
 @login_required
 def approve_user(user_id):
@@ -606,6 +669,7 @@ def delete_user(user_id):
     db.session.commit()
     flash(f'User {user.name} has been rejected and deleted.', 'success')
     return redirect(url_for('admin_dashboard'))
+
 @app.route('/migrate', methods=['GET', 'POST'])
 @login_required
 def migrate_data():
@@ -623,14 +687,12 @@ def migrate_data():
             excel_file = pd.ExcelFile(file)
             target_sheet = next((s for s in excel_file.sheet_names if 'master' in s.lower()), excel_file.sheet_names[0])
 
-            # 1. READ RAW GRID (No Headers)
             df_raw = pd.read_excel(file, sheet_name=target_sheet, header=None)
             df_raw = df_raw.fillna('')
 
             header_row_idx = -1
             col_map = {}
 
-            # 2. SCAN FOR COORDINATES
             for idx, row in df_raw.iterrows():
                 row_vals = [str(x).strip().lower() for x in row.values]
                 
@@ -655,7 +717,6 @@ def migrate_data():
 
             migrated_count = 0
 
-            # 3. EXTRACT BY COORDINATES (Skipping the header row)
             for idx in range(header_row_idx + 1, len(df_raw)):
                 row = df_raw.iloc[idx].values
                 
@@ -736,50 +797,7 @@ def migrate_data():
             return redirect(url_for('migrate_data'))
 
     return render_template('migration.html')
-def escalate_aging_tasks():
-    # If a task is Open/In Progress for >48 hours, auto-flag it as URGENT
-    cutoff_time = datetime.utcnow() - timedelta(hours=48)
-    aging_tasks = SurveyTask.query.filter(
-        SurveyTask.status.in_(['Open', 'In Progress']),
-        SurveyTask.start_time < cutoff_time,
-        SurveyTask.is_urgent == False
-    ).all()
-    
-    if aging_tasks:
-        for t in aging_tasks:
-            t.is_urgent = True
-            note = f"⚠️ AUTO-ESCALATED: Idle > 48h"
-            t.remarks = f"{t.remarks} | {note}" if t.remarks else note
-        db.session.commit()
 
-@app.route('/')
-@login_required
-def dashboard():
-    session['dashboard_view'] = 'user'
-    escalate_aging_tasks() # <--- Triggers the 48h check
-    
-    # NEW SORT: Urgent first, then Priority (0 to 99), then Newest Date
-    all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived') \
-        .order_by(SurveyTask.is_urgent.desc(), SurveyTask.priority.asc(), SurveyTask.start_time.desc()) \
-        .limit(300).all()
-    is_admin = current_user.email in ADMIN_EMAILS
-    return render_template('dashboard.html', name=current_user.name, tasks=all_tasks, is_admin=is_admin)
-
-@app.route('/admin_dashboard')
-@login_required
-def admin_dashboard():
-    if current_user.email not in ADMIN_EMAILS:
-        flash('Access Denied: You do not have Admin privileges.', 'error')
-        return redirect(url_for('dashboard'))
-
-    session['dashboard_view'] = 'admin'
-    escalate_aging_tasks() # <--- Triggers the 48h check
-    
-    all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived') \
-        .order_by(SurveyTask.is_urgent.desc(), SurveyTask.priority.asc(), SurveyTask.start_time.desc()) \
-        .limit(300).all()
-    users = User.query.order_by(User.name.asc()).all()
-    # ... rest of the route ...
 @app.route('/system_config_hidden', methods=['GET', 'POST'])
 @login_required
 def hidden_config():
@@ -905,6 +923,7 @@ def hidden_config():
         return redirect(url_for('hidden_config'))
         
     return render_template('hidden_admin.html', master_schema_json=json.dumps(master_schema))
+
 @app.route('/new_task', methods=['GET', 'POST'])
 @login_required
 def new_task():
@@ -917,7 +936,6 @@ def new_task():
         activities_data = master_schema.get("activities", {})
         
         if request.method == 'POST':
-            # --- STRICT BACKEND VALIDATION ---
             check_area = request.form.get('area')
             check_scope = request.form.get('work_scope')
         
@@ -927,7 +945,6 @@ def new_task():
             if not check_scope or check_scope.strip() == '':
                 flash("Validation Error: You must select a Work Scope.", "error")
                 return redirect(request.url)
-            # ---------------------------------
         
             req_dept = request.form.get('requestor_dept')
             req_name = request.form.get('requestor_name')
@@ -946,13 +963,15 @@ def new_task():
                     area=request.form.get('area'), location=request.form.get('location'), 
                     sub_location=request.form.get('sub_location'), work_scope=request.form.get('work_scope'),
                     instrument=request.form.get('instrument'), action_required=request.form.get('action_required'),
-                    remarks=request.form.get('remarks') # <--- ADD THIS LINE
+                    remarks=request.form.get('remarks')
                 ))
             
             ref_links = request.form.getlist('reference_link')
             ref_links_str = " | ".join([link for link in ref_links if link.strip()])
 
             is_urgent_val = True if request.form.get('is_urgent') else False
+            p_val = request.form.get('priority')
+            priority_val = int(p_val) if p_val and p_val.isdigit() else 99
 
             new_survey = SurveyTask(
                 surveyor_name=current_user.name, assigned_to=assigned_str, requestor=merged_requestor,
@@ -967,7 +986,6 @@ def new_task():
             flash('New task opened successfully!', 'success')
             return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
             
-        # --- NEW: BUILD THE UNIQUE USER JSON DICTIONARY ---
         user_presets = PresetTask.query.filter_by(user_id=current_user.id).all()
         presets_dict = {}
         for p in user_presets:
@@ -991,6 +1009,7 @@ def new_task():
         import traceback
         error_details = traceback.format_exc()
         return f"<h2>DIAGNOSTIC CRASH REPORT (NEW TASK)</h2><p>Error: {str(e)}</p><pre>{error_details}</pre>"        
+
 @app.route('/edit_task/<int:task_id>', methods=['GET', 'POST'])
 @login_required
 def edit_task(task_id):
@@ -1005,7 +1024,6 @@ def edit_task(task_id):
             return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
 
         if request.method == 'POST':
-            # --- STRICT BACKEND VALIDATION ---
             check_area = request.form.get('area')
             check_scope = request.form.get('work_scope')
             
@@ -1015,7 +1033,6 @@ def edit_task(task_id):
             if not check_scope or check_scope.strip() == '':
                 flash("Validation Error: You must select a Work Scope.", "error")
                 return redirect(request.url)
-            # ---------------------------------
 
             req_dept = request.form.get('requestor_dept')
             req_name = request.form.get('requestor_name')
@@ -1033,15 +1050,15 @@ def edit_task(task_id):
             task.action_required = request.form.get('action_required')
             task.remarks = request.form.get('remarks')
             task.is_urgent = True if request.form.get('is_urgent') else False
+            
             p_val = request.form.get('priority')
             task.priority = int(p_val) if p_val and p_val.isdigit() else 99
 
-            # NEW: Handle the Execution Date
             exec_date_str = request.form.get('execution_date')
             if exec_date_str:
                 task.execution_date = datetime.strptime(exec_date_str, '%Y-%m-%d').date()
             else:
-                task.execution_date = None # If they clear it, reset to None
+                task.execution_date = None
 
             ref_links = request.form.getlist('reference_link')
             task.reference_links = " | ".join([link for link in ref_links if link.strip()])
@@ -1097,6 +1114,7 @@ def edit_task(task_id):
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
+
 @app.route('/mark_in_progress/<int:task_id>', methods=['POST'])
 @login_required
 def mark_in_progress(task_id):
@@ -1104,7 +1122,6 @@ def mark_in_progress(task_id):
     assigned_users = [name.strip() for name in task.assigned_to.split(',')] if task.assigned_to else []
     is_admin = current_user.email in ADMIN_EMAILS
     
-    # Security: Only assigned person (or Admin) can acknowledge
     if not is_admin and current_user.name not in assigned_users:
         flash('Security Alert: Only the assigned surveyor can acknowledge this task.', 'error')
         return redirect(request.referrer or url_for('dashboard'))
@@ -1180,16 +1197,12 @@ def generate_dtr():
         target_date = datetime.strptime(target_date_str, '%Y-%m-%d')
         next_day = target_date + timedelta(days=1)
         
-# 1. GET CLOSED TASKS FOR DTR BODY
-        # We must check if the task has an override date FIRST.
-        from sqlalchemy import or_, and_, func # <--- Make sure these are imported at the top of app.py!
+        from sqlalchemy import or_, and_, func 
         
         daily_tasks = SurveyTask.query.filter(
             SurveyTask.status == 'Closed',
             or_(
-                # Condition A: They manually set the execution date to this target date
                 SurveyTask.execution_date == target_date.date(),
-                # Condition B: They didn't set an override, so we check if the start_time falls on this day
                 and_(
                     SurveyTask.execution_date == None,
                     SurveyTask.start_time >= target_date,
@@ -1248,9 +1261,8 @@ def generate_dtr():
                 data["surveyors"] = ", ".join(sorted(list(data["surveyors"])))
                 report_blocks.append(data)
 
-        # 2. GET OPEN TASKS FOR OUTSTANDING ACTIONS 
         open_tasks = SurveyTask.query.filter_by(status='Open').all()
-        outstanding_set = set() # Use a set to prevent duplicate lines
+        outstanding_set = set() 
         for t in open_tasks:
             loc = t.location.split('_', 1)[-1].replace('_', ' ') if t.location and t.location != 'N/A' else ''
             sub = t.sub_location.split('_', 1)[-1].replace('_', ' ') if t.sub_location and t.sub_location != 'N/A' else ''
@@ -1360,16 +1372,9 @@ def generate_tpc():
         
         year, week = map(int, week_str.split('-W'))
         
-        # 1. Grab the Monday of the selected week
         monday_date = datetime.strptime(f'{year}-W{week}-1', "%Y-W%W-%w")
-        
-        # 2. Rewind 3 days to get the previous Friday (Start Date)
         start_date = monday_date - timedelta(days=3)
-        
-        # 3. Add 7 full days for the database query cutoff (Strictly covers up to Thursday 23:59:59)
         query_end_date = start_date + timedelta(days=7)
-        
-        # 4. Display End Date (Thursday) for the Word Document tags
         display_end_date = start_date + timedelta(days=6)
         
         weekly_tasks = SurveyTask.query.filter(
@@ -1410,7 +1415,6 @@ def generate_tpc():
         doc.save(output)
         output.seek(0)
         
-        # Generates a clean filename like: TPC_Report_20260227_to_20260305.docx
         filename = f"TPC_Report_{start_date.strftime('%Y%m%d')}_to_{display_end_date.strftime('%Y%m%d')}.docx"
         return send_file(output, download_name=filename, as_attachment=True)
         
@@ -1427,10 +1431,8 @@ def export_excel():
         if kpi_month:
             target_year, target_month = kpi_month.split('-')
 
-            # Grab only completed work (both active Closed and 30-day Archived tasks)
             all_tasks = SurveyTask.query.filter(SurveyTask.status.in_(['Closed', 'Archived'])).order_by(SurveyTask.start_time.asc()).all()
         
-        # KPI FILTER FIX: Case-insensitive substring match handles both singular and plurals
         excluded_keywords = ["external meeting", "internal coordination", "survey report", "damage report", "item", "request", "sem update"]
         
         tasks = []
@@ -1467,7 +1469,6 @@ def export_excel():
             clean_parts = [p.strip() for p in raw_parts if p and p.strip().lower() != 'general']
             desc_phrase = " ".join(clean_parts)
 
-            # NEW: Use execution_date for the visual Excel columns if it exists
             display_start = task.execution_date.strftime('%Y-%m-%d') if task.execution_date else (task.start_time.strftime('%Y-%m-%d %H:%M') if task.start_time else '')
             display_end = task.execution_date.strftime('%Y-%m-%d') if task.execution_date else (task.end_time.strftime('%Y-%m-%d %H:%M') if task.end_time else '')
 
@@ -1503,16 +1504,15 @@ def export_excel():
     except Exception as e:
         flash(f'KPI Excel Generation Failed. Error: {str(e)}', 'error')
         return redirect(url_for('reports'))
+
 @app.route('/wipe_all_presets')
 @login_required
 def wipe_all_presets():
-    # Security Check: Only VIP Admins can trigger this
     if current_user.email not in ADMIN_EMAILS:
         flash('Access Denied: Admins only.', 'error')
         return redirect(url_for('dashboard'))
         
     try:
-        # Delete every row in the PresetTask table
         deleted_count = db.session.query(PresetTask).delete()
         db.session.commit()
         flash(f'Blank Slate Achieved! Successfully deleted {deleted_count} old presets across all users.', 'success')
@@ -1521,5 +1521,6 @@ def wipe_all_presets():
         flash(f'Error wiping presets: {str(e)}', 'error')
         
     return redirect(url_for('admin_dashboard'))
+
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
