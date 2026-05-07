@@ -1112,7 +1112,25 @@ def edit_task(task_id):
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
-        return f"<div style='padding:20px; border:2px solid red;'><h2 style='color:red;'>CRASH</h2><p>{str(e)}</p><pre>{error_details}</pre></div>"
+ @app.route('/mark_in_progress/<int:task_id>', methods=['POST'])
+@login_required
+def mark_in_progress(task_id):
+    task = SurveyTask.query.get_or_404(task_id)
+    assigned_users = [name.strip() for name in task.assigned_to.split(',')] if task.assigned_to else []
+    is_admin = current_user.email in ADMIN_EMAILS
+    
+    # Security: Only assigned person (or Admin) can acknowledge
+    if not is_admin and current_user.name not in assigned_users:
+        flash('Security Alert: Only the assigned surveyor can acknowledge this task.', 'error')
+        return redirect(request.referrer or url_for('dashboard'))
+        
+    task.status = 'In Progress'
+    ack_note = f"Acknowledged & Started by {current_user.name}"
+    task.remarks = f"{task.remarks} | {ack_note}" if task.remarks else ack_note
+    
+    db.session.commit()
+    flash('Task acknowledged! It is now In Progress.', 'success')
+    return redirect(request.referrer or url_for('dashboard'))
 
 @app.route('/close_task/<int:task_id>', methods=['POST'])
 @login_required

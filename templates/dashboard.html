@@ -22,6 +22,7 @@
         .date-input { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
         
         .task-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; border-left: 5px solid #ffc107; transition: all 0.2s; }
+        .task-card[data-status="In Progress"] { border-left-color: #17a2b8; }
         .task-card[data-status="Closed"] { border-left-color: #28a745; opacity: 0.8; }
         .task-card[data-status="Canceled"] { border-left-color: #dc3545; opacity: 0.8; }
         
@@ -31,17 +32,27 @@
         
         .status-badge { font-size: 12px; padding: 3px 8px; border-radius: 12px; color: white; font-weight: bold; white-space: nowrap; }
         .badge-Open { background: #ffc107; color: black; }
+        .badge-In-Progress { background: #17a2b8; color: white; }
         .badge-Closed { background: #28a745; }
         .badge-Canceled { background: #dc3545; }
 
         .action-area { margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
         .btn-action { color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; text-decoration: none; }
+        .btn-progress { background-color: #17a2b8; }
         .btn-close { background-color: #28a745; }
         .btn-cancel { background-color: #dc3545; }
         .btn-edit { background-color: #ffc107; color: black; }
         
         .action-form { display: none; flex-direction: column; gap: 8px; margin-top: 10px; padding: 12px; background: #f9f9f9; border-radius: 6px; border: 1px solid #ddd; width: 100%; box-sizing: border-box; }
         .action-input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+
+        /* KANBAN STYLES */
+        .kanban-container { display: none; gap: 20px; align-items: flex-start; margin-top: 20px; }
+        .kanban-col { flex: 1; background: #e9ecef; border-radius: 8px; padding: 15px; min-height: 400px; display: flex; flex-direction: column; gap: 15px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); }
+        .kanban-col h4 { margin: 0 0 15px 0; padding-bottom: 10px; border-bottom: 2px solid #ccc; color: #333; text-align: center; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+        .kb-open { border-top: 5px solid #ffc107; }
+        .kb-progress { border-top: 5px solid #17a2b8; }
+        .kb-closed { border-top: 5px solid #28a745; }
 
         /* FULL TASK MODAL STYLES */
         .task-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
@@ -86,16 +97,24 @@
         <strong style="font-size: 14px; color: #333;">Filters:</strong>
         <button class="btn-filter" id="btnAll" onclick="toggleStatus('All')">All</button>
         <button class="btn-filter active" id="btnOpen" onclick="toggleStatus('Open')">Open</button>
+        <button class="btn-filter active" id="btnInProgress" onclick="toggleStatus('In Progress')">In Progress</button>
         <button class="btn-filter" id="btnClosed" onclick="toggleStatus('Closed')">Closed</button>
         <button class="btn-filter" id="btnCanceled" onclick="toggleStatus('Canceled')">Canceled</button>
         <button class="btn-filter" id="btnMine" onclick="toggleMine()">Assigned to Me</button>
         
-        <div style="margin-left: auto; display: flex; align-items: center; gap: 5px;">
-            <span style="font-size: 13px; color: #555;">From:</span>
-            <input type="date" id="dateStart" class="date-input" onchange="applyFilters()">
-            <span style="font-size: 13px; color: #555;">To:</span>
-            <input type="date" id="dateEnd" class="date-input" onchange="applyFilters()">
-            <button onclick="clearDates()" style="background: none; border: none; color: #dc3545; cursor: pointer; font-weight: bold;" title="Clear Dates">X</button>
+        <div style="margin-left: auto; display: flex; align-items: center; gap: 15px;">
+            <div style="display: flex; align-items: center; gap: 5px;">
+                <span style="font-size: 13px; color: #555;">From:</span>
+                <input type="date" id="dateStart" class="date-input" onchange="applyFilters()">
+                <span style="font-size: 13px; color: #555;">To:</span>
+                <input type="date" id="dateEnd" class="date-input" onchange="applyFilters()">
+                <button onclick="clearDates()" style="background: none; border: none; color: #dc3545; cursor: pointer; font-weight: bold;" title="Clear Dates">X</button>
+            </div>
+            
+            <div style="display: flex; gap: 5px; background: #fff; padding: 3px; border-radius: 6px; border: 1px solid #ccc;">
+                <button id="btnListView" class="btn-filter active" onclick="switchView('list')" style="border: none; padding: 4px 10px;">📄 List</button>
+                <button id="btnKanbanView" class="btn-filter" onclick="switchView('kanban')" style="border: none; padding: 4px 10px;">📋 Kanban</button>
+            </div>
         </div>
     </div>
     
@@ -172,12 +191,27 @@
                     </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
-                    <span class="status-badge badge-{{ task.status }}">{{ task.status }}</span>
+                    <span class="status-badge badge-{{ task.status | replace(' ', '-') }}">{{ task.status }}</span>
                     <span style="font-size: 16px; color: #0056b3; font-weight: bold;" title="View Details">⤢</span>
                 </div>
             </div>
         </div>
         {% endfor %}
+    </div>
+    
+    <div id="kanbanContainer" class="kanban-container">
+        <div class="kanban-col kb-open">
+            <h4>📥 Open Requests</h4>
+            <div id="col-open" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        </div>
+        <div class="kanban-col kb-progress">
+            <h4>🚧 In Progress</h4>
+            <div id="col-progress" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        </div>
+        <div class="kanban-col kb-closed">
+            <h4>✅ Closed (Past 48h)</h4>
+            <div id="col-closed" style="display: flex; flex-direction: column; gap: 10px;"></div>
+        </div>
     </div>
     
     <div style="text-align: center; margin-top: 30px;">
@@ -220,8 +254,13 @@
             </div>
             <div class="task-modal-footer" id="modalActionArea">
                 <a id="modalEditBtn" href="#" class="btn-action btn-edit">✏️ Edit</a>
-                <button id="modalCompleteBtn" class="btn-action btn-close" onclick="document.getElementById('modalCloseForm').style.display='flex'; this.style.display='none'; document.getElementById('modalCancelTaskBtn').style.display='none';">Complete Task</button>
-                <button id="modalCancelTaskBtn" class="btn-action btn-cancel" onclick="document.getElementById('modalCancelForm').style.display='flex'; this.style.display='none'; document.getElementById('modalCompleteBtn').style.display='none';">Cancel Task</button>
+                
+                <form id="modalAckForm" action="" method="POST" style="display:none; margin:0;">
+                    <button type="submit" class="btn-action btn-progress">🤝 Acknowledge & Start</button>
+                </form>
+
+                <button id="modalCompleteBtn" class="btn-action btn-close" onclick="document.getElementById('modalCloseForm').style.display='flex'; this.style.display='none'; document.getElementById('modalCancelTaskBtn').style.display='none'; document.getElementById('modalAckForm').style.display='none';">Complete Task</button>
+                <button id="modalCancelTaskBtn" class="btn-action btn-cancel" onclick="document.getElementById('modalCancelForm').style.display='flex'; this.style.display='none'; document.getElementById('modalCompleteBtn').style.display='none'; document.getElementById('modalAckForm').style.display='none';">Cancel Task</button>
                 
                 <form id="modalCloseForm" action="" method="POST" class="action-form" style="width:100%; display:none;">
                     <input type="text" name="closing_remarks" class="action-input" placeholder="Result/Closing remarks (Required)..." required>
@@ -239,8 +278,24 @@
 
     <script>
         // Filters & Logic
-        let activeStatuses = new Set(['All']);
+        let activeStatuses = new Set(['Open', 'In Progress']); // Default views Open & In Progress
         let isMineActive = false;
+        let viewMode = 'list'; // Default View
+
+        function switchView(mode) {
+            viewMode = mode;
+            document.getElementById('btnListView').classList.toggle('active', mode === 'list');
+            document.getElementById('btnKanbanView').classList.toggle('active', mode === 'kanban');
+            
+            if (mode === 'list') {
+                document.getElementById('taskContainer').style.display = 'block';
+                document.getElementById('kanbanContainer').style.display = 'none';
+            } else {
+                document.getElementById('taskContainer').style.display = 'none';
+                document.getElementById('kanbanContainer').style.display = 'flex';
+            }
+            applyFilters();
+        }
 
         function toggleStatus(status) {
             if (status === 'All') {
@@ -267,6 +322,7 @@
         function updateFilterUI() {
             document.getElementById('btnAll').classList.toggle('active', activeStatuses.has('All'));
             document.getElementById('btnOpen').classList.toggle('active', activeStatuses.has('Open'));
+            document.getElementById('btnInProgress').classList.toggle('active', activeStatuses.has('In Progress'));
             document.getElementById('btnClosed').classList.toggle('active', activeStatuses.has('Closed'));
             document.getElementById('btnCanceled').classList.toggle('active', activeStatuses.has('Canceled'));
             document.getElementById('btnMine').classList.toggle('active', isMineActive);
@@ -280,8 +336,19 @@
 
         function applyFilters() {
             const cards = document.querySelectorAll('.task-card');
+            
+            const listContainer = document.getElementById('taskContainer');
+            const colOpen = document.getElementById('col-open');
+            const colProg = document.getElementById('col-progress');
+            const colClosed = document.getElementById('col-closed');
+
             const dStart = document.getElementById('dateStart').value;
             const dEnd = document.getElementById('dateEnd').value;
+            
+            // Calculate 48 Hours ago for Kanban Closed Column
+            const twoDaysAgo = new Date();
+            twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+
             let visibleCount = 0;
 
             cards.forEach(card => {
@@ -290,27 +357,55 @@
                 const date = card.dataset.date;
                 const isMine = card.dataset.mine === 'true';
 
-                let matchesStatus = false;
-                if (activeStatuses.has('All') || activeStatuses.has(status)) {
-                    matchesStatus = true;
-                }
-
-                let matchesMine = true;
-                if (isMineActive && !isMine) {
-                    matchesMine = false;
-                }
+                let matchesStatus = (activeStatuses.has('All') || activeStatuses.has(status));
+                let matchesMine = (!isMineActive || isMine);
 
                 if (matchesStatus && matchesMine) {
                     show = true;
-                }
-
-                if (show) {
                     if (dStart && date < dStart) show = false;
                     if (dEnd && date > dEnd) show = false;
                 }
 
-                card.style.display = show ? 'block' : 'none';
-                if(show) visibleCount++;
+                // THE ROUTING ENGINE
+                if (viewMode === 'kanban') {
+                    if (show) {
+                        if (status === 'Open') {
+                            colOpen.appendChild(card);
+                            card.style.display = 'block';
+                            visibleCount++;
+                        } else if (status === 'In Progress') {
+                            colProg.appendChild(card);
+                            card.style.display = 'block';
+                            visibleCount++;
+                        } else if (status === 'Closed') {
+                            let endDateStr = card.dataset.end; 
+                            if (endDateStr && endDateStr !== 'Pending') {
+                                let endDate = new Date(endDateStr.replace(' ', 'T'));
+                                if (endDate >= twoDaysAgo) {
+                                    colClosed.appendChild(card);
+                                    card.style.display = 'block';
+                                    visibleCount++;
+                                } else {
+                                    card.style.display = 'none';
+                                    listContainer.appendChild(card); // Park it hidden
+                                }
+                            } else {
+                                card.style.display = 'none';
+                                listContainer.appendChild(card);
+                            }
+                        } else {
+                            card.style.display = 'none'; 
+                            listContainer.appendChild(card);
+                        }
+                    } else {
+                        card.style.display = 'none';
+                        listContainer.appendChild(card);
+                    }
+                } else {
+                    listContainer.appendChild(card);
+                    card.style.display = show ? 'block' : 'none';
+                    if(show) visibleCount++;
+                }
             });
 
             document.getElementById('taskCountDisplay').innerText = `Showing ${visibleCount} task${visibleCount === 1 ? '' : 's'}`;
@@ -335,7 +430,10 @@
             
             let rawRemarks = card.dataset.remarks;
             let remarksHtml = "";
-            if (rawRemarks.includes('| Closed:')) {
+            if (rawRemarks.includes('Acknowledged & Started by')) {
+                let parts = rawRemarks.split('| Acknowledged & Started by');
+                remarksHtml = `<strong>Opening Remarks:</strong><br>${parts[0] || 'None'}<br><br><strong style="color:#17a2b8;">Acknowledgement:</strong><br>Started by ${parts[1]}`;
+            } else if (rawRemarks.includes('| Closed:')) {
                 let parts = rawRemarks.split('| Closed:');
                 remarksHtml = `<strong>Opening Remarks:</strong><br>${parts[0] || 'None'}<br><br><strong style="color:#28a745;">Closing Notes:</strong><br>${parts[1]}`;
             } else if (rawRemarks.includes('| CANCELED:')) {
@@ -361,7 +459,7 @@
             let status = card.dataset.status;
             let badge = document.getElementById('modalStatusBadge');
             badge.innerText = status;
-            badge.className = 'status-badge badge-' + status;
+            badge.className = 'status-badge badge-' + status.replace(' ', '-');
 
             document.getElementById('modalReq').innerText = card.dataset.req;
             document.getElementById('modalAssign').innerText = card.dataset.assigned;
@@ -377,16 +475,23 @@
             
             document.getElementById('modalCloseForm').style.display = 'none';
             document.getElementById('modalCancelForm').style.display = 'none';
+            document.getElementById('modalAckForm').style.display = 'none';
 
-            if ((status === 'Open' || status === 'Closed') && isMine) {
+            if ((status === 'Open' || status === 'In Progress' || status === 'Closed') && isMine) {
                 document.getElementById('modalEditBtn').href = '/edit_task/' + taskId;
                 document.getElementById('modalEditBtn').style.display = 'block';
                 
-                if (status === 'Open') {
+                if (status === 'Open' || status === 'In Progress') {
                     document.getElementById('modalCloseForm').action = '/close_task/' + taskId;
                     document.getElementById('modalCancelForm').action = '/cancel_task/' + taskId;
                     document.getElementById('modalCompleteBtn').style.display = 'block';
                     document.getElementById('modalCancelTaskBtn').style.display = 'block';
+                    
+                    // Show Acknowledge button if Open
+                    if (status === 'Open') {
+                        document.getElementById('modalAckForm').action = '/mark_in_progress/' + taskId;
+                        document.getElementById('modalAckForm').style.display = 'block';
+                    }
                 } else {
                     document.getElementById('modalCompleteBtn').style.display = 'none';
                     document.getElementById('modalCancelTaskBtn').style.display = 'none';
