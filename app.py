@@ -752,7 +752,7 @@ def escalate_aging_tasks():
             t.remarks = f"{t.remarks} | {note}" if t.remarks else note
         db.session.commit()
 
-@@app.route('/')
+@app.route('/')
 @login_required
 def dashboard():
     session['dashboard_view'] = 'user'
@@ -1035,7 +1035,7 @@ def edit_task(task_id):
             task.is_urgent = True if request.form.get('is_urgent') else False
             p_val = request.form.get('priority')
             task.priority = int(p_val) if p_val and p_val.isdigit() else 99
-            
+
             # NEW: Handle the Execution Date
             exec_date_str = request.form.get('execution_date')
             if exec_date_str:
