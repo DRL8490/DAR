@@ -98,7 +98,7 @@
         <button class="btn-filter" id="btnAll" onclick="toggleStatus('All')">All</button>
         <button class="btn-filter active" id="btnOpen" onclick="toggleStatus('Open')">Open</button>
         <button class="btn-filter active" id="btnInProgress" onclick="toggleStatus('In Progress')">In Progress</button>
-        <button class="btn-filter" id="btnClosed" onclick="toggleStatus('Closed')">Closed</button>
+        <button class="btn-filter active" id="btnClosed" onclick="toggleStatus('Closed')">Closed</button>
         <button class="btn-filter" id="btnCanceled" onclick="toggleStatus('Canceled')">Canceled</button>
         <button class="btn-filter" id="btnMine" onclick="toggleMine()">Assigned to Me</button>
         
@@ -112,8 +112,8 @@
             </div>
             
             <div style="display: flex; gap: 5px; background: #fff; padding: 3px; border-radius: 6px; border: 1px solid #ccc;">
-                <button id="btnListView" class="btn-filter active" onclick="switchView('list')" style="border: none; padding: 4px 10px;">📄 List</button>
-                <button id="btnKanbanView" class="btn-filter" onclick="switchView('kanban')" style="border: none; padding: 4px 10px;">📋 Kanban</button>
+                <button id="btnListView" class="btn-filter" onclick="switchView('list')" style="border: none; padding: 4px 10px;">📄 List</button>
+                <button id="btnKanbanView" class="btn-filter active" onclick="switchView('kanban')" style="border: none; padding: 4px 10px;">📋 Kanban</button>
             </div>
         </div>
     </div>
@@ -144,7 +144,7 @@
     <div id="taskCountDisplay" style="font-size: 14px; font-weight: bold; color: #0056b3; margin-bottom: 15px;">Loading task count...</div>
     <p id="noTasksMsg" style="text-align: center; color: #777; margin-top: 50px; display: none;">No tasks match this filter configuration.</p>
 
-    <div id="taskContainer">
+    <div id="taskContainer" style="display: none;">
         {% for task in tasks %}
         
         {% set area_clean = task.area.split('_', 1)[-1].replace('_', ' ') if task.area and '_' in task.area else task.area %}
@@ -175,9 +175,11 @@
             <div class="task-header" onclick="openTaskModal(this.parentElement)">
                 <div style="flex: 1;">
                     <div class="task-line-1">
-                        {% if task.is_urgent and task.status == 'Open' %}
+                        {% if task.is_urgent and task.status in ['Open', 'In Progress'] %}
                         <span style="background: #dc3545; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 5px; vertical-align: top;">URGENT</span>
                         {% endif %}
+                        <span style="background: #6c757d; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-right: 5px; vertical-align: top;" title="Priority Queue">P{{ task.priority|default(99) }}</span>
+                        
                         {{ task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else 'UNKNOWN-'~task.id }} 
                         {% if scope_code %}{{ scope_code }} {% endif %}
                         {{ area_clean }}
@@ -198,8 +200,8 @@
         </div>
         {% endfor %}
     </div>
-    
-    <div id="kanbanContainer" class="kanban-container">
+
+    <div id="kanbanContainer" class="kanban-container" style="display: flex;">
         <div class="kanban-col kb-open">
             <h4>📥 Open Requests</h4>
             <div id="col-open" style="display: flex; flex-direction: column; gap: 10px;"></div>
@@ -277,10 +279,10 @@
     </div>
 
     <script>
-        // Filters & Logic
-        let activeStatuses = new Set(['Open', 'In Progress']); // Default views Open & In Progress
+        // Filters & Logic defaults to Kanban
+        let activeStatuses = new Set(['Open', 'In Progress', 'Closed']); 
         let isMineActive = false;
-        let viewMode = 'list'; // Default View
+        let viewMode = 'kanban'; 
 
         function switchView(mode) {
             viewMode = mode;

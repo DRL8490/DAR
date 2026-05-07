@@ -93,6 +93,7 @@ class SurveyTask(db.Model):
     reference_links = db.Column(db.Text, nullable=True) 
     status = db.Column(db.String(20), default="Open")
     is_urgent = db.Column(db.Boolean, default=False) # <--- URGENT FLAG ADDED
+    priority = db.Column(db.Integer, default=99)
     start_time = db.Column(db.DateTime, default=datetime.utcnow)
     execution_date = db.Column(db.Date, nullable=True)
     end_time = db.Column(db.DateTime, nullable=True)
@@ -100,6 +101,11 @@ class SurveyTask(db.Model):
 with app.app_context():
     db.create_all()
     # Safely inject the Execution Date column
+    try:
+        db.session.execute(text('ALTER TABLE survey_task ADD COLUMN priority INTEGER DEFAULT 99'))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
     try:
         db.session.execute(text('ALTER TABLE survey_task ADD COLUMN execution_date DATE'))
         db.session.commit()
@@ -730,14 +736,31 @@ def migrate_data():
             return redirect(url_for('migrate_data'))
 
     return render_template('migration.html')
+def escalate_aging_tasks():
+    # If a task is Open/In Progress for >48 hours, auto-flag it as URGENT
+    cutoff_time = datetime.utcnow() - timedelta(hours=48)
+    aging_tasks = SurveyTask.query.filter(
+        SurveyTask.status.in_(['Open', 'In Progress']),
+        SurveyTask.start_time < cutoff_time,
+        SurveyTask.is_urgent == False
+    ).all()
+    
+    if aging_tasks:
+        for t in aging_tasks:
+            t.is_urgent = True
+            note = f"⚠️ AUTO-ESCALATED: Idle > 48h"
+            t.remarks = f"{t.remarks} | {note}" if t.remarks else note
+        db.session.commit()
 
-@app.route('/')
+@@app.route('/')
 @login_required
 def dashboard():
     session['dashboard_view'] = 'user'
-    # 17. THE PAGINATION: Limit to 300 to protect mobile memory and JS Filters
+    escalate_aging_tasks() # <--- Triggers the 48h check
+    
+    # NEW SORT: Urgent first, then Priority (0 to 99), then Newest Date
     all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived') \
-        .order_by(SurveyTask.is_urgent.desc(), SurveyTask.start_time.desc()) \
+        .order_by(SurveyTask.is_urgent.desc(), SurveyTask.priority.asc(), SurveyTask.start_time.desc()) \
         .limit(300).all()
     is_admin = current_user.email in ADMIN_EMAILS
     return render_template('dashboard.html', name=current_user.name, tasks=all_tasks, is_admin=is_admin)
@@ -750,54 +773,13 @@ def admin_dashboard():
         return redirect(url_for('dashboard'))
 
     session['dashboard_view'] = 'admin'
+    escalate_aging_tasks() # <--- Triggers the 48h check
     
-    # Existing Dashboard Queries
     all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived') \
-        .order_by(SurveyTask.is_urgent.desc(), SurveyTask.start_time.desc()) \
+        .order_by(SurveyTask.is_urgent.desc(), SurveyTask.priority.asc(), SurveyTask.start_time.desc()) \
         .limit(300).all()
     users = User.query.order_by(User.name.asc()).all()
-
-    # --- NEW: 3-Month KPI Summary Logic ---
-    now = datetime.now() 
-    months_data = []
-    
-    # Build the calendar bounds for the last 3 months
-    for i in range(2, -1, -1):
-        m = now.month - i
-        y = now.year
-        if m <= 0:
-            m += 12
-            y -= 1
-            
-        if i == 0:
-            end_day = now.day # Current month stops exactly at today
-        else:
-            _, end_day = calendar.monthrange(y, m) # Previous months get full 30/31 days
-        
-        months_data.append({
-            'year': y,
-            'month': m,
-            'month_name': calendar.month_name[m],
-            'end_day': end_day,
-            'key': f"{y}-{m:02d}",
-            'count': 0
-        })
-        
-    # Count all historically completed tasks
-    completed_tasks = SurveyTask.query.filter(SurveyTask.status.in_(['Closed', 'Archived'])).all()
-    for t in completed_tasks:
-        if t.start_time:
-            t_key = t.start_time.strftime('%Y-%m')
-            for md in months_data:
-                if md['key'] == t_key:
-                    md['count'] += 1
-                    break
-                    
-    kpi_summary_json = json.dumps(months_data)
-    # ----------------------------------------
-
-    # Add the kpi_summary_json variable to your render_template
-    return render_template('admin_dashboard.html', name=current_user.name, tasks=all_tasks, users=users, kpi_summary_json=kpi_summary_json)
+    # ... rest of the route ...
 @app.route('/system_config_hidden', methods=['GET', 'POST'])
 @login_required
 def hidden_config():
@@ -977,7 +959,8 @@ def new_task():
                 task_category=request.form.get('task_category'), instrument=request.form.get('instrument'), action_required=request.form.get('action_required'),
                 area=request.form.get('area'), location=request.form.get('location'), sub_location=request.form.get('sub_location'),
                 work_scope=request.form.get('work_scope'), remarks=request.form.get('remarks'), reference_links=ref_links_str,
-                is_urgent=is_urgent_val
+                is_urgent=is_urgent_val,
+                priority=priority_val
             )
             db.session.add(new_survey)
             db.session.commit()      
@@ -1050,7 +1033,9 @@ def edit_task(task_id):
             task.action_required = request.form.get('action_required')
             task.remarks = request.form.get('remarks')
             task.is_urgent = True if request.form.get('is_urgent') else False
-
+            p_val = request.form.get('priority')
+            task.priority = int(p_val) if p_val and p_val.isdigit() else 99
+            
             # NEW: Handle the Execution Date
             exec_date_str = request.form.get('execution_date')
             if exec_date_str:
