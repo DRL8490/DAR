@@ -1112,7 +1112,7 @@ def edit_task(task_id):
     except Exception as e:
         import traceback
         error_details = traceback.format_exc()
- @app.route('/mark_in_progress/<int:task_id>', methods=['POST'])
+@app.route('/mark_in_progress/<int:task_id>', methods=['POST'])
 @login_required
 def mark_in_progress(task_id):
     task = SurveyTask.query.get_or_404(task_id)
