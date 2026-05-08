@@ -30,7 +30,6 @@
         
         .task-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; cursor: pointer; }
         .task-line-1 { font-family: monospace; font-size: 14px; color: #111; font-weight: bold; margin-bottom: 6px; line-height: 1.4; }
-        .task-line-2 { font-size: 13px; color: #555; }
         
         .status-badge { font-size: 12px; padding: 3px 8px; border-radius: 12px; color: white; font-weight: bold; white-space: nowrap; }
         .badge-Open { background: #ffc107; color: black; }
@@ -240,7 +239,7 @@
             
             <div class="task-header" onclick="openTaskModal(this.parentElement)">
                 <div style="flex: 1;">
-                    <div class="task-line-1" style="font-size: 15px; line-height: 1.4; margin-bottom: 8px;">
+                    <div class="task-line-1" style="font-size: 15px; line-height: 1.4; margin-bottom: 4px;">
                         {% if task.is_urgent and task.status in ['Open', 'In Progress'] %}
                         <span style="background: #dc3545; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; margin-right: 5px; vertical-align: top;">URGENT</span>
                         {% endif %}
@@ -273,6 +272,13 @@
                         </span>
                     </div>
 
+                    {% set short_remark = task.remarks.split('|')[0].strip() if task.remarks else '' %}
+                    {% if short_remark %}
+                    <div style="font-size: 13px; color: #333; margin-bottom: 8px; padding-left: 2px;">
+                        ↳ <i>{{ short_remark | truncate(85) }}</i>
+                    </div>
+                    {% endif %}
+
                     <div style="font-size: 12px; color: #666; margin-bottom: 8px; display: flex; align-items: center; gap: 5px; flex-wrap: wrap;">
                         📁 
                         <span>{{ area_clean }}</span>
@@ -283,17 +289,14 @@
                         {% endif %}
                     </div>
 
-                    <div class="task-line-2">
-                        <strong>From:</strong> {{ task.requestor.split(' - ')[-1] if task.requestor and ' - ' in task.requestor else task.requestor }} | <strong>Assigned:</strong> {{ task.assigned_to }}
-                    </div>
-
-                    <div style="font-size: 11px; color: #888; border-top: 1px solid #f0f0f0; padding-top: 8px; margin-top: 5px;">
-                        ID: {{ task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else 'UNKNOWN-'~task.id }} | Activity: {{ task.task_category }}
+                    <div style="font-size: 11px; color: #888; border-top: 1px solid #f0f0f0; padding-top: 8px; margin-top: 5px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 5px;">
+                        <span>ID: {{ task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else 'UNKNOWN-'~task.id }} | Act: {{ task.task_category }}</span>
+                        <span><strong>From:</strong> {{ task.requestor.split(' - ')[-1] if task.requestor and ' - ' in task.requestor else task.requestor }}</span>
                     </div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <span class="status-badge badge-{{ task.status | replace(' ', '-') }}">{{ task.status }}</span>
-                    <span style="font-size: 16px; color: #0056b3; font-weight: bold;" title="View Details">⤢</span>
+                
+                <div style="display: flex; align-items: center; padding-left: 8px;">
+                    <span style="font-size: 18px; color: #0056b3; font-weight: bold;" title="View Details">⤢</span>
                 </div>
             </div>
         </div>
