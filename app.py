@@ -4,7 +4,7 @@ from flask import send_file
 import os, json
 import calendar
 import traceback
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -1067,9 +1067,6 @@ def new_task():
 
             is_urgent_val = True if request.form.get('is_urgent') else False
             
-            # Since the priority auto-sequencer assigns 1...N, we just save this with 99 so it falls to the end initially
-            # or if the user explicitly provided a priority in a custom form, we'd use it.
-            # For new_task, we'll let it default to 99, and the resequence_queue will fix it.
             p_val = request.form.get('priority')
             priority_val = int(p_val) if p_val and p_val.isdigit() else 99
 
@@ -1085,7 +1082,6 @@ def new_task():
             db.session.add(new_survey)
             db.session.commit()      
             
-            # RESEQUENCE QUEUE
             resequence_queue(assigned_str)
 
             flash('New task opened successfully!', 'success')
@@ -1174,7 +1170,6 @@ def edit_task(task_id):
 
             db.session.commit()
 
-            # RESEQUENCE QUEUE
             if old_assigned and old_assigned != task.assigned_to:
                 resequence_queue(old_assigned)
             resequence_queue(task.assigned_to)
@@ -1231,6 +1226,34 @@ def edit_task(task_id):
         import traceback
         error_details = traceback.format_exc()
 
+@app.route('/ajax_update_task_status', methods=['POST'])
+@login_required
+def ajax_update_task_status():
+    try:
+        data = request.get_json()
+        task_id = data.get('task_id')
+        new_status = data.get('new_status')
+        
+        task = SurveyTask.query.get_or_404(task_id)
+        assigned_users = [name.strip() for name in task.assigned_to.split(',')] if task.assigned_to else []
+        is_admin = current_user.email in ADMIN_EMAILS
+        
+        if not is_admin and current_user.name not in assigned_users and current_user.name != task.surveyor_name:
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+            
+        task.status = new_status
+        
+        if new_status == 'In Progress' and 'Acknowledged' not in (task.remarks or ''):
+            ack_note = f"Acknowledged & Started by {current_user.name}"
+            task.remarks = f"{task.remarks} | {ack_note}" if task.remarks else ack_note
+            
+        db.session.commit()
+        resequence_queue(task.assigned_to)
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 @app.route('/mark_in_progress/<int:task_id>', methods=['POST'])
 @login_required
 def mark_in_progress(task_id):
@@ -1248,7 +1271,6 @@ def mark_in_progress(task_id):
     
     db.session.commit()
     
-    # RESEQUENCE QUEUE
     resequence_queue(task.assigned_to)
     
     flash('Task acknowledged! It is now In Progress.', 'success')
@@ -1277,7 +1299,6 @@ def close_task(task_id):
     task.end_time = datetime.utcnow()
     db.session.commit()
     
-    # RESEQUENCE QUEUE
     resequence_queue(task.assigned_to)
     
     flash('Task closed and logged!', 'success')
@@ -1303,7 +1324,6 @@ def cancel_task(task_id):
     task.end_time = datetime.utcnow()
     db.session.commit()
     
-    # RESEQUENCE QUEUE
     resequence_queue(task.assigned_to)
     
     flash('Task canceled.', 'error')
