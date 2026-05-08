@@ -100,11 +100,34 @@
                             <small class="text-muted d-block mt-1">Select a full combination from the dropdown to auto-fill below.</small>
                         </div>
 
-                        <div class="mb-3">
-                            <label class="form-label fw-bold small">Activity Type</label>
-                            <select class="form-select" id="task_category" name="task_category" onchange="updateActions()" required>
-                                <option value="">-- Select Activity --</option>
-                            </select>
+                        <div class="row mb-3">
+                            <div class="col-md-5">
+                                <label class="form-label fw-bold text-danger small">1. Mission Verb</label>
+                                <select class="form-select border-danger shadow-sm" name="command_verb" required>
+                                    <optgroup label="Execution (Core)">
+                                        <option value="PERFORM">PERFORM (Field Work & Physical Surveys)</option>
+                                        <option value="PROCESS">PROCESS (Data Processing & Calculations)</option>
+                                        <option value="DRAFT">DRAFT (Creating Drawings & Initial Reports)</option>
+                                        <option value="SETUP">SETUP (Equipment Config & Troubleshooting)</option>
+                                    </optgroup>
+                                    <optgroup label="Quality & Coordination">
+                                        <option value="VERIFY">VERIFY (Internal Checks & QA/QC)</option>
+                                        <option value="REVIEW">REVIEW (Reviewing Subcon or Third-Party Reports)</option>
+                                        <option value="PROVIDE">PROVIDE (Giving Input/Support to Other Depts)</option>
+                                        <option value="ATTEND">ATTEND (Internal and External Meetings)</option>
+                                    </optgroup>
+                                    <optgroup label="Deliverables">
+                                        <option value="SUBMIT">SUBMIT (Sending Reports to DC or Management)</option>
+                                        <option value="FILE">FILE (Archiving Data or Storing Historical Files)</option>
+                                    </optgroup>
+                                </select>
+                            </div>
+                            <div class="col-md-7">
+                                <label class="form-label fw-bold small">2. Activity Type</label>
+                                <select class="form-select" id="task_category" name="task_category" onchange="updateActions()" required>
+                                    <option value="">-- Select Activity --</option>
+                                </select>
+                            </div>
                         </div>
 
                         <div class="row mb-3">
@@ -214,7 +237,6 @@
     const reqData = JSON.parse(document.getElementById('req_data').textContent);
     const fileTree = JSON.parse(document.getElementById('tree_data').textContent);
     const actData = JSON.parse(document.getElementById('act_data').textContent);
-    // LOAD THE UNIQUE DICTIONARY INTO MEMORY
     const allPresets = JSON.parse(document.getElementById('presets_data').textContent);
 
     function addSurveyorDropdown() {
@@ -228,7 +250,6 @@
         container.appendChild(div);
     }
 
-    // --- 1. REQUESTOR SEARCH & AUTOFILL ---
     const datalist = document.getElementById('requestor_list');
     let requestorMap = {}; 
     for (const [dept, names] of Object.entries(reqData)) {
@@ -245,7 +266,6 @@
         document.getElementById('requestor_dept').value = requestorMap[name] || '';
     }
 
-    // --- 2. TASK CASCADING DROPDOWNS ---
     const actSelect = document.getElementById('task_category');
     const reqActSelect = document.getElementById('action_required');
     const instSelect = document.getElementById('instrument');
@@ -270,7 +290,6 @@
         }
     }
 
-    // --- 2.5 SMART TASK SEARCH ---
     const smartList = document.getElementById('smart_task_list');
     let taskCombinations = {}; 
 
@@ -298,7 +317,6 @@
         }
     }
 
-    // --- 3. DUAL-ENTRY FILE TREE ---
     const locSearchList = document.getElementById('loc_search_list');
     let locCombinations = {}; 
     for(const [area, locs] of Object.entries(fileTree)) {
@@ -324,7 +342,6 @@
         }
     }
 
-    // COLLAPSIBLE MODAL BUILDER
     const modalBody = document.getElementById('tree_modal_body');
     let treeHTML = '<ul class="list-unstyled">';
     let fId = 0;
@@ -365,7 +382,6 @@
     treeHTML += '</ul>';
     modalBody.innerHTML = treeHTML;
 
-    // Helper for Accordion Toggle
     window.toggleFolder = function(folderId, iconId) {
         const folder = document.getElementById(folderId);
         const icon = document.getElementById(iconId);
@@ -401,7 +417,6 @@
         `;
     }
 
-    // --- 4. DYNAMIC UI HELPERS ---
     function addReferenceLink() {
         const container = document.getElementById('links_container');
         const input = document.createElement('input');
@@ -412,7 +427,6 @@
         container.appendChild(input);
     }
 
-    // --- 5. INSTANT JSON PRESET LOADER (FIXED) ---
     function loadPreset() {
         const pId = document.getElementById('presetLoader').value;
         if (!pId || !allPresets[pId]) return;
@@ -426,6 +440,12 @@
         if (loadedPreset.assigned_to) {
             document.querySelector('input[name="assigned_to"]').value = loadedPreset.assigned_to;
         }
+        
+        // --- NEW: MISSION VERB LOAD ---
+        if (loadedPreset.command_verb) {
+            document.querySelector('select[name="command_verb"]').value = loadedPreset.command_verb;
+        }
+
         if (loadedPreset.task_category) {
             actSelect.value = loadedPreset.task_category;
             updateActions(); 
@@ -446,7 +466,6 @@
             );
         }
         
-        // --- NEW: AUTO-FILL REMARKS ---
         if (loadedPreset.remarks) {
             document.querySelector('textarea[name="remarks"]').value = loadedPreset.remarks;
         }

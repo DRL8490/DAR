@@ -59,7 +59,29 @@
                 <datalist id="smart_task_list"></datalist>
             </div>
 
-            <div class="form-group"><label>Activity Type:</label><select name="task_category" id="task_category" onchange="updateActions()" required><option value="">-- Select Category --</option></select></div>
+            <div class="form-group">
+                <label style="color: #dc3545;">1. Mission Verb:</label>
+                <select name="command_verb" id="command_verb" style="border: 1px solid #dc3545; padding: 10px; border-radius: 4px; font-size: 16px;" required>
+                    <optgroup label="Execution (Core)">
+                        <option value="PERFORM">PERFORM (Field Work & Physical Surveys)</option>
+                        <option value="PROCESS">PROCESS (Data Processing & Calculations)</option>
+                        <option value="DRAFT">DRAFT (Creating Drawings & Initial Reports)</option>
+                        <option value="SETUP">SETUP (Equipment Config & Troubleshooting)</option>
+                    </optgroup>
+                    <optgroup label="Quality & Coordination">
+                        <option value="VERIFY">VERIFY (Internal Checks & QA/QC)</option>
+                        <option value="REVIEW">REVIEW (Reviewing Subcon or Third-Party Reports)</option>
+                        <option value="PROVIDE">PROVIDE (Giving Input/Support to Other Depts)</option>
+                        <option value="ATTEND">ATTEND (Internal and External Meetings)</option>
+                    </optgroup>
+                    <optgroup label="Deliverables">
+                        <option value="SUBMIT">SUBMIT (Sending Reports to DC or Management)</option>
+                        <option value="FILE">FILE (Archiving Data or Storing Historical Files)</option>
+                    </optgroup>
+                </select>
+            </div>
+
+            <div class="form-group"><label>2. Activity Type:</label><select name="task_category" id="task_category" onchange="updateActions()" required><option value="">-- Select Category --</option></select></div>
             <div class="form-group"><label>Action Required/Discipline:</label><select name="action_required" id="action_required" onchange="updateInstruments()" required><option value="">-- Select Action --</option></select></div>
             <div class="form-group"><label>Instrument:</label><select name="instrument" id="instrument" required><option value="">-- Select Instrument --</option></select></div>
             
@@ -196,6 +218,7 @@
 
         let tData = {{ task_json | safe }};
         if (tData) {
+            setSafeVal('command_verb', tData.command_verb); // <--- LOAD SAVED VERB
             setSafeVal('task_category', tData.task_category); updateActions();
             setSafeVal('action_required', tData.action_required); updateInstruments();
             setSafeVal('instrument', tData.instrument);

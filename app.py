@@ -57,6 +57,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     is_approved = db.Column(db.Boolean, default=False)  
     is_active = db.Column(db.Boolean, default=True)    
+    initials = db.Column(db.String(10), nullable=True) # <--- NEW: Custom Initials
 
 class AppConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -69,6 +70,7 @@ class PresetTask(db.Model):
     req_dept = db.Column(db.String(100))
     req_name = db.Column(db.String(100))
     assigned_to = db.Column(db.String(100))
+    command_verb = db.Column(db.String(50)) # <--- NEW: Mission Verb for Presets
     task_category = db.Column(db.String(100))
     area = db.Column(db.String(100))
     location = db.Column(db.String(100))
@@ -83,6 +85,7 @@ class SurveyTask(db.Model):
     surveyor_name = db.Column(db.String(100), nullable=False) 
     assigned_to = db.Column(db.String(100), nullable=True)    
     requestor = db.Column(db.String(100), nullable=True)
+    command_verb = db.Column(db.String(50), default="PERFORM") # <--- NEW: Mission Verb
     task_category = db.Column(db.String(100), nullable=True) 
     instrument = db.Column(db.String(100), nullable=True) 
     action_required = db.Column(db.String(100), nullable=True) 
@@ -103,6 +106,24 @@ class SurveyTask(db.Model):
 with app.app_context():
     db.create_all()
     # Safely inject columns
+    try:
+        db.session.execute(text('ALTER TABLE survey_task ADD COLUMN command_verb VARCHAR(50) DEFAULT \'PERFORM\''))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        
+    try:
+        db.session.execute(text('ALTER TABLE preset_task ADD COLUMN command_verb VARCHAR(50)'))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        
+    try:
+        db.session.execute(text('ALTER TABLE "user" ADD COLUMN initials VARCHAR(10)'))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        
     try:
         db.session.execute(text('ALTER TABLE survey_task ADD COLUMN priority INTEGER DEFAULT 99'))
         db.session.commit()
@@ -519,7 +540,18 @@ def dashboard():
         .order_by(SurveyTask.is_urgent.desc(), SurveyTask.priority.asc(), SurveyTask.start_time.desc()) \
         .limit(300).all()
     is_admin = current_user.email in ADMIN_EMAILS
-    return render_template('dashboard.html', name=current_user.name, tasks=all_tasks, is_admin=is_admin)
+    
+    # --- NEW: Initials Mapping Engine ---
+    all_users = User.query.all()
+    initials_map = {}
+    for u in all_users:
+        if u.initials:
+            initials_map[u.name] = u.initials.upper()
+        else:
+            parts = u.name.split()
+            initials_map[u.name] = (parts[0][0] + parts[1][0]).upper() if len(parts) >= 2 else u.name[:2].upper()
+
+    return render_template('dashboard.html', name=current_user.name, tasks=all_tasks, is_admin=is_admin, initials_map=initials_map)
 
 @app.route('/admin_dashboard')
 @login_required
@@ -535,6 +567,15 @@ def admin_dashboard():
         .order_by(SurveyTask.is_urgent.desc(), SurveyTask.priority.asc(), SurveyTask.start_time.desc()) \
         .limit(300).all()
     users = User.query.order_by(User.name.asc()).all()
+
+    # --- NEW: Initials Mapping Engine ---
+    initials_map = {}
+    for u in users:
+        if u.initials:
+            initials_map[u.name] = u.initials.upper()
+        else:
+            parts = u.name.split()
+            initials_map[u.name] = (parts[0][0] + parts[1][0]).upper() if len(parts) >= 2 else u.name[:2].upper()
 
     # --- 3-Month KPI Summary Logic (FIXES THE 500 CRASH) ---
     now = datetime.utcnow()
@@ -568,7 +609,19 @@ def admin_dashboard():
                     
     kpi_summary_json = json.dumps(months_data)
 
-    return render_template('admin_dashboard.html', name=current_user.name, tasks=all_tasks, users=users, kpi_summary_json=kpi_summary_json)
+    return render_template('admin_dashboard.html', name=current_user.name, tasks=all_tasks, users=users, kpi_summary_json=kpi_summary_json, initials_map=initials_map)
+
+@app.route('/update_initials/<int:user_id>', methods=['POST'])
+@login_required
+def update_initials(user_id):
+    if current_user.email not in ADMIN_EMAILS:
+        return "Unauthorized", 403
+    user = User.query.get_or_404(user_id)
+    new_initials = request.form.get('initials', '').strip().upper()
+    user.initials = new_initials
+    db.session.commit()
+    flash(f"Updated initials for {user.name} to '{user.initials}'", 'success')
+    return redirect(url_for('manage_users'))
 
 @app.route('/archive')
 @login_required
@@ -953,13 +1006,15 @@ def new_task():
             assigned_list = request.form.getlist('assigned_to')
             assigned_str = ", ".join([a for a in assigned_list if a.strip()])
             
+            command_verb_val = request.form.get('command_verb', 'PERFORM') # <--- NEW
+            
             save_preset = request.form.get('save_preset')
             preset_name = request.form.get('preset_name')
             if save_preset == 'true':
                 p_name = preset_name or f"{request.form.get('area')} - {request.form.get('work_scope')}"
                 db.session.add(PresetTask(
                     user_id=current_user.id, preset_name=p_name, req_dept=req_dept, req_name=req_name,
-                    assigned_to=assigned_str, task_category=request.form.get('task_category'),
+                    assigned_to=assigned_str, command_verb=command_verb_val, task_category=request.form.get('task_category'),
                     area=request.form.get('area'), location=request.form.get('location'), 
                     sub_location=request.form.get('sub_location'), work_scope=request.form.get('work_scope'),
                     instrument=request.form.get('instrument'), action_required=request.form.get('action_required'),
@@ -975,7 +1030,8 @@ def new_task():
 
             new_survey = SurveyTask(
                 surveyor_name=current_user.name, assigned_to=assigned_str, requestor=merged_requestor,
-                task_category=request.form.get('task_category'), instrument=request.form.get('instrument'), action_required=request.form.get('action_required'),
+                command_verb=command_verb_val, task_category=request.form.get('task_category'), 
+                instrument=request.form.get('instrument'), action_required=request.form.get('action_required'),
                 area=request.form.get('area'), location=request.form.get('location'), sub_location=request.form.get('sub_location'),
                 work_scope=request.form.get('work_scope'), remarks=request.form.get('remarks'), reference_links=ref_links_str,
                 is_urgent=is_urgent_val,
@@ -991,6 +1047,7 @@ def new_task():
         for p in user_presets:
             presets_dict[p.id] = {
                 'req_dept': p.req_dept or "", 'req_name': p.req_name or "", 'assigned_to': p.assigned_to or "",
+                'command_verb': p.command_verb or "PERFORM",
                 'task_category': p.task_category or "", 'area': p.area or "", 'location': p.location or "",
                 'sub_location': p.sub_location or "", 'work_scope': p.work_scope or "",
                 'instrument': p.instrument or "", 'action_required': p.action_required or "",
@@ -1041,6 +1098,7 @@ def edit_task(task_id):
             assigned_list = request.form.getlist('assigned_to')
             task.assigned_to = ", ".join([a for a in assigned_list if a.strip()])
             
+            task.command_verb = request.form.get('command_verb', 'PERFORM') # <--- NEW
             task.task_category = request.form.get('task_category')
             task.area = request.form.get('area')
             task.location = request.form.get('location')
@@ -1074,6 +1132,7 @@ def edit_task(task_id):
         activities_data = master_schema.get("activities", {})
             
         task_dict = {
+            'command_verb': task.command_verb or "PERFORM",
             'task_category': task.task_category or "", 'instrument': task.instrument or "",
             'action_required': task.action_required or "", 'area': task.area or "", 'location': task.location or "",
             'sub_location': task.sub_location or "", 'work_scope': task.work_scope or ""
