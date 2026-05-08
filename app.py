@@ -57,7 +57,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     is_approved = db.Column(db.Boolean, default=False)  
     is_active = db.Column(db.Boolean, default=True)    
-    initials = db.Column(db.String(10), nullable=True) # <--- NEW: Custom Initials
+    initials = db.Column(db.String(10), nullable=True) 
 
 class AppConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -70,7 +70,7 @@ class PresetTask(db.Model):
     req_dept = db.Column(db.String(100))
     req_name = db.Column(db.String(100))
     assigned_to = db.Column(db.String(100))
-    command_verb = db.Column(db.String(50)) # <--- NEW: Mission Verb for Presets
+    command_verb = db.Column(db.String(50)) 
     task_category = db.Column(db.String(100))
     area = db.Column(db.String(100))
     location = db.Column(db.String(100))
@@ -85,7 +85,7 @@ class SurveyTask(db.Model):
     surveyor_name = db.Column(db.String(100), nullable=False) 
     assigned_to = db.Column(db.String(100), nullable=True)    
     requestor = db.Column(db.String(100), nullable=True)
-    command_verb = db.Column(db.String(50), default="PERFORM") # <--- NEW: Mission Verb
+    command_verb = db.Column(db.String(50), default="PERFORM") 
     task_category = db.Column(db.String(100), nullable=True) 
     instrument = db.Column(db.String(100), nullable=True) 
     action_required = db.Column(db.String(100), nullable=True) 
@@ -292,6 +292,31 @@ with app.app_context():
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
+
+# --- THE AUTO-SEQUENCER ENGINE ---
+def resequence_queue(assigned_to_str):
+    """
+    Sweeps a user's (or team's) active queue and strictly renumbers their priority.
+    Urgent tasks are placed at the top, then sorts by existing priority, then by age.
+    """
+    if not assigned_to_str:
+        return
+        
+    # We must ensure we're inside the app context if calling from background/scheduler,
+    # but since this runs in routes, db.session is fine.
+    active_tasks = SurveyTask.query.filter(
+        SurveyTask.status.in_(['Open', 'In Progress']),
+        SurveyTask.assigned_to == assigned_to_str
+    ).order_by(
+        SurveyTask.is_urgent.desc(), 
+        SurveyTask.priority.asc(), 
+        SurveyTask.start_time.asc()
+    ).all()
+    
+    for idx, t in enumerate(active_tasks, start=1):
+        t.priority = idx
+        
+    db.session.commit()
 
 # --- AUTHENTICATION ROUTES ---
 @app.route('/register', methods=['GET', 'POST'])
@@ -513,7 +538,6 @@ scheduler.start()
 
 def escalate_aging_tasks():
     try:
-        # If a task is Open/In Progress for >48 hours, auto-flag it as URGENT
         cutoff_time = datetime.utcnow() - timedelta(hours=48)
         aging_tasks = SurveyTask.query.filter(
             SurveyTask.status.in_(['Open', 'In Progress']),
@@ -522,11 +546,19 @@ def escalate_aging_tasks():
         ).all()
         
         if aging_tasks:
+            changed_assignees = set()
             for t in aging_tasks:
                 t.is_urgent = True
                 note = f"⚠️ AUTO-ESCALATED: Idle > 48h"
                 t.remarks = f"{t.remarks} | {note}" if t.remarks else note
+                if t.assigned_to:
+                    changed_assignees.add(t.assigned_to)
             db.session.commit()
+            
+            # Rebalance queues that had tasks escalate automatically
+            for assignee in changed_assignees:
+                resequence_queue(assignee)
+                
     except Exception as e:
         print(f"Escalation Error: {e}")
 
@@ -645,6 +677,10 @@ def restore_task(task_id):
         restore_note = f"RESTORED FROM ARCHIVE: {datetime.utcnow().strftime('%Y-%m-%d')}"
         task.remarks = f"{task.remarks} | {restore_note}" if task.remarks else restore_note
         db.session.commit()
+        
+        # RESEQUENCE QUEUE
+        resequence_queue(task.assigned_to)
+        
         flash(f'Task {task_id} was successfully restored to the dashboard.', 'success')
     except Exception as e:
         db.session.rollback()
@@ -692,8 +728,13 @@ def delete_task(task_id):
         
     task = SurveyTask.query.get_or_404(task_id)
     try:
+        assigned_str = task.assigned_to
         db.session.delete(task)
         db.session.commit()
+        
+        # RESEQUENCE QUEUE
+        resequence_queue(assigned_str)
+        
         flash(f'Task {task_id} was permanently deleted.', 'success')
     except Exception as e:
         db.session.rollback()
@@ -1006,7 +1047,7 @@ def new_task():
             assigned_list = request.form.getlist('assigned_to')
             assigned_str = ", ".join([a for a in assigned_list if a.strip()])
             
-            command_verb_val = request.form.get('command_verb', 'PERFORM') # <--- NEW
+            command_verb_val = request.form.get('command_verb', 'PERFORM') 
             
             save_preset = request.form.get('save_preset')
             preset_name = request.form.get('preset_name')
@@ -1025,6 +1066,10 @@ def new_task():
             ref_links_str = " | ".join([link for link in ref_links if link.strip()])
 
             is_urgent_val = True if request.form.get('is_urgent') else False
+            
+            # Since the priority auto-sequencer assigns 1...N, we just save this with 99 so it falls to the end initially
+            # or if the user explicitly provided a priority in a custom form, we'd use it.
+            # For new_task, we'll let it default to 99, and the resequence_queue will fix it.
             p_val = request.form.get('priority')
             priority_val = int(p_val) if p_val and p_val.isdigit() else 99
 
@@ -1039,6 +1084,10 @@ def new_task():
             )
             db.session.add(new_survey)
             db.session.commit()      
+            
+            # RESEQUENCE QUEUE
+            resequence_queue(assigned_str)
+
             flash('New task opened successfully!', 'success')
             return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
             
@@ -1095,10 +1144,11 @@ def edit_task(task_id):
             req_name = request.form.get('requestor_name')
             task.requestor = f"{req_dept} - {req_name}"
             
+            old_assigned = task.assigned_to
             assigned_list = request.form.getlist('assigned_to')
             task.assigned_to = ", ".join([a for a in assigned_list if a.strip()])
             
-            task.command_verb = request.form.get('command_verb', 'PERFORM') # <--- NEW
+            task.command_verb = request.form.get('command_verb', 'PERFORM')
             task.task_category = request.form.get('task_category')
             task.area = request.form.get('area')
             task.location = request.form.get('location')
@@ -1110,7 +1160,8 @@ def edit_task(task_id):
             task.is_urgent = True if request.form.get('is_urgent') else False
             
             p_val = request.form.get('priority')
-            task.priority = int(p_val) if p_val and p_val.isdigit() else 99
+            if p_val and p_val.isdigit():
+                task.priority = int(p_val)
 
             exec_date_str = request.form.get('execution_date')
             if exec_date_str:
@@ -1122,6 +1173,12 @@ def edit_task(task_id):
             task.reference_links = " | ".join([link for link in ref_links if link.strip()])
 
             db.session.commit()
+
+            # RESEQUENCE QUEUE
+            if old_assigned and old_assigned != task.assigned_to:
+                resequence_queue(old_assigned)
+            resequence_queue(task.assigned_to)
+
             flash('Task updated successfully!', 'success')
             return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
 
@@ -1190,6 +1247,10 @@ def mark_in_progress(task_id):
     task.remarks = f"{task.remarks} | {ack_note}" if task.remarks else ack_note
     
     db.session.commit()
+    
+    # RESEQUENCE QUEUE
+    resequence_queue(task.assigned_to)
+    
     flash('Task acknowledged! It is now In Progress.', 'success')
     return redirect(request.referrer or url_for('dashboard'))
 
@@ -1215,6 +1276,10 @@ def close_task(task_id):
     task.status = 'Closed'
     task.end_time = datetime.utcnow()
     db.session.commit()
+    
+    # RESEQUENCE QUEUE
+    resequence_queue(task.assigned_to)
+    
     flash('Task closed and logged!', 'success')
     return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
 
@@ -1237,6 +1302,10 @@ def cancel_task(task_id):
     task.status = 'Canceled'
     task.end_time = datetime.utcnow()
     db.session.commit()
+    
+    # RESEQUENCE QUEUE
+    resequence_queue(task.assigned_to)
+    
     flash('Task canceled.', 'error')
     return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
     
