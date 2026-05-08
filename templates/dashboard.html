@@ -495,9 +495,29 @@
             card.classList.remove('dragging');
 
             if (card.dataset.status !== newStatus) {
+                
+                // --- STRICT COMPLIANCE: Intercept "Closed" ---
+                if (newStatus === 'Closed') {
+                    // Refuse silent update. Open modal to force remarks.
+                    openTaskModal(card);
+                    
+                    // Automatically click the "Complete Task" button to expose the form
+                    setTimeout(() => {
+                        let completeBtn = document.getElementById('modalCompleteBtn');
+                        if (completeBtn && completeBtn.style.display !== 'none') {
+                            completeBtn.click();
+                            // Drop cursor right into the mandatory input field
+                            document.querySelector('#modalCloseForm input[name="closing_remarks"]').focus();
+                        }
+                    }, 100); 
+                    
+                    return; // Halt the drag-and-drop flow entirely.
+                }
+                // ---------------------------------------------
+                
                 let oldStatus = card.dataset.status;
                 
-                // 1. Optimistic UI Update: Snap it into the new column instantly
+                // 1. Optimistic UI Update: Snap it into the new column instantly (For 'Open' or 'In Progress')
                 card.dataset.status = newStatus;
                 applyFilters();
 
@@ -511,7 +531,7 @@
                     
                     let result = await response.json();
                     
-                    // If the backend rejects the drop (e.g. Unauthorized)
+                    // If the backend rejects the drop
                     if (!result.success) {
                         alert('Action denied: ' + result.message);
                         card.dataset.status = oldStatus;
