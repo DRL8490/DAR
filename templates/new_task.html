@@ -37,7 +37,15 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-auto"><button type="button" onclick="window.location.reload()" class="btn btn-sm btn-outline-secondary">Clear</button></div>
+                
+                <div class="col-auto">
+                    <form id="deletePresetForm" method="POST" style="display: none; margin: 0;">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Preset" onclick="return confirm('Are you sure you want to permanently delete this preset?');">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </form>
+                </div>
+                
             </div>
         </div>
     </div>
@@ -429,7 +437,19 @@
 
     function loadPreset() {
         const pId = document.getElementById('presetLoader').value;
-        if (!pId || !allPresets[pId]) return;
+        const delForm = document.getElementById('deletePresetForm');
+        
+        // Hide delete button if nothing is selected
+        if (!pId || !allPresets[pId]) {
+            if(delForm) delForm.style.display = 'none';
+            return;
+        }
+        
+        // Show delete button and attach the MONOLITHIC route
+        if(delForm) {
+            delForm.action = "{{ url_for('delete_preset', preset_id=0) }}".replace('0', pId);
+            delForm.style.display = 'block';
+        }
         
         const loadedPreset = allPresets[pId];
         

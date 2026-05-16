@@ -1328,6 +1328,20 @@ def cancel_task(task_id):
     
     flash('Task canceled.', 'error')
     return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
+@app.route('/delete_preset/<int:preset_id>', methods=['POST'])
+@login_required
+def delete_preset(preset_id):
+    preset = PresetTask.query.get_or_404(preset_id)
+    
+    # We use ADMIN_EMAILS directly since this is the monolith
+    if preset.user_id == current_user.id or current_user.email in ADMIN_EMAILS:
+        db.session.delete(preset)
+        db.session.commit()
+        flash(f"Preset '{preset.preset_name}' deleted.", 'success')
+    else:
+        flash("Unauthorized to delete this preset.", "error")
+        
+    return redirect(request.referrer or url_for('new_task'))
     
 # --- REPORT GENERATOR ROUTES ---
 @app.route('/reports')
