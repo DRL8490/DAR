@@ -13,6 +13,10 @@
         .tree-folder:hover { color: #ffc107; }
         .tree-scope { cursor: pointer; color: #198754; margin-left: 20px; user-select: none; }
         .tree-scope:hover { text-decoration: underline; color: #146c43; }
+        .quick-chip { cursor: pointer; transition: all 0.2s; font-size: 13px; font-weight: 600; padding: 6px 12px; }
+        .quick-chip:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .adv-toggle { cursor: pointer; color: #6c757d; font-size: 13px; font-weight: bold; text-decoration: none; }
+        .adv-toggle:hover { color: #343a40; }
     </style>
 </head>
 <body>
@@ -25,7 +29,7 @@
 </nav>
 
 {% if presets %}
-    <div class="card mb-4 mx-3" style="border-left: 5px solid #0dcaf0;">
+    <div class="card mb-4 mx-3 shadow-sm" style="border-left: 5px solid #0dcaf0;">
         <div class="card-body py-2">
             <div class="row align-items-center">
                 <div class="col-auto fw-bold text-info"><i class="fas fa-star"></i> Load Preset:</div>
@@ -37,7 +41,6 @@
                         {% endfor %}
                     </select>
                 </div>
-                
                 <div class="col-auto">
                     <form id="deletePresetForm" method="POST" style="display: none; margin: 0;">
                         <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Preset" onclick="return confirm('Are you sure you want to permanently delete this preset?');">
@@ -45,7 +48,6 @@
                         </button>
                     </form>
                 </div>
-                
             </div>
         </div>
     </div>
@@ -87,25 +89,28 @@
                             </div>
                         </div>
 
-                        <div class="row mb-3">
-                            <div class="col-8">
-                                <label class="form-label fw-bold small">Requestor Name (Searchable)</label>
-                                <input list="requestor_list" class="form-control" id="requestor_name" name="requestor_name" placeholder="Type to search..." oninput="autoFillDept()" required>
-                                <datalist id="requestor_list"></datalist>
-                            </div>
-                            <div class="col-4">
-                                <label class="form-label fw-bold small">Department</label>
-                                <input type="text" class="form-control bg-light" id="requestor_dept" name="requestor_dept" readonly required>
-                            </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Requestor Name</label>
+                            <input list="requestor_list" class="form-control" id="requestor_name" name="requestor_name" placeholder="Search for requestor..." oninput="autoFillDept()" required>
+                            <datalist id="requestor_list"></datalist>
+                            <input type="hidden" id="requestor_dept" name="requestor_dept" required>
                         </div>
 
                         <hr>
 
+                        <div class="d-flex flex-wrap gap-2 mb-3">
+                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary rounded-pill quick-chip" 
+                                  onclick="applyQuickPick('PERFORM', 'Land Survey', 'Progress Survey', 'Drone')">🚁 Drone Progress</span>
+                            <span class="badge bg-info bg-opacity-10 text-info border border-info rounded-pill quick-chip" 
+                                  onclick="applyQuickPick('PERFORM', 'Bathymetric Survey', 'Progress Survey', 'MBES  WS166')">🚤 WS166 Bathy</span>
+                            <span class="badge bg-warning bg-opacity-10 text-warning border border-warning rounded-pill quick-chip" 
+                                  onclick="applyQuickPick('PERFORM', 'Land Survey', 'Stake-Out/Marking', 'GNSS Rover')">📍 Rover Stakeout</span>
+                        </div>
+
                         <div class="mb-3 p-3 bg-light border rounded">
-                            <label class="form-label fw-bold text-primary"><i class="fas fa-bolt"></i> Quick Find (Smart Search)</label>
+                            <label class="form-label fw-bold text-primary"><i class="fas fa-search"></i> Quick Find (Action & Instrument)</label>
                             <input list="smart_task_list" class="form-control border-primary" id="smart_task_input" placeholder="Type keyword (e.g., Progress, Drone)..." oninput="applySmartTask()">
                             <datalist id="smart_task_list"></datalist>
-                            <small class="text-muted d-block mt-1">Select a full combination from the dropdown to auto-fill below.</small>
                         </div>
 
                         <div class="row mb-3">
@@ -162,15 +167,16 @@
                     <div class="card-header form-header bg-success"><i class="fas fa-map-marker-alt"></i> Location & Scope</div>
                     <div class="card-body">
                         
-                        <label class="form-label fw-bold small">Find Project Scope</label>
-                        <div class="input-group mb-4">
-                            <button class="btn btn-success" type="button" data-bs-toggle="modal" data-bs-target="#treeModal"><i class="fas fa-folder-open"></i> Browse Tree</button>
-                            <span class="input-group-text bg-light text-muted">OR</span>
-                            <input list="loc_search_list" class="form-control" id="location_code" placeholder="Search Code (e.g. 338-12)..." oninput="applyLocationSearch()">
+                        <div class="mb-3 p-3 bg-light border rounded">
+                            <label class="form-label fw-bold text-success"><i class="fas fa-search"></i> Quick Find (Location & Scope)</label>
+                            <div class="input-group">
+                                <input list="loc_search_list" class="form-control border-success" id="location_code" placeholder="Type keyword (e.g. Trench 2, 331)..." oninput="applyLocationSearch()">
+                                <button class="btn btn-outline-success" type="button" data-bs-toggle="modal" data-bs-target="#treeModal" title="Browse Tree"><i class="fas fa-folder-open"></i></button>
+                            </div>
                             <datalist id="loc_search_list"></datalist>
                         </div>
 
-                        <div class="p-3 bg-light border rounded mb-3 text-center">
+                        <div class="p-3 bg-white border rounded mb-4 text-center shadow-sm">
                             <strong class="text-secondary d-block mb-1">Selected Path:</strong>
                             <div id="path_display" class="text-primary fw-bold" style="font-size: 1.1rem;">[ None Selected ]</div>
                         </div>
@@ -180,16 +186,23 @@
                         <input type="hidden" name="sub_location" id="hidden_sub" required>
                         <input type="hidden" name="work_scope" id="hidden_scope" required>
                         
-                        <div class="mb-3 mt-4">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Remarks</label>
+                            <textarea class="form-control" name="remarks" rows="2" placeholder="Enter brief details..." required></textarea>
+                        </div>
+
+                        <div class="text-center mt-4">
+                            <a class="adv-toggle" onclick="toggleAdvanced()" id="advToggleBtn">
+                                <i class="fas fa-plus-circle"></i> Show Advanced Options
+                            </a>
+                        </div>
+
+                        <div id="advancedOptions" style="display: none;" class="mt-3 p-3 bg-light border rounded">
                             <label class="form-label fw-bold small"><i class="fas fa-link"></i> Reference Links / Files</label>
                             <div id="links_container">
-                                <input type="text" class="form-control mb-2" name="reference_link" placeholder="Paste SharePoint, OneDrive, or File link here...">
+                                <input type="text" class="form-control mb-2" name="reference_link" placeholder="Paste SharePoint or OneDrive link...">
                             </div>
                             <button type="button" class="btn btn-sm btn-outline-secondary mt-1" onclick="addReferenceLink()"><i class="fas fa-plus"></i> Add Another Link</button>
-                        </div>
-                        <div class="mb-3 mt-4">
-                            <label class="form-label fw-bold small">Remarks</label>
-                            <textarea class="form-control" name="remarks" rows="2" required></textarea>
                         </div>
                         
                     </div>
@@ -217,7 +230,7 @@
             </label>
         </div>
         <div class="text-end">
-            <button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-save"></i> Submit Task</button>
+            <button type="submit" class="btn btn-primary btn-lg px-5 shadow"><i class="fas fa-paper-plane"></i> Submit Task</button>
         </div>
     </form>
 </div>
@@ -229,8 +242,7 @@
                 <h5 class="modal-title"><i class="fas fa-folder-open"></i> Project Directory Explorer</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body" id="tree_modal_body">
-            </div>
+            <div class="modal-body" id="tree_modal_body"></div>
         </div>
     </div>
 </div>
@@ -246,6 +258,18 @@
     const fileTree = JSON.parse(document.getElementById('tree_data').textContent);
     const actData = JSON.parse(document.getElementById('act_data').textContent);
     const allPresets = JSON.parse(document.getElementById('presets_data').textContent);
+
+    function toggleAdvanced() {
+        const advBox = document.getElementById('advancedOptions');
+        const btn = document.getElementById('advToggleBtn');
+        if (advBox.style.display === 'none') {
+            advBox.style.display = 'block';
+            btn.innerHTML = '<i class="fas fa-minus-circle"></i> Hide Advanced Options';
+        } else {
+            advBox.style.display = 'none';
+            btn.innerHTML = '<i class="fas fa-plus-circle"></i> Show Advanced Options';
+        }
+    }
 
     function addSurveyorDropdown() {
         const container = document.getElementById('surveyor_container');
@@ -269,6 +293,7 @@
             datalist.appendChild(option);
         });
     }
+    
     function autoFillDept() {
         const name = document.getElementById('requestor_name').value.trim();
         document.getElementById('requestor_dept').value = requestorMap[name] || '';
@@ -296,6 +321,15 @@
         if(act && req && actData[act][req]) {
             actData[act][req].forEach(inst => { instSelect.add(new Option(inst, inst)); });
         }
+    }
+
+    function applyQuickPick(verb, category, action, instrument) {
+        document.querySelector('select[name="command_verb"]').value = verb;
+        actSelect.value = category;
+        updateActions(); 
+        reqActSelect.value = action;
+        updateInstruments(); 
+        instSelect.value = instrument;
     }
 
     const smartList = document.getElementById('smart_task_list');
@@ -331,10 +365,16 @@
         for(const [loc, subs] of Object.entries(locs)) {
             for(const [sub, scopes] of Object.entries(subs)) {
                 for(const scope of scopes) {
-                    const searchStr = `${scope} (${loc})`;
+                    const cleanSub = sub.replace(/^[0-9]+_/, '').replace(/_/g, ' ');
+                    const cleanLoc = loc.replace(/^[0-9]+_/, '').replace(/_/g, ' ');
+                    const cleanArea = area.replace(/^[0-9]+_/, '').replace(/_/g, ' ');
+                    
+                    const searchStr = `${scope} [${cleanSub} - ${cleanLoc}]`;
+                    
                     locCombinations[searchStr] = { area, loc, sub, scope };
                     let option = document.createElement('option');
                     option.value = searchStr;
+                    option.textContent = cleanArea; 
                     locSearchList.appendChild(option);
                 }
             }
@@ -439,13 +479,12 @@
         const pId = document.getElementById('presetLoader').value;
         const delForm = document.getElementById('deletePresetForm');
         
-        // Hide delete button if nothing is selected
         if (!pId || !allPresets[pId]) {
             if(delForm) delForm.style.display = 'none';
             return;
         }
         
-        // Show delete button and attach the MONOLITHIC route
+        // MONOLITH FIX: Removed core. routing
         if(delForm) {
             delForm.action = "{{ url_for('delete_preset', preset_id=0) }}".replace('0', pId);
             delForm.style.display = 'block';
@@ -460,12 +499,9 @@
         if (loadedPreset.assigned_to) {
             document.querySelector('input[name="assigned_to"]').value = loadedPreset.assigned_to;
         }
-        
-        // --- NEW: MISSION VERB LOAD ---
         if (loadedPreset.command_verb) {
             document.querySelector('select[name="command_verb"]').value = loadedPreset.command_verb;
         }
-
         if (loadedPreset.task_category) {
             actSelect.value = loadedPreset.task_category;
             updateActions(); 
@@ -485,7 +521,6 @@
                 loadedPreset.work_scope
             );
         }
-        
         if (loadedPreset.remarks) {
             document.querySelector('textarea[name="remarks"]').value = loadedPreset.remarks;
         }
