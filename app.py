@@ -538,29 +538,27 @@ scheduler.start()
 
 def escalate_aging_tasks():
     try:
-        cutoff_time = datetime.utcnow() - timedelta(hours=48)
-        aging_tasks = SurveyTask.query.filter(
+        # HEAL THE DATABASE: Find all hidden 'urgent' ghosts
+        ghost_tasks = SurveyTask.query.filter(
             SurveyTask.status.in_(['Open', 'In Progress']),
-            SurveyTask.start_time < cutoff_time,
-            SurveyTask.is_urgent == False
+            SurveyTask.is_urgent == True
         ).all()
         
-        if aging_tasks:
+        if ghost_tasks:
             changed_assignees = set()
-            for t in aging_tasks:
-                t.is_urgent = True
-                note = f"⚠️ AUTO-ESCALATED: Idle > 48h"
-                t.remarks = f"{t.remarks} | {note}" if t.remarks else note
+            for t in ghost_tasks:
+                # Strip the urgent flag so the Kanban board can render them again
+                t.is_urgent = False 
                 if t.assigned_to:
                     changed_assignees.add(t.assigned_to)
             db.session.commit()
             
-            # Rebalance queues that had tasks escalate automatically
+            # Resequence the queues to give visible tasks their P1 slots back
             for assignee in changed_assignees:
                 resequence_queue(assignee)
                 
     except Exception as e:
-        print(f"Escalation Error: {e}")
+        print(f"Healing Error: {e}")
 
 @app.route('/')
 @login_required
