@@ -538,27 +538,40 @@ scheduler.start()
 
 def escalate_aging_tasks():
     try:
-        # HEAL THE DATABASE: Find all hidden 'urgent' ghosts
-        ghost_tasks = SurveyTask.query.filter(
-            SurveyTask.status.in_(['Open', 'In Progress']),
-            SurveyTask.is_urgent == True
+        # 1. THE DEMOTION SWEEP: Unclog the Traffic Jam
+        # Find all inactive tasks that are secretly holding P1-P10 slots and demote them
+        jammed_tasks = SurveyTask.query.filter(
+            SurveyTask.status.in_(['Closed', 'Canceled', 'Archived']),
+            SurveyTask.priority < 99
         ).all()
         
-        if ghost_tasks:
+        if jammed_tasks:
+            for t in jammed_tasks:
+                t.priority = 99
+            db.session.commit()
+
+        # 2. RESTORE THE ORIGINAL 48-HOUR URGENT ESCALATION
+        threshold = datetime.utcnow() - timedelta(hours=48)
+        aging_tasks = SurveyTask.query.filter(
+            SurveyTask.status.in_(['Open', 'In Progress']),
+            SurveyTask.start_time < threshold,
+            SurveyTask.is_urgent == False
+        ).all()
+        
+        if aging_tasks:
             changed_assignees = set()
-            for t in ghost_tasks:
-                # Strip the urgent flag so the Kanban board can render them again
-                t.is_urgent = False 
+            for t in aging_tasks:
+                t.is_urgent = True 
                 if t.assigned_to:
                     changed_assignees.add(t.assigned_to)
             db.session.commit()
             
-            # Resequence the queues to give visible tasks their P1 slots back
+            # Resequence to push the newly urgent tasks to the top
             for assignee in changed_assignees:
                 resequence_queue(assignee)
                 
     except Exception as e:
-        print(f"Healing Error: {e}")
+        print(f"Escalation Error: {e}")
 
 @app.route('/')
 @login_required
@@ -1241,6 +1254,10 @@ def ajax_update_task_status():
             
         task.status = new_status
         
+        # --- NEW DEMOTION RULE ---
+        if new_status in ['Closed', 'Canceled', 'Archived']:
+            task.priority = 99
+        
         if new_status == 'In Progress' and 'Acknowledged' not in (task.remarks or ''):
             ack_note = f"Acknowledged & Started by {current_user.name}"
             task.remarks = f"{task.remarks} | {ack_note}" if task.remarks else ack_note
@@ -1294,6 +1311,7 @@ def close_task(task_id):
         task.deliverable_link = request.form.get('deliverable_link')
         
     task.status = 'Closed'
+    task.priority = 99  # <--- NEW DEMOTION RULE
     task.end_time = datetime.utcnow()
     db.session.commit()
     
@@ -1319,6 +1337,7 @@ def cancel_task(task_id):
         
     task.remarks = f"{task.remarks} | CANCELED: {cancel_reason}" if task.remarks else f"CANCELED: {cancel_reason}"
     task.status = 'Canceled'
+    task.priority = 99  # <--- NEW DEMOTION RULE
     task.end_time = datetime.utcnow()
     db.session.commit()
     
@@ -1326,6 +1345,7 @@ def cancel_task(task_id):
     
     flash('Task canceled.', 'error')
     return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
+
 @app.route('/delete_preset/<int:preset_id>', methods=['POST'])
 @login_required
 def delete_preset(preset_id):
