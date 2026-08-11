@@ -178,6 +178,7 @@
              data-start="{{ task.execution_date.strftime('%Y-%m-%d (Backdated)') if task.execution_date else (task.start_time.strftime('%Y-%m-%d %H:%M') if task.start_time else '') }}"
              data-end="{{ task.end_time.strftime('%Y-%m-%d %H:%M') if task.end_time else 'Pending' }}">
             
+             
             <div class="task-header">
                 <div style="flex: 1;" onclick="openTaskModal(this.closest('.task-card'))">
                     <div class="task-line-1" style="font-size: 15px; line-height: 1.4; margin-bottom: 4px;">
