@@ -162,7 +162,7 @@
              ondragstart="drag(event)"
              data-id="{{ task.id }}"
              data-status="{{ task.status }}" 
-             data-date="{{ task.execution_date.strftime('%Y-%m-%d') }}" 
+             data-date="{{ task.execution_date.strftime('%Y-%m-%d') if task.execution_date else (task.start_time.strftime('%Y-%m-%d') if task.start_time else '') }}" 
              data-assigned="{{ task.assigned_to }}"
              data-mine="{% if (task.assigned_to and name in task.assigned_to) or name == task.surveyor_name %}true{% else %}false{% endif %}"
              data-creator="{{ task.surveyor_name }}"
@@ -175,7 +175,7 @@
              data-cat="{{ task.task_category or '' }}"
              data-disc="{{ task.action_required or '' }}"
              data-inst="{{ task.instrument or '' }}"
-             data-start="{{ task.execution_date.strftime('%Y-%m-%d %H:%M') if task.start_time else '' }}"
+             data-start="{{ task.execution_date.strftime('%Y-%m-%d (Backdated)') if task.execution_date else (task.start_time.strftime('%Y-%m-%d %H:%M') if task.start_time else '') }}"
              data-end="{{ task.end_time.strftime('%Y-%m-%d %H:%M') if task.end_time else 'Pending' }}">
             
             <div class="task-header">
