@@ -753,13 +753,17 @@
             } else {
                 statusCounts[tStatus] = 1;
             }
-            var startDate = "{{ t.execution_date.strftime('%Y-%m-%d') if t.execution_date else '' }}";
-            if (openedCounts[startDate] !== undefined) {
+            
+            // VELOCITY FIX: Safely check for backdated execution_date first for Opened tasks!
+            var startDate = "{{ t.execution_date.strftime('%Y-%m-%d') if t.execution_date else (t.start_time.strftime('%Y-%m-%d') if t.start_time else '') }}";
+            if (startDate && openedCounts[startDate] !== undefined) {
                 openedCounts[startDate]++;
             }
-            {% if t.status == 'Closed' and t.end_time %}
-                var endDate = "{{ t.end_time.strftime('%Y-%m-%d') }}";
-                if (closedCounts[endDate] !== undefined) {
+            
+            {% if t.status == 'Closed' %}
+                // VELOCITY FIX: Also use the backdated execution_date for Closed tasks to balance the chart!
+                var endDate = "{{ t.execution_date.strftime('%Y-%m-%d') if t.execution_date else (t.end_time.strftime('%Y-%m-%d') if t.end_time else '') }}";
+                if (endDate && closedCounts[endDate] !== undefined) {
                     closedCounts[endDate]++;
                 }
             {% endif %}
