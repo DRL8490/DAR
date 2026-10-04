@@ -96,9 +96,7 @@ class SurveyTask(db.Model):
     remarks = db.Column(db.Text, nullable=True)
     deliverable_link = db.Column(db.String(500), nullable=True) 
     reference_links = db.Column(db.Text, nullable=True) 
-    # NEW WORKFLOW: Default status updated, blocked flag added
-    status = db.Column(db.String(30), default="OPEN_REQUESTS")
-    is_blocked = db.Column(db.Boolean, default=False)
+    status = db.Column(db.String(20), default="Open")
     is_urgent = db.Column(db.Boolean, default=False) 
     priority = db.Column(db.Integer, default=99)
     start_time = db.Column(db.DateTime, default=datetime.utcnow)
@@ -107,7 +105,7 @@ class SurveyTask(db.Model):
 
 with app.app_context():
     db.create_all()
-    # Safely inject columns and migrations
+    # Safely inject columns
     try:
         db.session.execute(text('ALTER TABLE survey_task ADD COLUMN command_verb VARCHAR(50) DEFAULT \'PERFORM\''))
         db.session.commit()
@@ -158,21 +156,6 @@ with app.app_context():
         db.session.rollback() 
     try:
         db.session.execute(text('ALTER TABLE "user" ADD COLUMN is_approved BOOLEAN DEFAULT TRUE'))
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-
-    # --- NEW WORKFLOW MIGRATIONS ---
-    try:
-        db.session.execute(text('ALTER TABLE survey_task ADD COLUMN is_blocked BOOLEAN DEFAULT FALSE'))
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-
-    try:
-        db.session.execute(text("UPDATE survey_task SET status = 'OPEN_REQUESTS' WHERE status = 'Open'"))
-        db.session.execute(text("UPDATE survey_task SET status = 'FIELD_ACQUISITION' WHERE status = 'In Progress'"))
-        db.session.execute(text("UPDATE survey_task SET status = 'CLOSED' WHERE status = 'Closed'"))
         db.session.commit()
     except Exception:
         db.session.rollback()
@@ -319,8 +302,10 @@ def resequence_queue(assigned_to_str):
     if not assigned_to_str:
         return
         
+    # We must ensure we're inside the app context if calling from background/scheduler,
+    # but since this runs in routes, db.session is fine.
     active_tasks = SurveyTask.query.filter(
-        SurveyTask.status.in_(['OPEN_REQUESTS', 'FIELD_ACQUISITION', 'DATA_PROCESSING', 'QA_QC_REVIEW']),
+        SurveyTask.status.in_(['Open', 'In Progress']),
         SurveyTask.assigned_to == assigned_to_str
     ).order_by(
         SurveyTask.is_urgent.desc(), 
@@ -452,7 +437,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 def auto_archive_tasks():
     with app.app_context(): 
         threshold = datetime.utcnow() - timedelta(days=31)
-        closed_tasks = SurveyTask.query.filter_by(status='CLOSED').all()
+        closed_tasks = SurveyTask.query.filter_by(status='Closed').all()
         changed = False
         for t in closed_tasks:
             ref_time = t.end_time or t.start_time
@@ -466,19 +451,7 @@ def auto_archive_tasks():
 def auto_backup_kpi():
     with app.app_context(): 
         try:
-            # 1. Fetch without DB sort
-            all_tasks = SurveyTask.query.filter(SurveyTask.status.in_(['CLOSED', 'Archived'])).all()
-            
-            # 2. Python Sorting Engine: Prioritize backdates
-            def get_sort_date(t):
-                if t.execution_date:
-                    return datetime.combine(t.execution_date, datetime.min.time())
-                if t.start_time:
-                    return t.start_time
-                return datetime.min
-                
-            all_tasks.sort(key=get_sort_date)
-            
+            all_tasks = SurveyTask.query.filter(SurveyTask.status.in_(['Closed', 'Archived'])).order_by(SurveyTask.start_time.asc()).all()
             excluded_keywords = ["external meeting", "internal coordination", "survey report", "damage report", "item", "request", "sem update"]
             
             tasks = []
@@ -496,9 +469,8 @@ def auto_backup_kpi():
             display_index = 1
             
             for task in tasks:
-                actual_date = task.execution_date if task.execution_date else task.start_time
-                month_str = actual_date.strftime('%m') if actual_date else '00' 
-                year_str = actual_date.strftime('%Y') if actual_date else '0000'
+                month_str = task.start_time.strftime('%m') if task.start_time else '00' 
+                year_str = task.start_time.strftime('%Y') if task.start_time else '0000'
                 
                 if month_str not in month_counters: month_counters[month_str] = 1
                 else: month_counters[month_str] += 1
@@ -566,8 +538,10 @@ scheduler.start()
 
 def escalate_aging_tasks():
     try:
+        # 1. THE DEMOTION SWEEP: Unclog the Traffic Jam
+        # Find all inactive tasks that are secretly holding P1-P10 slots and demote them
         jammed_tasks = SurveyTask.query.filter(
-            SurveyTask.status.in_(['CLOSED', 'Canceled', 'Archived']),
+            SurveyTask.status.in_(['Closed', 'Canceled', 'Archived']),
             SurveyTask.priority < 99
         ).all()
         
@@ -576,9 +550,10 @@ def escalate_aging_tasks():
                 t.priority = 99
             db.session.commit()
 
+        # 2. RESTORE THE ORIGINAL 48-HOUR URGENT ESCALATION
         threshold = datetime.utcnow() - timedelta(hours=48)
         aging_tasks = SurveyTask.query.filter(
-            SurveyTask.status.in_(['OPEN_REQUESTS', 'FIELD_ACQUISITION', 'DATA_PROCESSING', 'QA_QC_REVIEW']),
+            SurveyTask.status.in_(['Open', 'In Progress']),
             SurveyTask.start_time < threshold,
             SurveyTask.is_urgent == False
         ).all()
@@ -591,6 +566,7 @@ def escalate_aging_tasks():
                     changed_assignees.add(t.assigned_to)
             db.session.commit()
             
+            # Resequence to push the newly urgent tasks to the top
             for assignee in changed_assignees:
                 resequence_queue(assignee)
                 
@@ -608,6 +584,7 @@ def dashboard():
         .limit(300).all()
     is_admin = current_user.email in ADMIN_EMAILS
     
+    # --- NEW: Initials Mapping Engine ---
     all_users = User.query.all()
     initials_map = {}
     for u in all_users:
@@ -634,6 +611,7 @@ def admin_dashboard():
         .limit(300).all()
     users = User.query.order_by(User.name.asc()).all()
 
+    # --- NEW: Initials Mapping Engine ---
     initials_map = {}
     for u in users:
         if u.initials:
@@ -642,6 +620,7 @@ def admin_dashboard():
             parts = u.name.split()
             initials_map[u.name] = (parts[0][0] + parts[1][0]).upper() if len(parts) >= 2 else u.name[:2].upper()
 
+    # --- 3-Month KPI Summary Logic (FIXES THE 500 CRASH) ---
     now = datetime.utcnow()
     months_data = []
 
@@ -662,7 +641,7 @@ def admin_dashboard():
             'end_day': end_day, 'key': f"{y}-{m:02d}", 'count': 0
         })
         
-    completed_tasks = SurveyTask.query.filter(SurveyTask.status.in_(['CLOSED', 'Archived'])).all()
+    completed_tasks = SurveyTask.query.filter(SurveyTask.status.in_(['Closed', 'Archived'])).all()
     for t in completed_tasks:
         if t.start_time:
             t_key = t.start_time.strftime('%Y-%m')
@@ -705,11 +684,12 @@ def restore_task(task_id):
         
     task = SurveyTask.query.get_or_404(task_id)
     try:
-        task.status = 'CLOSED'
+        task.status = 'Closed'
         restore_note = f"RESTORED FROM ARCHIVE: {datetime.utcnow().strftime('%Y-%m-%d')}"
         task.remarks = f"{task.remarks} | {restore_note}" if task.remarks else restore_note
         db.session.commit()
         
+        # RESEQUENCE QUEUE
         resequence_queue(task.assigned_to)
         
         flash(f'Task {task_id} was successfully restored to the dashboard.', 'success')
@@ -763,6 +743,7 @@ def delete_task(task_id):
         db.session.delete(task)
         db.session.commit()
         
+        # RESEQUENCE QUEUE
         resequence_queue(assigned_str)
         
         flash(f'Task {task_id} was permanently deleted.', 'success')
@@ -904,7 +885,7 @@ def migrate_data():
                     sub_location=year_month,
                     work_scope=safe_scope,
                     remarks=combined_remarks,
-                    status="CLOSED",
+                    status="Closed",
                     start_time=start_date,
                     end_time=start_date 
                 )
@@ -988,7 +969,7 @@ def hidden_config():
             if act in master_schema['activities'] and req_action in master_schema['activities'][act]:
                 if inst in master_schema['activities'][act][req_action]:
                     master_schema['activities'][act][req_action].remove(inst)
-
+# --- FILE TREE ACTIONS ---
         elif action == 'add_area':
             area = request.form.get('area').strip()
             if area and area not in master_schema['file_tree']:
@@ -1263,7 +1244,6 @@ def ajax_update_task_status():
         data = request.get_json()
         task_id = data.get('task_id')
         new_status = data.get('new_status')
-        new_assignee = data.get('new_assignee')
         
         task = SurveyTask.query.get_or_404(task_id)
         assigned_users = [name.strip() for name in task.assigned_to.split(',')] if task.assigned_to else []
@@ -1272,15 +1252,13 @@ def ajax_update_task_status():
         if not is_admin and current_user.name not in assigned_users and current_user.name != task.surveyor_name:
             return jsonify({'success': False, 'message': 'Unauthorized'}), 403
             
-        if new_assignee:
-            task.assigned_to = new_assignee
-            
         task.status = new_status
         
-        if new_status in ['CLOSED', 'Canceled', 'Archived']:
+        # --- NEW DEMOTION RULE ---
+        if new_status in ['Closed', 'Canceled', 'Archived']:
             task.priority = 99
         
-        if new_status == 'FIELD_ACQUISITION' and 'Acknowledged' not in (task.remarks or ''):
+        if new_status == 'In Progress' and 'Acknowledged' not in (task.remarks or ''):
             ack_note = f"Acknowledged & Started by {current_user.name}"
             task.remarks = f"{task.remarks} | {ack_note}" if task.remarks else ack_note
             
@@ -1302,7 +1280,7 @@ def mark_in_progress(task_id):
         flash('Security Alert: Only the assigned surveyor can acknowledge this task.', 'error')
         return redirect(request.referrer or url_for('dashboard'))
         
-    task.status = 'FIELD_ACQUISITION'
+    task.status = 'In Progress'
     ack_note = f"Acknowledged & Started by {current_user.name}"
     task.remarks = f"{task.remarks} | {ack_note}" if task.remarks else ack_note
     
@@ -1310,7 +1288,7 @@ def mark_in_progress(task_id):
     
     resequence_queue(task.assigned_to)
     
-    flash('Task acknowledged! It is now in Field Acquisition.', 'success')
+    flash('Task acknowledged! It is now In Progress.', 'success')
     return redirect(request.referrer or url_for('dashboard'))
 
 @app.route('/close_task/<int:task_id>', methods=['POST'])
@@ -1332,8 +1310,8 @@ def close_task(task_id):
     if request.form.get('deliverable_link'):
         task.deliverable_link = request.form.get('deliverable_link')
         
-    task.status = 'CLOSED'
-    task.priority = 99  
+    task.status = 'Closed'
+    task.priority = 99  # <--- NEW DEMOTION RULE
     task.end_time = datetime.utcnow()
     db.session.commit()
     
@@ -1359,7 +1337,7 @@ def cancel_task(task_id):
         
     task.remarks = f"{task.remarks} | CANCELED: {cancel_reason}" if task.remarks else f"CANCELED: {cancel_reason}"
     task.status = 'Canceled'
-    task.priority = 99  
+    task.priority = 99  # <--- NEW DEMOTION RULE
     task.end_time = datetime.utcnow()
     db.session.commit()
     
@@ -1373,6 +1351,7 @@ def cancel_task(task_id):
 def delete_preset(preset_id):
     preset = PresetTask.query.get_or_404(preset_id)
     
+    # We use ADMIN_EMAILS directly since this is the monolith
     if preset.user_id == current_user.id or current_user.email in ADMIN_EMAILS:
         db.session.delete(preset)
         db.session.commit()
@@ -1401,7 +1380,7 @@ def generate_dtr():
         from sqlalchemy import or_, and_, func 
         
         daily_tasks = SurveyTask.query.filter(
-            SurveyTask.status == 'CLOSED',
+            SurveyTask.status == 'Closed',
             or_(
                 SurveyTask.execution_date == target_date.date(),
                 and_(
@@ -1462,7 +1441,7 @@ def generate_dtr():
                 data["surveyors"] = ", ".join(sorted(list(data["surveyors"])))
                 report_blocks.append(data)
 
-        open_tasks = SurveyTask.query.filter(SurveyTask.status.in_(['OPEN_REQUESTS', 'FIELD_ACQUISITION', 'DATA_PROCESSING', 'QA_QC_REVIEW'])).all()
+        open_tasks = SurveyTask.query.filter_by(status='Open').all()
         outstanding_set = set() 
         for t in open_tasks:
             loc = t.location.split('_', 1)[-1].replace('_', ' ') if t.location and t.location != 'N/A' else ''
@@ -1506,7 +1485,7 @@ def generate_wsr():
             next_day = current_day + timedelta(days=1)
             
             daily_tasks = SurveyTask.query.filter(
-                SurveyTask.status == 'CLOSED',
+                SurveyTask.status == 'Closed',
                 or_(
                     SurveyTask.execution_date == current_day.date(),
                     and_(
@@ -1581,7 +1560,7 @@ def generate_tpc():
         weekly_tasks = SurveyTask.query.filter(
             SurveyTask.start_time >= start_date, 
             SurveyTask.start_time < query_end_date, 
-            SurveyTask.status == 'CLOSED'
+            SurveyTask.status == 'Closed'
         ).all()
         
         done_set = set()
@@ -1592,7 +1571,7 @@ def generate_tpc():
             phrase = " ".join(clean_parts)
             if phrase: done_set.add(phrase)
             
-        open_tasks = SurveyTask.query.filter(SurveyTask.status.in_(['OPEN_REQUESTS', 'FIELD_ACQUISITION', 'DATA_PROCESSING', 'QA_QC_REVIEW'])).all()
+        open_tasks = SurveyTask.query.filter_by(status='Open').all()
         planned_set = set()
         for t in open_tasks:
             loc = t.location.split('_', 1)[-1].replace('_', ' ') if t.location and t.location != 'N/A' else ''
@@ -1632,25 +1611,24 @@ def export_excel():
         if kpi_month:
             target_year, target_month = kpi_month.split('-')
 
-        all_tasks = SurveyTask.query.filter(SurveyTask.status.in_(['CLOSED', 'Archived'])).all()
+            all_tasks = SurveyTask.query.filter(SurveyTask.status.in_(['Closed', 'Archived'])).order_by(SurveyTask.start_time.asc()).all()
         
-        def get_sort_date(t):
-            if t.execution_date:
-                return datetime.combine(t.execution_date, datetime.min.time())
-            if t.start_time:
-                return t.start_time
-            return datetime.min
-            
-        all_tasks.sort(key=get_sort_date)
+        excluded_keywords = ["external meeting", "internal coordination", "survey report", "damage report", "item", "request", "sem update"]
+        
+        tasks = []
+        for t in all_tasks:
+            if t.action_required:
+                if any(ex in t.action_required.lower() for ex in excluded_keywords):
+                    continue
+            tasks.append(t)
         
         data = []
         month_counters = {} 
         display_index = 1
         
-        for task in all_tasks:
-            actual_date = task.execution_date if task.execution_date else task.start_time
-            month_str = actual_date.strftime('%m') if actual_date else '00' 
-            year_str = actual_date.strftime('%Y') if actual_date else '0000'
+        for task in tasks:
+            month_str = task.start_time.strftime('%m') if task.start_time else '00' 
+            year_str = task.start_time.strftime('%Y') if task.start_time else '0000'
             
             if month_str not in month_counters: month_counters[month_str] = 1
             else: month_counters[month_str] += 1
