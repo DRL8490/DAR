@@ -451,7 +451,19 @@ def auto_archive_tasks():
 def auto_backup_kpi():
     with app.app_context(): 
         try:
-            all_tasks = SurveyTask.query.filter(SurveyTask.status.in_(['Closed', 'Archived'])).order_by(SurveyTask.start_time.asc()).all()
+            # Fetch without DB sort
+            all_tasks = SurveyTask.query.filter(SurveyTask.status.in_(['Closed', 'Archived'])).all()
+            
+            # Python Sorting Engine: Prioritize backdates
+            def get_sort_date(t):
+                if t.execution_date:
+                    return datetime.combine(t.execution_date, datetime.min.time())
+                if t.start_time:
+                    return t.start_time
+                return datetime.min
+                
+            all_tasks.sort(key=get_sort_date)
+
             excluded_keywords = ["external meeting", "internal coordination", "survey report", "damage report", "item", "request", "sem update"]
             
             tasks = []
@@ -469,8 +481,9 @@ def auto_backup_kpi():
             display_index = 1
             
             for task in tasks:
-                month_str = task.start_time.strftime('%m') if task.start_time else '00' 
-                year_str = task.start_time.strftime('%Y') if task.start_time else '0000'
+                actual_date = task.execution_date if task.execution_date else task.start_time
+                month_str = actual_date.strftime('%m') if actual_date else '00' 
+                year_str = actual_date.strftime('%Y') if actual_date else '0000'
                 
                 if month_str not in month_counters: month_counters[month_str] = 1
                 else: month_counters[month_str] += 1
