@@ -106,6 +106,15 @@ class SurveyTask(db.Model):
 with app.app_context():
     db.create_all()
     # Safely inject columns
+    # --- REVERSE MIGRATION: Restore Legacy Statuses ---
+    try:
+        db.session.execute(text("UPDATE survey_task SET status = 'Open' WHERE status = 'OPEN_REQUESTS'"))
+        db.session.execute(text("UPDATE survey_task SET status = 'In Progress' WHERE status IN ('FIELD_ACQUISITION', 'DATA_PROCESSING', 'QA_QC_REVIEW')"))
+        db.session.execute(text("UPDATE survey_task SET status = 'Closed' WHERE status = 'CLOSED'"))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+    # --------------------------------------------------
     try:
         db.session.execute(text('ALTER TABLE survey_task ADD COLUMN command_verb VARCHAR(50) DEFAULT \'PERFORM\''))
         db.session.commit()
