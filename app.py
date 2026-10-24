@@ -46,8 +46,7 @@ s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
 ADMIN_EMAILS = [
     'daryll.enano@nmdc-group.com',
     'mohamad.hediarto@nmdc-group.com',
-    'mok.heng@nmdc-group.com'
-]
+    ]
 
 db = SQLAlchemy(app)
 login_manager = LoginManager()
