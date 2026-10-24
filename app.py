@@ -25,6 +25,12 @@ app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = 'super_secret_key_thpp_survey_2026'
 
+# --- UPGRADE 4: POSTGRES CONNECTION PRE-PING & RECYCLE ---
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,
+    'pool_recycle': 300,
+}
+
 # --- EMAIL & TOKEN CONFIGURATION ---
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
@@ -36,8 +42,7 @@ app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER')
 mail = Mail(app)
 s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
 
-
-# --- VIP ADMIN LIST ---
+# --- VIP ADMIN LIST (SUPER-ADMIN FAILSAFE) ---
 ADMIN_EMAILS = [
     'daryll.enano@nmdc-group.com',
     'mohamad.hediarto@nmdc-group.com',
@@ -57,6 +62,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     is_approved = db.Column(db.Boolean, default=False)  
     is_active = db.Column(db.Boolean, default=True)    
+    is_admin = db.Column(db.Boolean, default=False)
     initials = db.Column(db.String(10), nullable=True) 
 
 class AppConfig(db.Model):
@@ -96,25 +102,40 @@ class SurveyTask(db.Model):
     remarks = db.Column(db.Text, nullable=True)
     deliverable_link = db.Column(db.String(500), nullable=True) 
     reference_links = db.Column(db.Text, nullable=True) 
-    status = db.Column(db.String(20), default="Open")
+    status = db.Column(db.String(30), default="Open")
     is_urgent = db.Column(db.Boolean, default=False) 
     priority = db.Column(db.Integer, default=99)
     start_time = db.Column(db.DateTime, default=datetime.utcnow)
     execution_date = db.Column(db.Date, nullable=True)
     end_time = db.Column(db.DateTime, nullable=True)
 
+def is_user_admin(user):
+    if not user or not getattr(user, 'is_authenticated', False):
+        return False
+    return bool(getattr(user, 'is_admin', False) or (user.email in ADMIN_EMAILS))
+
+def extract_opening_remark(raw_remarks):
+    """Upgrade 5: Cleanly strips system audit log suffixes from user opening remarks."""
+    if not raw_remarks:
+        return ""
+    cleaned = str(raw_remarks)
+    for marker in [
+        "| Acknowledged & Started by",
+        "| Closed:",
+        "| CANCELED:",
+        "| RESTORED FROM ARCHIVE:",
+        "Acknowledged & Started by",
+        "Closed:",
+        "CANCELED:",
+        "RESTORED FROM ARCHIVE:"
+    ]:
+        if marker in cleaned:
+            cleaned = cleaned.split(marker)[0]
+    return cleaned.strip(" |")
+
 with app.app_context():
     db.create_all()
     # Safely inject columns
-    # --- REVERSE MIGRATION: Restore Legacy Statuses ---
-    try:
-        db.session.execute(text("UPDATE survey_task SET status = 'Open' WHERE status = 'OPEN_REQUESTS'"))
-        db.session.execute(text("UPDATE survey_task SET status = 'In Progress' WHERE status IN ('FIELD_ACQUISITION', 'DATA_PROCESSING', 'QA_QC_REVIEW')"))
-        db.session.execute(text("UPDATE survey_task SET status = 'Closed' WHERE status = 'CLOSED'"))
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-    # --------------------------------------------------
     try:
         db.session.execute(text('ALTER TABLE survey_task ADD COLUMN command_verb VARCHAR(50) DEFAULT \'PERFORM\''))
         db.session.commit()
@@ -159,12 +180,41 @@ with app.app_context():
         except Exception:
             db.session.rollback()
     try:
+        db.session.execute(text('ALTER TABLE "user" ADD COLUMN is_admin BOOLEAN DEFAULT FALSE'))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        try:
+            db.session.execute(text('ALTER TABLE user ADD COLUMN is_admin BOOLEAN DEFAULT 0'))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+    try:
         db.session.execute(text('ALTER TABLE survey_task ADD COLUMN is_urgent BOOLEAN DEFAULT FALSE'))
         db.session.commit()
     except Exception:
         db.session.rollback() 
     try:
         db.session.execute(text('ALTER TABLE "user" ADD COLUMN is_approved BOOLEAN DEFAULT TRUE'))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    # --- REVERSE MIGRATION: Ensure all tasks use standard Open / In Progress / Closed ---
+    try:
+        db.session.execute(text("UPDATE survey_task SET status = 'Open' WHERE status = 'OPEN_REQUESTS'"))
+        db.session.execute(text("UPDATE survey_task SET status = 'In Progress' WHERE status IN ('FIELD_ACQUISITION', 'DATA_PROCESSING', 'QA_QC_REVIEW')"))
+        db.session.execute(text("UPDATE survey_task SET status = 'Closed' WHERE status = 'CLOSED'"))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    # Ensure VIP Admins have is_admin = True
+    try:
+        for vip_email in ADMIN_EMAILS:
+            vip_user = User.query.filter_by(email=vip_email).first()
+            if vip_user and not vip_user.is_admin:
+                vip_user.is_admin = True
         db.session.commit()
     except Exception:
         db.session.rollback()
@@ -304,15 +354,9 @@ def load_user(user_id):
 
 # --- THE AUTO-SEQUENCER ENGINE ---
 def resequence_queue(assigned_to_str):
-    """
-    Sweeps a user's (or team's) active queue and strictly renumbers their priority.
-    Urgent tasks are placed at the top, then sorts by existing priority, then by age.
-    """
     if not assigned_to_str:
         return
         
-    # We must ensure we're inside the app context if calling from background/scheduler,
-    # but since this runs in routes, db.session is fine.
     active_tasks = SurveyTask.query.filter(
         SurveyTask.status.in_(['Open', 'In Progress']),
         SurveyTask.assigned_to == assigned_to_str
@@ -347,13 +391,19 @@ def register():
         name_parts = email_prefix.split('.')
         formatted_name = f"{name_parts[0].capitalize()} {name_parts[1].capitalize()}" if len(name_parts) >= 2 else email_prefix.capitalize()
         
-        is_approved = True if email in ADMIN_EMAILS else False
+        is_vip = True if email in ADMIN_EMAILS else False
         
-        new_user = User(email=email, name=formatted_name, password_hash=generate_password_hash(password, method='pbkdf2:sha256'), is_approved=is_approved)
+        new_user = User(
+            email=email,
+            name=formatted_name,
+            password_hash=generate_password_hash(password, method='pbkdf2:sha256'),
+            is_approved=is_vip,
+            is_admin=is_vip
+        )
         db.session.add(new_user)
         db.session.commit()
         
-        if is_approved:
+        if is_vip:
             flash('Admin Account created! Please log in.', 'success')
         else:
             flash('Account created! Please wait for an Admin to approve your access.', 'success')
@@ -375,7 +425,7 @@ def login():
                 flash('Your account has been deactivated. Please contact an Administrator.', 'error')
                 return redirect(url_for('login'))   
             login_user(user)
-            if user.email in ADMIN_EMAILS:
+            if is_user_admin(user):
                 return redirect(url_for('admin_dashboard'))
             else:
                 return redirect(url_for('dashboard'))
@@ -440,7 +490,7 @@ def reset_password(token):
 
     return render_template('reset_password.html', token=token)
 
-# --- WORKFLOW ROUTES ---
+# --- WORKFLOW & BACKGROUND ROUTES ---
 from apscheduler.schedulers.background import BackgroundScheduler
 
 def auto_archive_tasks():
@@ -455,74 +505,87 @@ def auto_archive_tasks():
                 changed = True
         if changed:
             db.session.commit()
-            print(f"Auto-Archive Complete: Moved tasks to archive.")
+            print("Auto-Archive Complete: Moved tasks to archive.")
+
+def build_kpi_rows(target_year=None, target_month=None):
+    """Shared Python Sorting Engine for KPI Excel export, Auto-Backup, and Live Preview."""
+    all_tasks = SurveyTask.query.filter(SurveyTask.status.in_(['Closed', 'Archived'])).all()
+    
+    def get_sort_date(t):
+        if t.execution_date:
+            return datetime.combine(t.execution_date, datetime.min.time())
+        if t.start_time:
+            return t.start_time
+        return datetime.min
+        
+    all_tasks.sort(key=get_sort_date)
+    
+    excluded_keywords = ["external meeting", "internal coordination", "survey report", "damage report", "item", "request", "sem update"]
+    
+    tasks = []
+    for t in all_tasks:
+        if t.action_required and any(ex in t.action_required.lower() for ex in excluded_keywords):
+            continue
+        tasks.append(t)
+        
+    data = []
+    month_counters = {} 
+    display_index = 1
+    
+    for task in tasks:
+        actual_date = task.execution_date if task.execution_date else task.start_time
+        month_str = actual_date.strftime('%m') if actual_date else '00' 
+        year_str = actual_date.strftime('%Y') if actual_date else '0000'
+        
+        if month_str not in month_counters:
+            month_counters[month_str] = 1
+        else:
+            month_counters[month_str] += 1
+            
+        seq_num = f"{month_counters[month_str]:03d}"
+        req_ref = f"TW_{month_str}{seq_num}"
+        survey_ref = f"TW_SU_{month_str}{seq_num}"
+
+        if target_month and target_year:
+            if month_str != target_month or year_str != target_year:
+                continue
+
+        loc = task.location.split('_', 1)[-1].replace('_', ' ') if task.location and task.location != 'N/A' else ''
+        sub = task.sub_location.split('_', 1)[-1].replace('_', ' ') if task.sub_location and task.sub_location != 'N/A' else ''
+        scope = task.work_scope.split('_', 1)[-1].replace('_', ' ') if task.work_scope and task.work_scope != 'N/A' else ''
+        
+        raw_parts = [loc, sub, scope, task.action_required]
+        clean_parts = [p.strip() for p in raw_parts if p and p.strip().lower() != 'general']
+        desc_phrase = " ".join(clean_parts)
+
+        display_start = task.execution_date.strftime('%Y-%m-%d') if task.execution_date else (task.start_time.strftime('%Y-%m-%d %H:%M') if task.start_time else '')
+        display_end = task.execution_date.strftime('%Y-%m-%d') if task.execution_date else (task.end_time.strftime('%Y-%m-%d %H:%M') if task.end_time else '')
+
+        data.append({
+            'Tender / Project Ref.': '20012',
+            'Sl No': display_index,
+            'Activity Type': task.task_category or '',
+            'Discipline': task.action_required or '',
+            'Requestor Ref. #': req_ref,
+            'Survey Ref. #': survey_ref,
+            'Requestor': task.requestor or '',
+            'Assigned to': task.assigned_to or '',
+            'Date/Time Received': display_start,
+            'Date/Time Completed': display_end,
+            'Description of Survey Works': desc_phrase,
+            'Special Conditions / Remarks': extract_opening_remark(task.remarks)
+        })
+        display_index += 1
+    return data
 
 def auto_backup_kpi():
     with app.app_context(): 
         try:
-            # Fetch without DB sort
-            all_tasks = SurveyTask.query.filter(SurveyTask.status.in_(['Closed', 'Archived'])).all()
-            
-            # Python Sorting Engine: Prioritize backdates
-            def get_sort_date(t):
-                if t.execution_date:
-                    return datetime.combine(t.execution_date, datetime.min.time())
-                if t.start_time:
-                    return t.start_time
-                return datetime.min
-                
-            all_tasks.sort(key=get_sort_date)
-
-            excluded_keywords = ["external meeting", "internal coordination", "survey report", "damage report", "item", "request", "sem update"]
-            
-            tasks = []
-            for t in all_tasks:
-                if t.action_required and any(ex in t.action_required.lower() for ex in excluded_keywords):
-                    continue
-                tasks.append(t)
-            
             now = datetime.utcnow()
             target_month_str = now.strftime('%m')
             target_year_str = now.strftime('%Y')
             
-            data = []
-            month_counters = {} 
-            display_index = 1
-            
-            for task in tasks:
-                actual_date = task.execution_date if task.execution_date else task.start_time
-                month_str = actual_date.strftime('%m') if actual_date else '00' 
-                year_str = actual_date.strftime('%Y') if actual_date else '0000'
-                
-                if month_str not in month_counters: month_counters[month_str] = 1
-                else: month_counters[month_str] += 1
-                    
-                seq_num = f"{month_counters[month_str]:03d}"
-                req_ref = f"TW_{month_str}{seq_num}"
-                survey_ref = f"TW_SU_{month_str}{seq_num}"
-
-                if month_str != target_month_str or year_str != target_year_str:
-                    continue
-
-                loc = task.location.split('_', 1)[-1].replace('_', ' ') if task.location and task.location != 'N/A' else ''
-                sub = task.sub_location.split('_', 1)[-1].replace('_', ' ') if task.sub_location and task.sub_location != 'N/A' else ''
-                scope = task.work_scope.split('_', 1)[-1].replace('_', ' ') if task.work_scope and task.work_scope != 'N/A' else ''
-                
-                raw_parts = [loc, sub, scope, task.action_required]
-                clean_parts = [p.strip() for p in raw_parts if p and p.strip().lower() != 'general']
-                desc_phrase = " ".join(clean_parts)
-
-                display_start = task.execution_date.strftime('%Y-%m-%d') if task.execution_date else (task.start_time.strftime('%Y-%m-%d %H:%M') if task.start_time else '')
-                display_end = task.execution_date.strftime('%Y-%m-%d') if task.execution_date else (task.end_time.strftime('%Y-%m-%d %H:%M') if task.end_time else '')
-
-                data.append({
-                    'Tender / Project Ref.': '20012', 'Sl No': display_index, 'Activity Type': task.task_category, 'Discipline': task.action_required,
-                    'Requestor Ref. #': req_ref, 'Survey Ref. #': survey_ref, 'Requestor': task.requestor, 'Assigned to': task.assigned_to,
-                    'Date/Time Received': display_start,
-                    'Date/Time Completed': display_end,
-                    'Description of Survey Works': desc_phrase, 'Special Conditions / Remarks': task.remarks or ''
-                })
-                display_index += 1
+            data = build_kpi_rows(target_year=target_year_str, target_month=target_month_str)
             
             df = pd.DataFrame(data)
             output = io.BytesIO()
@@ -561,7 +624,6 @@ scheduler.start()
 def escalate_aging_tasks():
     try:
         # 1. THE DEMOTION SWEEP: Unclog the Traffic Jam
-        # Find all inactive tasks that are secretly holding P1-P10 slots and demote them
         jammed_tasks = SurveyTask.query.filter(
             SurveyTask.status.in_(['Closed', 'Canceled', 'Archived']),
             SurveyTask.priority < 99
@@ -588,7 +650,6 @@ def escalate_aging_tasks():
                     changed_assignees.add(t.assigned_to)
             db.session.commit()
             
-            # Resequence to push the newly urgent tasks to the top
             for assignee in changed_assignees:
                 resequence_queue(assignee)
                 
@@ -601,13 +662,10 @@ def dashboard():
     session['dashboard_view'] = 'user'
     escalate_aging_tasks()
     
-    all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived') \
-        .order_by(SurveyTask.is_urgent.desc(), SurveyTask.priority.asc(), SurveyTask.start_time.desc()) \
-        .limit(300).all()
-    is_admin = current_user.email in ADMIN_EMAILS
+    all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived')         .order_by(SurveyTask.is_urgent.desc(), SurveyTask.priority.asc(), SurveyTask.start_time.desc())         .limit(300).all()
+    is_admin = is_user_admin(current_user)
     
-    # --- NEW: Initials Mapping Engine ---
-    all_users = User.query.all()
+    all_users = User.query.order_by(User.name.asc()).all()
     initials_map = {}
     for u in all_users:
         if u.initials:
@@ -616,24 +674,21 @@ def dashboard():
             parts = u.name.split()
             initials_map[u.name] = (parts[0][0] + parts[1][0]).upper() if len(parts) >= 2 else u.name[:2].upper()
 
-    return render_template('dashboard.html', name=current_user.name, tasks=all_tasks, is_admin=is_admin, initials_map=initials_map)
+    return render_template('dashboard.html', name=current_user.name, tasks=all_tasks, users=all_users, is_admin=is_admin, initials_map=initials_map)
 
 @app.route('/admin_dashboard')
 @login_required
 def admin_dashboard():
-    if current_user.email not in ADMIN_EMAILS:
+    if not is_user_admin(current_user):
         flash('Access Denied: You do not have Admin privileges.', 'error')
         return redirect(url_for('dashboard'))
 
     session['dashboard_view'] = 'admin'
     escalate_aging_tasks()
     
-    all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived') \
-        .order_by(SurveyTask.is_urgent.desc(), SurveyTask.priority.asc(), SurveyTask.start_time.desc()) \
-        .limit(300).all()
+    all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived')         .order_by(SurveyTask.is_urgent.desc(), SurveyTask.priority.asc(), SurveyTask.start_time.desc())         .limit(300).all()
     users = User.query.order_by(User.name.asc()).all()
 
-    # --- NEW: Initials Mapping Engine ---
     initials_map = {}
     for u in users:
         if u.initials:
@@ -642,7 +697,7 @@ def admin_dashboard():
             parts = u.name.split()
             initials_map[u.name] = (parts[0][0] + parts[1][0]).upper() if len(parts) >= 2 else u.name[:2].upper()
 
-    # --- 3-Month KPI Summary Logic (FIXES THE 500 CRASH) ---
+    # --- 3-Month KPI Summary Logic (Prioritizes execution_date) ---
     now = datetime.utcnow()
     months_data = []
 
@@ -665,8 +720,9 @@ def admin_dashboard():
         
     completed_tasks = SurveyTask.query.filter(SurveyTask.status.in_(['Closed', 'Archived'])).all()
     for t in completed_tasks:
-        if t.start_time:
-            t_key = t.start_time.strftime('%Y-%m')
+        actual_dt = t.execution_date if t.execution_date else t.start_time
+        if actual_dt:
+            t_key = actual_dt.strftime('%Y-%m')
             for md in months_data:
                 if md['key'] == t_key:
                     md['count'] += 1
@@ -679,7 +735,7 @@ def admin_dashboard():
 @app.route('/update_initials/<int:user_id>', methods=['POST'])
 @login_required
 def update_initials(user_id):
-    if current_user.email not in ADMIN_EMAILS:
+    if not is_user_admin(current_user):
         return "Unauthorized", 403
     user = User.query.get_or_404(user_id)
     new_initials = request.form.get('initials', '').strip().upper()
@@ -688,10 +744,25 @@ def update_initials(user_id):
     flash(f"Updated initials for {user.name} to '{user.initials}'", 'success')
     return redirect(url_for('manage_users'))
 
+@app.route('/toggle_admin/<int:user_id>', methods=['POST'])
+@login_required
+def toggle_admin(user_id):
+    if not is_user_admin(current_user):
+        return "Unauthorized", 403
+    user = User.query.get_or_404(user_id)
+    if user.email in ADMIN_EMAILS:
+        flash('VIP Super-Admins cannot have admin privileges revoked.', 'error')
+        return redirect(url_for('manage_users'))
+    user.is_admin = not bool(getattr(user, 'is_admin', False))
+    db.session.commit()
+    role_status = "promoted to Admin" if user.is_admin else "set to Standard User"
+    flash(f'User {user.name} has been {role_status}.', 'success')
+    return redirect(url_for('manage_users'))
+
 @app.route('/archive')
 @login_required
 def archive_page():
-    if current_user.email not in ADMIN_EMAILS:
+    if not is_user_admin(current_user):
         flash('Access Denied: You do not have permission to view the archive.', 'error')
         return redirect(url_for('dashboard'))
     
@@ -701,7 +772,7 @@ def archive_page():
 @app.route('/restore_task/<int:task_id>', methods=['POST'])
 @login_required
 def restore_task(task_id):
-    if current_user.email not in ADMIN_EMAILS:
+    if not is_user_admin(current_user):
         return "Unauthorized", 403
         
     task = SurveyTask.query.get_or_404(task_id)
@@ -711,7 +782,6 @@ def restore_task(task_id):
         task.remarks = f"{task.remarks} | {restore_note}" if task.remarks else restore_note
         db.session.commit()
         
-        # RESEQUENCE QUEUE
         resequence_queue(task.assigned_to)
         
         flash(f'Task {task_id} was successfully restored to the dashboard.', 'success')
@@ -724,17 +794,17 @@ def restore_task(task_id):
 @app.route('/manage_users')
 @login_required
 def manage_users():
-    if current_user.email not in ADMIN_EMAILS:
+    if not is_user_admin(current_user):
         flash('Access Denied: Admins only.', 'error')
         return redirect(url_for('dashboard'))
     
     users = User.query.order_by(User.name.asc()).all()
-    return render_template('manage_users.html', users=users)
+    return render_template('manage_users.html', users=users, admin_emails=ADMIN_EMAILS)
 
 @app.route('/toggle_active/<int:user_id>', methods=['POST'])
 @login_required
 def toggle_active(user_id):
-    if current_user.email not in ADMIN_EMAILS:
+    if not is_user_admin(current_user):
         return "Unauthorized", 403
     user = User.query.get_or_404(user_id)
     user.is_active = not getattr(user, 'is_active', True) 
@@ -746,7 +816,7 @@ def toggle_active(user_id):
 @app.route('/cleanup')
 @login_required
 def cleanup_tasks():
-    if current_user.email not in ADMIN_EMAILS:
+    if not is_user_admin(current_user):
         flash('Access Denied: You do not have permission to view this page.', 'error')
         return redirect(url_for('dashboard'))
     
@@ -756,7 +826,7 @@ def cleanup_tasks():
 @app.route('/delete_task/<int:task_id>', methods=['POST'])
 @login_required
 def delete_task(task_id):
-    if current_user.email not in ADMIN_EMAILS:
+    if not is_user_admin(current_user):
         return "Unauthorized", 403
         
     task = SurveyTask.query.get_or_404(task_id)
@@ -765,7 +835,6 @@ def delete_task(task_id):
         db.session.delete(task)
         db.session.commit()
         
-        # RESEQUENCE QUEUE
         resequence_queue(assigned_str)
         
         flash(f'Task {task_id} was permanently deleted.', 'success')
@@ -778,7 +847,7 @@ def delete_task(task_id):
 @app.route('/approve_user/<int:user_id>', methods=['POST'])
 @login_required
 def approve_user(user_id):
-    if current_user.email not in ADMIN_EMAILS:
+    if not is_user_admin(current_user):
         return "Unauthorized", 403
     user = User.query.get_or_404(user_id)
     user.is_approved = True
@@ -789,18 +858,18 @@ def approve_user(user_id):
 @app.route('/delete_user/<int:user_id>', methods=['POST'])
 @login_required
 def delete_user(user_id):
-    if current_user.email not in ADMIN_EMAILS:
+    if not is_user_admin(current_user):
         return "Unauthorized", 403
     user = User.query.get_or_404(user_id)
     db.session.delete(user)
     db.session.commit()
     flash(f'User {user.name} has been rejected and deleted.', 'success')
-    return redirect(url_for('admin_dashboard'))
+    return redirect(request.referrer or url_for('admin_dashboard'))
 
 @app.route('/migrate', methods=['GET', 'POST'])
 @login_required
 def migrate_data():
-    if current_user.email not in ADMIN_EMAILS:
+    if not is_user_admin(current_user):
         flash('Access Denied: Admins only.', 'error')
         return redirect(url_for('dashboard'))
 
@@ -908,6 +977,7 @@ def migrate_data():
                     work_scope=safe_scope,
                     remarks=combined_remarks,
                     status="Closed",
+                    priority=99,
                     start_time=start_date,
                     end_time=start_date 
                 )
@@ -935,7 +1005,7 @@ def hidden_config():
     if "requestors" not in master_schema: master_schema["requestors"] = {}
     if "activities" not in master_schema: master_schema["activities"] = {}
 
-    if current_user.email not in ADMIN_EMAILS:
+    if not is_user_admin(current_user):
         flash('Access Denied: Admins only.', 'error')
         return redirect(url_for('dashboard'))
         
@@ -991,7 +1061,6 @@ def hidden_config():
             if act in master_schema['activities'] and req_action in master_schema['activities'][act]:
                 if inst in master_schema['activities'][act][req_action]:
                     master_schema['activities'][act][req_action].remove(inst)
-# --- FILE TREE ACTIONS ---
         elif action == 'add_area':
             area = request.form.get('area').strip()
             if area and area not in master_schema['file_tree']:
@@ -1141,7 +1210,6 @@ def new_task():
                                presets=user_presets)
                                
     except Exception as e:
-        import traceback
         error_details = traceback.format_exc()
         return f"<h2>DIAGNOSTIC CRASH REPORT (NEW TASK)</h2><p>Error: {str(e)}</p><pre>{error_details}</pre>"        
 
@@ -1152,7 +1220,7 @@ def edit_task(task_id):
         task = SurveyTask.query.get_or_404(task_id)
         
         assigned_users = [name.strip() for name in task.assigned_to.split(',')] if task.assigned_to else []
-        is_admin = current_user.email in ADMIN_EMAILS
+        is_admin = is_user_admin(current_user)
         
         if not is_admin and current_user.name != task.surveyor_name and current_user.name not in assigned_users:
             flash('Unauthorized to edit this task.', 'error')
@@ -1256,8 +1324,8 @@ def edit_task(task_id):
                                task_json=json.dumps(task_dict))
                                   
     except Exception as e:
-        import traceback
         error_details = traceback.format_exc()
+        return f"<h2>DIAGNOSTIC CRASH REPORT (EDIT TASK)</h2><p>Error: {str(e)}</p><pre>{error_details}</pre>"
 
 @app.route('/ajax_update_task_status', methods=['POST'])
 @login_required
@@ -1269,14 +1337,13 @@ def ajax_update_task_status():
         
         task = SurveyTask.query.get_or_404(task_id)
         assigned_users = [name.strip() for name in task.assigned_to.split(',')] if task.assigned_to else []
-        is_admin = current_user.email in ADMIN_EMAILS
+        is_admin = is_user_admin(current_user)
         
         if not is_admin and current_user.name not in assigned_users and current_user.name != task.surveyor_name:
             return jsonify({'success': False, 'message': 'Unauthorized'}), 403
             
         task.status = new_status
         
-        # --- NEW DEMOTION RULE ---
         if new_status in ['Closed', 'Canceled', 'Archived']:
             task.priority = 99
         
@@ -1287,8 +1354,98 @@ def ajax_update_task_status():
         db.session.commit()
         resequence_queue(task.assigned_to)
         
-        return jsonify({'success': True})
+        return jsonify({'success': True, 'remarks': task.remarks, 'priority': task.priority})
     except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# --- UPGRADE 2 & 3: ZERO-RELOAD AJAX MODAL ACTIONS & INLINE QUICK-EDIT ---
+@app.route('/ajax_modal_action', methods=['POST'])
+@login_required
+def ajax_modal_action():
+    try:
+        data = request.get_json() or {}
+        task_id = data.get('task_id')
+        action = data.get('action')
+        
+        task = SurveyTask.query.get_or_404(task_id)
+        assigned_users = [name.strip() for name in task.assigned_to.split(',')] if task.assigned_to else []
+        is_admin = is_user_admin(current_user)
+        
+        if not is_admin and current_user.name not in assigned_users and current_user.name != task.surveyor_name:
+            return jsonify({'success': False, 'message': 'Unauthorized to modify this task.'}), 403
+            
+        old_assigned = task.assigned_to
+        
+        if action == 'acknowledge':
+            task.status = 'In Progress'
+            if 'Acknowledged' not in (task.remarks or ''):
+                ack_note = f"Acknowledged & Started by {current_user.name}"
+                task.remarks = f"{task.remarks} | {ack_note}" if task.remarks else ack_note
+                
+        elif action == 'close':
+            closing_remarks = (data.get('closing_remarks') or '').strip()
+            if not closing_remarks:
+                return jsonify({'success': False, 'message': 'Closing remarks are mandatory.'}), 400
+            deliverable_link = (data.get('deliverable_link') or '').strip()
+            if deliverable_link:
+                task.deliverable_link = deliverable_link
+            task.remarks = f"{task.remarks} | Closed: {closing_remarks}" if task.remarks else f"Closed: {closing_remarks}"
+            task.status = 'Closed'
+            task.priority = 99
+            task.end_time = datetime.utcnow()
+            
+        elif action == 'cancel':
+            cancel_reason = (data.get('cancel_reason') or '').strip()
+            if not cancel_reason:
+                return jsonify({'success': False, 'message': 'Cancellation reason is mandatory.'}), 400
+            task.remarks = f"{task.remarks} | CANCELED: {cancel_reason}" if task.remarks else f"CANCELED: {cancel_reason}"
+            task.status = 'Canceled'
+            task.priority = 99
+            task.end_time = datetime.utcnow()
+            
+        elif action == 'quick_edit':
+            if 'priority' in data and str(data['priority']).isdigit():
+                task.priority = int(data['priority'])
+            if 'is_urgent' in data:
+                task.is_urgent = bool(data['is_urgent'])
+            if 'assigned_to' in data and str(data['assigned_to']).strip():
+                task.assigned_to = str(data['assigned_to']).strip()
+            if 'execution_date' in data:
+                exec_str = (data.get('execution_date') or '').strip()
+                if exec_str:
+                    task.execution_date = datetime.strptime(exec_str, '%Y-%m-%d').date()
+                else:
+                    task.execution_date = None
+        else:
+            return jsonify({'success': False, 'message': 'Unknown modal action.'}), 400
+            
+        db.session.commit()
+        if old_assigned and old_assigned != task.assigned_to:
+            resequence_queue(old_assigned)
+        resequence_queue(task.assigned_to)
+        
+        date_str = task.execution_date.strftime('%Y-%m-%d') if task.execution_date else (task.start_time.strftime('%Y-%m-%d') if task.start_time else '')
+        start_display = task.execution_date.strftime('%Y-%m-%d (Backdated)') if task.execution_date else (task.start_time.strftime('%Y-%m-%d %H:%M') if task.start_time else '')
+        end_display = task.end_time.strftime('%Y-%m-%d %H:%M') if task.end_time else 'Pending'
+        
+        return jsonify({
+            'success': True,
+            'task': {
+                'id': task.id,
+                'status': task.status,
+                'priority': task.priority,
+                'is_urgent': task.is_urgent,
+                'assigned_to': task.assigned_to or '',
+                'remarks': task.remarks or '',
+                'deliverable_link': task.deliverable_link or '',
+                'date': date_str,
+                'execution_date': task.execution_date.strftime('%Y-%m-%d') if task.execution_date else '',
+                'start': start_display,
+                'end': end_display
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
         return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/mark_in_progress/<int:task_id>', methods=['POST'])
@@ -1296,7 +1453,7 @@ def ajax_update_task_status():
 def mark_in_progress(task_id):
     task = SurveyTask.query.get_or_404(task_id)
     assigned_users = [name.strip() for name in task.assigned_to.split(',')] if task.assigned_to else []
-    is_admin = current_user.email in ADMIN_EMAILS
+    is_admin = is_user_admin(current_user)
     
     if not is_admin and current_user.name not in assigned_users:
         flash('Security Alert: Only the assigned surveyor can acknowledge this task.', 'error')
@@ -1307,7 +1464,6 @@ def mark_in_progress(task_id):
     task.remarks = f"{task.remarks} | {ack_note}" if task.remarks else ack_note
     
     db.session.commit()
-    
     resequence_queue(task.assigned_to)
     
     flash('Task acknowledged! It is now In Progress.', 'success')
@@ -1318,7 +1474,7 @@ def mark_in_progress(task_id):
 def close_task(task_id):
     task = SurveyTask.query.get_or_404(task_id)
     assigned_users = [name.strip() for name in task.assigned_to.split(',')] if task.assigned_to else []
-    is_admin = current_user.email in ADMIN_EMAILS
+    is_admin = is_user_admin(current_user)
     
     if not is_admin and current_user.name != task.surveyor_name and current_user.name not in assigned_users:
         flash('Unauthorized.', 'error')
@@ -1333,7 +1489,7 @@ def close_task(task_id):
         task.deliverable_link = request.form.get('deliverable_link')
         
     task.status = 'Closed'
-    task.priority = 99  # <--- NEW DEMOTION RULE
+    task.priority = 99
     task.end_time = datetime.utcnow()
     db.session.commit()
     
@@ -1347,7 +1503,7 @@ def close_task(task_id):
 def cancel_task(task_id):
     task = SurveyTask.query.get_or_404(task_id)
     assigned_users = [name.strip() for name in task.assigned_to.split(',')] if task.assigned_to else []
-    is_admin = current_user.email in ADMIN_EMAILS
+    is_admin = is_user_admin(current_user)
     
     if not is_admin and current_user.name != task.surveyor_name and current_user.name not in assigned_users:
         flash('Unauthorized.', 'error')
@@ -1359,7 +1515,7 @@ def cancel_task(task_id):
         
     task.remarks = f"{task.remarks} | CANCELED: {cancel_reason}" if task.remarks else f"CANCELED: {cancel_reason}"
     task.status = 'Canceled'
-    task.priority = 99  # <--- NEW DEMOTION RULE
+    task.priority = 99
     task.end_time = datetime.utcnow()
     db.session.commit()
     
@@ -1373,8 +1529,7 @@ def cancel_task(task_id):
 def delete_preset(preset_id):
     preset = PresetTask.query.get_or_404(preset_id)
     
-    # We use ADMIN_EMAILS directly since this is the monolith
-    if preset.user_id == current_user.id or current_user.email in ADMIN_EMAILS:
+    if preset.user_id == current_user.id or is_user_admin(current_user):
         db.session.delete(preset)
         db.session.commit()
         flash(f"Preset '{preset.preset_name}' deleted.", 'success')
@@ -1383,11 +1538,25 @@ def delete_preset(preset_id):
         
     return redirect(request.referrer or url_for('new_task'))
     
-# --- REPORT GENERATOR ROUTES ---
+# --- REPORT GENERATOR & LIVE PREVIEW ROUTES ---
 @app.route('/reports')
 @login_required
 def reports():
     return render_template('reports.html')
+
+@app.route('/api/preview_kpi', methods=['GET'])
+@login_required
+def api_preview_kpi():
+    """Upgrade 6: Live On-Screen KPI Master Register Previewer."""
+    try:
+        kpi_month = request.args.get('kpi_month', '').strip()
+        target_year, target_month = None, None
+        if kpi_month and '-' in kpi_month:
+            target_year, target_month = kpi_month.split('-', 1)
+        rows = build_kpi_rows(target_year=target_year, target_month=target_month)
+        return jsonify({'success': True, 'count': len(rows), 'rows': rows})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/generate_dtr', methods=['POST'])
 @login_required
@@ -1398,8 +1567,6 @@ def generate_dtr():
 
         target_date = datetime.strptime(target_date_str, '%Y-%m-%d')
         next_day = target_date + timedelta(days=1)
-        
-        from sqlalchemy import or_, and_, func 
         
         daily_tasks = SurveyTask.query.filter(
             SurveyTask.status == 'Closed',
@@ -1423,14 +1590,14 @@ def generate_dtr():
             clean_parts = [p.strip() for p in raw_parts if p and p.strip().lower() != 'general']
             t.action_phrase = " ".join(clean_parts)
             
-            raw_remark = t.remarks or ""
-            opening_remark = raw_remark.split("| Closed:")[0].split("| CANCELED:")[0].strip()
+            opening_remark = extract_opening_remark(t.remarks)
 
             assigned = t.assigned_to if t.assigned_to else t.surveyor_name
             surveyors = [s.strip() for s in assigned.split(',') if s.strip()]
 
             group_type = "inline"
             boat_name = ""
+            raw_remark = t.remarks or ""
             
             if "WS166" in str(t.instrument) or "WS166" in raw_remark:
                 group_key, group_type, boat_name = "EGST Hydro Survey", "hydro", "WS166"
@@ -1525,7 +1692,7 @@ def generate_wsr():
                 scope = t.work_scope.split('_', 1)[-1].replace('_', ' ') if t.work_scope and t.work_scope != 'N/A' else ''
                 clean_parts = [p.strip() for p in [loc, sub, scope, t.action_required] if p and p.strip().lower() != 'general']
                 t.action_phrase = " ".join(clean_parts)
-                opening_remark = (t.remarks or "").split("| Closed:")[0].split("| CANCELED:")[0].strip()
+                opening_remark = extract_opening_remark(t.remarks)
                 surveyors = [s.strip() for s in (t.assigned_to or t.surveyor_name).split(',') if s.strip()]
 
                 group_type, boat_name = "inline", ""
@@ -1633,67 +1800,7 @@ def export_excel():
         if kpi_month:
             target_year, target_month = kpi_month.split('-')
 
-        # Fetch without DB sort
-        all_tasks = SurveyTask.query.filter(SurveyTask.status.in_(['Closed', 'Archived'])).all()
-        
-        # Python Sorting Engine: Prioritize backdates
-        def get_sort_date(t):
-            if t.execution_date:
-                return datetime.combine(t.execution_date, datetime.min.time())
-            if t.start_time:
-                return t.start_time
-            return datetime.min
-            
-        all_tasks.sort(key=get_sort_date)
-        
-        excluded_keywords = ["external meeting", "internal coordination", "survey report", "damage report", "item", "request", "sem update"]
-        
-        tasks = []
-        for t in all_tasks:
-            if t.action_required:
-                if any(ex in t.action_required.lower() for ex in excluded_keywords):
-                    continue
-            tasks.append(t)
-        
-        data = []
-        month_counters = {} 
-        display_index = 1
-        
-        for task in tasks:
-            actual_date = task.execution_date if task.execution_date else task.start_time
-            month_str = actual_date.strftime('%m') if actual_date else '00' 
-            year_str = actual_date.strftime('%Y') if actual_date else '0000'
-            
-            if month_str not in month_counters: month_counters[month_str] = 1
-            else: month_counters[month_str] += 1
-                
-            seq_num = f"{month_counters[month_str]:03d}"
-            req_ref = f"TW_{month_str}{seq_num}"
-            survey_ref = f"TW_SU_{month_str}{seq_num}"
-
-            if target_month and target_year:
-                if month_str != target_month or year_str != target_year:
-                    continue
-
-            loc = task.location.split('_', 1)[-1].replace('_', ' ') if task.location and task.location != 'N/A' else ''
-            sub = task.sub_location.split('_', 1)[-1].replace('_', ' ') if task.sub_location and task.sub_location != 'N/A' else ''
-            scope = task.work_scope.split('_', 1)[-1].replace('_', ' ') if task.work_scope and task.work_scope != 'N/A' else ''
-            
-            raw_parts = [loc, sub, scope, task.action_required]
-            clean_parts = [p.strip() for p in raw_parts if p and p.strip().lower() != 'general']
-            desc_phrase = " ".join(clean_parts)
-
-            display_start = task.execution_date.strftime('%Y-%m-%d') if task.execution_date else (task.start_time.strftime('%Y-%m-%d %H:%M') if task.start_time else '')
-            display_end = task.execution_date.strftime('%Y-%m-%d') if task.execution_date else (task.end_time.strftime('%Y-%m-%d %H:%M') if task.end_time else '')
-
-            data.append({
-                'Tender / Project Ref.': '20012', 'Sl No': display_index, 'Activity Type': task.task_category, 'Discipline': task.action_required,
-                'Requestor Ref. #': req_ref, 'Survey Ref. #': survey_ref, 'Requestor': task.requestor, 'Assigned to': task.assigned_to,
-                'Date/Time Received': display_start,
-                'Date/Time Completed': display_end,
-                'Description of Survey Works': desc_phrase, 'Special Conditions / Remarks': task.remarks or ''
-            })
-            display_index += 1
+        data = build_kpi_rows(target_year=target_year, target_month=target_month)
         
         df = pd.DataFrame(data)
         output = io.BytesIO()
@@ -1718,10 +1825,11 @@ def export_excel():
     except Exception as e:
         flash(f'KPI Excel Generation Failed. Error: {str(e)}', 'error')
         return redirect(url_for('reports'))
+
 @app.route('/wipe_all_presets')
 @login_required
 def wipe_all_presets():
-    if current_user.email not in ADMIN_EMAILS:
+    if not is_user_admin(current_user):
         flash('Access Denied: Admins only.', 'error')
         return redirect(url_for('dashboard'))
         

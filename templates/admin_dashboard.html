@@ -7,10 +7,18 @@
     <style>
         /* Base Styles */
         body { font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; background-color: #f4f7f6; padding: 20px; margin: 0; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; flex-wrap: wrap; gap: 10px; }
-        .btn-new { background-color: #0056b3; color: white; padding: 10px 15px; text-decoration: none; border-radius: 6px; font-weight: bold; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
+        .btn-new { background-color: #0056b3; color: white; padding: 10px 15px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px; border: none; cursor: pointer; }
         .btn-warning { background-color: #ffc107; color: black; }
         
+        /* UPGRADE CORE 1: ADMIN COMMAND CENTER BAR */
+        .admin-command-bar { display: flex; gap: 8px; flex-wrap: wrap; background: #212529; padding: 10px 15px; border-radius: 8px; margin-bottom: 15px; align-items: center; box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
+        .admin-command-label { color: #ffc107; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 6px; }
+        .cmd-btn { color: #f8f9fa; background: #343a40; text-decoration: none; padding: 6px 12px; border-radius: 5px; font-size: 12px; font-weight: bold; border: 1px solid #495057; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 4px; }
+        .cmd-btn:hover { background: #0056b3; border-color: #0dcaf0; color: white; }
+        .cmd-btn-danger { background: #58151c; border-color: #842029; color: #ea868f; margin-left: auto; }
+        .cmd-btn-danger:hover { background: #dc3545; border-color: #dc3545; color: white; }
+
         .flash-container { margin-bottom: 20px; }
         .flash-msg { padding: 12px 15px; border-radius: 6px; font-weight: bold; margin-bottom: 10px; font-size: 14px; }
         .flash-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
@@ -23,7 +31,7 @@
         .date-input { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
         .user-dropdown { padding: 8px 12px; border-radius: 20px; border: 1px solid #ccc; font-weight: bold; font-size: 13px; color: #333; outline: none; }
         
-        /* DRAG AND DROP STYLES ADDED HERE */
+        /* DRAG AND DROP STYLES */
         .task-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; border-left: 5px solid #ffc107; transition: all 0.2s; cursor: grab; }
         .task-card:active { cursor: grabbing; }
         .task-card.dragging { opacity: 0.6; transform: scale(0.98); border: 2px dashed #0056b3; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
@@ -60,35 +68,54 @@
         .kb-progress { border-top: 5px solid #17a2b8; }
         .kb-closed { border-top: 5px solid #28a745; }
 
-        /* FULL TASK MODAL STYLES */
+        /* FULL TASK MODAL & QUICK-EDIT STYLES */
         .task-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
-        .task-modal-box { background: white; width: 90%; max-width: 800px; max-height: 90vh; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 5px 20px rgba(0,0,0,0.4); }
+        .task-modal-box { background: white; width: 92%; max-width: 850px; max-height: 92vh; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 5px 20px rgba(0,0,0,0.4); }
         .task-modal-header { background: #f8f9fa; padding: 15px 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: flex-start; }
         .task-modal-close { font-size: 28px; cursor: pointer; color: #888; line-height: 1; border: none; background: none; font-weight: bold; }
         .task-modal-close:hover { color: #dc3545; }
         .task-modal-body { display: flex; flex-wrap: wrap; padding: 20px; overflow-y: auto; gap: 20px; }
         .task-modal-left { flex: 2; min-width: 300px; }
-        .task-modal-right { flex: 1; min-width: 200px; background: #f8f9fa; padding: 15px; border-radius: 6px; border: 1px solid #eee; }
+        .task-modal-right { flex: 1; min-width: 220px; background: #f8f9fa; padding: 15px; border-radius: 6px; border: 1px solid #eee; }
         .task-modal-footer { background: #f8f9fa; padding: 15px 20px; border-top: 1px solid #ddd; display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
         .meta-item { margin-bottom: 12px; font-size: 13px; color: #222; }
         .meta-item strong { color: #555; display: block; margin-bottom: 3px; text-transform: uppercase; font-size: 11px; }
+
+        .quick-edit-box { background: #eef6ff; border: 1px solid #b6d4fe; border-radius: 6px; padding: 12px; margin-top: 20px; }
+        .quick-edit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 8px; align-items: end; }
+        .quick-edit-grid label { font-size: 11px; font-weight: bold; color: #084298; display: block; margin-bottom: 3px; text-transform: uppercase; }
+        .quick-edit-grid input, .quick-edit-grid select { width: 100%; padding: 6px; border: 1px solid #9ec5fe; border-radius: 4px; font-size: 12px; box-sizing: border-box; }
+        .audit-pill { background: #f1f3f5; border-left: 3px solid #0d6efd; padding: 6px 10px; border-radius: 4px; font-size: 12px; color: #333; margin-top: 6px; }
     </style>
 </head>
 <body>
     <div class="header" style="align-items: flex-start;">
         <div>
-            <h2 style="margin-top: 0;">Active Survey Task - Admin</h2>
+            <h2 style="margin-top: 0; margin-bottom: 4px;">Active Survey Task - Admin</h2>
             <div id="liveClock" style="font-size: 14px; color: #555; font-weight: bold;">Loading time...</div>
         </div>
         <div style="display: flex; flex-direction: column; align-items: flex-end;">
-            <div style="display: flex; gap: 10px;">
-                <button onclick="toggleAnalytics()" class="btn-new" style="background-color: #17a2b8; border: none; cursor: pointer;">📊 Analytics</button>
-                <a href="/system_config_hidden" class="btn-new btn-warning">⚙️ Config</a>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button onclick="toggleAnalytics()" class="btn-new" style="background-color: #17a2b8;">📊 Live Analytics</button>
+                <button onclick="openKpiPreviewModal()" class="btn-new" style="background-color: #6f42c1;">👁️ Preview KPI Register</button>
                 <a href="/new_task" class="btn-new">+ Open New Task</a>
             </div>
             <span style="color: #333; font-weight: bold; margin-top: 8px;">👤 {{ name }}</span>
             <a href="/logout" style="color: #dc3545; text-decoration: none; font-size: 12px; font-weight: bold; margin-top: 4px;">🚪 Logout</a>
         </div>
+    </div>
+
+    <!-- UPGRADE CORE 1: FULL ADMIN COMMAND CENTER FOR ALL HIDDEN PAGES -->
+    <div class="admin-command-bar">
+        <span class="admin-command-label">🛡️ Admin Toolkit:</span>
+        <a href="/manage_users" class="cmd-btn">👥 Manage Users & Roles</a>
+        <a href="/system_config_hidden" class="cmd-btn">⚙️ System Config</a>
+        <a href="/reports" class="cmd-btn">📊 Reports Generator</a>
+        <a href="/archive" class="cmd-btn">🗄️ Task Archive</a>
+        <a href="/cleanup" class="cmd-btn">🧹 DB Cleanup</a>
+        <a href="/migrate" class="cmd-btn">📥 Legacy Excel Migrate</a>
+        <a href="/" class="cmd-btn" style="background: #0d6efd; border-color: #0d6efd;">🔁 User View</a>
+        <a href="/wipe_all_presets" class="cmd-btn cmd-btn-danger" onclick="return confirm('WARNING: Are you sure you want to permanently wipe ALL saved task presets across all users?');">🧨 Wipe All Presets</a>
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -111,34 +138,28 @@
         <button class="btn-filter active" id="btnClosed" onclick="toggleStatus('Closed')">Closed</button>
         <button class="btn-filter" id="btnCanceled" onclick="toggleStatus('Canceled')">Canceled</button>
         
-        <select id="userFilter" class="user-dropdown" onchange="applyFilters()">
+        <select id="userFilter" class="user-dropdown" onchange="saveFilterMemory(); applyFilters();">
             <option value="All">All Users</option>
             {% for u in users %}
             <option value="{{ u.name }}">{{ u.name }}</option>
             {% endfor %}
         </select>
-        <input type="text" id="adminKeywordSearch" class="date-input" style="flex-grow: 1; min-width: 200px; padding: 8px;" placeholder="Keyword search..." onkeyup="applyFilters()">
+        <input type="text" id="adminKeywordSearch" class="date-input" style="flex-grow: 1; min-width: 180px; padding: 8px;" placeholder="Keyword search..." onkeyup="saveFilterMemory(); applyFilters();">
         
-        <div style="margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
-            <div style="display: flex; align-items: center; gap: 15px;">
-                <div style="display: flex; align-items: center; gap: 5px;">
-                    <span style="font-size: 13px; color: #555;">From:</span>
-                    <input type="date" id="dateStart" class="date-input" onchange="applyFilters()">
-                    <span style="font-size: 13px; color: #555;">To:</span>
-                    <input type="date" id="dateEnd" class="date-input" onchange="applyFilters()">
-                    <button onclick="clearDates()" style="background: none; border: none; color: #dc3545; cursor: pointer; font-weight: bold;" title="Clear Dates">X</button>
-                </div>
-                
-                <div style="display: flex; gap: 5px; background: #fff; padding: 3px; border-radius: 6px; border: 1px solid #ccc;">
-                    <button id="btnListView" class="btn-filter" onclick="switchView('list')" style="border: none; padding: 4px 10px;">📄 List</button>
-                    <button id="btnKanbanView" class="btn-filter active" onclick="switchView('kanban')" style="border: none; padding: 4px 10px;">📋 Kanban</button>
-                </div>
+        <div style="margin-left: auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 5px;">
+                <span style="font-size: 13px; color: #555;">From:</span>
+                <input type="date" id="dateStart" class="date-input" onchange="saveFilterMemory(); applyFilters();">
+                <span style="font-size: 13px; color: #555;">To:</span>
+                <input type="date" id="dateEnd" class="date-input" onchange="saveFilterMemory(); applyFilters();">
+                <button onclick="resetAllFilters()" style="background: #fff; border: 1px solid #ccc; border-radius: 4px; padding: 4px 8px; color: #dc3545; cursor: pointer; font-weight: bold; font-size: 12px;" title="Reset All Saved Filters">↺ Reset</button>
             </div>
-            <a href="/" style="color: #0056b3; font-size: 12px; font-weight: bold; text-decoration: none; border: 1px solid #0056b3; padding: 3px 8px; border-radius: 4px;">🔁 Switch to User View</a>
+            
+            <div style="display: flex; gap: 5px; background: #fff; padding: 3px; border-radius: 6px; border: 1px solid #ccc;">
+                <button id="btnListView" class="btn-filter" onclick="switchView('list')" style="border: none; padding: 4px 10px;">📄 List</button>
+                <button id="btnKanbanView" class="btn-filter active" onclick="switchView('kanban')" style="border: none; padding: 4px 10px;">📋 Kanban</button>
+            </div>
         </div>
-    </div>
-    <div style="margin-bottom: 20px;">
-        <a href="/reports" style="color: #0056b3; font-weight: bold; text-decoration: none;">📊 Reports Page</a>
     </div>
 
     {% set pending_users = [] %}
@@ -206,7 +227,7 @@
 
         {% if my_urgent_count.value > 0 %}
         <div style="flex: 1; background-color: #fff3cd; border-left: 5px solid #dc3545; padding: 12px 20px; border-radius: 6px; font-weight: bold; color: #856404;">
-            🚨 You have <span style="background: #dc3545; color: white; padding: 2px 8px; border-radius: 12px; font-size: 14px; animation: pulse 1.5s infinite;">{{ my_urgent_count.value }}</span> URGENT task(s)!
+            🚨 You have <span style="background: #dc3545; color: white; padding: 2px 8px; border-radius: 12px; font-size: 14px;">{{ my_urgent_count.value }}</span> URGENT task(s)!
         </div>
         {% endif %}
     </div>
@@ -228,8 +249,11 @@
              ondragstart="drag(event)"
              data-id="{{ task.id }}"
              data-status="{{ task.status }}" 
+             data-priority="{{ task.priority|default(99) }}"
+             data-urgent="{{ 'true' if task.is_urgent else 'false' }}"
+             data-exec-date="{{ task.execution_date.strftime('%Y-%m-%d') if task.execution_date else '' }}"
              data-date="{{ task.execution_date.strftime('%Y-%m-%d') if task.execution_date else (task.start_time.strftime('%Y-%m-%d') if task.start_time else '') }}" 
-             data-assigned="{{ task.assigned_to }}"
+             data-assigned="{{ task.assigned_to or '' }}"
              data-mine="{% if (task.assigned_to and name in task.assigned_to) or name == task.surveyor_name %}true{% else %}false{% endif %}"
              data-creator="{{ task.surveyor_name }}"
              data-task-str="{{ task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else 'UNKNOWN-'~task.id }}"
@@ -247,23 +271,21 @@
             <div class="task-header">
                 <div style="flex: 1;" onclick="openTaskModal(this.closest('.task-card'))">
                     <div class="task-line-1" style="font-size: 15px; line-height: 1.4; margin-bottom: 4px;">
-                        {% if task.is_urgent and task.status in ['Open', 'In Progress'] %}
-                        <span style="background: #dc3545; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; margin-right: 5px; vertical-align: top;">URGENT</span>
-                        {% endif %}
+                        <span class="card-urgent-badge" style="background: #dc3545; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; margin-right: 5px; vertical-align: top; {% if not (task.is_urgent and task.status in ['Open', 'In Progress']) %}display:none;{% endif %}">URGENT</span>
                         
                         {% set p_val = task.priority|default(99) %}
                         {% set p_color = '#6c757d' %}{% if p_val == 0 %}{% set p_color = '#dc3545' %}{% elif p_val == 1 %}{% set p_color = '#fd7e14' %}{% elif p_val == 2 %}{% set p_color = '#007bff' %}{% endif %}
-                        <span style="background: {{ p_color }}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; margin-right: 8px; vertical-align: top;" title="Priority Queue">P{{ p_val }}</span>
+                        <span class="card-priority-badge" style="background: {{ p_color }}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; margin-right: 8px; vertical-align: top;" title="Priority Queue">P{{ p_val }}</span>
 
                         <span style="color: #000; font-weight: 900;">
                             <span style="color: #dc3545; letter-spacing: 0.5px;">[{{ task.command_verb or 'PERFORM' }}]</span> 
                             {{ task.action_required }}
                         </span>
 
-                        <span style="color: #666; font-size: 12px; font-weight: bold; background: #eee; padding: 1px 5px; border-radius: 4px; margin-left: 5px;">
+                        <span class="card-initials-badge" style="color: #666; font-size: 12px; font-weight: bold; background: #eee; padding: 1px 5px; border-radius: 4px; margin-left: 5px;">
                             {% set initial_list = [] %}
-                            {% for name in (task.assigned_to or task.surveyor_name).split(',') %}
-                                {% set clean_name = name.strip() %}
+                            {% for uname in (task.assigned_to or task.surveyor_name).split(',') %}
+                                {% set clean_name = uname.strip() %}
                                 {% if initials_map and clean_name in initials_map %}
                                     {% set _ = initial_list.append(initials_map[clean_name]) %}
                                 {% else %}
@@ -324,12 +346,8 @@
             <div id="col-closed" style="display: flex; flex-direction: column; gap: 10px; min-height: 50px;"></div>
         </div>
     </div>
-    
-    <div style="text-align: center; margin-top: 30px;">
-        <a href="/" style="color: #0056b3; text-decoration: none; font-weight: bold; margin-right: 20px;">Switch to User View</a>
-        <a href="/logout" style="color: #dc3545; text-decoration: none;">Logout ({{ name }})</a>
-    </div>
 
+    <!-- FULL TASK MODAL WITH UPGRADE 2, 3, 5 -->
     <div class="task-modal-overlay" id="fullTaskModal">
         <div class="task-modal-box">
             <div class="task-modal-header">
@@ -341,11 +359,45 @@
             </div>
             <div class="task-modal-body">
                 <div class="task-modal-left">
-                    <h4 style="margin-top:0; color:#0056b3; border-bottom: 2px solid #eee; padding-bottom:5px;">📝 Remarks & Notes</h4>
-                    <p id="modalRemarks" style="font-size:14px; color:#333; line-height: 1.5; white-space: pre-wrap;"></p>
+                    <h4 style="margin-top:0; color:#0056b3; border-bottom: 2px solid #eee; padding-bottom:5px;">📝 Opening Remarks & Audit Log</h4>
+                    <div id="modalRemarks" style="font-size:14px; color:#333; line-height: 1.5; white-space: pre-wrap;"></div>
 
-                    <h4 style="color:#0056b3; border-bottom: 2px solid #eee; padding-bottom:5px; margin-top:25px;">🔗 Deliverables & References</h4>
+                    <h4 style="color:#0056b3; border-bottom: 2px solid #eee; padding-bottom:5px; margin-top:20px;">🔗 Deliverables & References</h4>
                     <div id="modalLinks" style="font-size:14px; line-height: 1.8;"></div>
+
+                    <!-- UPGRADE 3: INLINE MODAL QUICK-EDIT -->
+                    <div class="quick-edit-box">
+                        <div style="font-size: 12px; font-weight: 800; color: #084298; display: flex; justify-content: space-between; align-items: center;">
+                            <span>⚡ Inline Quick-Edit (Zero Reload)</span>
+                            <span id="quickEditFeedback" style="color: #198754; font-size: 11px; display: none;">✔ Saved!</span>
+                        </div>
+                        <div class="quick-edit-grid">
+                            <div>
+                                <label>Queue Priority</label>
+                                <input type="number" id="qePriority" min="0" max="99" value="99">
+                            </div>
+                            <div>
+                                <label>Backdate Execution</label>
+                                <input type="date" id="qeExecDate">
+                            </div>
+                            <div>
+                                <label>Assigned To</label>
+                                <input type="text" id="qeAssignedTo" list="surveyorUsersList" placeholder="Surveyor name(s)...">
+                                <datalist id="surveyorUsersList">
+                                    {% for u in users %}
+                                    <option value="{{ u.name }}"></option>
+                                    {% endfor %}
+                                </datalist>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 6px; padding-bottom: 6px;">
+                                <input type="checkbox" id="qeUrgent" style="width: auto;">
+                                <label for="qeUrgent" style="margin: 0; color: #dc3545; cursor: pointer;">🚨 URGENT</label>
+                            </div>
+                        </div>
+                        <div style="margin-top: 10px; text-align: right;">
+                            <button type="button" onclick="submitQuickEdit()" style="background: #0d6efd; color: white; border: none; padding: 6px 14px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer;">💾 Save Quick-Edit</button>
+                        </div>
+                    </div>
                 </div>
                 <div class="task-modal-right">
                     <h4 style="margin-top:0; color:#0056b3; border-bottom: 1px solid #ccc; padding-bottom:5px;">📌 Task Details</h4>
@@ -357,39 +409,135 @@
                     <div class="meta-item"><strong>Discipline</strong> <span id="modalDisc"></span></div>
                     <div class="meta-item"><strong>Instrument</strong> <span id="modalInst"></span></div>
                     <h4 style="color:#0056b3; border-bottom: 1px solid #ccc; padding-bottom:5px; margin-top:20px;">⏱️ Timeline</h4>
-                    <div class="meta-item"><strong>Opened</strong> <span id="modalStart"></span></div>
+                    <div class="meta-item"><strong>Opened / Executed</strong> <span id="modalStart"></span></div>
                     <div class="meta-item"><strong>Closed</strong> <span id="modalEnd"></span></div>
                 </div>
             </div>
             <div class="task-modal-footer" id="modalActionArea">
-                <a id="modalEditBtn" href="#" class="btn-action btn-edit">✏️ Edit</a>
+                <a id="modalEditBtn" href="#" class="btn-action btn-edit">✏️ Full Edit Page</a>
                 
-                <form id="modalAckForm" action="" method="POST" style="display:none; margin:0;">
+                <form id="modalAckForm" action="" method="POST" onsubmit="return handleAjaxModalForm(event, 'acknowledge')" style="display:none; margin:0;">
                     <button type="submit" class="btn-action btn-progress">🤝 Acknowledge & Start</button>
                 </form>
 
                 <button id="modalCompleteBtn" class="btn-action btn-close" onclick="document.getElementById('modalCloseForm').style.display='flex'; this.style.display='none'; document.getElementById('modalCancelTaskBtn').style.display='none'; document.getElementById('modalAckForm').style.display='none';">Complete Task</button>
                 <button id="modalCancelTaskBtn" class="btn-action btn-cancel" onclick="document.getElementById('modalCancelForm').style.display='flex'; this.style.display='none'; document.getElementById('modalCompleteBtn').style.display='none'; document.getElementById('modalAckForm').style.display='none';">Cancel Task</button>
                 
-                <form id="modalCloseForm" action="" method="POST" class="action-form" style="width:100%; display:none;">
-                    <input type="text" name="closing_remarks" class="action-input" placeholder="Result/Closing remarks (Required)..." required>
-                    <input type="url" name="deliverable_link" class="action-input" placeholder="OneDrive Deliverable Link (Optional)...">
+                <form id="modalCloseForm" action="" method="POST" onsubmit="return handleAjaxModalForm(event, 'close')" class="action-form" style="width:100%; display:none;">
+                    <input type="text" id="modalClosingRemarksInput" name="closing_remarks" class="action-input" placeholder="Result/Closing remarks (Required)..." required>
+                    <input type="url" id="modalDeliverableInput" name="deliverable_link" class="action-input" placeholder="OneDrive Deliverable Link (Optional)...">
                     <button type="submit" class="btn-action btn-close" style="margin-top:5px;">Confirm Close</button>
                 </form>
                 
-                <form id="modalCancelForm" action="" method="POST" class="action-form" style="width:100%; display:none;">
-                    <input type="text" name="cancel_reason" class="action-input" placeholder="Reason for cancellation (Required)..." required>
+                <form id="modalCancelForm" action="" method="POST" onsubmit="return handleAjaxModalForm(event, 'cancel')" class="action-form" style="width:100%; display:none;">
+                    <input type="text" id="modalCancelReasonInput" name="cancel_reason" class="action-input" placeholder="Reason for cancellation (Required)..." required>
                     <button type="submit" class="btn-action btn-cancel" style="margin-top:5px;">Confirm Cancel</button>
                 </form>
             </div>
         </div>
     </div>
 
+    <!-- UPGRADE 6: ON-SCREEN KPI MASTER REGISTER PREVIEW MODAL -->
+    <div class="task-modal-overlay" id="kpiPreviewModal">
+        <div class="task-modal-box" style="max-width: 1100px; width: 95%;">
+            <div class="task-modal-header">
+                <div>
+                    <h3 style="margin: 0; color: #111;">👁️ On-Screen KPI Master Register Previewer</h3>
+                    <div style="font-size: 12px; color: #666; margin-top: 4px;">Chronologically sorted by Backdated Execution Date first, then Start Time.</div>
+                </div>
+                <button class="task-modal-close" onclick="document.getElementById('kpiPreviewModal').style.display='none'">&times;</button>
+            </div>
+            <div style="padding: 15px 20px; background: #e9ecef; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; border-bottom: 1px solid #ddd;">
+                <label style="font-size: 13px; font-weight: bold;">Target Month:</label>
+                <input type="month" id="previewKpiMonth" class="date-input" onchange="loadKpiPreview()">
+                <button onclick="document.getElementById('previewKpiMonth').value=''; loadKpiPreview();" class="btn-filter" style="padding: 6px 12px;">Show All Months</button>
+                <span id="kpiPreviewCount" style="font-weight: bold; color: #0056b3; font-size: 13px; margin-left: auto;"></span>
+                <form action="/export_excel" method="POST" style="margin: 0;" onsubmit="document.getElementById('exportHiddenMonth').value = document.getElementById('previewKpiMonth').value;">
+                    <input type="hidden" name="kpi_month" id="exportHiddenMonth">
+                    <button type="submit" class="btn-new" style="background: #198754; padding: 7px 14px;">📥 Download .XLSX</button>
+                </form>
+            </div>
+            <div style="padding: 15px 20px; overflow-y: auto; max-height: 65vh;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                    <thead>
+                        <tr style="background: #343a40; color: white; text-align: left;">
+                            <th style="padding: 8px;">Sl</th>
+                            <th style="padding: 8px;">Survey Ref #</th>
+                            <th style="padding: 8px;">Requestor</th>
+                            <th style="padding: 8px;">Assigned To</th>
+                            <th style="padding: 8px;">Received / Backdated</th>
+                            <th style="padding: 8px;">Completed</th>
+                            <th style="padding: 8px;">Description of Survey Works</th>
+                            <th style="padding: 8px;">Clean Remarks</th>
+                        </tr>
+                    </thead>
+                    <tbody id="kpiPreviewTableBody">
+                        <tr><td colspan="8" style="text-align: center; padding: 20px;">Loading preview...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        // Filters & Logic defaults to Kanban
+        const STORAGE_KEY = 'nmdc_admin_filters_v1';
         let activeStatuses = new Set(['Open', 'In Progress', 'Closed']); 
         let viewMode = 'kanban'; 
+        let currentModalCard = null;
+
+        // --- UPGRADE 1: PERSISTENT FILTER MEMORY (localStorage) ---
+        function saveFilterMemory() {
+            try {
+                const state = {
+                    statuses: Array.from(activeStatuses),
+                    viewMode: viewMode,
+                    user: document.getElementById('userFilter').value,
+                    keyword: document.getElementById('adminKeywordSearch').value,
+                    dateStart: document.getElementById('dateStart').value,
+                    dateEnd: document.getElementById('dateEnd').value
+                };
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            } catch (e) {}
+        }
+
+        function loadFilterMemory() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (!raw) return;
+                const state = JSON.parse(raw);
+                if (state.statuses && Array.isArray(state.statuses) && state.statuses.length > 0) {
+                    activeStatuses = new Set(state.statuses);
+                }
+                if (state.viewMode) {
+                    viewMode = state.viewMode;
+                }
+                if (state.user) {
+                    const userSel = document.getElementById('userFilter');
+                    if ([...userSel.options].some(o => o.value === state.user)) {
+                        userSel.value = state.user;
+                    }
+                }
+                if (typeof state.keyword === 'string') {
+                    document.getElementById('adminKeywordSearch').value = state.keyword;
+                }
+                if (state.dateStart) document.getElementById('dateStart').value = state.dateStart;
+                if (state.dateEnd) document.getElementById('dateEnd').value = state.dateEnd;
+            } catch (e) {}
+        }
+
+        function resetAllFilters() {
+            localStorage.removeItem(STORAGE_KEY);
+            activeStatuses = new Set(['Open', 'In Progress', 'Closed']);
+            viewMode = 'kanban';
+            document.getElementById('userFilter').value = 'All';
+            document.getElementById('adminKeywordSearch').value = '';
+            document.getElementById('dateStart').value = '';
+            document.getElementById('dateEnd').value = '';
+            switchView('kanban');
+            updateFilterUI();
+            applyFilters();
+        }
 
         function switchView(mode) {
             viewMode = mode;
@@ -403,6 +551,7 @@
                 document.getElementById('taskContainer').style.display = 'none';
                 document.getElementById('kanbanContainer').style.display = 'flex';
             }
+            saveFilterMemory();
             applyFilters();
         }
 
@@ -419,6 +568,7 @@
                 }
             }
             updateFilterUI();
+            saveFilterMemory();
             applyFilters();
         }
 
@@ -428,12 +578,6 @@
             document.getElementById('btnInProgress').classList.toggle('active', activeStatuses.has('In Progress'));
             document.getElementById('btnClosed').classList.toggle('active', activeStatuses.has('Closed'));
             document.getElementById('btnCanceled').classList.toggle('active', activeStatuses.has('Canceled'));
-        }
-
-        function clearDates() {
-            document.getElementById('dateStart').value = "";
-            document.getElementById('dateEnd').value = "";
-            applyFilters();
         }
 
         function applyFilters() {
@@ -449,7 +593,6 @@
             const selectedUser = document.getElementById('userFilter').value;
             const keyword = document.getElementById('adminKeywordSearch').value.toLowerCase();
             
-            // Calculate 48 Hours ago for Kanban Closed Column
             const twoDaysAgo = new Date();
             twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
 
@@ -482,7 +625,6 @@
                     if (dEnd && date > dEnd) show = false;
                 }
 
-                // THE ROUTING ENGINE
                 if (viewMode === 'kanban') {
                     if (show) {
                         if (status === 'Open') {
@@ -503,7 +645,7 @@
                                     visibleCount++;
                                 } else {
                                     card.style.display = 'none';
-                                    listContainer.appendChild(card); // Park it hidden
+                                    listContainer.appendChild(card);
                                 }
                             } else {
                                 card.style.display = 'none';
@@ -536,6 +678,8 @@
         updateClock();
 
         window.onload = () => {
+            loadFilterMemory();
+            switchView(viewMode);
             updateFilterUI();
             applyFilters();
         };
@@ -566,33 +710,22 @@
             card.classList.remove('dragging');
 
             if (card.dataset.status !== newStatus) {
-                
-                // --- STRICT COMPLIANCE: Intercept "Closed" ---
                 if (newStatus === 'Closed') {
-                    // Refuse silent update. Open modal to force remarks.
                     openTaskModal(card);
-                    
-                    // Automatically click the "Complete Task" button to expose the form
                     setTimeout(() => {
                         let completeBtn = document.getElementById('modalCompleteBtn');
                         if (completeBtn && completeBtn.style.display !== 'none') {
                             completeBtn.click();
-                            // Drop cursor right into the mandatory input field
                             document.querySelector('#modalCloseForm input[name="closing_remarks"]').focus();
                         }
                     }, 100); 
-                    
-                    return; // Halt the drag-and-drop flow entirely.
+                    return;
                 }
-                // ---------------------------------------------
                 
                 let oldStatus = card.dataset.status;
-                
-                // 1. Optimistic UI Update: Snap it into the new column instantly (For 'Open' or 'In Progress')
                 card.dataset.status = newStatus;
                 applyFilters();
 
-                // 2. Background Sync: Whisper to app.py
                 try {
                     let response = await fetch('/ajax_update_task_status', {
                         method: 'POST',
@@ -601,12 +734,12 @@
                     });
                     
                     let result = await response.json();
-                    
-                    // If the backend rejects the drop
                     if (!result.success) {
                         alert('Action denied: ' + result.message);
                         card.dataset.status = oldStatus;
                         applyFilters();
+                    } else if (result.remarks) {
+                        card.dataset.remarks = result.remarks;
                     }
                 } catch (error) {
                     alert('Network error. Reverting change.');
@@ -616,7 +749,6 @@
             }
         }
 
-        // Failsafe: Remove dragging opacity if dropped outside a column
         document.addEventListener('dragend', function(ev) {
             if(ev.target && ev.target.classList && ev.target.classList.contains('task-card')) {
                 ev.target.classList.remove('dragging');
@@ -624,25 +756,41 @@
             document.querySelectorAll('.kanban-col').forEach(col => col.classList.remove('drag-over'));
         });
 
+        // --- UPGRADE 5: CLEAN REMARKS & AUDIT LOG PARSER ---
+        function formatCleanRemarksAndAudit(rawRemarks) {
+            if (!rawRemarks) {
+                return "<span style='color:#888; font-style:italic;'>No remarks provided.</span>";
+            }
+            let segments = rawRemarks.split('|').map(s => s.trim()).filter(Boolean);
+            let openingParts = [];
+            let auditPills = [];
+
+            segments.forEach(seg => {
+                if (seg.startsWith('Acknowledged & Started by')) {
+                    auditPills.push(`<div class="audit-pill" style="border-left-color:#17a2b8;">🤝 <strong>Acknowledged:</strong> ${seg.replace('Acknowledged & Started by', '').trim()}</div>`);
+                } else if (seg.startsWith('Closed:')) {
+                    auditPills.push(`<div class="audit-pill" style="border-left-color:#28a745;">✅ <strong>Closing Note:</strong> ${seg.replace('Closed:', '').trim()}</div>`);
+                } else if (seg.startsWith('CANCELED:')) {
+                    auditPills.push(`<div class="audit-pill" style="border-left-color:#dc3545;">🛑 <strong>Canceled Reason:</strong> ${seg.replace('CANCELED:', '').trim()}</div>`);
+                } else if (seg.startsWith('RESTORED FROM ARCHIVE:')) {
+                    auditPills.push(`<div class="audit-pill" style="border-left-color:#fd7e14;">♻️ <strong>Restored:</strong> ${seg.replace('RESTORED FROM ARCHIVE:', '').trim()}</div>`);
+                } else {
+                    openingParts.push(seg);
+                }
+            });
+
+            let html = `<div><strong>Opening Scope Notes:</strong><br>${openingParts.length ? openingParts.join(' | ') : 'None'}</div>`;
+            if (auditPills.length > 0) {
+                html += `<div style="margin-top: 12px;"><strong>System Audit Trail:</strong>${auditPills.join('')}</div>`;
+            }
+            return html;
+        }
+
         function openTaskModal(card) {
+            currentModalCard = card;
             document.getElementById('modalTaskId').innerText = '📋 ' + card.dataset.taskStr;
             document.getElementById('modalTaskPath').innerText = card.dataset.path;
-            
-            let rawRemarks = card.dataset.remarks;
-            let remarksHtml = "";
-            if (rawRemarks.includes('Acknowledged & Started by')) {
-                let parts = rawRemarks.split('| Acknowledged & Started by');
-                remarksHtml = `<strong>Opening Remarks:</strong><br>${parts[0] || 'None'}<br><br><strong style="color:#17a2b8;">Acknowledgement:</strong><br>Started by ${parts[1]}`;
-            } else if (rawRemarks.includes('| Closed:')) {
-                let parts = rawRemarks.split('| Closed:');
-                remarksHtml = `<strong>Opening Remarks:</strong><br>${parts[0] || 'None'}<br><br><strong style="color:#28a745;">Closing Notes:</strong><br>${parts[1]}`;
-            } else if (rawRemarks.includes('| CANCELED:')) {
-                let parts = rawRemarks.split('| CANCELED:');
-                remarksHtml = `<strong>Opening Remarks:</strong><br>${parts[0] || 'None'}<br><br><strong style="color:#dc3545;">Cancel Reason:</strong><br>${parts[1]}`;
-            } else {
-                remarksHtml = rawRemarks || "<span style='color:#888; font-style:italic;'>No remarks provided.</span>";
-            }
-            document.getElementById('modalRemarks').innerHTML = remarksHtml;
+            document.getElementById('modalRemarks').innerHTML = formatCleanRemarksAndAudit(card.dataset.remarks);
 
             let rawLinks = card.dataset.links;
             let rawDeliv = card.dataset.deliverable;
@@ -670,12 +818,20 @@
             document.getElementById('modalStart').innerText = card.dataset.start;
             document.getElementById('modalEnd').innerText = card.dataset.end;
 
+            // Populate Inline Quick-Edit fields
+            document.getElementById('qePriority').value = card.dataset.priority || 99;
+            document.getElementById('qeExecDate').value = card.dataset.execDate || '';
+            document.getElementById('qeAssignedTo').value = card.dataset.assigned || '';
+            document.getElementById('qeUrgent').checked = (card.dataset.urgent === 'true');
+            document.getElementById('quickEditFeedback').style.display = 'none';
+
             let taskId = card.dataset.id;
-            let isAdmin = true; // Admin has power over all tasks
-            
             document.getElementById('modalCloseForm').style.display = 'none';
             document.getElementById('modalCancelForm').style.display = 'none';
             document.getElementById('modalAckForm').style.display = 'none';
+            document.getElementById('modalClosingRemarksInput').value = '';
+            document.getElementById('modalDeliverableInput').value = '';
+            document.getElementById('modalCancelReasonInput').value = '';
 
             if (status === 'Open' || status === 'In Progress' || status === 'Closed') {
                 document.getElementById('modalEditBtn').href = '/edit_task/' + taskId;
@@ -687,7 +843,6 @@
                     document.getElementById('modalCompleteBtn').style.display = 'block';
                     document.getElementById('modalCancelTaskBtn').style.display = 'block';
                     
-                    // Show Acknowledge button if Open
                     if (status === 'Open') {
                         document.getElementById('modalAckForm').action = '/mark_in_progress/' + taskId;
                         document.getElementById('modalAckForm').style.display = 'block';
@@ -705,28 +860,160 @@
             document.getElementById('fullTaskModal').style.display = 'flex';
         }
 
+        // --- UPGRADE 2 & 3: ZERO-RELOAD AJAX MODAL HANDLERS ---
+        function syncCardFromServerTask(card, t) {
+            card.dataset.status = t.status;
+            card.dataset.priority = t.priority;
+            card.dataset.urgent = t.is_urgent ? 'true' : 'false';
+            card.dataset.assigned = t.assigned_to;
+            card.dataset.remarks = t.remarks;
+            card.dataset.deliverable = t.deliverable_link;
+            card.dataset.date = t.date;
+            card.dataset.execDate = t.execution_date;
+            card.dataset.start = t.start;
+            card.dataset.end = t.end;
+
+            const pBadge = card.querySelector('.card-priority-badge');
+            if (pBadge) {
+                pBadge.innerText = 'P' + t.priority;
+                let pColor = '#6c757d';
+                if (t.priority === 0) pColor = '#dc3545';
+                else if (t.priority === 1) pColor = '#fd7e14';
+                else if (t.priority === 2) pColor = '#007bff';
+                pBadge.style.background = pColor;
+            }
+            const uBadge = card.querySelector('.card-urgent-badge');
+            if (uBadge) {
+                uBadge.style.display = (t.is_urgent && (t.status === 'Open' || t.status === 'In Progress')) ? 'inline-block' : 'none';
+            }
+            applyFilters();
+        }
+
+        async function submitQuickEdit() {
+            if (!currentModalCard) return;
+            const payload = {
+                task_id: currentModalCard.dataset.id,
+                action: 'quick_edit',
+                priority: document.getElementById('qePriority').value,
+                execution_date: document.getElementById('qeExecDate').value,
+                assigned_to: document.getElementById('qeAssignedTo').value,
+                is_urgent: document.getElementById('qeUrgent').checked
+            };
+            try {
+                const res = await fetch('/ajax_modal_action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await res.json();
+                if (result.success) {
+                    syncCardFromServerTask(currentModalCard, result.task);
+                    openTaskModal(currentModalCard);
+                    const fb = document.getElementById('quickEditFeedback');
+                    fb.style.display = 'inline';
+                    setTimeout(() => { fb.style.display = 'none'; }, 2500);
+                } else {
+                    alert('Quick-Edit Error: ' + result.message);
+                }
+            } catch (err) {
+                alert('Network error saving Quick-Edit.');
+            }
+        }
+
+        async function handleAjaxModalForm(ev, actionType) {
+            ev.preventDefault();
+            if (!currentModalCard) return false;
+            const payload = {
+                task_id: currentModalCard.dataset.id,
+                action: actionType
+            };
+            if (actionType === 'close') {
+                payload.closing_remarks = document.getElementById('modalClosingRemarksInput').value;
+                payload.deliverable_link = document.getElementById('modalDeliverableInput').value;
+            } else if (actionType === 'cancel') {
+                payload.cancel_reason = document.getElementById('modalCancelReasonInput').value;
+            }
+            try {
+                const res = await fetch('/ajax_modal_action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await res.json();
+                if (result.success) {
+                    syncCardFromServerTask(currentModalCard, result.task);
+                    closeTaskModal();
+                } else {
+                    alert('Action Error: ' + result.message);
+                }
+            } catch (err) {
+                ev.target.submit(); // Fallback to standard form submit if offline
+            }
+            return false;
+        }
+
         function closeTaskModal() {
             document.getElementById('fullTaskModal').style.display = 'none';
         }
 
+        // --- UPGRADE 6: ON-SCREEN KPI PREVIEWER LOGIC ---
+        function openKpiPreviewModal() {
+            const now = new Date();
+            const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            const monthInput = document.getElementById('previewKpiMonth');
+            if (!monthInput.value) monthInput.value = ym;
+            document.getElementById('kpiPreviewModal').style.display = 'flex';
+            loadKpiPreview();
+        }
+
+        async function loadKpiPreview() {
+            const monthVal = document.getElementById('previewKpiMonth').value;
+            const tbody = document.getElementById('kpiPreviewTableBody');
+            const countSpan = document.getElementById('kpiPreviewCount');
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 20px;">Fetching sorted KPI records...</td></tr>`;
+            try {
+                const res = await fetch(`/api/preview_kpi?kpi_month=${encodeURIComponent(monthVal)}`);
+                const data = await res.json();
+                if (!data.success) {
+                    tbody.innerHTML = `<tr><td colspan="8" style="color:#dc3545; text-align:center; padding: 20px;">Error: ${data.message}</td></tr>`;
+                    return;
+                }
+                countSpan.innerText = `${data.count} KPI Task(s) Found`;
+                if (data.rows.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 20px; color:#777;">No closed tasks found for this period.</td></tr>`;
+                    return;
+                }
+                tbody.innerHTML = data.rows.map(r => `
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 6px 8px; font-weight: bold;">${r['Sl No']}</td>
+                        <td style="padding: 6px 8px; font-family: monospace; color: #0056b3; font-weight: bold;">${r['Survey Ref. #']}</td>
+                        <td style="padding: 6px 8px;">${r['Requestor']}</td>
+                        <td style="padding: 6px 8px;">${r['Assigned to']}</td>
+                        <td style="padding: 6px 8px; white-space: nowrap;">${r['Date/Time Received']}</td>
+                        <td style="padding: 6px 8px; white-space: nowrap;">${r['Date/Time Completed']}</td>
+                        <td style="padding: 6px 8px; font-weight: bold;">${r['Description of Survey Works']}</td>
+                        <td style="padding: 6px 8px; color: #555;">${r['Special Conditions / Remarks']}</td>
+                    </tr>
+                `).join('');
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="8" style="color:#dc3545; text-align:center; padding: 20px;">Failed to load preview.</td></tr>`;
+            }
+        }
+
         window.onclick = function(event) {
             let modal = document.getElementById('fullTaskModal');
-            if (event.target === modal) {
-                closeTaskModal();
-            }
+            let kpiModal = document.getElementById('kpiPreviewModal');
+            if (event.target === modal) closeTaskModal();
+            if (event.target === kpiModal) kpiModal.style.display = 'none';
         }
 
-        // CHART.JS ENGINE & ANALYTICS LOGIC (UNTOUCHED)
+        // --- CHART.JS ENGINE & ANALYTICS LOGIC (WITH BACKDATE FIX) ---
         function toggleAnalytics() {
             const section = document.getElementById('analytics-section');
-            if (section.style.display === 'none') {
-                section.style.display = 'block';
-            } else {
-                section.style.display = 'none';
-            }
+            section.style.display = (section.style.display === 'none') ? 'block' : 'none';
         }
 
-        const statusCounts = { 'Open': 0, 'Closed': 0, 'Canceled': 0 };
+        const statusCounts = { 'Open': 0, 'In Progress': 0, 'Closed': 0, 'Canceled': 0 };
         const last7DaysLabels = [];
         const last7DaysKeys = [];
         const openedCounts = {};
@@ -753,15 +1040,11 @@
             } else {
                 statusCounts[tStatus] = 1;
             }
-            
-            // VELOCITY FIX: Safely check for backdated execution_date first for Opened tasks!
             var startDate = "{{ t.execution_date.strftime('%Y-%m-%d') if t.execution_date else (t.start_time.strftime('%Y-%m-%d') if t.start_time else '') }}";
             if (startDate && openedCounts[startDate] !== undefined) {
                 openedCounts[startDate]++;
             }
-            
             {% if t.status == 'Closed' %}
-                // VELOCITY FIX: Also use the backdated execution_date for Closed tasks to balance the chart!
                 var endDate = "{{ t.execution_date.strftime('%Y-%m-%d') if t.execution_date else (t.end_time.strftime('%Y-%m-%d') if t.end_time else '') }}";
                 if (endDate && closedCounts[endDate] !== undefined) {
                     closedCounts[endDate]++;
@@ -776,7 +1059,7 @@
                 labels: Object.keys(statusCounts),
                 datasets: [{
                     data: Object.values(statusCounts),
-                    backgroundColor: ['#ffc107', '#28a745', '#dc3545', '#6c757d'],
+                    backgroundColor: ['#ffc107', '#17a2b8', '#28a745', '#dc3545', '#6c757d'],
                     borderWidth: 1
                 }]
             },
@@ -842,7 +1125,7 @@
                         tooltip: { enabled: false }
                     },
                     scales: {
-                        y: { display: true, beginAtZero: true, suggestedMax: Math.max(...kpiCounts) + (Math.max(...kpiCounts) * 0.2) },
+                        y: { display: true, beginAtZero: true, suggestedMax: Math.max(...kpiCounts) + (Math.max(...kpiCounts) * 0.2) + 1 },
                         x: { grid: { display: false } }
                     }
                 }

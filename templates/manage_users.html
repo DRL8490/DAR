@@ -6,42 +6,70 @@
     <title>Manage Users - NMDC</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; background-color: #f4f7f6; padding: 20px; margin: 0; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .btn-back { background-color: #6c757d; color: white; padding: 10px 15px; text-decoration: none; border-radius: 6px; font-weight: bold; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
+        .btn-back { background-color: #0056b3; color: white; padding: 10px 15px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px; }
         
+        .admin-nav { display: flex; gap: 8px; flex-wrap: wrap; background: #212529; padding: 10px 15px; border-radius: 8px; margin-bottom: 20px; align-items: center; }
+        .admin-nav span { color: #adb5bd; font-size: 12px; font-weight: bold; text-transform: uppercase; margin-right: 6px; }
+        .admin-nav a { color: #fff; background: #343a40; text-decoration: none; padding: 6px 12px; border-radius: 5px; font-size: 12px; font-weight: bold; border: 1px solid #495057; transition: all 0.2s; }
+        .admin-nav a:hover { background: #0056b3; border-color: #0056b3; }
+        .admin-nav a.active { background: #0056b3; border-color: #0dcaf0; }
+
         table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #ddd; font-size: 14px; vertical-align: middle; }
         th { background-color: #343a40; color: white; }
         
-        .btn-action { color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; }
+        .btn-action { color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; transition: opacity 0.2s; }
+        .btn-action:hover { opacity: 0.9; }
+        .btn-make-admin { background: #6f42c1; }
+        .btn-revoke-admin { background: #6c757d; }
         .btn-deactivate { background: #fd7e14; }
         .btn-reactivate { background: #17a2b8; }
         .btn-delete { background: #dc3545; }
+        
+        .role-badge { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; }
+        .role-vip { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+        .role-admin { background: #e0cffc; color: #432874; border: 1px solid #d0bfff; }
+        .role-user { background: #e9ecef; color: #495057; }
         
         .row-deactivated { background-color: #f8f9fa; opacity: 0.6; }
     </style>
 </head>
 <body>
     <div class="header">
-        <h2 style="margin: 0; color: #333;">👥 User Management Roster</h2>
-        <a href="/admin_dashboard" class="btn-back">⬅ Back to Dashboard</a>
+        <h2 style="margin: 0; color: #333;">👥 User Management & Access Control</h2>
+        <a href="/admin_dashboard" class="btn-back">⬅ Back to Admin Dashboard</a>
+    </div>
+
+    <div class="admin-nav">
+        <span>🛡️ Admin Command Center:</span>
+        <a href="/admin_dashboard">📋 Kanban Board</a>
+        <a href="/manage_users" class="active">👥 Manage Users</a>
+        <a href="/system_config_hidden">⚙️ System Config</a>
+        <a href="/reports">📊 Reports</a>
+        <a href="/archive">🗄️ Task Archive</a>
+        <a href="/cleanup">🧹 DB Cleanup</a>
+        <a href="/migrate">📥 Legacy Excel Migrate</a>
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}
-                <div style="padding: 12px; border-radius: 6px; font-weight: bold; margin-bottom: 15px; background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb;">
+                <div style="padding: 12px; border-radius: 6px; font-weight: bold; margin-bottom: 15px; {% if category == 'error' %}background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb;{% else %}background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb;{% endif %}">
                     {{ message }}
                 </div>
             {% endfor %}
         {% endif %}
     {% endwith %}
 
+    {% set vip_list = ['daryll.enano@nmdc-group.com', 'mohamad.hediarto@nmdc-group.com', 'mok.heng@nmdc-group.com'] %}
+
     <table>
         <tr>
             <th>Name & Email</th>
             <th>Initials</th>
-            <th>System Status</th>
+            <th>Role / Access Level</th>
+            <th>Account Status</th>
             <th style="text-align: right;">Administrative Actions</th>
         </tr>
         {% for u in users %}
@@ -58,6 +86,15 @@
                 </form>
             </td>
             <td>
+                {% if u.email in vip_list %}
+                    <span class="role-badge role-vip">★ VIP SUPER-ADMIN</span>
+                {% elif u.is_admin %}
+                    <span class="role-badge role-admin">🛡️ ADMIN</span>
+                {% else %}
+                    <span class="role-badge role-user">👤 STANDARD USER</span>
+                {% endif %}
+            </td>
+            <td>
                 {% if u.is_active != False %}
                     <span style="color: #28a745; font-weight: bold; background: #e8f5e9; padding: 3px 8px; border-radius: 12px; font-size: 12px;">Active</span>
                 {% else %}
@@ -65,8 +102,16 @@
                 {% endif %}
             </td>
             <td style="text-align: right;">
-                {% if u.email not in ['daryll.enano@nmdc-group.com', 'mohamad.hediarto@nmdc-group.com', 'mok.heng@nmdc-group.com'] %}
+                {% if u.email not in vip_list %}
                     
+                    <form action="/toggle_admin/{{ u.id }}" method="POST" style="display:inline; margin-right: 5px;">
+                        {% if u.is_admin %}
+                            <button type="submit" class="btn-action btn-revoke-admin" onclick="return confirm('Revoke Admin privileges from {{ u.name }}?');">Revoke Admin</button>
+                        {% else %}
+                            <button type="submit" class="btn-action btn-make-admin" onclick="return confirm('Promote {{ u.name }} to Admin? They will have full access to Admin Dashboard and hidden pages.');">🛡️ Make Admin</button>
+                        {% endif %}
+                    </form>
+
                     <form action="/toggle_active/{{ u.id }}" method="POST" style="display:inline; margin-right: 5px;">
                         {% if u.is_active != False %}
                             <button type="submit" class="btn-action btn-deactivate" onclick="return confirm('Deactivate {{ u.name }}? They will be blocked from logging in.');">Deactivate</button>
@@ -80,7 +125,7 @@
                     </form>
                     
                 {% else %}
-                    <span style="color: #28a745; font-weight: bold; font-size: 12px;">★ VIP ADMIN</span>
+                    <span style="color: #28a745; font-weight: bold; font-size: 12px;">★ Protected Super-Admin</span>
                 {% endif %}
             </td>
         </tr>
