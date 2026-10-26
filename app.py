@@ -918,11 +918,25 @@ def escalate_aging_tasks():
 def dashboard():
     session['dashboard_view'] = 'user'
     escalate_aging_tasks()
-    all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived')         .order_by(SurveyTask.is_urgent.desc(), SurveyTask.priority.asc(), SurveyTask.start_time.desc())         .limit(300).all()
+    # Strictly fetch ONLY tasks assigned to the logged-in surveyor
+    candidate_tasks = SurveyTask.query.filter(
+        SurveyTask.status != 'Archived',
+        SurveyTask.assigned_to.ilike(f"%{current_user.name}%")
+    ).order_by(
+        SurveyTask.is_urgent.desc(),
+        SurveyTask.priority.asc(),
+        SurveyTask.start_time.desc()
+    ).limit(300).all()
+
+    my_tasks = [
+        t for t in candidate_tasks
+        if current_user.name in [u.strip() for u in (t.assigned_to or '').split(',')]
+    ]
+
     is_admin = is_user_admin(current_user)
     all_users = User.query.order_by(User.name.asc()).all()
     initials_map = {u.name: (u.initials.upper() if u.initials else ((u.name.split()[0][0] + u.name.split()[1][0]).upper() if len(u.name.split()) >= 2 else u.name[:2].upper())) for u in all_users}
-    return render_template('dashboard.html', name=current_user.name, tasks=all_tasks, users=all_users, is_admin=is_admin, initials_map=initials_map, scope_map=SCOPE_BY_CODE, macro_scopes=LEAN_MACRO_SCOPES)
+    return render_template('dashboard.html', name=current_user.name, tasks=my_tasks, users=all_users, is_admin=is_admin, initials_map=initials_map, scope_map=SCOPE_BY_CODE, macro_scopes=LEAN_MACRO_SCOPES)
 
 @app.route('/admin_dashboard')
 @login_required
