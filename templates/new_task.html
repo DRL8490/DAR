@@ -2,21 +2,22 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Open New Task</title>
+    <title>Open New Survey Task - NMDC</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; }
-        .form-card { border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: none; }
-        .form-header { background: #0056b3; color: white; border-radius: 12px 12px 0 0 !important; font-weight: bold; }
-        .tree-folder { cursor: pointer; color: #0056b3; font-weight: bold; user-select: none; transition: color 0.2s; }
-        .tree-folder:hover { color: #ffc107; }
-        .tree-scope { cursor: pointer; color: #198754; margin-left: 20px; user-select: none; }
-        .tree-scope:hover { text-decoration: underline; color: #146c43; }
-        .quick-chip { cursor: pointer; transition: all 0.2s; font-size: 12px; font-weight: 600; padding: 6px 12px; }
-        .quick-chip:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        body { background-color: #f4f7f6; }
+        .form-card { border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: none; }
+        .form-header { background: linear-gradient(90deg, #0056b3 0%, #0d6efd 100%); color: white; border-radius: 12px 12px 0 0 !important; font-weight: bold; padding: 14px 20px; }
         .freq-card { cursor: pointer; transition: all 0.2s; border: 1px solid #cfe2ff; background: #f8fbff; border-radius: 8px; padding: 10px 12px; }
-        .freq-card:hover { background: #e7f1ff; border-color: #0d6efd; transform: translateY(-2px); box-shadow: 0 4px 10px rgba(13,110,253,0.12); }
+        .freq-card:hover { background: #e7f1ff; border-color: #0d6efd; transform: translateY(-2px); box-shadow: 0 4px 10px rgba(13,110,253,0.14); }
+        .quick-chip { cursor: pointer; transition: all 0.15s; font-size: 12px; font-weight: 600; padding: 6px 12px; user-select: none; }
+        .quick-chip:hover { transform: translateY(-1px); box-shadow: 0 3px 6px rgba(0,0,0,0.12); }
+        .omni-box { background: #eef6ff; border: 2px solid #0d6efd; border-radius: 10px; padding: 16px; position: relative; }
+        .omni-results { position: absolute; left: 16px; right: 16px; top: 100%; z-index: 1050; max-height: 320px; overflow-y: auto; background: white; border: 1px solid #0d6efd; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.18); display: none; margin-top: 4px; }
+        .omni-item { padding: 10px 14px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+        .omni-item:hover { background: #e7f1ff; }
+        .path-pill { background: #e8f5e9; border: 1px solid #a3cfbb; color: #0f5132; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 700; }
         .adv-toggle { cursor: pointer; color: #6c757d; font-size: 13px; font-weight: bold; text-decoration: none; }
         .adv-toggle:hover { color: #343a40; }
     </style>
@@ -24,29 +25,29 @@
 <body>
 
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-3">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="#"><i class="fas fa-plus-circle"></i> Open New Survey Task</a>
-        <a href="{{ url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard') }}" class="btn btn-outline-light btn-sm"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="#"><i class="fas fa-plus-circle text-info me-1"></i> Open New Survey Task</a>
+        <a href="{{ url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard') }}" class="btn btn-outline-light btn-sm fw-bold">
+            <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
+        </a>
     </div>
 </nav>
 
-<div class="container pb-5">
+<div class="container pb-5" style="max-width: 1040px;">
 
-    <!-- UPGRADE 8: TOP 3 MOST FREQUENT TASKS AUTOFILL + FULL HISTORY (10/PAGE) -->
+    <!-- TOP 3 MOST FREQUENT TASKS + FULL HISTORY (10 / PAGE) -->
     <div class="card mb-3 shadow-sm" style="border-left: 5px solid #0d6efd;">
         <div class="card-body py-3">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
                 <div>
                     <span class="fw-bold text-primary"><i class="fas fa-bolt"></i> Your Top 3 Most Frequent Tasks (1-Click Autofill)</span>
-                    <small class="text-muted ms-2">Automatically learned from your personal task history</small>
+                    <small class="text-muted ms-2">Click any card to populate Work Scope, Task, Verb & Instrument</small>
                 </div>
                 <button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="openHistoryModal()">
                     <i class="fas fa-history"></i> 📜 Browse Full History (10 / page)
                 </button>
             </div>
-            <div class="row g-2" id="top3Container">
-                <!-- Populated dynamically via JS from user history -->
-            </div>
+            <div class="row g-2" id="top3Container"></div>
         </div>
     </div>
 
@@ -65,7 +66,7 @@
                 </div>
                 <div class="col-auto">
                     <form id="deletePresetForm" method="POST" style="display: none; margin: 0;">
-                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Preset" onclick="return confirm('Are you sure you want to permanently delete this preset?');">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Preset" onclick="return confirm('Delete this preset?');">
                             <i class="fas fa-trash"></i>
                         </button>
                     </form>
@@ -89,198 +90,211 @@
         {% endif %}
     {% endwith %}
 
-    <form method="POST">
-        <div class="row">
-            <!-- LEFT CARD: WORK SCOPE FIRST + LOCATION AUTO-CASCADE -->
-            <div class="col-md-6 mb-4">
-                <div class="card form-card h-100">
-                    <div class="card-header form-header bg-success"><i class="fas fa-crosshairs"></i> 1. Select Work Scope (Auto-Fills Location & Verb)</div>
-                    <div class="card-body">
-                        
-                        <div class="mb-3 p-3 bg-light border border-success rounded">
-                            <label class="form-label fw-bold text-success mb-1">
-                                <i class="fas fa-search"></i> Work Scope Search <span class="badge bg-success ms-1">TC = Taichung | TX = Tunghsiao</span>
-                            </label>
-                            <small class="text-muted d-block mb-2">Type work scope (e.g., <strong>TC-Thruster Pit</strong>, <strong>TX-Thruster Pit</strong>, <strong>T2-Pipelaying A</strong>) to auto-fill location & verb:</small>
-                            <div class="input-group">
-                                <input list="loc_search_list" class="form-control border-success fw-bold" id="location_code" placeholder="Search Work Scope (TC / TX / Trench / Crossing)..." oninput="applyLocationSearch()">
-                                <button class="btn btn-outline-success" type="button" data-bs-toggle="modal" data-bs-target="#treeModal" title="Browse Directory Tree"><i class="fas fa-folder-open"></i> Tree</button>
-                            </div>
-                            <datalist id="loc_search_list"></datalist>
-                        </div>
+    <!-- SINGLE UNIFIED 1-CARD LAYOUT -->
+    <form method="POST" id="newTaskForm">
+        <div class="card form-card mb-4">
+            <div class="card-header form-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <span><i class="fas fa-compass me-1"></i> Unified Task & Work Scope Launcher</span>
+                <span class="badge bg-light text-dark fw-bold">16 Macro Work Scopes × 14 Core Survey Tasks</span>
+            </div>
+            <div class="card-body p-4">
 
-                        <div class="p-3 bg-white border rounded mb-3 text-center shadow-sm">
-                            <strong class="text-secondary d-block mb-1 small text-uppercase">Auto-Mapped Directory Path:</strong>
-                            <div id="path_display" class="text-primary fw-bold" style="font-size: 1.05rem;">[ Select a Work Scope Above ]</div>
-                        </div>
+                <!-- 1. UNIFIED OMNI-SEARCH BAR (TASK + WORK SCOPE COMBINED) -->
+                <div class="omni-box mb-4">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap mb-1">
+                        <label class="form-label fw-bold text-primary mb-0" style="font-size: 15px;">
+                            <i class="fas fa-search"></i> Unified Omni-Search (Type Task + Work Scope Together)
+                        </label>
+                        <span class="badge bg-primary">TC = Taichung | TX = Tunghsiao | NS = Nearshore | OS = Offshore</span>
+                    </div>
+                    <small class="text-muted d-block mb-2">
+                        Type any combination like <strong>"AHDD Settlement"</strong>, <strong>"Temp Platform Drawing"</strong>, <strong>"T8 Bathy"</strong>, <strong>"Crossing"</strong>, or <strong>"Berth 37"</strong>:
+                    </small>
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-primary text-primary"><i class="fas fa-magic"></i></span>
+                        <input type="text" class="form-control form-control-lg border-primary fw-semibold" id="omniSearchInput" autocomplete="off"
+                               placeholder="Search Task + Work Scope (e.g., AHDD Monitoring, T1 Volume, Crossing Bathy, Temp Platform Stakeout)..."
+                               onfocus="renderOmniResults()" oninput="renderOmniResults()">
+                        <button class="btn btn-outline-secondary" type="button" onclick="clearOmniSearch()" title="Clear Search"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div id="omniResultsDropdown" class="omni-results"></div>
 
-                        <input type="hidden" name="area" id="hidden_area" required>
-                        <input type="hidden" name="location" id="hidden_location" required>
-                        <input type="hidden" name="sub_location" id="hidden_sub" required>
-                        <input type="hidden" name="work_scope" id="hidden_scope" required>
-                        
-                        <div class="mb-3">
-                            <label class="form-label fw-bold small">Opening Remarks / Specific Details</label>
-                            <textarea class="form-control" name="remarks" id="remarks_input" rows="3" placeholder="Enter brief scope details (e.g., Ch 0+120 to 0+250)..." required></textarea>
-                        </div>
-
-                        <div class="text-center mt-3">
-                            <a class="adv-toggle" onclick="toggleAdvanced()" id="advToggleBtn">
-                                <i class="fas fa-plus-circle"></i> Show Reference Links & Backdate Options
-                            </a>
-                        </div>
-
-                        <div id="advancedOptions" style="display: none;" class="mt-3 p-3 bg-light border rounded">
-                            <label class="form-label fw-bold small"><i class="fas fa-link"></i> Reference Links / Files</label>
-                            <div id="links_container">
-                                <input type="text" class="form-control mb-2" name="reference_link" placeholder="Paste SharePoint or OneDrive link...">
-                            </div>
-                            <button type="button" class="btn btn-sm btn-outline-secondary mt-1" onclick="addReferenceLink()"><i class="fas fa-plus"></i> Add Another Link</button>
-                        </div>
-                        
+                    <!-- PINNED 1-CLICK QUICK CHIPS -->
+                    <div class="d-flex flex-wrap gap-2 mt-3 align-items-center">
+                        <small class="fw-bold text-secondary me-1">⚡ Quick Picks:</small>
+                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary rounded-pill quick-chip"
+                              onclick="selectMacroAndTask('MWS-05', 'CT-01')">📏 TC-AHDD Settlement Monitoring</span>
+                        <span class="badge bg-success bg-opacity-10 text-success border border-success rounded-pill quick-chip"
+                              onclick="selectMacroAndTask('MWS-08', 'CT-04')">📍 TX-Temp Platform Stake-Out</span>
+                        <span class="badge bg-info bg-opacity-10 text-dark border border-info rounded-pill quick-chip"
+                              onclick="selectMacroAndTask('MWS-12', 'CT-06')">🚤 NS-Trench 8 Bathy Monitoring</span>
+                        <span class="badge bg-info bg-opacity-10 text-dark border border-info rounded-pill quick-chip"
+                              onclick="selectMacroAndTask('MWS-11', 'CT-06')">🚤 NS-Trench 1 Bathy Monitoring</span>
+                        <span class="badge bg-warning bg-opacity-10 text-dark border border-warning rounded-pill quick-chip"
+                              onclick="selectMacroAndTask('MWS-15', 'CT-06')">⚓ OS-Subsea Crossings Survey</span>
+                        <span class="badge bg-secondary bg-opacity-10 text-dark border border-secondary rounded-pill quick-chip"
+                              onclick="selectMacroAndTask('MWS-05', 'CT-11')">📐 TC-AHDD CAD Drawing</span>
                     </div>
                 </div>
-            </div>
 
-            <!-- RIGHT CARD: STAFF & TASK DETAILS -->
-            <div class="col-md-6 mb-4">
-                <div class="card form-card h-100">
-                    <div class="card-header form-header"><i class="fas fa-users-cog"></i> 2. Staff, Mission Verb & Discipline</div>
-                    <div class="card-body">
-                        
+                <!-- 2. TWO-STEP MANUAL SELECTOR (WORK SCOPE + CORE TASK) -->
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold text-success">
+                            <i class="fas fa-map-marker-alt me-1"></i> Step 1: Work Scope <span class="text-muted fw-normal small">(Location Pre-Tied)</span>
+                        </label>
+                        <select class="form-select border-success fw-bold" id="macro_scope_select" onchange="onMacroScopeChange()" required>
+                            <option value="">-- Select Work Scope (16 Macro Zones) --</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold text-primary">
+                            <i class="fas fa-tasks me-1"></i> Step 2: Survey Task / Discipline <span class="text-muted fw-normal small">(Auto-Sets Verb & Activity)</span>
+                        </label>
+                        <select class="form-select border-primary fw-bold" id="core_task_select" onchange="onCoreTaskChange()" required>
+                            <option value="">-- Select Survey Task (14 Core Tasks) --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- AUTO-TIED PATH & AUTO-PAIRED ATTRIBUTES BAR -->
+                <div class="path-pill mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div>
+                        <span class="text-uppercase small text-secondary fw-bold me-1">Auto-Tied Location Path:</span>
+                        <span id="path_display">[ Select a Work Scope or Use Omni-Search Above ]</span>
+                    </div>
+                    <span id="kpi_preview_badge" class="badge bg-success">KPI Col K Preview</span>
+                </div>
+
+                <!-- Hidden DB Location Fields -->
+                <input type="hidden" name="area" id="hidden_area" required>
+                <input type="hidden" name="location" id="hidden_location" required>
+                <input type="hidden" name="sub_location" id="hidden_sub" required>
+                <input type="hidden" name="work_scope" id="hidden_scope" required>
+
+                <!-- AUTO-PAIRED VERB, ACTIVITY TYPE, DISCIPLINE & INSTRUMENT (EDITABLE IF NEEDED) -->
+                <div class="row g-2 mb-4 p-2 bg-light border rounded">
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold text-danger small mb-1">Mission Verb (Auto)</label>
+                        <select class="form-select form-select-sm border-danger fw-bold" id="command_verb" name="command_verb" required>
+                            <optgroup label="Execution (Core)">
+                                <option value="PERFORM">PERFORM (Field Surveys)</option>
+                                <option value="PROCESS">PROCESS (Data & Volumes)</option>
+                                <option value="DRAFT">DRAFT (Drawings & Charts)</option>
+                                <option value="SETUP">SETUP (Config & Calib)</option>
+                            </optgroup>
+                            <optgroup label="Quality & Coordination">
+                                <option value="VERIFY">VERIFY (Checks & QA/QC)</option>
+                                <option value="REVIEW">REVIEW (Subcon / Tech Review)</option>
+                                <option value="COORDINATE">COORDINATE (Site & Team Coord)</option>
+                                <option value="PROVIDE">PROVIDE (Survey Input/Support)</option>
+                                <option value="ATTEND">ATTEND (Meetings)</option>
+                            </optgroup>
+                            <optgroup label="Deliverables">
+                                <option value="SUBMIT">SUBMIT (Reports / KPI / DC)</option>
+                                <option value="FILE">FILE (Archive / Records)</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold small mb-1">Activity Type (Auto)</label>
+                        <input type="text" class="form-control form-control-sm bg-white fw-semibold" id="task_category" name="task_category" readonly required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold small mb-1">KPI Discipline (Auto)</label>
+                        <input type="text" class="form-control form-control-sm bg-white fw-semibold" id="action_required" name="action_required" readonly required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold small mb-1">Instrument / Tool</label>
+                        <select class="form-select form-select-sm fw-bold" id="instrument" name="instrument" required>
+                            <option value="">-- Select Tool --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 3. SPECIFIC DETAILS (REMARKS) + STAFF & REQUESTOR -->
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold small">
+                            <i class="fas fa-pen me-1 text-primary"></i> Step 3: Specific Task Details / Remarks (Required)
+                        </label>
+                        <textarea class="form-control border-primary" name="remarks" id="remarks_input" rows="4"
+                                  placeholder="Type specific details (e.g., Crossing ID, Pit name, Chainage Ch 0+120, Vessel name)..." required></textarea>
+                        <small id="scope_hint_text" class="text-primary fw-semibold d-block mt-1">
+                            💡 Tip: Since Work Scopes are now streamlined, type the specific Crossing, Pit, or Chainage here.
+                        </small>
+                    </div>
+
+                    <div class="col-md-6">
                         <datalist id="user_list">
                             {% for u in users %}
                                 <option value="{{ u.name }}"></option>
                             {% endfor %}
                         </datalist>
 
-                        <div class="mb-3" id="surveyor_container">
-                            <label class="form-label fw-bold small">Assigned To <span class="text-muted fw-normal">(Pre-filled with your name)</span></label>
-                            <div class="input-group mb-2">
-                                <input list="user_list" class="form-control" name="assigned_to" value="{{ current_user_name }}" placeholder="Type custom name or select user..." required>
+                        <div class="mb-2" id="surveyor_container">
+                            <label class="form-label fw-bold small mb-1">Assigned To <span class="text-muted fw-normal">(Pre-filled with your name)</span></label>
+                            <div class="input-group input-group-sm mb-2">
+                                <input list="user_list" class="form-control fw-semibold" name="assigned_to" value="{{ current_user_name }}" placeholder="Select surveyor..." required>
                                 <button class="btn btn-outline-success" type="button" onclick="addSurveyorDropdown()" title="Add Second Surveyor"><i class="fas fa-user-plus"></i></button>
                             </div>
                         </div>
 
-                        <div class="mb-3">
+                        <div class="mb-2">
                             <div class="d-flex justify-content-between align-items-center mb-1 flex-wrap">
                                 <label class="form-label fw-bold small mb-0">Requestor Name</label>
                                 <div id="topRequestorsBar" class="d-flex gap-1 flex-wrap"></div>
                             </div>
-                            <input list="requestor_list" class="form-control" id="requestor_name" name="requestor_name" placeholder="Search for requestor (or tap a chip above)..." oninput="autoFillDept()" required>
+                            <input list="requestor_list" class="form-control form-control-sm" id="requestor_name" name="requestor_name" placeholder="Search requestor (or tap a chip above)..." oninput="autoFillDept()" required>
                             <datalist id="requestor_list"></datalist>
-                            <input type="hidden" id="requestor_dept" name="requestor_dept" required>
+                            <input type="hidden" id="requestor_dept" name="requestor_dept" value="General" required>
                         </div>
-
-                        <hr>
-
-                        <div class="d-flex flex-wrap gap-2 mb-3">
-                            <span class="badge bg-primary bg-opacity-10 text-primary border border-primary rounded-pill quick-chip" 
-                                  onclick="applyQuickPick('PERFORM', 'Land Survey', 'Progress Survey', 'Drone')">🚁 Drone Progress</span>
-                            <span class="badge bg-info bg-opacity-10 text-info border border-info rounded-pill quick-chip" 
-                                  onclick="applyQuickPick('PERFORM', 'Bathymetric Survey', 'Progress Survey', 'MBES  WS166')">🚤 WS166 Bathy</span>
-                            <span class="badge bg-warning bg-opacity-10 text-warning border border-warning rounded-pill quick-chip" 
-                                  onclick="applyQuickPick('PERFORM', 'Land Survey', 'Stake-Out/Marking', 'GNSS Rover')">📍 Rover Stakeout</span>
-                            <span class="badge bg-danger bg-opacity-10 text-danger border border-danger rounded-pill quick-chip" 
-                                  onclick="applyQuickPick('VERIFY', 'Land Survey', 'Check Survey', 'Levelling Machine')">🔍 Level Check</span>
-                        </div>
-
-                        <div class="mb-3 p-2 bg-light border rounded">
-                            <label class="form-label fw-bold text-primary small mb-1"><i class="fas fa-magic"></i> Quick Find (Discipline & Instrument)</label>
-                            <input list="smart_task_list" class="form-control form-control-sm border-primary" id="smart_task_input" placeholder="Type keyword (e.g., Check Survey, Volume, Drone)..." oninput="applySmartTask()">
-                            <datalist id="smart_task_list"></datalist>
-                        </div>
-
-                        <div class="row mb-3">
-                            <div class="col-md-5">
-                                <label class="form-label fw-bold text-danger small">1. Mission Verb</label>
-                                <select class="form-select border-danger shadow-sm fw-bold" id="command_verb" name="command_verb" required>
-                                    <optgroup label="Execution (Core)">
-                                        <option value="PERFORM">PERFORM (Field Work & Physical Surveys)</option>
-                                        <option value="PROCESS">PROCESS (Data Processing & Calculations)</option>
-                                        <option value="DRAFT">DRAFT (Creating Drawings & Initial Reports)</option>
-                                        <option value="SETUP">SETUP (Equipment Config & Troubleshooting)</option>
-                                    </optgroup>
-                                    <optgroup label="Quality & Coordination">
-                                        <option value="VERIFY">VERIFY (Internal Checks & QA/QC)</option>
-                                        <option value="REVIEW">REVIEW (Reviewing Subcon or Third-Party Reports)</option>
-                                        <option value="COORDINATE">COORDINATE (Cross-Team & Site Coordination)</option>
-                                        <option value="PROVIDE">PROVIDE (Giving Input/Support to Other Depts)</option>
-                                        <option value="ATTEND">ATTEND (Internal and External Meetings)</option>
-                                    </optgroup>
-                                    <optgroup label="Deliverables">
-                                        <option value="SUBMIT">SUBMIT (Sending Reports to DC or Management)</option>
-                                        <option value="FILE">FILE (Archiving Data or Storing Historical Files)</option>
-                                    </optgroup>
-                                </select>
-                            </div>
-                            <div class="col-md-7">
-                                <label class="form-label fw-bold small">2. Activity Type</label>
-                                <select class="form-select" id="task_category" name="task_category" onchange="updateActions()" required>
-                                    <option value="">-- Select Activity --</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="row mb-3">
-                            <div class="col-6">
-                                <label class="form-label fw-bold small">Action Required (Discipline)</label>
-                                <select class="form-select" id="action_required" name="action_required" onchange="updateInstruments(); autoPairVerbFromDiscipline();" required>
-                                    <option value="">-- Select Action --</option>
-                                </select>
-                            </div>
-                            <div class="col-6">
-                                <label class="form-label fw-bold small">Instrument</label>
-                                <select class="form-select" id="instrument" name="instrument" required>
-                                    <option value="">-- Select Instrument --</option>
-                                </select>
-                            </div>
-                        </div>
-
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <div class="row mb-3 align-items-center bg-light p-3 border rounded mx-0 shadow-sm">
-            <div class="col-md-6">
-                <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" id="save_preset" name="save_preset" value="true" onchange="document.getElementById('preset_name_container').style.display = this.checked ? 'block' : 'none';" style="transform: scale(1.3); margin-right: 10px; cursor: pointer;">
-                    <label class="form-check-label fw-bold text-primary" for="save_preset" style="cursor: pointer;"><i class="fas fa-save"></i> Save these settings as a manual Preset</label>
+                <!-- ADVANCED OPTIONS (LINKS & PRESETS) -->
+                <div class="d-flex justify-content-between align-items-center flex-wrap mt-3 pt-3 border-top">
+                    <a class="adv-toggle" onclick="toggleAdvanced()" id="advToggleBtn">
+                        <i class="fas fa-plus-circle"></i> Add Reference Links or Save as Manual Preset
+                    </a>
+                    <div class="d-flex align-items-center gap-3">
+                        <label class="fw-bold text-danger mb-0" style="cursor: pointer; font-size: 14px;">
+                            <input type="checkbox" name="is_urgent" value="true" style="transform: scale(1.3); margin-right: 6px;">
+                            🚨 Mark as URGENT
+                        </label>
+                        <button type="submit" class="btn btn-primary btn-lg px-4 fw-bold shadow-sm">
+                            <i class="fas fa-paper-plane me-1"></i> Submit Task
+                        </button>
+                    </div>
                 </div>
-            </div>
-            <div class="col-md-6" id="preset_name_container" style="display: none;">
-                <input type="text" class="form-control border-primary" name="preset_name" placeholder="Name your preset (e.g., Daily Drone Config)...">
-                <small class="text-muted">If left blank, it will name itself after the Area & Scope.</small>
-            </div>
-        </div>
 
-        <div style="margin-bottom: 20px; background: #fff3cd; padding: 10px; border-left: 5px solid #dc3545; border-radius: 4px;">
-            <label style="font-weight: bold; color: #dc3545; cursor: pointer;">
-                <input type="checkbox" name="is_urgent" value="true" style="transform: scale(1.5); margin-right: 10px;">
-                🚨 Mark this task as URGENT
-            </label>
-        </div>
-        <div class="text-end">
-            <button type="submit" class="btn btn-primary btn-lg px-5 shadow"><i class="fas fa-paper-plane"></i> Submit Task</button>
+                <div id="advancedOptions" style="display: none;" class="mt-3 p-3 bg-light border rounded">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small"><i class="fas fa-link"></i> Reference Links / Files</label>
+                            <div id="links_container">
+                                <input type="text" class="form-control form-control-sm mb-2" name="reference_link" placeholder="Paste SharePoint or OneDrive link...">
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addReferenceLink()"><i class="fas fa-plus"></i> Add Another Link</button>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check form-switch mt-4">
+                                <input class="form-check-input" type="checkbox" id="save_preset" name="save_preset" value="true" onchange="document.getElementById('preset_name_container').style.display = this.checked ? 'block' : 'none';">
+                                <label class="form-check-label fw-bold text-primary small" for="save_preset">Save these settings as a manual Preset</label>
+                            </div>
+                            <div id="preset_name_container" style="display: none;" class="mt-2">
+                                <input type="text" class="form-control form-control-sm border-primary" name="preset_name" placeholder="Name your preset...">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
         </div>
     </form>
 </div>
 
-<!-- DIRECTORY TREE MODAL -->
-<div class="modal fade" id="treeModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title"><i class="fas fa-folder-open"></i> Project Directory Explorer (TC = Taichung | TX = Tunghsiao)</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body" id="tree_modal_body"></div>
-        </div>
-    </div>
-</div>
-
-<!-- UPGRADE 8: PAGINATED FULL TASK HISTORY MODAL (10 PER PAGE) -->
+<!-- PAGINATED FULL TASK HISTORY MODAL (10 PER PAGE) -->
 <div class="modal fade" id="historyModal" tabindex="-1">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
@@ -294,9 +308,8 @@
                         <button type="button" class="btn btn-sm btn-primary active" id="tabBtnPatterns" onclick="switchHistoryTab('patterns')">🏆 All Frequent Patterns (Ranked)</button>
                         <button type="button" class="btn btn-sm btn-outline-primary" id="tabBtnRecent" onclick="switchHistoryTab('recent')">🕒 Recent Tasks (Chronological)</button>
                     </div>
-                    <input type="text" id="historySearchInput" class="form-control form-control-sm" style="max-width: 320px;" placeholder="Filter history by scope, discipline, requestor..." oninput="resetHistoryPageAndRender()">
+                    <input type="text" id="historySearchInput" class="form-control form-control-sm" style="max-width: 320px;" placeholder="Filter history by scope, task, requestor..." oninput="resetHistoryPageAndRender()">
                 </div>
-
                 <div class="table-responsive">
                     <table class="table table-hover table-bordered align-middle mb-0" style="font-size: 13px;">
                         <thead class="table-light" id="historyTableHead"></thead>
@@ -316,8 +329,9 @@
 </div>
 
 <script id="req_data" type="application/json">{{ req_dict_json | safe }}</script>
-<script id="tree_data" type="application/json">{{ schema_json | safe }}</script>
-<script id="act_data" type="application/json">{{ activities_json | safe }}</script>
+<script id="macro_scopes_data" type="application/json">{{ macro_scopes_json | safe }}</script>
+<script id="core_tasks_data" type="application/json">{{ core_tasks_json | safe }}</script>
+<script id="omni_cards_data" type="application/json">{{ omni_cards_json | safe }}</script>
 <script id="presets_data" type="application/json">{{ presets_json | default('{}') | safe }}</script>
 <script id="frequent_patterns_data" type="application/json">{{ frequent_patterns_json | default('[]') | safe }}</script>
 <script id="recent_history_data" type="application/json">{{ recent_history_json | default('[]') | safe }}</script>
@@ -326,67 +340,192 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     const reqData = JSON.parse(document.getElementById('req_data').textContent);
-    const fileTree = JSON.parse(document.getElementById('tree_data').textContent);
-    const actData = JSON.parse(document.getElementById('act_data').textContent);
+    const macroScopes = JSON.parse(document.getElementById('macro_scopes_data').textContent);
+    const coreTasks = JSON.parse(document.getElementById('core_tasks_data').textContent);
+    const omniCards = JSON.parse(document.getElementById('omni_cards_data').textContent);
     const allPresets = JSON.parse(document.getElementById('presets_data').textContent);
     const frequentPatterns = JSON.parse(document.getElementById('frequent_patterns_data').textContent);
     const recentHistory = JSON.parse(document.getElementById('recent_history_data').textContent);
     const topRequestors = JSON.parse(document.getElementById('top_requestors_data').textContent);
 
-    const actSelect = document.getElementById('task_category');
-    const reqActSelect = document.getElementById('action_required');
-    const instSelect = document.getElementById('instrument');
+    const scopeSelect = document.getElementById('macro_scope_select');
+    const taskSelect = document.getElementById('core_task_select');
     const verbSelect = document.getElementById('command_verb');
+    const catInput = document.getElementById('task_category');
+    const discInput = document.getElementById('action_required');
+    const instSelect = document.getElementById('instrument');
 
-    // --- MISSION VERB AUTO-PAIRING ENGINE (Strictly by Scope / Discipline, NOT Requestor Dept) ---
-    function inferMissionVerb(scopeStr, actionStr) {
-        const s = (scopeStr || '').toLowerCase();
-        const a = (actionStr || '').toLowerCase();
+    const scopeByCode = {};
+    const scopeById = {};
+    macroScopes.forEach(s => {
+        scopeByCode[s.work_scope] = s;
+        scopeById[s.id] = s;
+    });
 
-        // 1. Quality & Coordination Rules
-        if (a.includes('check survey') || a.includes('benchmark verification') || s.includes('verify')) return 'VERIFY';
-        if (s.includes('tech_review') || s.includes('tech review') || a.includes('review')) return 'REVIEW';
-        if (a.includes('internal coordination') || a.includes('external meeting')) return 'ATTEND';
-        if (s.includes('subcon') || s.includes('tpc-poe') || s.includes('coord')) return 'COORDINATE';
-        if (a.includes('survey input')) return 'PROVIDE';
+    const taskById = {};
+    coreTasks.forEach(t => {
+        taskById[t.id] = t;
+    });
 
-        // 2. Deliverables & Filing Rules
-        if (a.includes('survey report') || s.includes('kpi') || s.includes('wsr') || s.includes('timesheet') || s.includes('trf')) return 'SUBMIT';
-        if (s.includes('personnel_files') || s.includes('personnel files')) return 'FILE';
-
-        // 3. Execution Core Rules
-        if (a.includes('post-processing') || a.includes('volume calculation')) return 'PROCESS';
-        if (a.includes('design creation') || a.includes('background files') || a.includes('guidance files') || s.includes('dxf') || s.includes('routelines') || s.includes('3dm')) return 'DRAFT';
-        if (a.includes('configuration') || a.includes('calibration') || s.includes('equipment_list') || s.includes('sem') || s.includes('aho')) return 'SETUP';
-
-        return 'PERFORM';
+    // Populate Step 1: 16 Macro Work Scopes grouped by Site Group
+    function initMacroScopeDropdown() {
+        const groups = {};
+        macroScopes.forEach(s => {
+            groups[s.group] = groups[s.group] || [];
+            groups[s.group].push(s);
+        });
+        for (const [grpName, items] of Object.entries(groups)) {
+            const optgrp = document.createElement('optgroup');
+            optgrp.label = grpName;
+            items.forEach(s => {
+                const opt = new Option(s.label, s.work_scope);
+                optgrp.appendChild(opt);
+            });
+            scopeSelect.appendChild(optgrp);
+        }
     }
 
-    function autoPairVerbFromDiscipline() {
-        const scopeVal = document.getElementById('hidden_scope').value;
-        const actVal = reqActSelect.value;
-        verbSelect.value = inferMissionVerb(scopeVal, actVal);
+    // Populate Step 2: 14 Core Survey Tasks grouped by Activity Type
+    function initCoreTaskDropdown() {
+        const groups = {};
+        coreTasks.forEach(t => {
+            groups[t.task_category] = groups[t.task_category] || [];
+            groups[t.task_category].push(t);
+        });
+        for (const [catName, items] of Object.entries(groups)) {
+            const optgrp = document.createElement('optgroup');
+            optgrp.label = catName;
+            items.forEach(t => {
+                const opt = new Option(`[${t.command_verb}] ${t.label}`, t.id);
+                optgrp.appendChild(opt);
+            });
+            taskSelect.appendChild(optgrp);
+        }
     }
 
-    // --- RENDER TOP 3 FREQUENT TASKS & TOP REQUESTORS ---
-    function renderTopShortcuts() {
-        const top3Box = document.getElementById('top3Container');
-        if (!frequentPatterns || frequentPatterns.length === 0) {
-            top3Box.innerHTML = `<div class="col-12 text-muted small fst-italic">No historical tasks found for your profile yet. Once you submit tasks, your Top 3 most frequent combinations will appear here automatically!</div>`;
+    function onMacroScopeChange() {
+        const scCode = scopeSelect.value;
+        const s = scopeByCode[scCode];
+        if (!s) return;
+        document.getElementById('hidden_area').value = s.area;
+        document.getElementById('hidden_location').value = s.location;
+        document.getElementById('hidden_sub').value = s.sub_location;
+        document.getElementById('hidden_scope').value = s.work_scope;
+        document.getElementById('path_display').innerHTML = `📁 ${s.area} ➔ ${s.location} ➔ ${s.sub_location} ➔ <span class="text-decoration-underline">${s.label}</span>`;
+        document.getElementById('remarks_input').placeholder = s.hint || 'Enter specific details...';
+        document.getElementById('scope_hint_text').innerText = '💡 ' + (s.hint || 'Specify exact location, chainage, or asset details above.');
+        updateKpiPreviewBadge();
+    }
+
+    function onCoreTaskChange() {
+        const tId = taskSelect.value;
+        const t = taskById[tId];
+        if (!t) return;
+        verbSelect.value = t.command_verb;
+        catInput.value = t.task_category;
+        discInput.value = t.action_required;
+        instSelect.innerHTML = '';
+        t.instruments.forEach(inst => instSelect.add(new Option(inst, inst)));
+        instSelect.value = t.default_instrument;
+        updateKpiPreviewBadge();
+    }
+
+    function updateKpiPreviewBadge() {
+        const scCode = scopeSelect.value;
+        const s = scopeByCode[scCode];
+        const disc = discInput.value || '';
+        const badge = document.getElementById('kpi_preview_badge');
+        if (s && disc) {
+            badge.innerText = `KPI Col K: "${s.kpi_prefix} ${disc}"`;
         } else {
-            top3Box.innerHTML = frequentPatterns.slice(0, 3).map((item, idx) => `
-                <div class="col-md-4">
-                    <div class="freq-card h-100" onclick='applyHistoryItem(${JSON.stringify(item).replace(/'/g, "&#39;")})'>
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <span class="badge bg-primary">#${idx + 1} Frequent (${item.count}x)</span>
-                            <span class="badge bg-danger">[${item.command_verb || 'PERFORM'}]</span>
-                        </div>
-                        <div class="fw-bold text-dark" style="font-size: 13px;">${item.work_scope}</div>
-                        <div class="small text-secondary">${item.action_required} • <strong>${item.instrument}</strong></div>
+            badge.innerText = 'KPI Col K Preview';
+        }
+    }
+
+    function selectMacroAndTask(scopeId, taskId) {
+        const s = scopeById[scopeId];
+        const t = taskById[taskId];
+        if (s) {
+            scopeSelect.value = s.work_scope;
+            onMacroScopeChange();
+        }
+        if (t) {
+            taskSelect.value = t.id;
+            onCoreTaskChange();
+        }
+        document.getElementById('omniResultsDropdown').style.display = 'none';
+        document.getElementById('remarks_input').focus();
+    }
+
+    // --- UNIFIED OMNI-SEARCH ENGINE ---
+    function renderOmniResults() {
+        const q = (document.getElementById('omniSearchInput').value || '').toLowerCase().trim();
+        const box = document.getElementById('omniResultsDropdown');
+        const tokens = q.split(/\s+/).filter(Boolean);
+
+        const matches = omniCards.filter(card => {
+            if (tokens.length === 0) return card.weight > 0;
+            const hay = `${card.display} ${card.scope_group} ${card.action_required} ${card.task_category} ${card.instrument} ${card.hint}`.toLowerCase();
+            return tokens.every(tok => hay.includes(tok));
+        }).slice(0, 18);
+
+        if (matches.length === 0) {
+            box.innerHTML = `<div class="p-3 text-muted text-center small">No exact match. Try fewer keywords or select from Step 1 & Step 2 below.</div>`;
+        } else {
+            box.innerHTML = matches.map(c => `
+                <div class="omni-item" onclick="applyOmniCard('${c.scope_id}', '${c.task_id}')">
+                    <div>
+                        <span class="badge bg-danger me-1">[${c.command_verb}]</span>
+                        <strong class="text-dark">${c.task_label}</strong>
+                        <span class="text-muted mx-1">@</span>
+                        <strong class="text-success">${c.scope_label}</strong>
+                        <div class="small text-muted">${c.task_category} • Tool: <strong>${c.instrument}</strong></div>
                     </div>
+                    ${c.weight > 0 ? `<span class="badge bg-primary rounded-pill">🔥 ${c.weight}x</span>` : `<span class="badge bg-light text-secondary border">Select</span>`}
                 </div>
             `).join('');
         }
+        box.style.display = 'block';
+    }
+
+    function applyOmniCard(scopeId, taskId) {
+        const s = scopeById[scopeId];
+        const t = taskById[taskId];
+        if (s && t) {
+            document.getElementById('omniSearchInput').value = `[${t.command_verb}] ${t.label} @ ${s.label}`;
+        }
+        selectMacroAndTask(scopeId, taskId);
+    }
+
+    function clearOmniSearch() {
+        const inp = document.getElementById('omniSearchInput');
+        inp.value = '';
+        document.getElementById('omniResultsDropdown').style.display = 'none';
+        inp.focus();
+    }
+
+    document.addEventListener('click', function(ev) {
+        const omniBox = document.querySelector('.omni-box');
+        if (omniBox && !omniBox.contains(ev.target)) {
+            document.getElementById('omniResultsDropdown').style.display = 'none';
+        }
+    });
+
+    // --- TOP 3 FREQUENT TASKS & PAGINATED HISTORY (10 / PAGE) ---
+    function renderTopShortcuts() {
+        const top3Box = document.getElementById('top3Container');
+        top3Box.innerHTML = frequentPatterns.slice(0, 3).map((item, idx) => `
+            <div class="col-md-4">
+                <div class="freq-card h-100" onclick='applyHistoryItem(${JSON.stringify(item).replace(/'/g, "&#39;")})'>
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="badge bg-primary">#${idx + 1} Frequent (${item.count}x)</span>
+                        <span class="badge bg-danger">[${item.command_verb || 'PERFORM'}]</span>
+                    </div>
+                    <div class="fw-bold text-success" style="font-size: 13px;">${item.scope_label || item.work_scope}</div>
+                    <div class="small text-dark">${item.action_required} • <strong>${item.instrument}</strong></div>
+                </div>
+            </div>
+        `).join('');
 
         const reqBar = document.getElementById('topRequestorsBar');
         if (topRequestors && topRequestors.length > 0) {
@@ -405,35 +544,45 @@
     }
 
     function applyHistoryItem(item) {
-        if (item.area && item.work_scope) {
-            setPath(item.area, item.location || '', item.sub_location || '', item.work_scope);
+        if (item.work_scope && scopeByCode[item.work_scope]) {
+            scopeSelect.value = item.work_scope;
+            onMacroScopeChange();
+        } else if (item.area && item.work_scope) {
+            document.getElementById('hidden_area').value = item.area;
+            document.getElementById('hidden_location').value = item.location || '';
+            document.getElementById('hidden_sub').value = item.sub_location || '';
+            document.getElementById('hidden_scope').value = item.work_scope;
+            document.getElementById('path_display').innerText = `📁 ${item.area} ➔ ${item.location} ➔ ${item.work_scope}`;
         }
-        if (item.task_category) {
-            actSelect.value = item.task_category;
-            updateActions();
-            if (item.action_required) {
-                reqActSelect.value = item.action_required;
-                updateInstruments();
-                if (item.instrument) {
-                    instSelect.value = item.instrument;
-                }
-            }
-        }
-        if (item.command_verb) {
-            verbSelect.value = item.command_verb;
+
+        // Match Core Task by action_required + task_category
+        const matchedCore = coreTasks.find(ct => ct.action_required === item.action_required && ct.task_category === item.task_category)
+                         || coreTasks.find(ct => ct.action_required === item.action_required);
+        if (matchedCore) {
+            taskSelect.value = matchedCore.id;
+            onCoreTaskChange();
         } else {
-            autoPairVerbFromDiscipline();
+            catInput.value = item.task_category || '';
+            discInput.value = item.action_required || '';
+        }
+
+        if (item.command_verb) verbSelect.value = item.command_verb;
+        if (item.instrument) {
+            if (![...instSelect.options].some(o => o.value === item.instrument)) {
+                instSelect.add(new Option(item.instrument, item.instrument));
+            }
+            instSelect.value = item.instrument;
         }
         if (item.req_name) {
             document.getElementById('requestor_name').value = item.req_name;
             autoFillDept();
         }
+        updateKpiPreviewBadge();
         const histModalEl = document.getElementById('historyModal');
         const histModal = bootstrap.Modal.getInstance(histModalEl);
         if (histModal) histModal.hide();
     }
 
-    // --- PAGINATED FULL HISTORY MODAL (10 PER PAGE) ---
     let currentHistoryTab = 'patterns';
     let currentHistoryPage = 1;
     const HISTORY_PAGE_SIZE = 10;
@@ -441,8 +590,7 @@
     function openHistoryModal() {
         currentHistoryPage = 1;
         renderHistoryTable();
-        const modal = new bootstrap.Modal(document.getElementById('historyModal'));
-        modal.show();
+        new bootstrap.Modal(document.getElementById('historyModal')).show();
     }
 
     function switchHistoryTab(tab) {
@@ -467,7 +615,7 @@
         const query = (document.getElementById('historySearchInput').value || '').toLowerCase();
         const sourceList = currentHistoryTab === 'patterns' ? frequentPatterns : recentHistory;
         const filtered = sourceList.filter(item => {
-            const hay = `${item.work_scope} ${item.action_required} ${item.instrument} ${item.task_category} ${item.req_name || ''} ${item.remarks || ''}`.toLowerCase();
+            const hay = `${item.scope_label || ''} ${item.work_scope} ${item.action_required} ${item.instrument} ${item.task_category} ${item.req_name || ''} ${item.remarks || ''}`.toLowerCase();
             return !query || hay.includes(query);
         });
 
@@ -482,25 +630,25 @@
         const tbody = document.getElementById('historyTableBody');
 
         if (currentHistoryTab === 'patterns') {
-            thead.innerHTML = `<tr><th>Rank</th><th>Uses</th><th>Verb & Discipline</th><th>Work Scope (Location)</th><th>Instrument</th><th class="text-end">Action</th></tr>`;
+            thead.innerHTML = `<tr><th>Rank</th><th>Uses</th><th>Verb & Task Discipline</th><th>Macro Work Scope</th><th>Instrument</th><th class="text-end">Action</th></tr>`;
             tbody.innerHTML = pageItems.length ? pageItems.map((item, i) => `
                 <tr>
                     <td class="fw-bold">#${startIdx + i + 1}</td>
                     <td><span class="badge bg-primary">${item.count}x</span></td>
                     <td><span class="badge bg-danger me-1">[${item.command_verb}]</span> <strong>${item.action_required}</strong><br><small class="text-muted">${item.task_category}</small></td>
-                    <td class="fw-semibold text-success">${item.work_scope}<br><small class="text-muted">${item.area} ➔ ${item.location} ➔ ${item.sub_location}</small></td>
+                    <td class="fw-semibold text-success">${item.scope_label || item.work_scope}</td>
                     <td>${item.instrument}</td>
                     <td class="text-end"><button type="button" class="btn btn-sm btn-success fw-bold" onclick='applyHistoryItem(${JSON.stringify(item).replace(/'/g, "&#39;")})'>⚡ Autofill</button></td>
                 </tr>
             `).join('') : `<tr><td colspan="6" class="text-center py-3 text-muted">No matching task patterns found.</td></tr>`;
         } else {
-            thead.innerHTML = `<tr><th>Date</th><th>Requestor</th><th>Verb & Discipline</th><th>Work Scope</th><th>Instrument</th><th class="text-end">Action</th></tr>`;
+            thead.innerHTML = `<tr><th>Date</th><th>Requestor</th><th>Verb & Task Discipline</th><th>Macro Work Scope & Remarks</th><th>Instrument</th><th class="text-end">Action</th></tr>`;
             tbody.innerHTML = pageItems.length ? pageItems.map(item => `
                 <tr>
                     <td class="text-nowrap small">${item.date}</td>
                     <td>${item.req_name || 'N/A'}</td>
                     <td><span class="badge bg-danger me-1">[${item.command_verb}]</span> <strong>${item.action_required}</strong></td>
-                    <td class="fw-semibold text-success">${item.work_scope}<br><small class="text-muted">${item.remarks || ''}</small></td>
+                    <td class="fw-semibold text-success">${item.scope_label || item.work_scope}<br><small class="text-muted">${item.remarks || ''}</small></td>
                     <td>${item.instrument}</td>
                     <td class="text-end"><button type="button" class="btn btn-sm btn-success fw-bold" onclick='applyHistoryItem(${JSON.stringify(item).replace(/'/g, "&#39;")})'>⚡ Autofill</button></td>
                 </tr>
@@ -512,29 +660,7 @@
         document.getElementById('btnNextHist').disabled = (currentHistoryPage >= totalPages);
     }
 
-    function toggleAdvanced() {
-        const advBox = document.getElementById('advancedOptions');
-        const btn = document.getElementById('advToggleBtn');
-        if (advBox.style.display === 'none') {
-            advBox.style.display = 'block';
-            btn.innerHTML = '<i class="fas fa-minus-circle"></i> Hide Advanced Options';
-        } else {
-            advBox.style.display = 'none';
-            btn.innerHTML = '<i class="fas fa-plus-circle"></i> Show Reference Links & Backdate Options';
-        }
-    }
-
-    function addSurveyorDropdown() {
-        const container = document.getElementById('surveyor_container');
-        const div = document.createElement('div');
-        div.className = 'input-group mb-2';
-        div.innerHTML = `
-            <input list="user_list" class="form-control" name="assigned_to" placeholder="Type custom name or select user..." required>
-            <button class="btn btn-outline-danger" type="button" onclick="this.parentElement.remove()"><i class="fas fa-trash"></i></button>
-        `;
-        container.appendChild(div);
-    }
-
+    // --- REQUESTORS, SURVEYORS & ADVANCED HELPERS ---
     const datalist = document.getElementById('requestor_list');
     let requestorMap = {}; 
     for (const [dept, names] of Object.entries(reqData)) {
@@ -552,180 +678,34 @@
         document.getElementById('requestor_dept').value = requestorMap[name] || 'General';
     }
 
-    Object.keys(actData).sort().forEach(act => { actSelect.add(new Option(act, act)); });
-
-    function updateActions() {
-        reqActSelect.innerHTML = '<option value="">-- Select Action --</option>';
-        instSelect.innerHTML = '<option value="">-- Select Instrument --</option>';
-        const act = actSelect.value;
-        if(act && actData[act]) {
-            Object.keys(actData[act]).sort().forEach(req => { reqActSelect.add(new Option(req, req)); });
-        }
-    }
-
-    function updateInstruments() {
-        instSelect.innerHTML = '<option value="">-- Select Instrument --</option>';
-        const act = actSelect.value;
-        const req = reqActSelect.value;
-        if(act && req && actData[act][req]) {
-            actData[act][req].forEach(inst => { instSelect.add(new Option(inst, inst)); });
-            if (actData[act][req].length === 1) {
-                instSelect.value = actData[act][req][0];
-            }
-        }
-    }
-
-    function applyQuickPick(verb, category, action, instrument) {
-        verbSelect.value = verb;
-        actSelect.value = category;
-        updateActions(); 
-        reqActSelect.value = action;
-        updateInstruments(); 
-        instSelect.value = instrument;
-    }
-
-    const smartList = document.getElementById('smart_task_list');
-    let taskCombinations = {}; 
-
-    for (const [act, actions] of Object.entries(actData)) {
-        for (const [req, insts] of Object.entries(actions)) {
-            insts.forEach(inst => {
-                const comboStr = `${req} ➔ ${inst} (${act})`;
-                taskCombinations[comboStr] = { act, req, inst };
-                let option = document.createElement('option');
-                option.value = comboStr;
-                smartList.appendChild(option);
-            });
-        }
-    }
-
-    function applySmartTask() {
-        const inputVal = document.getElementById('smart_task_input').value;
-        const combo = taskCombinations[inputVal];
-        if (combo) {
-            actSelect.value = combo.act;
-            updateActions(); 
-            reqActSelect.value = combo.req;
-            updateInstruments(); 
-            instSelect.value = combo.inst;
-            autoPairVerbFromDiscipline();
-        }
-    }
-
-    // --- WORK-SCOPE-FIRST REVERSE CASCADE ---
-    const locSearchList = document.getElementById('loc_search_list');
-    let locCombinations = {}; 
-    for(const [area, locs] of Object.entries(fileTree)) {
-        for(const [loc, subs] of Object.entries(locs)) {
-            for(const [sub, scopes] of Object.entries(subs)) {
-                for(const scope of scopes) {
-                    const cleanSub = sub.replace(/^[0-9]+_/, '').replace(/_/g, ' ');
-                    const cleanLoc = loc.replace(/^[0-9]+_/, '').replace(/_/g, ' ');
-                    const cleanArea = area.replace(/^[0-9]+_/, '').replace(/_/g, ' ');
-                    
-                    const searchStr = `${scope}  [📍 ${cleanLoc} ➔ ${cleanSub}]`;
-                    
-                    locCombinations[searchStr] = { area, loc, sub, scope };
-                    locCombinations[scope] = { area, loc, sub, scope };
-                    let option = document.createElement('option');
-                    option.value = searchStr;
-                    option.textContent = cleanArea; 
-                    locSearchList.appendChild(option);
-                }
-            }
-        }
-    }
-
-    function applyLocationSearch() {
-        const val = document.getElementById('location_code').value.trim();
-        const match = locCombinations[val];
-        if(match) {
-            setPath(match.area, match.loc, match.sub, match.scope);
-            document.getElementById('location_code').blur(); 
-        }
-    }
-
-    const modalBody = document.getElementById('tree_modal_body');
-    let treeHTML = '<ul class="list-unstyled">';
-    let fId = 0;
-    
-    for(const [area, locs] of Object.entries(fileTree)) {
-        fId++; let areaId = fId;
-        treeHTML += `<li>
-            <div class="tree-folder py-1" onclick="toggleFolder('f_${areaId}', 'i_${areaId}')">
-                <i class="fas fa-folder-open" id="i_${areaId}"></i> ${area}
-            </div>
-            <ul class="list-unstyled ms-4 border-start border-2 border-primary ps-2" id="f_${areaId}" style="display:block;">`;
-        
-        for(const [loc, subs] of Object.entries(locs)) {
-            fId++; let locId = fId;
-            treeHTML += `<li>
-                <div class="tree-folder py-1" onclick="toggleFolder('f_${locId}', 'i_${locId}')">
-                    <i class="fas fa-folder-open text-warning" id="i_${locId}"></i> ${loc}
-                </div>
-                <ul class="list-unstyled ms-4 border-start border-2 border-warning ps-2" id="f_${locId}" style="display:block;">`;
-            
-            for(const [sub, scopes] of Object.entries(subs)) {
-                fId++; let subId = fId;
-                treeHTML += `<li>
-                    <div class="tree-folder py-1" onclick="toggleFolder('f_${subId}', 'i_${subId}')">
-                        <i class="fas fa-folder text-danger" id="i_${subId}"></i> ${sub}
-                    </div>
-                    <ul class="list-unstyled ms-3 border-start border-2 border-danger ps-2" id="f_${subId}" style="display:none;">`;
-                
-                for(const scope of scopes) {
-                    treeHTML += `<li><div class="tree-scope py-1" onclick="selectFromModal('${area}', '${loc}', '${sub}', '${scope}')"><i class="fas fa-file-alt text-success"></i> <strong>${scope}</strong></div></li>`;
-                }
-                treeHTML += `</ul></li>`;
-            }
-            treeHTML += `</ul></li>`;
-        }
-        treeHTML += `</ul></li>`;
-    }
-    treeHTML += '</ul>';
-    modalBody.innerHTML = treeHTML;
-
-    window.toggleFolder = function(folderId, iconId) {
-        const folder = document.getElementById(folderId);
-        const icon = document.getElementById(iconId);
-        if(folder.style.display === 'none') {
-            folder.style.display = 'block';
-            icon.classList.remove('fa-folder');
-            icon.classList.add('fa-folder-open');
-        } else {
-            folder.style.display = 'none';
-            icon.classList.remove('fa-folder-open');
-            icon.classList.add('fa-folder');
-        }
-    };
-
-    function selectFromModal(area, loc, sub, scope) {
-        setPath(area, loc, sub, scope);
-        const modal = bootstrap.Modal.getInstance(document.getElementById('treeModal'));
-        modal.hide();
-        document.getElementById('location_code').value = scope; 
-    }
-
-    function setPath(area, loc, sub, scope) {
-        document.getElementById('hidden_area').value = area;
-        document.getElementById('hidden_location').value = loc;
-        document.getElementById('hidden_sub').value = sub;
-        document.getElementById('hidden_scope').value = scope;
-        
-        document.getElementById('path_display').innerHTML = `
-            📁 ${area} <i class="fas fa-caret-right text-muted mx-1"></i> 
-            ${loc} <i class="fas fa-caret-right text-muted mx-1"></i> 
-            ${sub} <i class="fas fa-caret-right text-muted mx-1"></i> 
-            <span class="text-success">${scope}</span>
+    function addSurveyorDropdown() {
+        const container = document.getElementById('surveyor_container');
+        const div = document.createElement('div');
+        div.className = 'input-group input-group-sm mb-2';
+        div.innerHTML = `
+            <input list="user_list" class="form-control" name="assigned_to" placeholder="Select additional surveyor..." required>
+            <button class="btn btn-outline-danger" type="button" onclick="this.parentElement.remove()"><i class="fas fa-trash"></i></button>
         `;
-        autoPairVerbFromDiscipline();
+        container.appendChild(div);
+    }
+
+    function toggleAdvanced() {
+        const advBox = document.getElementById('advancedOptions');
+        const btn = document.getElementById('advToggleBtn');
+        if (advBox.style.display === 'none') {
+            advBox.style.display = 'block';
+            btn.innerHTML = '<i class="fas fa-minus-circle"></i> Hide Reference Links & Preset Options';
+        } else {
+            advBox.style.display = 'none';
+            btn.innerHTML = '<i class="fas fa-plus-circle"></i> Add Reference Links or Save as Manual Preset';
+        }
     }
 
     function addReferenceLink() {
         const container = document.getElementById('links_container');
         const input = document.createElement('input');
         input.type = 'text';
-        input.className = 'form-control mb-2';
+        input.className = 'form-control form-control-sm mb-2';
         input.name = 'reference_link';
         input.placeholder = 'Paste another link here...';
         container.appendChild(input);
@@ -734,53 +714,23 @@
     function loadPreset() {
         const pId = document.getElementById('presetLoader').value;
         const delForm = document.getElementById('deletePresetForm');
-        
         if (!pId || !allPresets[pId]) {
             if(delForm) delForm.style.display = 'none';
             return;
         }
-        
         if(delForm) {
             delForm.action = "{{ url_for('delete_preset', preset_id=0) }}".replace('0', pId);
             delForm.style.display = 'block';
         }
-        
-        const loadedPreset = allPresets[pId];
-        
-        if (loadedPreset.req_name) {
-            document.getElementById('requestor_name').value = loadedPreset.req_name;
-            autoFillDept(); 
-        }
-        if (loadedPreset.assigned_to) {
-            document.querySelector('input[name="assigned_to"]').value = loadedPreset.assigned_to;
-        }
-        if (loadedPreset.command_verb) {
-            verbSelect.value = loadedPreset.command_verb;
-        }
-        if (loadedPreset.task_category) {
-            actSelect.value = loadedPreset.task_category;
-            updateActions(); 
-            if (loadedPreset.action_required) {
-                reqActSelect.value = loadedPreset.action_required;
-                updateInstruments(); 
-                if (loadedPreset.instrument) {
-                    instSelect.value = loadedPreset.instrument;
-                }
-            }
-        }
-        if (loadedPreset.area && loadedPreset.work_scope) {
-            setPath(
-                loadedPreset.area, 
-                loadedPreset.location || '', 
-                loadedPreset.sub_location || '', 
-                loadedPreset.work_scope
-            );
-        }
-        if (loadedPreset.remarks) {
-            document.querySelector('textarea[name="remarks"]').value = loadedPreset.remarks;
+        const p = allPresets[pId];
+        applyHistoryItem(p);
+        if (p.remarks) {
+            document.getElementById('remarks_input').value = p.remarks;
         }
     }
 
+    initMacroScopeDropdown();
+    initCoreTaskDropdown();
     renderTopShortcuts();
 </script>
 </body>

@@ -40,7 +40,7 @@ app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER')
 mail = Mail(app)
 s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
 
-# --- VIP ADMIN LIST ---
+# --- VIP ADMIN LIST (SUPER-ADMIN FAILSAFE) ---
 ADMIN_EMAILS = [
     'daryll.enano@nmdc-group.com',
     'mohamad.hediarto@nmdc-group.com',
@@ -107,7 +107,6 @@ class SurveyTask(db.Model):
     execution_date = db.Column(db.Date, nullable=True)
     end_time = db.Column(db.DateTime, nullable=True)
 
-# --- POINT #7: USER USAGE TELEMETRY MODEL ---
 class UserActivityLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, nullable=True)
@@ -116,6 +115,249 @@ class UserActivityLog(db.Model):
     path = db.Column(db.String(200), nullable=False)
     method = db.Column(db.String(15), nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+# --- 16 MACRO WORK SCOPES & 14 CORE SURVEY TASKS MASTER CATALOG ---
+LEAN_MACRO_SCOPES = [
+    {
+        "id": "MWS-01", "group": "OFC - Office & HQ",
+        "label": "OFC - Taichung Survey & NMDC Internal",
+        "area": "100_Office", "location": "110_Taichung", "sub_location": "111_Survey_Internal",
+        "work_scope": "111-00_OFC_Taichung_Internal", "kpi_prefix": "Taichung Office Internal",
+        "hint": "Specify team/topic in Remarks (e.g., ENERGY, Personnel, Internal Meeting)..."
+    },
+    {
+        "id": "MWS-02", "group": "OFC - Office & HQ",
+        "label": "OFC - Subcon & Client External (EGST / TPC-POE)",
+        "area": "100_Office", "location": "110_Taichung", "sub_location": "113_Project-External",
+        "work_scope": "113-10_OFC_External_TPC_Subcon", "kpi_prefix": "Taichung External & Subcon",
+        "hint": "Specify EGST, TPC-POE, CRS response, or Subcon Deliverable in Remarks..."
+    },
+    {
+        "id": "MWS-03", "group": "OFC - Office & HQ",
+        "label": "OFC - Abu Dhabi HQ (STS / SWS / Admin)",
+        "area": "100_Office", "location": "120_Abu_Dhabi", "sub_location": "121_STS",
+        "work_scope": "121-00_OFC_Abu_Dhabi_HQ", "kpi_prefix": "Abu Dhabi HQ",
+        "hint": "Specify Monthly KPI, WSR, SEM update, Equipment List, or Timesheet in Remarks..."
+    },
+    {
+        "id": "MWS-04", "group": "TC - Taichung Onshore",
+        "label": "TC - Taichung Landfall & General Site",
+        "area": "200_Onshore-Land", "location": "210_Taichung", "sub_location": "211_General",
+        "work_scope": "211-00_TC_Landfall_Site", "kpi_prefix": "Taichung Landside",
+        "hint": "Specify TBM, Fence, Carwash, Land Lease, or General Topo details in Remarks..."
+    },
+    {
+        "id": "MWS-05", "group": "TC - Taichung Onshore",
+        "label": "TC - AHDD Compound (Pits, Settlement & Corridor)",
+        "area": "200_Onshore-Land", "location": "210_Taichung", "sub_location": "212_AHDD",
+        "work_scope": "212-00_TC_AHDD_Compound", "kpi_prefix": "Taichung AHDD",
+        "hint": "Specify Road Settlement, Thruster Pit, Crossover Pit, Trial Pit, or Grit Tank in Remarks..."
+    },
+    {
+        "id": "MWS-06", "group": "TC - Taichung Onshore",
+        "label": "TC - Tienli (Pipe Laydown & Disposal Area)",
+        "area": "200_Onshore-Land", "location": "210_Taichung", "sub_location": "213_Tienli",
+        "work_scope": "213-00_TC_Tienli", "kpi_prefix": "Taichung Tienli",
+        "hint": "Specify Pipe Laydown layout or Stockpile/Disposal details in Remarks..."
+    },
+    {
+        "id": "MWS-07", "group": "TC - Taichung Onshore",
+        "label": "TC - Berth 37 (Port Pipe Storage & Quay)",
+        "area": "200_Onshore-Land", "location": "210_Taichung", "sub_location": "214_Berth37",
+        "work_scope": "214-00_TC_Berth37", "kpi_prefix": "Taichung Berth 37",
+        "hint": "Specify Pipe Storage layout, Quay Marking, or Tide Gauge details in Remarks..."
+    },
+    {
+        "id": "MWS-08", "group": "TX - Tunghsiao Onshore",
+        "label": "TX - Temp Platform & Microtunneling (All Works)",
+        "area": "200_Onshore-Land", "location": "220_Tunghsiao", "sub_location": "221_Temp_Platform",
+        "work_scope": "221-00_TX_Temp_Platform", "kpi_prefix": "Tunghsiao Temp Platform",
+        "hint": "Specify Thruster Pit, Trial Pit, Welding Area, Sandslope, Filter Layer, or Microtunneling in Remarks..."
+    },
+    {
+        "id": "MWS-09", "group": "TX - Tunghsiao Onshore",
+        "label": "TX - Inside Plant (Pits, Boreholes & Corridor)",
+        "area": "200_Onshore-Land", "location": "220_Tunghsiao", "sub_location": "222_Inside_Plant",
+        "work_scope": "222-00_TX_Inside_Plant", "kpi_prefix": "Tunghsiao Inside Plant",
+        "hint": "Specify Inside Plant Trial Pit, Crossover Pit, or Borehole ID in Remarks..."
+    },
+    {
+        "id": "MWS-10", "group": "NS - Nearshore Marine",
+        "label": "NS - Nearshore General & Dumping Area",
+        "area": "300_Marine", "location": "320_Nearshore", "sub_location": "321_Nearshore_General",
+        "work_scope": "321-00_NS_General_Dumping", "kpi_prefix": "Nearshore Dumping Area",
+        "hint": "Specify Dumping Box, Nearshore Corridor, or Split Barge area in Remarks..."
+    },
+    {
+        "id": "MWS-11", "group": "NS - Nearshore Marine",
+        "label": "NS - Trench 1 (Taichung Nearshore)",
+        "area": "300_Marine", "location": "320_Nearshore", "sub_location": "322_Trench_1",
+        "work_scope": "322-00_NS_Trench_1", "kpi_prefix": "Nearshore Trench 1",
+        "hint": "Specify T1 Dredging, Pipelaying A/B, Overlength, Siltation, or Backfilling in Remarks..."
+    },
+    {
+        "id": "MWS-12", "group": "NS - Nearshore Marine",
+        "label": "NS - Trench 8 (Tunghsiao Nearshore)",
+        "area": "300_Marine", "location": "320_Nearshore", "sub_location": "323_Trench_8",
+        "work_scope": "323-00_NS_Trench_8", "kpi_prefix": "Nearshore Trench 8",
+        "hint": "Specify T8 Dredging, Pipelaying A/B, Overlength, Siltation, or Backfilling in Remarks..."
+    },
+    {
+        "id": "MWS-13", "group": "OS - Offshore Marine",
+        "label": "OS - Offshore Mainline (Trenches 2 to 7)",
+        "area": "300_Marine", "location": "330_Offshore", "sub_location": "331_Offshore_Mainline",
+        "work_scope": "331-00_OS_Trenches_2_7", "kpi_prefix": "Offshore Mainline",
+        "hint": "Specify Trench # (T2–T7), KP range, Pipelaying A/B, Post-Trenching, or SRI in Remarks..."
+    },
+    {
+        "id": "MWS-14", "group": "OS - Offshore Marine",
+        "label": "OS - Midline Tie-In Area",
+        "area": "300_Marine", "location": "330_Offshore", "sub_location": "337_Midline_Tie-in",
+        "work_scope": "337-00_OS_Midline_Tie_In", "kpi_prefix": "Offshore Midline Tie-in",
+        "hint": "Specify Midline Dredging, Pipelaying, or Tie-In KP 52.3–53.0 in Remarks..."
+    },
+    {
+        "id": "MWS-15", "group": "OS - Offshore Marine",
+        "label": "OS - Subsea Crossings (All Current & Future Crossings)",
+        "area": "300_Marine", "location": "330_Offshore", "sub_location": "338_Subsea_Crossings",
+        "work_scope": "338-00_OS_Subsea_Crossings", "kpi_prefix": "Offshore Subsea Crossings",
+        "hint": "Specify Crossing ID (A1–B3, CPC, TWTK2, TUN-Datan) & phase (Mattress, SRI, Burial) in Remarks..."
+    },
+    {
+        "id": "MWS-16", "group": "MAR - Marine Eng & Vessels",
+        "label": "MAR - Vessels, Equipment & Project-Wide Design/Qty",
+        "area": "300_Marine", "location": "310_General", "sub_location": "311_Marine_Engineering",
+        "work_scope": "311-00_MAR_Vessels_Design_Qty", "kpi_prefix": "Marine Project-Wide",
+        "hint": "Specify Vessel (WS166, Arzana, DLS-4200) or Design/ICQP/CECI format in Remarks..."
+    }
+]
+
+LEAN_CORE_TASKS = [
+    {
+        "id": "CT-01", "label": "Monitoring & Settlement Survey (Land)",
+        "action_required": "Monitoring Survey", "task_category": "Land Survey",
+        "command_verb": "PERFORM", "default_instrument": "Levelling Machine",
+        "instruments": ["Levelling Machine", "GNSS Rover", "Total Station"]
+    },
+    {
+        "id": "CT-02", "label": "Topo / Progress / Pre & Post Survey (Land)",
+        "action_required": "Progress Survey", "task_category": "Land Survey",
+        "command_verb": "PERFORM", "default_instrument": "GNSS Rover",
+        "instruments": ["GNSS Rover", "Total Station", "Drone", "Lidar"]
+    },
+    {
+        "id": "CT-03", "label": "As-Built Survey (Land)",
+        "action_required": "As-built Survey", "task_category": "Land Survey",
+        "command_verb": "PERFORM", "default_instrument": "GNSS Rover",
+        "instruments": ["GNSS Rover", "Total Station", "Drone", "Lidar"]
+    },
+    {
+        "id": "CT-04", "label": "Stake-Out / Setting-Out / Marking",
+        "action_required": "Stake-Out/Marking", "task_category": "Land Survey",
+        "command_verb": "PERFORM", "default_instrument": "GNSS Rover",
+        "instruments": ["GNSS Rover", "Total Station"]
+    },
+    {
+        "id": "CT-05", "label": "Check Survey & Benchmark Verification (QA/QC)",
+        "action_required": "Check Survey", "task_category": "Land Survey",
+        "command_verb": "VERIFY", "default_instrument": "Levelling Machine",
+        "instruments": ["Levelling Machine", "Total Station", "GNSS Rover"]
+    },
+    {
+        "id": "CT-06", "label": "Bathymetric Monitoring & Progress Survey",
+        "action_required": "Monitoring Survey", "task_category": "Bathymetric Survey",
+        "command_verb": "PERFORM", "default_instrument": "MBES  WS166",
+        "instruments": ["MBES  WS166", "SBES"]
+    },
+    {
+        "id": "CT-07", "label": "Bathymetric Pre / Post / As-Built Survey",
+        "action_required": "Post Survey", "task_category": "Bathymetric Survey",
+        "command_verb": "PERFORM", "default_instrument": "MBES  WS166",
+        "instruments": ["MBES  WS166", "SBES"]
+    },
+    {
+        "id": "CT-08", "label": "Geophysical Survey & Processing (SSS/Maggy/SBP/GPR)",
+        "action_required": "Geophysical Check Survey", "task_category": "Geophysical Survey",
+        "command_verb": "PERFORM", "default_instrument": "SSS",
+        "instruments": ["SSS", "Maggy", "SBP", "CAD", "Reporting"]
+    },
+    {
+        "id": "CT-09", "label": "File Generation & Design/Background Prep (PDS/DXF/3DM)",
+        "action_required": "File Generation", "task_category": "Survey Data Deliverables",
+        "command_verb": "PROCESS", "default_instrument": "PDS",
+        "instruments": ["PDS", "Civil3D", "CAD", "Terramodel"]
+    },
+    {
+        "id": "CT-10", "label": "Volume & Quantity Calculation (Progress / Design / ICQP)",
+        "action_required": "Volume Calculation", "task_category": "Survey Data Deliverables",
+        "command_verb": "PROCESS", "default_instrument": "PDS",
+        "instruments": ["PDS", "Civil3D", "Terramodel", "Excel"]
+    },
+    {
+        "id": "CT-11", "label": "CAD Drawings (As-Built / Sketch / Settlement / Progress)",
+        "action_required": "As-Built Drawing", "task_category": "Survey Data Deliverables",
+        "command_verb": "DRAFT", "default_instrument": "CAD",
+        "instruments": ["CAD", "Civil3D", "Terramodel"]
+    },
+    {
+        "id": "CT-12", "label": "Charts & Profiles (Bathy / Diff / X-Section / Long-Section)",
+        "action_required": "Charting/Xsection", "task_category": "Survey Data Deliverables",
+        "command_verb": "DRAFT", "default_instrument": "PDS",
+        "instruments": ["PDS", "CAD", "Civil3D"]
+    },
+    {
+        "id": "CT-13", "label": "Vessel Software Config & Calibration (PDS / DTPS / System)",
+        "action_required": "Survey Software Configuration", "task_category": "Equipment Configuration",
+        "command_verb": "SETUP", "default_instrument": "PDS",
+        "instruments": ["PDS", "DTPS", "GNSS Rover", "Total Station", "PC"]
+    },
+    {
+        "id": "CT-14", "label": "Survey Reports, Tech Review & Coordination Meetings",
+        "action_required": "Survey Report", "task_category": "Office Admin Works",
+        "command_verb": "SUBMIT", "default_instrument": "PC",
+        "instruments": ["PC", "Teams", "Face to Face", "Excel"]
+    }
+]
+
+# Pre-seeded Top Historical Omni-Search Pairs from the 1,809-Task Register
+HISTORICAL_OMNI_SEEDS = [
+    ("MWS-05", "CT-01", 116),
+    ("MWS-08", "CT-11", 109),
+    ("MWS-05", "CT-11", 101),
+    ("MWS-04", "CT-11", 86),
+    ("MWS-08", "CT-02", 60),
+    ("MWS-16", "CT-12", 54),
+    ("MWS-16", "CT-09", 38),
+    ("MWS-16", "CT-13", 36),
+    ("MWS-12", "CT-06", 36),
+    ("MWS-10", "CT-06", 35),
+    ("MWS-02", "CT-14", 35),
+    ("MWS-04", "CT-10", 34),
+    ("MWS-04", "CT-02", 34),
+    ("MWS-08", "CT-10", 32),
+    ("MWS-05", "CT-03", 32),
+    ("MWS-05", "CT-04", 32),
+    ("MWS-11", "CT-06", 32),
+    ("MWS-12", "CT-09", 32),
+    ("MWS-08", "CT-04", 30),
+    ("MWS-10", "CT-10", 29),
+    ("MWS-12", "CT-13", 26),
+    ("MWS-14", "CT-09", 21),
+    ("MWS-11", "CT-13", 20),
+    ("MWS-15", "CT-11", 18),
+    ("MWS-14", "CT-06", 18),
+    ("MWS-07", "CT-11", 15),
+    ("MWS-15", "CT-06", 12),
+    ("MWS-06", "CT-02", 10),
+    ("MWS-09", "CT-04", 8),
+    ("MWS-13", "CT-06", 8),
+    ("MWS-01", "CT-14", 15),
+    ("MWS-03", "CT-14", 10),
+]
+
+SCOPE_BY_CODE = {s["work_scope"]: s for s in LEAN_MACRO_SCOPES}
+SCOPE_BY_ID = {s["id"]: s for s in LEAN_MACRO_SCOPES}
+TASK_BY_ID = {t["id"]: t for t in LEAN_CORE_TASKS}
 
 def is_user_admin(user):
     if not user or not getattr(user, 'is_authenticated', False):
@@ -141,19 +383,67 @@ def extract_opening_remark(raw_remarks):
     return cleaned.strip(" |")
 
 def format_clean_description(task):
-    """Formats DTR & KPI description cleanly while stripping TC-/TX- disambiguation tags."""
+    """Formats DTR & KPI Column K description cleanly using the Macro Work Scope prefix + Discipline."""
+    if task.work_scope in SCOPE_BY_CODE:
+        prefix = SCOPE_BY_CODE[task.work_scope]["kpi_prefix"]
+        disc = task.action_required or ""
+        return f"{prefix} {disc}".strip()
+
     loc = task.location.split('_', 1)[-1].replace('_', ' ') if task.location and task.location != 'N/A' else ''
     sub = task.sub_location.split('_', 1)[-1].replace('_', ' ') if task.sub_location and task.sub_location != 'N/A' else ''
     scope = task.work_scope.split('_', 1)[-1] if task.work_scope and task.work_scope != 'N/A' else ''
-    for prefix in ['TC-', 'TX-']:
-        if scope.startswith(prefix):
-            scope = scope[len(prefix):]
+    for pfx in ['TC-', 'TX-', 'OFC_', 'TC_', 'TX_', 'NS_', 'OS_', 'MAR_']:
+        if scope.startswith(pfx):
+            scope = scope[len(pfx):]
     scope = scope.replace('_', ' ')
     raw_parts = [loc, sub, scope, task.action_required]
     clean_parts = [p.strip() for p in raw_parts if p and p.strip().lower() != 'general']
     return " ".join(clean_parts)
 
-# --- POINT #7: AUTOMATIC PAGE & ACTION TELEMETRY LOGGER ---
+def infer_macro_scope_for_task(t):
+    """Maps any legacy database task to its appropriate Macro Work Scope while preserving micro-scope text in remarks."""
+    if t.work_scope in SCOPE_BY_CODE:
+        return SCOPE_BY_CODE[t.work_scope]
+    area = (t.area or '').lower()
+    loc = (t.location or '').lower()
+    sub = (t.sub_location or '').lower()
+    ws = (t.work_scope or '').lower()
+    combined = f"{area} {loc} {sub} {ws}"
+
+    if '120_abu' in combined or 'sts' in combined or 'sws' in combined:
+        return SCOPE_BY_ID['MWS-03']
+    if 'project-external' in combined or 'tpc' in combined or 'subcon' in combined:
+        return SCOPE_BY_ID['MWS-02']
+    if area.startswith('100'):
+        return SCOPE_BY_ID['MWS-01']
+    if 'ahdd' in combined or '212' in combined:
+        return SCOPE_BY_ID['MWS-05']
+    if 'tienli' in combined or '213' in combined:
+        return SCOPE_BY_ID['MWS-06']
+    if 'berth' in combined or '214' in combined:
+        return SCOPE_BY_ID['MWS-07']
+    if 'inside plant' in combined or '222' in combined:
+        return SCOPE_BY_ID['MWS-09']
+    if 'tunghsiao' in combined or '220' in combined or '221' in combined:
+        return SCOPE_BY_ID['MWS-08']
+    if area.startswith('200'):
+        return SCOPE_BY_ID['MWS-04']
+    if 'trench 1' in combined or 'trench_1' in combined or '322' in combined or 't1' in ws:
+        return SCOPE_BY_ID['MWS-11']
+    if 'trench 8' in combined or 'trench_8' in combined or '323' in combined or 't8' in ws:
+        return SCOPE_BY_ID['MWS-12']
+    if 'nearshore' in combined or 'dumping' in combined or '320' in combined:
+        return SCOPE_BY_ID['MWS-10']
+    if 'midline' in combined or '337' in combined:
+        return SCOPE_BY_ID['MWS-14']
+    if 'crossing' in combined or '338' in combined or '339' in combined or 'mattress' in combined:
+        return SCOPE_BY_ID['MWS-15']
+    if '310' in combined or 'design' in combined or 'quantity' in combined or '311' in combined or '312' in combined or '313' in combined:
+        return SCOPE_BY_ID['MWS-16']
+    if '330' in combined or 'offshore' in combined or 'trench' in combined:
+        return SCOPE_BY_ID['MWS-13']
+    return SCOPE_BY_ID['MWS-04']
+
 @app.after_request
 def log_user_usage(response):
     try:
@@ -175,7 +465,7 @@ def log_user_usage(response):
 
 with app.app_context():
     db.create_all()
-    # --- REVERSE MIGRATION: Restore Legacy Statuses ---
+    # 1. Reverse status migration failsafe
     try:
         db.session.execute(text("UPDATE survey_task SET status = 'Open' WHERE status = 'OPEN_REQUESTS'"))
         db.session.execute(text("UPDATE survey_task SET status = 'In Progress' WHERE status IN ('FIELD_ACQUISITION', 'DATA_PROCESSING', 'QA_QC_REVIEW')"))
@@ -202,7 +492,6 @@ with app.app_context():
         except Exception:
             db.session.rollback()
 
-    # Ensure VIP Admins have is_admin = True
     try:
         for vip_email in ADMIN_EMAILS:
             vip_user = User.query.filter_by(email=vip_email).first()
@@ -212,138 +501,75 @@ with app.app_context():
     except Exception:
         db.session.rollback()
 
-    # --- REVISED LOCATION TREE WITH TC=TAICHUNG & TX=TUNGHSIAO TAGS ---
-    revised_file_tree = {
-        "100_Office": {
-            "110_Taichung": {
-                "111_Survey_Internal": ["111-00_TC-Survey_General", "111-10_TC-Personnel_Files", "111-20_TC-Personnel_Planning", "111-30_TC-Survey_Subcon"],
-                "112_NMDC_Internal": ["112-00_TC-NMDC_General", "112-10_TC-Admin", "112-20_TC-Subcon_Tech_Review", "112-30_TC-ENERGY"],
-                "113_Project-External": ["113-00_TC-External_General", "113-10_TC-TPC-POE"]
-            },
-            "120_Abu_Dhabi": {
-                "121_STS": ["121-10_KPI", "121-20_WSR"],
-                "122_ADMIN": ["122-00_AD-Admin_General", "122-10_Timesheet", "122-20_TRF"],
-                "123_SWS": ["123-10_Equipment_List", "123-20_SEM", "123-30_AHO"]
-            }
-        },
-        "200_Onshore-Land": {
-            "210_Taichung": {
-                "211_General": ["211-00_TC-General"],
-                "212_AHDD": ["212-00_TC-AHDD_General", "212-10_TC-Trial_Pits", "212-20_TC-Thruster_Pit", "212-30_TC-Crossover_Pits", "212-40_TC-Grit_Tank", "212-50_TC-Drainage"],
-                "213_Tienli": ["213-00_TC-Tienli_General"],
-                "214_Berth37": ["214-00_TC-Berth37_General"],
-                "219_Others": ["219-00_TC-Others"]
-            },
-            "220_Tunghsiao": {
-                "221_Temp Platform": ["221-00_TX-Temp_Platform_General", "221-10_TX-Trial_Pits", "221-20_TX-Thruster_Pit", "221-30_TX-Crossover_Pits", "221-40_TX-Grit_Tank", "221-50_TX-Drainage", "221-60_TX-Microtunneling"],
-                "222_Inside Plant": ["222-00_TX-Inside_Plant_General", "222-10_TX-IP_Trial_Pits", "222-20_TX-IP_Crossover_Pits"],
-                "229_Others": ["229-00_TX-Others"]
-            }
-        },
-        "300_Marine": {
-            "310_General": {
-                "311_Surveys": ["311-10_Marine_Pre-Surveys", "311-20_Marine_Progress-Surveys", "311-30_Marine_Post-Surveys"],
-                "312_Design": ["312-00_Design_General", "312-10_DXF_Backgrounds", "312-20_Routelines", "312-30_3DM+Outlines"],
-                "313_Quantity": ["313-10_ICQP_Format", "313-20_CECI_Format", "313-30_Other_Formats"]
-            },
-            "320_Nearshore": {
-                "321_General": ["321-00_Nearshore_General"],
-                "322_Trench 1": ["322-00_T1_General", "322-10_T1_Dredging", "322-20_T1_Pipelaying_A", "322-30_T1_Pipelaying_B", "322-40_T1_SRI", "322-50_T1_Backfilling"],
-                "323_Trench 8": ["323-00_T8_General", "323-10_T8_Dredging", "323-20_T8_Pipelaying_A", "323-30_T8_Pipelaying_B", "323-40_T8_SRI", "323-50_T8_Backfilling"]
-            },
-            "330_Offshore": {
-                "331_Trench 2": ["331-00_T2_General", "331-10_T2_Pipelaying_A", "331-20_T2_Post-Trenching-A", "331-30_T2_SRI-A", "331-40_T2_Pipelaying_B", "331-50_T2_Post-Trenching-B", "331-60_T2_SRI-B"],
-                "332_Trench 3": ["332-00_T3_General", "332-10_T3_Pipelaying_A", "332-20_T3_Post-Trenching-A", "332-30_T3_SRI-A", "332-40_T3_Pipelaying_B", "332-50_T3_Post-Trenching-B", "332-60_T3_SRI-B"],
-                "333_Trench 4": ["333-00_T4_General", "333-10_T4_Pipelaying_A", "333-20_T4_Post-Trenching-A", "333-30_T4_SRI-A", "333-40_T4_Pipelaying_B", "333-50_T4_Post-Trenching-B", "333-60_T4_SRI-B"],
-                "334_Trench 5": ["334-00_T5_General", "334-10_T5_Pipelaying_A", "334-20_T5_Post-Trenching-A", "334-30_T5_SRI-A", "334-40_T5_Pipelaying_B", "334-50_T5_Post-Trenching-B", "334-60_T5_SRI-B", "334-70_T5_Backfilling_A", "334-80_T5_Backfilling_B"],
-                "335_Trench 6": ["335-00_T6_General", "335-10_T6_Pipelaying_A", "335-20_T6_Post-Trenching-A", "335-30_T6_SRI-A", "335-40_T6_Pipelaying_B", "335-50_T6_Post-Trenching-B", "335-60_T6_SRI-B", "335-70_T6_Backfilling_A", "335-80_T6_Backfilling_B"],
-                "336_Trench 7": ["336-00_T7_General", "336-10_T7_Pipelaying_A", "336-20_T7_Post-Trenching-A", "336-30_T7_SRI-A", "336-40_T7_Pipelaying_B", "336-50_T7_Post-Trenching-B", "336-60_T7_SRI-B", "336-70_T7_Backfilling_A", "336-80_T7_Backfilling_B"],
-                "337_Midline_Tie-in": ["337-00_Midline_General", "337-10_Midline_Dredging", "337-20_Midline_Pipelaying_A", "337-30_Midline_Pipelaying_B", "337-40_Midline_Post-Trenching-A", "337-50_Midline_Post-Trenching-B", "337-60_Midline_SRI-A", "337-70_Midline_SRI-B"],
-                "338_Crossing-A": ["338-11_A1 Mattress Installation", "338-12_A1 Pipelaying", "338-13_A1 SRI", "338-21_A2 Mattress Installation", "338-22_A2 Pipelaying", "338-23_A2 SRI", "338-31_A3 Mattress Installation", "338-32_A3 Pipelaying", "338-33_A3 SRI"],
-                "339_Crossing-B": ["339-11_B1 Mattress Installation", "339-12_B1 Pipelaying", "339-13_B1 SRI", "339-21_B2 Mattress Installation", "339-22_B2 Pipelaying", "339-23_B2 SRI", "339-31_B3 Mattress Installation", "339-32_B3 Pipelaying", "339-33_B3 SRI"]
-            }
-        }
+    # 2. Build Lean File Tree & Activities Dictionary from the 16 Macro Scopes & 14 Core Tasks
+    lean_file_tree = {}
+    for s in LEAN_MACRO_SCOPES:
+        lean_file_tree.setdefault(s["area"], {}).setdefault(s["location"], {}).setdefault(s["sub_location"], [])
+        if s["work_scope"] not in lean_file_tree[s["area"]][s["location"]][s["sub_location"]]:
+            lean_file_tree[s["area"]][s["location"]][s["sub_location"]].append(s["work_scope"])
+
+    lean_activities = {}
+    for t in LEAN_CORE_TASKS:
+        lean_activities.setdefault(t["task_category"], {})[t["action_required"]] = t["instruments"]
+
+    default_requestors = {
+        "Logistic": ["Gabe Venema", "Chiao Lin", "Vicky Zeng", "Jamie Tseng", "Madge Lin"],
+        "Survey": ["Mok Wai Heng", "Daryll Enano", "Roderick Gonzales Clavel", "Mohamad Abror Hediarto", "Danilo Bartolome", "Mateo Moralleda"],
+        "Offshore": ["Walaa Ezzat Gomaa", "Peter Wu", "Kah Chong Ng", "Chun Lai Low", "Evan Su"],
+        "Onshore & Dredging": ["Sven Van Guyse", "Haris Andreou", "Eason Ko", "Shiao-Yin Pai", "Chun-Yuan Cheng", "Ibrahim Yalciner", "Subin Vaniyakandiyil", "Katharine Lien", "Berk Savaser", "Harsha Anudeep Botta", "Ayman Sohad Wahby", "Georgios Zormpas", "Nandhu Chandran Kuttikkattu", "Kevin Shen", "Hunter Hsieh", "Lucas Ho", "Yu-Jen LIN"],
+        "Quality": ["Oon Kwee Yin", "Victor Wang", "Win Hua Wong", "Allen Cheng", "Renan Torno", "Jake Lu", "James Huang", "Bill Ku", "Chien-Hua Chang", "Carol Kao", "Tim Dai", "Yuan-His Chang", "Toh Lin Sid", "Khairul Aswan Bin Saari"],
+        "HSE": ["Sam Yeh", "Paul Tong", "Raymond Huang", "Sean Chu", "Jacqueline Peng", "Jin Wang", "Jeffrey Liu", "Kong Yong Won", "Jet Lee", "Ben Cheng", "Elson Liu", "Sue Peng", "Noah Hsieh", "Yu-Ju Tang", "Vic Wang"],
+        "Subcontracts": ["Stewart Ho"],
+        "Procurement": ["Karen Fan"],
+        "Project Control": ["Ajith John", "Bijo Mathew", "Shang Tse Lee", "Gerard Gonzales Batucan", "Daniel Widjaja", "Joseph Lin", "Eugenia Shen", "Siew-Peng Yap", "Jessica Liu", "Nestor Esler", "Dennis Laga"],
+        "Contract": ["Yoon Choy Low", "Tim Lee", "Li Hao Kuo"],
+        "ADM": ["Chih Hua Chen", "Becky Wang", "Sylvia Liu", "Benny Yang"],
+        "HR": ["Sophie Tseng", "Veronica Hsu", "Patty Lin"],
+        "Finance": ["Sharon", "Jimmy Chiu", "Steven Chnag"],
+        "Project": ["Ayman Elsherif", "Eric Van Meerendonk", "Richard Stam", "Alex George", "Leo Ho", "Sathyanarayana Dixit", "Gerald Chen"]
     }
 
-    master_config = {
-        "file_tree": revised_file_tree,
-        "requestors": {
-            "Logistic": ["Gabe Venema", "Chiao Lin", "Vicky Zeng", "Jamie Tseng", "Madge Lin"],
-            "Survey": ["Mok Wai Heng", "Daryll Enano", "Roderick Gonzales Clavel", "Mohamad Abror Hediarto", "Danilo Bartolome", "Mateo Moralleda"],
-            "Offshore": ["Walaa Ezzat Gomaa", "Peter Wu", "Kah Chong Ng", "Chun Lai Low", "Evan Su"],
-            "Onshore & Dredging": ["Sven Van Guyse", "Haris Andreou", "Eason Ko", "Shiao-Yin Pai", "Chun-Yuan Cheng", "Ibrahim Yalciner", "Subin Vaniyakandiyil", "Katharine Lien", "Berk Savaser", "Harsha Anudeep Botta", "Ayman Sohad Wahby", "Georgios Zormpas", "Nandhu Chandran Kuttikkattu", "Kevin Shen", "Hunter Hsieh", "Lucas Ho", "Yu-Jen LIN"],
-            "Quality": ["Oon Kwee Yin", "Victor Wang", "Win Hua Wong", "Allen Cheng", "Renan Torno", "Jake Lu", "James Huang", "Bill Ku", "Chien-Hua Chang", "Carol Kao", "Tim Dai", "Yuan-His Chang", "Toh Lin Sid", "Khairul Aswan Bin Saari"],
-            "HSE": ["Sam Yeh", "Paul Tong", "Raymond Huang", "Sean Chu", "Jacqueline Peng", "Jin Wang", "Jeffrey Liu", "Kong Yong Won", "Jet Lee", "Ben Cheng", "Elson Liu", "Sue Peng", "Noah Hsieh", "Yu-Ju Tang", "Vic Wang"],
-            "Subcontracts": ["Stewart Ho"],
-            "Procurement": ["Karen Fan"],
-            "Project Control": ["Ajith John", "Bijo Mathew", "Shang Tse Lee", "Gerard Gonzales Batucan", "Daniel Widjaja", "Joseph Lin", "Eugenia Shen", "Siew-Peng Yap", "Jessica Liu", "Nestor Esler", "Dennis Laga"],
-            "Contract": ["Yoon Choy Low", "Tim Lee", "Li Hao Kuo"],
-            "ADM": ["Chih Hua Chen", "Becky Wang", "Sylvia Liu", "Benny Yang"],
-            "HR": ["Sophie Tseng", "Veronica Hsu", "Patty Lin"],
-            "Finance": ["Sharon", "Jimmy Chiu", "Steven Chnag"],
-            "Project": ["Ayman Elsherif", "Eric Van Meerendonk", "Richard Stam", "Alex George", "Leo Ho", "Sathyanarayana Dixit", "Gerald Chen"]
-        },
-        "activities": {
-            "Office Admin Works": {
-                "Internal Coordination Meetings": ["Face to Face", "Teams", "PC"],
-                "External Meetings": ["Face to Face", "Teams", "PC"],
-                "Survey Input - ICQP": ["Face to Face", "Teams", "PC"],
-                "Survey Input - Others": ["Face to Face", "Teams", "PC"],
-                "Survey Reports": ["Teams", "PC", "Excel"]
-            },
-            "Land Survey": {
-                "Pre-Survey": ["GNSS Rover", "Total Station", "Lidar", "Drone"],
-                "Progress Survey": ["GNSS Rover", "Total Station", "Lidar", "Drone"],
-                "Post-Survey": ["GNSS Rover", "Total Station", "Lidar", "Drone"],
-                "As-built Survey": ["GNSS Rover", "Total Station", "Lidar", "Drone"],
-                "Check Survey": ["GNSS Rover", "Total Station", "Levelling Machine"],
-                "Tender Survey": ["GNSS Rover", "Total Station", "Lidar", "Drone"],
-                "Setting-Out Survey": ["GNSS Rover", "Total Station"],
-                "Stake-Out/Marking": ["GNSS Rover", "Total Station"],
-                "Benchmark Verification": ["GNSS Rover", "Total Station"],
-                "Stockpile Survey": ["GNSS Rover", "Total Station", "Lidar Equipment", "Drone"],
-                "GI Survey": ["GNSS Rover", "Total Station"]
-            },
-            "Bathymetric Survey": {
-                "Tender Survey": ["MBES  WS166", "SBES"],
-                "Pre-Survey": ["MBES  WS166", "SBES"],
-                "Progress Survey": ["MBES  WS166", "SBES"],
-                "Post Survey": ["MBES  WS166", "SBES"],
-                "As-Built Survey": ["MBES  WS166", "SBES"]
-            },
-            "Geophysical Survey": {
-                "Geophysical Presurvey": ["Maggy", "SSS", "SBP"],
-                "Geophysical Check Survey": ["Maggy", "SSS", "SBP"],
-                "Geophysical Progress survey": ["Maggy", "SSS", "SBP"],
-                "Geophysical Survey Post-Processing": ["Reporting", "CAD"]
-            },
-            "Survey Data Deliverables": {
-                "Design Creation/Revision": ["PDS", "Terramodel", "Civil3D", "CAD"],
-                "Volume Calculation": ["PDS", "Terramodel", "Civil3D"],
-                "Data Volume Calculation": ["PDS", "Terramodel", "Civil3D", "Excel"]
-            },
-            "Equipment Configuration": {
-                "Background Files Creation": ["PDS", "Terramodel", "Civil3D", "CAD"],
-                "Guidance Files Creation": ["PDS", "Terramodel", "Civil3D", "CAD"],
-                "Survey Software Configuration": ["PDS", "DTPS", "Terramodel", "Civil3D", "CAD", "PC"],
-                "Survey Calibration/Troubleshooting": ["PDS", "DTPS", "CAD", "PC", "Others"]
-            }
-        }
-    }
-    
     config = AppConfig.query.first()
-    if not config: 
+    if not config:
+        master_config = {"file_tree": lean_file_tree, "requestors": default_requestors, "activities": lean_activities}
         db.session.add(AppConfig(schema_data=json.dumps(master_config)))
         db.session.commit()
     else:
         try:
             existing_schema = json.loads(config.schema_data)
-            if "212-20_TC-Thruster_Pit" not in json.dumps(existing_schema.get("file_tree", {})):
-                existing_schema["file_tree"] = revised_file_tree
-                config.schema_data = json.dumps(existing_schema)
-                db.session.commit()
+            existing_schema["file_tree"] = lean_file_tree
+            existing_schema["activities"] = lean_activities
+            if "requestors" not in existing_schema or not existing_schema["requestors"]:
+                existing_schema["requestors"] = default_requestors
+            config.schema_data = json.dumps(existing_schema)
+            db.session.commit()
         except Exception:
             db.session.rollback()
+
+    # 3. Smart Database Consolidation: Migrate existing tasks into the 16 Macro Scopes & preserve micro-scope in remarks
+    try:
+        non_legacy_tasks = SurveyTask.query.filter(SurveyTask.area != '900_Legacy_Data').all()
+        migrated_any = False
+        for t in non_legacy_tasks:
+            if t.work_scope not in SCOPE_BY_CODE:
+                old_scope_clean = t.work_scope.split('_', 1)[-1].replace('_', ' ').strip() if t.work_scope else ''
+                for pfx in ['TC-', 'TX-']:
+                    if old_scope_clean.startswith(pfx):
+                        old_scope_clean = old_scope_clean[len(pfx):].strip()
+                target_macro = infer_macro_scope_for_task(t)
+                if old_scope_clean and old_scope_clean.lower() not in ['general', 'others', 'all crossing']:
+                    curr_rem = t.remarks or ''
+                    if old_scope_clean.lower() not in curr_rem.lower():
+                        t.remarks = f"[{old_scope_clean}] {curr_rem}".strip() if curr_rem else f"[{old_scope_clean}]"
+                t.area = target_macro["area"]
+                t.location = target_macro["location"]
+                t.sub_location = target_macro["sub_location"]
+                t.work_scope = target_macro["work_scope"]
+                migrated_any = True
+        if migrated_any:
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -597,9 +823,7 @@ def escalate_aging_tasks():
 def dashboard():
     session['dashboard_view'] = 'user'
     escalate_aging_tasks()
-    all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived') \
-        .order_by(SurveyTask.is_urgent.desc(), SurveyTask.priority.asc(), SurveyTask.start_time.desc()) \
-        .limit(300).all()
+    all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived')         .order_by(SurveyTask.is_urgent.desc(), SurveyTask.priority.asc(), SurveyTask.start_time.desc())         .limit(300).all()
     is_admin = is_user_admin(current_user)
     all_users = User.query.order_by(User.name.asc()).all()
     initials_map = {u.name: (u.initials.upper() if u.initials else ((u.name.split()[0][0] + u.name.split()[1][0]).upper() if len(u.name.split()) >= 2 else u.name[:2].upper())) for u in all_users}
@@ -614,9 +838,7 @@ def admin_dashboard():
 
     session['dashboard_view'] = 'admin'
     escalate_aging_tasks()
-    all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived') \
-        .order_by(SurveyTask.is_urgent.desc(), SurveyTask.priority.asc(), SurveyTask.start_time.desc()) \
-        .limit(300).all()
+    all_tasks = SurveyTask.query.filter(SurveyTask.status != 'Archived')         .order_by(SurveyTask.is_urgent.desc(), SurveyTask.priority.asc(), SurveyTask.start_time.desc())         .limit(300).all()
     users = User.query.order_by(User.name.asc()).all()
     initials_map = {u.name: (u.initials.upper() if u.initials else ((u.name.split()[0][0] + u.name.split()[1][0]).upper() if len(u.name.split()) >= 2 else u.name[:2].upper())) for u in users}
 
@@ -642,7 +864,6 @@ def admin_dashboard():
                     break
     return render_template('admin_dashboard.html', name=current_user.name, tasks=all_tasks, users=users, kpi_summary_json=json.dumps(months_data), initials_map=initials_map)
 
-# --- POINT #7: ADMIN TELEMETRY DASHBOARD ---
 @app.route('/usage_telemetry')
 @login_required
 def usage_telemetry():
@@ -816,28 +1037,26 @@ def migrate_data():
             return redirect(url_for('migrate_data'))
         try:
             excel_file = pd.ExcelFile(file)
-            target_sheet = next((s for s in excel_file.sheet_names if 'master' in s.lower()), excel_file.sheet_names[0])
+            target_sheet = next((s for s in excel_file.sheet_names if 'master' in s.lower() or 'combined' in s.lower()), excel_file.sheet_names[0])
             df_raw = pd.read_excel(file, sheet_name=target_sheet, header=None).fillna('')
             header_row_idx = -1
             col_map = {}
             for idx, row in df_raw.iterrows():
                 row_vals = [str(x).strip().lower() for x in row.values]
-                if 'from date' in row_vals or 'description of survey daily activities' in row_vals:
+                if any(k in ' '.join(row_vals) for k in ['from date', 'date/time received', 'description of survey']):
                     header_row_idx = idx
                     for col_idx, val in enumerate(row_vals):
-                        if 'from date' in val: col_map['date'] = col_idx
-                        elif 'requestor' in val: col_map['req'] = col_idx
+                        if 'from date' in val or 'date/time received' in val: col_map['date'] = col_idx
+                        elif 'requestor' in val and 'ref' not in val: col_map['req'] = col_idx
                         elif 'pic' in val or 'assigned to' in val: col_map['pic'] = col_idx
                         elif 'involve' in val: col_map['person'] = col_idx
                         elif 'activity type' in val: col_map['act'] = col_idx
                         elif 'discipline' in val: col_map['disc'] = col_idx
                         elif 'description' in val or 'daily activities' in val: col_map['desc'] = col_idx
-                        elif 'detail' in val or 'condition' in val: col_map['rem1'] = col_idx
-                        elif 'remarks' in val: col_map['rem2'] = col_idx
-                        elif 'store' in val: col_map['store'] = col_idx
+                        elif 'detail' in val or 'condition' in val or 'remarks' in val: col_map['rem2'] = col_idx
                     break
             if header_row_idx == -1:
-                flash("Error: Could not find headers (like 'From Date').", 'error')
+                flash("Error: Could not find headers (like 'From Date' or 'Date/Time Received').", 'error')
                 return redirect(url_for('migrate_data'))
             migrated_count = 0
             for idx in range(header_row_idx + 1, len(df_raw)):
@@ -846,6 +1065,8 @@ def migrate_data():
                     return str(row[col_map[key]]).strip() if key in col_map and col_map[key] < len(row) else ''
                 date_val, desc = get_val('date'), get_val('desc')
                 if not date_val and not desc:
+                    continue
+                if '1900-01-07' in date_val:
                     continue
                 parsed = pd.to_datetime(date_val, errors='coerce')
                 start_date = parsed.to_pydatetime() if not pd.isna(parsed) else datetime.utcnow()
@@ -940,7 +1161,7 @@ def hidden_config():
         return redirect(url_for('hidden_config'))
     return render_template('hidden_admin.html', master_schema_json=json.dumps(master_schema))
 
-# --- POINT #8: NEW TASK WITH TOP 3 FREQUENT & PAGINATED FULL HISTORY ---
+# --- UNIFIED OMNI-SEARCH + 16 MACRO WORK SCOPES + 14 CORE TASKS ---
 @app.route('/new_task', methods=['GET', 'POST'])
 @login_required
 def new_task():
@@ -997,7 +1218,28 @@ def new_task():
 
             flash('New task opened successfully!', 'success')
             return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
-            
+
+        # Merge canonical 16 Macro Scopes with any custom scopes added later via /system_config_hidden
+        macro_scopes_list = list(LEAN_MACRO_SCOPES)
+        known_codes = {s["work_scope"] for s in macro_scopes_list}
+        for area_k, locs_v in file_tree.items():
+            for loc_k, subs_v in locs_v.items():
+                for sub_k, scopes_v in subs_v.items():
+                    for sc_code in scopes_v:
+                        if sc_code not in known_codes:
+                            clean_lbl = sc_code.split('_', 1)[-1].replace('_', ' ')
+                            macro_scopes_list.append({
+                                "id": f"CUSTOM-{len(macro_scopes_list)+1}",
+                                "group": "Custom Added Scopes",
+                                "label": f"Custom - {clean_lbl}",
+                                "area": area_k, "location": loc_k, "sub_location": sub_k,
+                                "work_scope": sc_code, "kpi_prefix": clean_lbl,
+                                "hint": "Enter specific details for this custom work scope..."
+                            })
+                            known_codes.add(sc_code)
+
+        scope_label_by_code = {s["work_scope"]: s["label"] for s in macro_scopes_list}
+
         # Build Personal Task History & Frequency Ranking
         user_tasks = SurveyTask.query.filter(
             or_(
@@ -1019,6 +1261,7 @@ def new_task():
             if req_person:
                 req_counter[req_person] += 1
 
+            sc_lbl = scope_label_by_code.get(t.work_scope, t.work_scope)
             key = (t.work_scope, t.action_required, t.instrument or '', t.task_category or '')
             pattern_counter[key] += 1
             if key not in pattern_meta:
@@ -1030,7 +1273,8 @@ def new_task():
                     'area': t.area or '',
                     'location': t.location or '',
                     'sub_location': t.sub_location or '',
-                    'work_scope': t.work_scope or ''
+                    'work_scope': t.work_scope or '',
+                    'scope_label': sc_lbl
                 }
             recent_history.append({
                 'date': (t.execution_date or t.start_time).strftime('%Y-%m-%d') if (t.execution_date or t.start_time) else '',
@@ -1043,7 +1287,8 @@ def new_task():
                 'location': t.location or '',
                 'sub_location': t.sub_location or '',
                 'work_scope': t.work_scope or '',
-                'remarks': extract_opening_remark(t.remarks)[:60]
+                'scope_label': sc_lbl,
+                'remarks': extract_opening_remark(t.remarks)[:65]
             })
 
         frequent_patterns = []
@@ -1052,8 +1297,49 @@ def new_task():
             entry['count'] = cnt
             frequent_patterns.append(entry)
 
-        top_requestors = [{'name': name, 'count': cnt} for name, cnt in req_counter.most_common(3)]
+        # Build Unified Omni-Search Cards (16 Macro Scopes x 14 Core Tasks, ranked by historical frequency)
+        seed_weights = {(m_id, c_id): w for m_id, c_id, w in HISTORICAL_OMNI_SEEDS}
+        omni_cards = []
+        for s in macro_scopes_list:
+            for ct in LEAN_CORE_TASKS:
+                hist_w = seed_weights.get((s["id"], ct["id"]), 0)
+                omni_cards.append({
+                    "scope_id": s["id"],
+                    "task_id": ct["id"],
+                    "scope_label": s["label"],
+                    "scope_group": s["group"],
+                    "area": s["area"],
+                    "location": s["location"],
+                    "sub_location": s["sub_location"],
+                    "work_scope": s["work_scope"],
+                    "hint": s["hint"],
+                    "task_label": ct["label"],
+                    "action_required": ct["action_required"],
+                    "task_category": ct["task_category"],
+                    "command_verb": ct["command_verb"],
+                    "instrument": ct["default_instrument"],
+                    "weight": hist_w,
+                    "display": f"[{ct['command_verb']}] {ct['label']}  @  {s['label']}"
+                })
+        omni_cards.sort(key=lambda x: (-x["weight"], x["scope_label"], x["task_label"]))
 
+        # If user has fewer than 3 personal tasks so far, seed Top 3 with top project-wide patterns
+        if len(frequent_patterns) < 3:
+            for oc in omni_cards[:3 - len(frequent_patterns)]:
+                frequent_patterns.append({
+                    'command_verb': oc['command_verb'],
+                    'task_category': oc['task_category'],
+                    'action_required': oc['action_required'],
+                    'instrument': oc['instrument'],
+                    'area': oc['area'],
+                    'location': oc['location'],
+                    'sub_location': oc['sub_location'],
+                    'work_scope': oc['work_scope'],
+                    'scope_label': oc['scope_label'],
+                    'count': oc['weight']
+                })
+
+        top_requestors = [{'name': name, 'count': cnt} for name, cnt in req_counter.most_common(3)]
         user_presets = PresetTask.query.filter_by(user_id=current_user.id).all()
         presets_dict = {
             p.id: {
@@ -1070,8 +1356,9 @@ def new_task():
                                current_user_name=current_user.name,
                                users=User.query.filter_by(is_approved=True, is_active=True).order_by(User.name.asc()).all(),
                                req_dict_json=json.dumps(req_dict), 
-                               schema_json=json.dumps(file_tree),
-                               activities_json=json.dumps(activities_data),
+                               macro_scopes_json=json.dumps(macro_scopes_list),
+                               core_tasks_json=json.dumps(LEAN_CORE_TASKS),
+                               omni_cards_json=json.dumps(omni_cards),
                                presets_json=json.dumps(presets_dict),
                                frequent_patterns_json=json.dumps(frequent_patterns),
                                recent_history_json=json.dumps(recent_history),
@@ -1296,7 +1583,7 @@ def delete_preset(preset_id):
         flash(f"Preset '{preset.preset_name}' deleted.", 'success')
     return redirect(request.referrer or url_for('new_task'))
     
-# --- REPORT GENERATOR ROUTES (DTR & KPI EXCEL ONLY; WSR & TPC REMOVED) ---
+# --- REPORT GENERATOR ROUTES (DTR & KPI EXCEL ONLY) ---
 @app.route('/reports')
 @login_required
 def reports():
