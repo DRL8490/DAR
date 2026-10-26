@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Open New Survey Task - NMDC</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f4f7f6; }
+        .form-card { border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: none; }
+        .form-header { background: linear-gradient(90deg, #0056b3 0%, #0d6efd 100%); color: white; border-radius: 12px 12px 0 0 !important; font-weight: bold; padding: 14px 20px; }
+        .freq-card { cursor: pointer; transition: all 0.2s; border: 1px solid #cfe2ff; background: #f8fbff; border-radius: 8px; padding: 10px 12px; }
+        .freq-card:hover { background: #e7f1ff; border-color: #0d6efd; transform: translateY(-2px); box-shadow: 0 4px 10px rgba(13,110,253,0.14); }
+        .quick-chip { cursor: pointer; transition: all 0.15s; font-size: 12px; font-weight: 600; padding: 6px 12px; user-select: none; }
+        .quick-chip:hover { transform: translateY(-1px); box-shadow: 0 3px 6px rgba(0,0,0,0.12); }
+        .omni-box { background: #eef6ff; border: 2px solid #0d6efd; border-radius: 10px; padding: 16px; position: relative; }
+        .omni-results { position: absolute; left: 16px; right: 16px; top: 100%; z-index: 1050; max-height: 320px; overflow-y: auto; background: white; border: 1px solid #0d6efd; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.18); display: none; margin-top: 4px; }
+        .omni-item { padding: 10px 14px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+        .omni-item:hover { background: #e7f1ff; }
+        .path-pill { background: #e8f5e9; border: 1px solid #a3cfbb; color: #0f5132; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 700; }
+        .adv-toggle { cursor: pointer; color: #6c757d; font-size: 13px; font-weight: bold; text-decoration: none; }
+        .adv-toggle:hover { color: #343a40; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-3">
+    <div class="container">
+        <a class="navbar-brand fw-bold" href="#"><i class="fas fa-plus-circle text-info me-1"></i> Open New Survey Task</a>
+        <a href="{{ url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard') }}" class="btn btn-outline-light btn-sm fw-bold">
+            <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
+        </a>
+    </div>
+</nav>
+
+<div class="container pb-5" style="max-width: 1040px;">
+
+    <!-- TOP 3 MOST FREQUENT TASKS + FULL HISTORY (10 / PAGE) -->
+    <div class="card mb-3 shadow-sm" style="border-left: 5px solid #0d6efd;">
+        <div class="card-body py-3">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                <div>
+                    <span class="fw-bold text-primary"><i class="fas fa-bolt"></i> Your Top 3 Most Frequent Tasks (1-Click Autofill)</span>
+                    <small class="text-muted ms-2">Click any card to populate Work Scope, Task, Verb & Instrument</small>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="openHistoryModal()">
+                    <i class="fas fa-history"></i> 📜 Browse Full History (10 / page)
+                </button>
+            </div>
+            <div class="row g-2" id="top3Container"></div>
+        </div>
+    </div>
+
+    {% if presets %}
+    <div class="card mb-3 shadow-sm" style="border-left: 5px solid #0dcaf0;">
+        <div class="card-body py-2">
+            <div class="row align-items-center">
+                <div class="col-auto fw-bold text-info"><i class="fas fa-star"></i> Saved Presets:</div>
+                <div class="col">
+                    <select class="form-select form-select-sm" id="presetLoader" onchange="loadPreset()">
+                        <option value="">-- Choose a saved preset --</option>
+                        {% for p in presets %}
+                            <option value="{{ p.id }}">{{ p.preset_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <form id="deletePresetForm" method="POST" style="display: none; margin: 0;">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Preset" onclick="return confirm('Delete this preset?');">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="mt-2 mb-3">
+            {% for category, message in messages %}
+                <div class="alert alert-{% if category == 'error' %}danger{% else %}success{% endif %} alert-dismissible fade show shadow-sm" role="alert">
+                    <i class="fas {% if category == 'error' %}fa-exclamation-triangle{% else %}fa-check-circle{% endif %} me-2"></i>
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- SINGLE UNIFIED 1-CARD LAYOUT -->
+    <form method="POST" id="newTaskForm">
+        <div class="card form-card mb-4">
+            <div class="card-header form-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <span><i class="fas fa-compass me-1"></i> Unified Task & Work Scope Launcher</span>
+                <span class="badge bg-light text-dark fw-bold">16 Macro Work Scopes × 14 Core Survey Tasks</span>
+            </div>
+            <div class="card-body p-4">
+
+                <!-- 1. UNIFIED OMNI-SEARCH BAR (TASK + WORK SCOPE COMBINED) -->
+                <div class="omni-box mb-4">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap mb-1">
+                        <label class="form-label fw-bold text-primary mb-0" style="font-size: 15px;">
+                            <i class="fas fa-search"></i> Unified Omni-Search (Type Task + Work Scope Together)
+                        </label>
+                        <span class="badge bg-primary">TC = Taichung | TX = Tunghsiao | NS = Nearshore | OS = Offshore</span>
+                    </div>
+                    <small class="text-muted d-block mb-2">
+                        Type any combination like <strong>"AHDD Settlement"</strong>, <strong>"Temp Platform Drawing"</strong>, <strong>"T8 Bathy"</strong>, <strong>"Crossing"</strong>, or <strong>"Berth 37"</strong>:
+                    </small>
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-primary text-primary"><i class="fas fa-magic"></i></span>
+                        <input type="text" class="form-control form-control-lg border-primary fw-semibold" id="omniSearchInput" autocomplete="off"
+                               placeholder="Search Task + Work Scope (e.g., AHDD Monitoring, T1 Volume, Crossing Bathy, Temp Platform Stakeout)..."
+                               onfocus="renderOmniResults()" oninput="renderOmniResults()">
+                        <button class="btn btn-outline-secondary" type="button" onclick="clearOmniSearch()" title="Clear Search"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div id="omniResultsDropdown" class="omni-results"></div>
+
+                    <!-- PINNED 1-CLICK QUICK CHIPS (Rendered from app.py QUICK_PICK_CHIPS) -->
+                    <div class="d-flex flex-wrap gap-2 mt-3 align-items-center" id="quickChipsContainer"></div>
+                </div>
+
+                <!-- 2. TWO-STEP MANUAL SELECTOR (WORK SCOPE + CORE TASK) -->
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold text-success">
+                            <i class="fas fa-map-marker-alt me-1"></i> Step 1: Work Scope <span class="text-muted fw-normal small">(Location Pre-Tied)</span>
+                        </label>
+                        <select class="form-select border-success fw-bold" id="macro_scope_select" onchange="onMacroScopeChange()" required>
+                            <option value="">-- Select Work Scope (16 Macro Zones) --</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold text-primary">
+                            <i class="fas fa-tasks me-1"></i> Step 2: Survey Task / Discipline <span class="text-muted fw-normal small">(Auto-Sets Verb & Activity)</span>
+                        </label>
+                        <select class="form-select border-primary fw-bold" id="core_task_select" onchange="onCoreTaskChange()" required>
+                            <option value="">-- Select Survey Task (14 Core Tasks) --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- AUTO-TIED PATH & LIVE KPI COLUMN K PREVIEW BAR (INCLUDING OPENING REMARKS) -->
+                <div class="path-pill mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div>
+                        <span class="text-uppercase small text-secondary fw-bold me-1">Auto-Tied Location Path:</span>
+                        <span id="path_display">[ Select a Work Scope or Use Omni-Search Above ]</span>
+                    </div>
+                    <span id="kpi_preview_badge" class="badge bg-success" style="font-size: 12px; white-space: normal; text-align: right;">KPI Col K Preview</span>
+                </div>
+
+                <!-- Hidden DB Location Fields -->
+                <input type="hidden" name="area" id="hidden_area" required>
+                <input type="hidden" name="location" id="hidden_location" required>
+                <input type="hidden" name="sub_location" id="hidden_sub" required>
+                <input type="hidden" name="work_scope" id="hidden_scope" required>
+
+                <!-- AUTO-PAIRED VERB, ACTIVITY TYPE, DISCIPLINE & INSTRUMENT -->
+                <div class="row g-2 mb-4 p-2 bg-light border rounded">
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold text-danger small mb-1">Mission Verb (Auto)</label>
+                        <select class="form-select form-select-sm border-danger fw-bold" id="command_verb" name="command_verb" required>
+                            <optgroup label="Execution (Core)">
+                                <option value="PERFORM">PERFORM (Field Surveys)</option>
+                                <option value="PROCESS">PROCESS (Data & Volumes)</option>
+                                <option value="DRAFT">DRAFT (Drawings & Charts)</option>
+                                <option value="SETUP">SETUP (Config & Calib)</option>
+                            </optgroup>
+                            <optgroup label="Quality & Coordination">
+                                <option value="VERIFY">VERIFY (Checks & QA/QC)</option>
+                                <option value="REVIEW">REVIEW (Subcon / Tech Review)</option>
+                                <option value="COORDINATE">COORDINATE (Site & Team Coord)</option>
+                                <option value="PROVIDE">PROVIDE (Survey Input/Support)</option>
+                                <option value="ATTEND">ATTEND (Meetings)</option>
+                            </optgroup>
+                            <optgroup label="Deliverables">
+                                <option value="SUBMIT">SUBMIT (Reports / KPI / DC)</option>
+                                <option value="FILE">FILE (Archive / Records)</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold small mb-1">Activity Type (Auto)</label>
+                        <input type="text" class="form-control form-control-sm bg-white fw-semibold" id="task_category" name="task_category" readonly required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold small mb-1">KPI Discipline (Auto)</label>
+                        <input type="text" class="form-control form-control-sm bg-white fw-semibold" id="action_required" name="action_required" readonly required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label fw-bold small mb-1">Instrument / Tool</label>
+                        <select class="form-select form-select-sm fw-bold" id="instrument" name="instrument" required>
+                            <option value="">-- Select Tool --</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 3. SPECIFIC DETAILS (REMARKS) + STAFF & REQUESTOR -->
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold small">
+                            <i class="fas fa-pen me-1 text-primary"></i> Step 3: Specific Task Details / Opening Remarks (Appended to KPI Column K)
+                        </label>
+                        <textarea class="form-control border-primary" name="remarks" id="remarks_input" rows="4"
+                                  oninput="updateKpiPreviewBadge()"
+                                  placeholder="Type specific details (e.g., Crossing ID, Pit name, Chainage Ch 0+120, Vessel name)..." required></textarea>
+                        <small id="scope_hint_text" class="text-primary fw-semibold d-block mt-1">
+                            💡 Tip: Whatever you type here is automatically included in KPI Master Register Column K!
+                        </small>
+                    </div>
+
+                    <div class="col-md-6">
+                        <datalist id="user_list">
+                            {% for u in users %}
+                                <option value="{{ u.name }}"></option>
+                            {% endfor %}
+                        </datalist>
+
+                        <div class="mb-2" id="surveyor_container">
+                            <label class="form-label fw-bold small mb-1">Assigned To <span class="text-muted fw-normal">(Pre-filled with your name)</span></label>
+                            <div class="input-group input-group-sm mb-2">
+                                <input list="user_list" class="form-control fw-semibold" name="assigned_to" value="{{ current_user_name }}" placeholder="Select surveyor..." required>
+                                <button class="btn btn-outline-success" type="button" onclick="addSurveyorDropdown()" title="Add Second Surveyor"><i class="fas fa-user-plus"></i></button>
+                            </div>
+                        </div>
+
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between align-items-center mb-1 flex-wrap">
+                                <label class="form-label fw-bold small mb-0">Requestor Name</label>
+                                <div id="topRequestorsBar" class="d-flex gap-1 flex-wrap"></div>
+                            </div>
+                            <input list="requestor_list" class="form-control form-control-sm" id="requestor_name" name="requestor_name" placeholder="Search requestor (or tap a chip above)..." oninput="autoFillDept()" required>
+                            <datalist id="requestor_list"></datalist>
+                            <input type="hidden" id="requestor_dept" name="requestor_dept" value="General" required>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ADVANCED OPTIONS (LINKS & PRESETS) -->
+                <div class="d-flex justify-content-between align-items-center flex-wrap mt-3 pt-3 border-top">
+                    <a class="adv-toggle" onclick="toggleAdvanced()" id="advToggleBtn">
+                        <i class="fas fa-plus-circle"></i> Add Reference Links or Save as Manual Preset
+                    </a>
+                    <div class="d-flex align-items-center gap-3">
+                        <label class="fw-bold text-danger mb-0" style="cursor: pointer; font-size: 14px;">
+                            <input type="checkbox" name="is_urgent" value="true" style="transform: scale(1.3); margin-right: 6px;">
+                            🚨 Mark as URGENT
+                        </label>
+                        <button type="submit" class="btn btn-primary btn-lg px-4 fw-bold shadow-sm">
+                            <i class="fas fa-paper-plane me-1"></i> Submit Task
+                        </button>
+                    </div>
+                </div>
+
+                <div id="advancedOptions" style="display: none;" class="mt-3 p-3 bg-light border rounded">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small"><i class="fas fa-link"></i> Reference Links / Files</label>
+                            <div id="links_container">
+                                <input type="text" class="form-control form-control-sm mb-2" name="reference_link" placeholder="Paste SharePoint or OneDrive link...">
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="addReferenceLink()"><i class="fas fa-plus"></i> Add Another Link</button>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-check form-switch mt-4">
+                                <input class="form-check-input" type="checkbox" id="save_preset" name="save_preset" value="true" onchange="document.getElementById('preset_name_container').style.display = this.checked ? 'block' : 'none';">
+                                <label class="form-check-label fw-bold text-primary small" for="save_preset">Save these settings as a manual Preset</label>
+                            </div>
+                            <div id="preset_name_container" style="display: none;" class="mt-2">
+                                <input type="text" class="form-control form-control-sm border-primary" name="preset_name" placeholder="Name your preset...">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </form>
+</div>
+
+<!-- PAGINATED FULL TASK HISTORY MODAL (10 PER PAGE) -->
+<div class="modal fade" id="historyModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-history"></i> Full Task Autofill History (10 per Page)</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-sm btn-primary active" id="tabBtnPatterns" onclick="switchHistoryTab('patterns')">🏆 All Frequent Patterns (Ranked)</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="tabBtnRecent" onclick="switchHistoryTab('recent')">🕒 Recent Tasks (Chronological)</button>
+                    </div>
+                    <input type="text" id="historySearchInput" class="form-control form-control-sm" style="max-width: 320px;" placeholder="Filter history by scope, task, requestor..." oninput="resetHistoryPageAndRender()">
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover table-bordered align-middle mb-0" style="font-size: 13px;">
+                        <thead class="table-light" id="historyTableHead"></thead>
+                        <tbody id="historyTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer d-flex justify-content-between align-items-center">
+                <span id="historyPageInfo" class="small fw-bold text-muted">Page 1 of 1</span>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btnPrevHist" onclick="changeHistoryPage(-1)">◀ Prev 10</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btnNextHist" onclick="changeHistoryPage(1)">Next 10 ▶</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script id="req_data" type="application/json">{{ req_dict_json | safe }}</script>
+<script id="macro_scopes_data" type="application/json">{{ macro_scopes_json | safe }}</script>
+<script id="core_tasks_data" type="application/json">{{ core_tasks_json | safe }}</script>
+<script id="omni_cards_data" type="application/json">{{ omni_cards_json | safe }}</script>
+<script id="quick_chips_data" type="application/json">{{ quick_chips_json | default('[]') | safe }}</script>
+<script id="presets_data" type="application/json">{{ presets_json | default('{}') | safe }}</script>
+<script id="frequent_patterns_data" type="application/json">{{ frequent_patterns_json | default('[]') | safe }}</script>
+<script id="recent_history_data" type="application/json">{{ recent_history_json | default('[]') | safe }}</script>
+<script id="top_requestors_data" type="application/json">{{ top_requestors_json | default('[]') | safe }}</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const reqData = JSON.parse(document.getElementById('req_data').textContent);
+    const macroScopes = JSON.parse(document.getElementById('macro_scopes_data').textContent);
+    const coreTasks = JSON.parse(document.getElementById('core_tasks_data').textContent);
+    const omniCards = JSON.parse(document.getElementById('omni_cards_data').textContent);
+    const quickChips = JSON.parse(document.getElementById('quick_chips_data').textContent);
+    const allPresets = JSON.parse(document.getElementById('presets_data').textContent);
+    const frequentPatterns = JSON.parse(document.getElementById('frequent_patterns_data').textContent);
+    const recentHistory = JSON.parse(document.getElementById('recent_history_data').textContent);
+    const topRequestors = JSON.parse(document.getElementById('top_requestors_data').textContent);
+
+    const scopeSelect = document.getElementById('macro_scope_select');
+    const taskSelect = document.getElementById('core_task_select');
+    const verbSelect = document.getElementById('command_verb');
+    const catInput = document.getElementById('task_category');
+    const discInput = document.getElementById('action_required');
+    const instSelect = document.getElementById('instrument');
+
+    const scopeByCode = {};
+    const scopeById = {};
+    macroScopes.forEach(s => {
+        scopeByCode[s.work_scope] = s;
+        scopeById[s.id] = s;
+    });
+
+    const taskById = {};
+    coreTasks.forEach(t => {
+        taskById[t.id] = t;
+    });
+
+    function initQuickChips() {
+        const container = document.getElementById('quickChipsContainer');
+        if (!quickChips || quickChips.length === 0) return;
+        let html = `<small class="fw-bold text-secondary me-1">⚡ Quick Picks:</small>`;
+        quickChips.forEach(c => {
+            const textClass = (c.style === 'info' || c.style === 'warning' || c.style === 'secondary') ? 'text-dark' : `text-${c.style}`;
+            const safeRem = (c.default_remark || '').replace(/'/g, "\\'");
+            html += `<span class="badge bg-${c.style} bg-opacity-10 ${textClass} border border-${c.style} rounded-pill quick-chip"
+                           onclick="selectMacroAndTask('${c.scope_id}', '${c.task_id}', '${safeRem}')">${c.label}</span>`;
+        });
+        container.innerHTML = html;
+    }
+
+    function initMacroScopeDropdown() {
+        const groups = {};
+        macroScopes.forEach(s => {
+            groups[s.group] = groups[s.group] || [];
+            groups[s.group].push(s);
+        });
+        for (const [grpName, items] of Object.entries(groups)) {
+            const optgrp = document.createElement('optgroup');
+            optgrp.label = grpName;
+            items.forEach(s => {
+                const opt = new Option(s.label, s.work_scope);
+                optgrp.appendChild(opt);
+            });
+            scopeSelect.appendChild(optgrp);
+        }
+    }
+
+    function initCoreTaskDropdown() {
+        const groups = {};
+        coreTasks.forEach(t => {
+            groups[t.task_category] = groups[t.task_category] || [];
+            groups[t.task_category].push(t);
+        });
+        for (const [catName, items] of Object.entries(groups)) {
+            const optgrp = document.createElement('optgroup');
+            optgrp.label = catName;
+            items.forEach(t => {
+                const opt = new Option(`[${t.command_verb}] ${t.label}`, t.id);
+                optgrp.appendChild(opt);
+            });
+            taskSelect.appendChild(optgrp);
+        }
+    }
+
+    function onMacroScopeChange() {
+        const scCode = scopeSelect.value;
+        const s = scopeByCode[scCode];
+        if (!s) return;
+        document.getElementById('hidden_area').value = s.area;
+        document.getElementById('hidden_location').value = s.location;
+        document.getElementById('hidden_sub').value = s.sub_location;
+        document.getElementById('hidden_scope').value = s.work_scope;
+        document.getElementById('path_display').innerHTML = `📁 ${s.area} ➔ ${s.location} ➔ ${s.sub_location} ➔ <span class="text-decoration-underline">${s.label}</span>`;
+        document.getElementById('remarks_input').placeholder = s.hint || 'Enter specific details...';
+        document.getElementById('scope_hint_text').innerText = '💡 ' + (s.hint || 'Specify exact location, chainage, or asset details above.');
+        updateKpiPreviewBadge();
+    }
+
+    function onCoreTaskChange() {
+        const tId = taskSelect.value;
+        const t = taskById[tId];
+        if (!t) return;
+        verbSelect.value = t.command_verb;
+        catInput.value = t.task_category;
+        discInput.value = t.action_required;
+        instSelect.innerHTML = '';
+        t.instruments.forEach(inst => instSelect.add(new Option(inst, inst)));
+        instSelect.value = t.default_instrument;
+        updateKpiPreviewBadge();
+    }
+
+    function updateKpiPreviewBadge() {
+        const scCode = scopeSelect.value;
+        const s = scopeByCode[scCode];
+        const disc = discInput.value || '';
+        const rem = (document.getElementById('remarks_input').value || '').trim();
+        const badge = document.getElementById('kpi_preview_badge');
+        if (s && disc) {
+            let kpiText = `${s.kpi_prefix} ${disc}`.trim();
+            if (rem && !kpiText.toLowerCase().includes(rem.toLowerCase())) {
+                kpiText = `${kpiText} - ${rem}`;
+            }
+            badge.innerText = `KPI Col K: "${kpiText}"`;
+        } else {
+            badge.innerText = 'KPI Col K Preview';
+        }
+    }
+
+    function selectMacroAndTask(scopeId, taskId, defaultRemark) {
+        const s = scopeById[scopeId];
+        const t = taskById[taskId];
+        if (s) {
+            scopeSelect.value = s.work_scope;
+            onMacroScopeChange();
+        }
+        if (t) {
+            taskSelect.value = t.id;
+            onCoreTaskChange();
+        }
+        const remInput = document.getElementById('remarks_input');
+        if (defaultRemark && !remInput.value.trim()) {
+            remInput.value = defaultRemark;
+        }
+        updateKpiPreviewBadge();
+        document.getElementById('omniResultsDropdown').style.display = 'none';
+        remInput.focus();
+    }
+
+    function renderOmniResults() {
+        const q = (document.getElementById('omniSearchInput').value || '').toLowerCase().trim();
+        const box = document.getElementById('omniResultsDropdown');
+        const tokens = q.split(/\s+/).filter(Boolean);
+
+        const matches = omniCards.filter(card => {
+            if (tokens.length === 0) return card.weight > 0;
+            const hay = `${card.display} ${card.scope_group} ${card.action_required} ${card.task_category} ${card.instrument} ${card.hint}`.toLowerCase();
+            return tokens.every(tok => hay.includes(tok));
+        }).slice(0, 18);
+
+        if (matches.length === 0) {
+            box.innerHTML = `<div class="p-3 text-muted text-center small">No exact match. Try fewer keywords or select from Step 1 & Step 2 below.</div>`;
+        } else {
+            box.innerHTML = matches.map(c => `
+                <div class="omni-item" onclick="applyOmniCard('${c.scope_id}', '${c.task_id}')">
+                    <div>
+                        <span class="badge bg-danger me-1">[${c.command_verb}]</span>
+                        <strong class="text-dark">${c.task_label}</strong>
+                        <span class="text-muted mx-1">@</span>
+                        <strong class="text-success">${c.scope_label}</strong>
+                        <div class="small text-muted">${c.task_category} • Tool: <strong>${c.instrument}</strong></div>
+                    </div>
+                    ${c.weight > 0 ? `<span class="badge bg-primary rounded-pill">🔥 ${c.weight}x</span>` : `<span class="badge bg-light text-secondary border">Select</span>`}
+                </div>
+            `).join('');
+        }
+        box.style.display = 'block';
+    }
+
+    function applyOmniCard(scopeId, taskId) {
+        const s = scopeById[scopeId];
+        const t = taskById[taskId];
+        if (s && t) {
+            document.getElementById('omniSearchInput').value = `[${t.command_verb}] ${t.label} @ ${s.label}`;
+        }
+        selectMacroAndTask(scopeId, taskId, '');
+    }
+
+    function clearOmniSearch() {
+        const inp = document.getElementById('omniSearchInput');
+        inp.value = '';
+        document.getElementById('omniResultsDropdown').style.display = 'none';
+        inp.focus();
+    }
+
+    document.addEventListener('click', function(ev) {
+        const omniBox = document.querySelector('.omni-box');
+        if (omniBox && !omniBox.contains(ev.target)) {
+            document.getElementById('omniResultsDropdown').style.display = 'none';
+        }
+    });
+
+    function renderTopShortcuts() {
+        const top3Box = document.getElementById('top3Container');
+        top3Box.innerHTML = frequentPatterns.slice(0, 3).map((item, idx) => `
+            <div class="col-md-4">
+                <div class="freq-card h-100" onclick='applyHistoryItem(${JSON.stringify(item).replace(/'/g, "&#39;")})'>
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="badge bg-primary">#${idx + 1} Frequent (${item.count}x)</span>
+                        <span class="badge bg-danger">[${item.command_verb || 'PERFORM'}]</span>
+                    </div>
+                    <div class="fw-bold text-success" style="font-size: 13px;">${item.scope_label || item.work_scope}</div>
+                    <div class="small text-dark">${item.action_required} • <strong>${item.instrument}</strong></div>
+                </div>
+            </div>
+        `).join('');
+
+        const reqBar = document.getElementById('topRequestorsBar');
+        if (topRequestors && topRequestors.length > 0) {
+            reqBar.innerHTML = topRequestors.map(r => `
+                <span class="badge bg-secondary bg-opacity-10 text-dark border quick-chip" style="padding: 3px 8px; font-size: 11px;"
+                      onclick="selectRequestorChip('${r.name.replace(/'/g, "\\'")}')">
+                    ⚡ ${r.name} (${r.count})
+                </span>
+            `).join('');
+        }
+    }
+
+    function selectRequestorChip(name) {
+        document.getElementById('requestor_name').value = name;
+        autoFillDept();
+    }
+
+    function applyHistoryItem(item) {
+        if (item.work_scope && scopeByCode[item.work_scope]) {
+            scopeSelect.value = item.work_scope;
+            onMacroScopeChange();
+        } else if (item.area && item.work_scope) {
+            document.getElementById('hidden_area').value = item.area;
+            document.getElementById('hidden_location').value = item.location || '';
+            document.getElementById('hidden_sub').value = item.sub_location || '';
+            document.getElementById('hidden_scope').value = item.work_scope;
+            document.getElementById('path_display').innerText = `📁 ${item.area} ➔ ${item.location} ➔ ${item.work_scope}`;
+        }
+
+        const matchedCore = coreTasks.find(ct => ct.action_required === item.action_required && ct.task_category === item.task_category)
+                         || coreTasks.find(ct => ct.action_required === item.action_required);
+        if (matchedCore) {
+            taskSelect.value = matchedCore.id;
+            onCoreTaskChange();
+        } else {
+            catInput.value = item.task_category || '';
+            discInput.value = item.action_required || '';
+        }
+
+        if (item.command_verb) verbSelect.value = item.command_verb;
+        if (item.instrument) {
+            if (![...instSelect.options].some(o => o.value === item.instrument)) {
+                instSelect.add(new Option(item.instrument, item.instrument));
+            }
+            instSelect.value = item.instrument;
+        }
+        if (item.req_name) {
+            document.getElementById('requestor_name').value = item.req_name;
+            autoFillDept();
+        }
+        if (item.remarks && !document.getElementById('remarks_input').value.trim()) {
+            document.getElementById('remarks_input').value = item.remarks;
+        }
+        updateKpiPreviewBadge();
+        const histModalEl = document.getElementById('historyModal');
+        const histModal = bootstrap.Modal.getInstance(histModalEl);
+        if (histModal) histModal.hide();
+    }
+
+    let currentHistoryTab = 'patterns';
+    let currentHistoryPage = 1;
+    const HISTORY_PAGE_SIZE = 10;
+
+    function openHistoryModal() {
+        currentHistoryPage = 1;
+        renderHistoryTable();
+        new bootstrap.Modal(document.getElementById('historyModal')).show();
+    }
+
+    function switchHistoryTab(tab) {
+        currentHistoryTab = tab;
+        currentHistoryPage = 1;
+        document.getElementById('tabBtnPatterns').className = tab === 'patterns' ? 'btn btn-sm btn-primary active' : 'btn btn-sm btn-outline-primary';
+        document.getElementById('tabBtnRecent').className = tab === 'recent' ? 'btn btn-sm btn-primary active' : 'btn btn-sm btn-outline-primary';
+        renderHistoryTable();
+    }
+
+    function resetHistoryPageAndRender() {
+        currentHistoryPage = 1;
+        renderHistoryTable();
+    }
+
+    function changeHistoryPage(delta) {
+        currentHistoryPage += delta;
+        renderHistoryTable();
+    }
+
+    function renderHistoryTable() {
+        const query = (document.getElementById('historySearchInput').value || '').toLowerCase();
+        const sourceList = currentHistoryTab === 'patterns' ? frequentPatterns : recentHistory;
+        const filtered = sourceList.filter(item => {
+            const hay = `${item.scope_label || ''} ${item.work_scope} ${item.action_required} ${item.instrument} ${item.task_category} ${item.req_name || ''} ${item.remarks || ''}`.toLowerCase();
+            return !query || hay.includes(query);
+        });
+
+        const totalPages = Math.max(1, Math.ceil(filtered.length / HISTORY_PAGE_SIZE));
+        if (currentHistoryPage > totalPages) currentHistoryPage = totalPages;
+        if (currentHistoryPage < 1) currentHistoryPage = 1;
+
+        const startIdx = (currentHistoryPage - 1) * HISTORY_PAGE_SIZE;
+        const pageItems = filtered.slice(startIdx, startIdx + HISTORY_PAGE_SIZE);
+
+        const thead = document.getElementById('historyTableHead');
+        const tbody = document.getElementById('historyTableBody');
+
+        if (currentHistoryTab === 'patterns') {
+            thead.innerHTML = `<tr><th>Rank</th><th>Uses</th><th>Verb & Task Discipline</th><th>Macro Work Scope</th><th>Instrument</th><th class="text-end">Action</th></tr>`;
+            tbody.innerHTML = pageItems.length ? pageItems.map((item, i) => `
+                <tr>
+                    <td class="fw-bold">#${startIdx + i + 1}</td>
+                    <td><span class="badge bg-primary">${item.count}x</span></td>
+                    <td><span class="badge bg-danger me-1">[${item.command_verb}]</span> <strong>${item.action_required}</strong><br><small class="text-muted">${item.task_category}</small></td>
+                    <td class="fw-semibold text-success">${item.scope_label || item.work_scope}</td>
+                    <td>${item.instrument}</td>
+                    <td class="text-end"><button type="button" class="btn btn-sm btn-success fw-bold" onclick='applyHistoryItem(${JSON.stringify(item).replace(/'/g, "&#39;")})'>⚡ Autofill</button></td>
+                </tr>
+            `).join('') : `<tr><td colspan="6" class="text-center py-3 text-muted">No matching task patterns found.</td></tr>`;
+        } else {
+            thead.innerHTML = `<tr><th>Date</th><th>Requestor</th><th>Verb & Task Discipline</th><th>Macro Work Scope & Remarks</th><th>Instrument</th><th class="text-end">Action</th></tr>`;
+            tbody.innerHTML = pageItems.length ? pageItems.map(item => `
+                <tr>
+                    <td class="text-nowrap small">${item.date}</td>
+                    <td>${item.req_name || 'N/A'}</td>
+                    <td><span class="badge bg-danger me-1">[${item.command_verb}]</span> <strong>${item.action_required}</strong></td>
+                    <td class="fw-semibold text-success">${item.scope_label || item.work_scope}<br><small class="text-muted">${item.remarks || ''}</small></td>
+                    <td>${item.instrument}</td>
+                    <td class="text-end"><button type="button" class="btn btn-sm btn-success fw-bold" onclick='applyHistoryItem(${JSON.stringify(item).replace(/'/g, "&#39;")})'>⚡ Autofill</button></td>
+                </tr>
+            `).join('') : `<tr><td colspan="6" class="text-center py-3 text-muted">No recent tasks found.</td></tr>`;
+        }
+
+        document.getElementById('historyPageInfo').innerText = `Showing ${pageItems.length} of ${filtered.length} records (Page ${currentHistoryPage} of ${totalPages})`;
+        document.getElementById('btnPrevHist').disabled = (currentHistoryPage <= 1);
+        document.getElementById('btnNextHist').disabled = (currentHistoryPage >= totalPages);
+    }
+
+    const datalist = document.getElementById('requestor_list');
+    let requestorMap = {}; 
+    for (const [dept, names] of Object.entries(reqData)) {
+        names.forEach(name => {
+            requestorMap[name] = dept;
+            let option = document.createElement('option');
+            option.value = name;
+            option.text = `(${dept})`; 
+            datalist.appendChild(option);
+        });
+    }
+    
+    function autoFillDept() {
+        const name = document.getElementById('requestor_name').value.trim();
+        document.getElementById('requestor_dept').value = requestorMap[name] || 'General';
+    }
+
+    function addSurveyorDropdown() {
+        const container = document.getElementById('surveyor_container');
+        const div = document.createElement('div');
+        div.className = 'input-group input-group-sm mb-2';
+        div.innerHTML = `
+            <input list="user_list" class="form-control" name="assigned_to" placeholder="Select additional surveyor..." required>
+            <button class="btn btn-outline-danger" type="button" onclick="this.parentElement.remove()"><i class="fas fa-trash"></i></button>
+        `;
+        container.appendChild(div);
+    }
+
+    function toggleAdvanced() {
+        const advBox = document.getElementById('advancedOptions');
+        const btn = document.getElementById('advToggleBtn');
+        if (advBox.style.display === 'none') {
+            advBox.style.display = 'block';
+            btn.innerHTML = '<i class="fas fa-minus-circle"></i> Hide Reference Links & Preset Options';
+        } else {
+            advBox.style.display = 'none';
+            btn.innerHTML = '<i class="fas fa-plus-circle"></i> Add Reference Links or Save as Manual Preset';
+        }
+    }
+
+    function addReferenceLink() {
+        const container = document.getElementById('links_container');
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'form-control form-control-sm mb-2';
+        input.name = 'reference_link';
+        input.placeholder = 'Paste another link here...';
+        container.appendChild(input);
+    }
+
+    function loadPreset() {
+        const pId = document.getElementById('presetLoader').value;
+        const delForm = document.getElementById('deletePresetForm');
+        if (!pId || !allPresets[pId]) {
+            if(delForm) delForm.style.display = 'none';
+            return;
+        }
+        if(delForm) {
+            delForm.action = "{{ url_for('delete_preset', preset_id=0) }}".replace('0', pId);
+            delForm.style.display = 'block';
+        }
+        const p = allPresets[pId];
+        applyHistoryItem(p);
+        if (p.remarks) {
+            document.getElementById('remarks_input').value = p.remarks;
+            updateKpiPreviewBadge();
+        }
+    }
+
+    initQuickChips();
+    initMacroScopeDropdown();
+    initCoreTaskDropdown();
+    renderTopShortcuts();
+</script>
+</body>
+</html>

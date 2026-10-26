@@ -116,7 +116,10 @@ class UserActivityLog(db.Model):
     method = db.Column(db.String(15), nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
-# --- 16 MACRO WORK SCOPES & 14 CORE SURVEY TASKS MASTER CATALOG ---
+# ==============================================================================
+# SINGLE SOURCE OF TRUTH: 16 MACRO WORK SCOPES, 14 CORE TASKS & 6 QUICK CHIPS
+# Edit any label, KPI prefix, hint, default instrument, or chip right here!
+# ==============================================================================
 LEAN_MACRO_SCOPES = [
     {
         "id": "MWS-01", "group": "OFC - Office & HQ",
@@ -319,6 +322,16 @@ LEAN_CORE_TASKS = [
     }
 ]
 
+# PINNED 1-CLICK QUICK CHIPS (Shown on both New Task & Edit Task pages)
+QUICK_PICK_CHIPS = [
+    {"label": "📏 TC-AHDD Settlement Monitoring", "scope_id": "MWS-05", "task_id": "CT-01", "default_remark": "Road Settlement Monitoring", "style": "primary"},
+    {"label": "📍 TX-Temp Platform Stake-Out",   "scope_id": "MWS-08", "task_id": "CT-04", "default_remark": "Temp Platform Stake-Out",   "style": "success"},
+    {"label": "🚤 NS-Trench 8 Bathy Monitoring", "scope_id": "MWS-12", "task_id": "CT-06", "default_remark": "T8 Dredging Monitoring",    "style": "info"},
+    {"label": "🚤 NS-Trench 1 Bathy Monitoring", "scope_id": "MWS-11", "task_id": "CT-06", "default_remark": "T1 Dredging Monitoring",    "style": "info"},
+    {"label": "⚓ OS-Subsea Crossings Survey",    "scope_id": "MWS-15", "task_id": "CT-06", "default_remark": "",                          "style": "warning"},
+    {"label": "📐 TC-AHDD CAD Drawing",          "scope_id": "MWS-05", "task_id": "CT-11", "default_remark": "",                          "style": "secondary"},
+]
+
 # Pre-seeded Top Historical Omni-Search Pairs from the 1,809-Task Register
 HISTORICAL_OMNI_SEEDS = [
     ("MWS-05", "CT-01", 116),
@@ -365,6 +378,7 @@ def is_user_admin(user):
     return bool(getattr(user, 'is_admin', False) or (user.email in ADMIN_EMAILS))
 
 def extract_opening_remark(raw_remarks):
+    """Returns only the user's opening scope details, stripping system audit trail suffixes."""
     if not raw_remarks:
         return ""
     cleaned = str(raw_remarks)
@@ -382,26 +396,93 @@ def extract_opening_remark(raw_remarks):
             cleaned = cleaned.split(marker)[0]
     return cleaned.strip(" |")
 
-def format_clean_description(task):
-    """Formats DTR & KPI Column K description cleanly using the Macro Work Scope prefix + Discipline."""
+def extract_closing_or_special_remark(raw_remarks):
+    """Extracts the Closing Result for KPI Column L, or returns the full clean remark if no closing tag exists."""
+    if not raw_remarks:
+        return ""
+    raw_str = str(raw_remarks)
+    if "Closed:" in raw_str:
+        closed_part = raw_str.split("Closed:", 1)[-1].strip(" |")
+        opening_part = extract_opening_remark(raw_str)
+        return f"{opening_part} | Closed: {closed_part}" if opening_part else f"Closed: {closed_part}"
+    return extract_opening_remark(raw_str)
+
+def format_clean_description(task, include_opening_remark=False):
+    """
+    Formats DTR & KPI Column K description.
+    When include_opening_remark=True, appends the user's Opening Remark directly into KPI Column K:
+    e.g., 'Taichung AHDD Monitoring Survey - [Road Settlement] Ch 0+120'
+    """
     if task.work_scope in SCOPE_BY_CODE:
         prefix = SCOPE_BY_CODE[task.work_scope]["kpi_prefix"]
         disc = task.action_required or ""
-        return f"{prefix} {disc}".strip()
+        base_phrase = f"{prefix} {disc}".strip()
+    else:
+        loc = task.location.split('_', 1)[-1].replace('_', ' ') if task.location and task.location != 'N/A' else ''
+        sub = task.sub_location.split('_', 1)[-1].replace('_', ' ') if task.sub_location and task.sub_location != 'N/A' else ''
+        scope = task.work_scope.split('_', 1)[-1] if task.work_scope and task.work_scope != 'N/A' else ''
+        for pfx in ['TC-', 'TX-', 'OFC_', 'TC_', 'TX_', 'NS_', 'OS_', 'MAR_']:
+            if scope.startswith(pfx):
+                scope = scope[len(pfx):]
+        scope = scope.replace('_', ' ')
+        raw_parts = [loc, sub, scope, task.action_required]
+        clean_parts = [p.strip() for p in raw_parts if p and p.strip().lower() != 'general']
+        base_phrase = " ".join(clean_parts)
 
-    loc = task.location.split('_', 1)[-1].replace('_', ' ') if task.location and task.location != 'N/A' else ''
-    sub = task.sub_location.split('_', 1)[-1].replace('_', ' ') if task.sub_location and task.sub_location != 'N/A' else ''
-    scope = task.work_scope.split('_', 1)[-1] if task.work_scope and task.work_scope != 'N/A' else ''
-    for pfx in ['TC-', 'TX-', 'OFC_', 'TC_', 'TX_', 'NS_', 'OS_', 'MAR_']:
-        if scope.startswith(pfx):
-            scope = scope[len(pfx):]
-    scope = scope.replace('_', ' ')
-    raw_parts = [loc, sub, scope, task.action_required]
-    clean_parts = [p.strip() for p in raw_parts if p and p.strip().lower() != 'general']
-    return " ".join(clean_parts)
+    if include_opening_remark:
+        opening_rem = extract_opening_remark(task.remarks)
+        if opening_rem and opening_rem.lower() not in base_phrase.lower():
+            return f"{base_phrase} - {opening_rem}" if base_phrase else opening_rem
+
+    return base_phrase
+
+def get_merged_macro_scopes_and_cards(file_tree):
+    """Merges the 16 canonical Macro Scopes with any custom scopes added via /system_config_hidden."""
+    macro_scopes_list = [dict(s) for s in LEAN_MACRO_SCOPES]
+    known_codes = {s["work_scope"] for s in macro_scopes_list}
+    for area_k, locs_v in (file_tree or {}).items():
+        for loc_k, subs_v in (locs_v or {}).items():
+            for sub_k, scopes_v in (subs_v or {}).items():
+                for sc_code in (scopes_v or []):
+                    if sc_code not in known_codes:
+                        clean_lbl = sc_code.split('_', 1)[-1].replace('_', ' ')
+                        macro_scopes_list.append({
+                            "id": f"CUSTOM-{len(macro_scopes_list)+1}",
+                            "group": "Custom Added Scopes",
+                            "label": f"Custom - {clean_lbl}",
+                            "area": area_k, "location": loc_k, "sub_location": sub_k,
+                            "work_scope": sc_code, "kpi_prefix": clean_lbl,
+                            "hint": "Enter specific details for this custom work scope..."
+                        })
+                        known_codes.add(sc_code)
+
+    seed_weights = {(m_id, c_id): w for m_id, c_id, w in HISTORICAL_OMNI_SEEDS}
+    omni_cards = []
+    for s in macro_scopes_list:
+        for ct in LEAN_CORE_TASKS:
+            hist_w = seed_weights.get((s["id"], ct["id"]), 0)
+            omni_cards.append({
+                "scope_id": s["id"],
+                "task_id": ct["id"],
+                "scope_label": s["label"],
+                "scope_group": s["group"],
+                "area": s["area"],
+                "location": s["location"],
+                "sub_location": s["sub_location"],
+                "work_scope": s["work_scope"],
+                "hint": s["hint"],
+                "task_label": ct["label"],
+                "action_required": ct["action_required"],
+                "task_category": ct["task_category"],
+                "command_verb": ct["command_verb"],
+                "instrument": ct["default_instrument"],
+                "weight": hist_w,
+                "display": f"[{ct['command_verb']}] {ct['label']}  @  {s['label']}"
+            })
+    omni_cards.sort(key=lambda x: (-x["weight"], x["scope_label"], x["task_label"]))
+    return macro_scopes_list, omni_cards
 
 def infer_macro_scope_for_task(t):
-    """Maps any legacy database task to its appropriate Macro Work Scope while preserving micro-scope text in remarks."""
     if t.work_scope in SCOPE_BY_CODE:
         return SCOPE_BY_CODE[t.work_scope]
     area = (t.area or '').lower()
@@ -465,7 +546,6 @@ def log_user_usage(response):
 
 with app.app_context():
     db.create_all()
-    # 1. Reverse status migration failsafe
     try:
         db.session.execute(text("UPDATE survey_task SET status = 'Open' WHERE status = 'OPEN_REQUESTS'"))
         db.session.execute(text("UPDATE survey_task SET status = 'In Progress' WHERE status IN ('FIELD_ACQUISITION', 'DATA_PROCESSING', 'QA_QC_REVIEW')"))
@@ -501,7 +581,6 @@ with app.app_context():
     except Exception:
         db.session.rollback()
 
-    # 2. Build Lean File Tree & Activities Dictionary from the 16 Macro Scopes & 14 Core Tasks
     lean_file_tree = {}
     for s in LEAN_MACRO_SCOPES:
         lean_file_tree.setdefault(s["area"], {}).setdefault(s["location"], {}).setdefault(s["sub_location"], [])
@@ -546,7 +625,6 @@ with app.app_context():
         except Exception:
             db.session.rollback()
 
-    # 3. Smart Database Consolidation: Migrate existing tasks into the 16 Macro Scopes & preserve micro-scope in remarks
     try:
         non_legacy_tasks = SurveyTask.query.filter(SurveyTask.area != '900_Legacy_Data').all()
         migrated_any = False
@@ -739,7 +817,8 @@ def build_kpi_rows(target_year=None, target_month=None):
             if month_str != target_month or year_str != target_year:
                 continue
 
-        desc_phrase = format_clean_description(task)
+        # Column K now includes both the Macro Scope + Discipline AND the Opening Remark!
+        desc_phrase = format_clean_description(task, include_opening_remark=True)
         display_start = task.execution_date.strftime('%Y-%m-%d') if task.execution_date else (task.start_time.strftime('%Y-%m-%d %H:%M') if task.start_time else '')
         display_end = task.execution_date.strftime('%Y-%m-%d') if task.execution_date else (task.end_time.strftime('%Y-%m-%d %H:%M') if task.end_time else '')
 
@@ -755,7 +834,7 @@ def build_kpi_rows(target_year=None, target_month=None):
             'Date/Time Received': display_start,
             'Date/Time Completed': display_end,
             'Description of Survey Works': desc_phrase,
-            'Special Conditions / Remarks': extract_opening_remark(task.remarks)
+            'Special Conditions / Remarks': extract_closing_or_special_remark(task.remarks)
         })
         display_index += 1
     return data
@@ -1170,7 +1249,6 @@ def new_task():
         master_schema = json.loads(config.schema_data) if config else {}
         file_tree = master_schema.get("file_tree", {})
         req_dict = master_schema.get("requestors", {})
-        activities_data = master_schema.get("activities", {})
         
         if request.method == 'POST':
             check_area = request.form.get('area')
@@ -1219,28 +1297,9 @@ def new_task():
             flash('New task opened successfully!', 'success')
             return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
 
-        # Merge canonical 16 Macro Scopes with any custom scopes added later via /system_config_hidden
-        macro_scopes_list = list(LEAN_MACRO_SCOPES)
-        known_codes = {s["work_scope"] for s in macro_scopes_list}
-        for area_k, locs_v in file_tree.items():
-            for loc_k, subs_v in locs_v.items():
-                for sub_k, scopes_v in subs_v.items():
-                    for sc_code in scopes_v:
-                        if sc_code not in known_codes:
-                            clean_lbl = sc_code.split('_', 1)[-1].replace('_', ' ')
-                            macro_scopes_list.append({
-                                "id": f"CUSTOM-{len(macro_scopes_list)+1}",
-                                "group": "Custom Added Scopes",
-                                "label": f"Custom - {clean_lbl}",
-                                "area": area_k, "location": loc_k, "sub_location": sub_k,
-                                "work_scope": sc_code, "kpi_prefix": clean_lbl,
-                                "hint": "Enter specific details for this custom work scope..."
-                            })
-                            known_codes.add(sc_code)
-
+        macro_scopes_list, omni_cards = get_merged_macro_scopes_and_cards(file_tree)
         scope_label_by_code = {s["work_scope"]: s["label"] for s in macro_scopes_list}
 
-        # Build Personal Task History & Frequency Ranking
         user_tasks = SurveyTask.query.filter(
             or_(
                 SurveyTask.surveyor_name == current_user.name,
@@ -1297,33 +1356,6 @@ def new_task():
             entry['count'] = cnt
             frequent_patterns.append(entry)
 
-        # Build Unified Omni-Search Cards (16 Macro Scopes x 14 Core Tasks, ranked by historical frequency)
-        seed_weights = {(m_id, c_id): w for m_id, c_id, w in HISTORICAL_OMNI_SEEDS}
-        omni_cards = []
-        for s in macro_scopes_list:
-            for ct in LEAN_CORE_TASKS:
-                hist_w = seed_weights.get((s["id"], ct["id"]), 0)
-                omni_cards.append({
-                    "scope_id": s["id"],
-                    "task_id": ct["id"],
-                    "scope_label": s["label"],
-                    "scope_group": s["group"],
-                    "area": s["area"],
-                    "location": s["location"],
-                    "sub_location": s["sub_location"],
-                    "work_scope": s["work_scope"],
-                    "hint": s["hint"],
-                    "task_label": ct["label"],
-                    "action_required": ct["action_required"],
-                    "task_category": ct["task_category"],
-                    "command_verb": ct["command_verb"],
-                    "instrument": ct["default_instrument"],
-                    "weight": hist_w,
-                    "display": f"[{ct['command_verb']}] {ct['label']}  @  {s['label']}"
-                })
-        omni_cards.sort(key=lambda x: (-x["weight"], x["scope_label"], x["task_label"]))
-
-        # If user has fewer than 3 personal tasks so far, seed Top 3 with top project-wide patterns
         if len(frequent_patterns) < 3:
             for oc in omni_cards[:3 - len(frequent_patterns)]:
                 frequent_patterns.append({
@@ -1359,6 +1391,7 @@ def new_task():
                                macro_scopes_json=json.dumps(macro_scopes_list),
                                core_tasks_json=json.dumps(LEAN_CORE_TASKS),
                                omni_cards_json=json.dumps(omni_cards),
+                               quick_chips_json=json.dumps(QUICK_PICK_CHIPS),
                                presets_json=json.dumps(presets_dict),
                                frequent_patterns_json=json.dumps(frequent_patterns),
                                recent_history_json=json.dumps(recent_history),
@@ -1414,6 +1447,8 @@ def edit_task(task_id):
         file_tree = master_schema.get("file_tree", {})
         req_dict = master_schema.get("requestors", {})
         activities_data = master_schema.get("activities", {})
+        macro_scopes_list, omni_cards = get_merged_macro_scopes_and_cards(file_tree)
+
         task_dict = {
             'command_verb': task.command_verb or "PERFORM",
             'task_category': task.task_category or "", 'instrument': task.instrument or "",
@@ -1423,22 +1458,16 @@ def edit_task(task_id):
             'req_name': task.requestor.split(" - ", 1)[1] if task.requestor and " - " in task.requestor else ""
         }
         task_id_str = task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else f"UNKNOWN-{task.id}"
-        class ShimOption:
-            def __init__(self, name): self.name = name
-        categories = sorted([ShimOption(k) for k in activities_data.keys()], key=lambda x: x.name)
-        actions_set, instruments_set = set(), set()
-        for acts in activities_data.values():
-            for act, insts in acts.items():
-                actions_set.add(act)
-                instruments_set.update(insts)
         return render_template('edit_task.html', 
                                task=task, task_id_str=task_id_str,
                                users=User.query.filter_by(is_approved=True, is_active=True).order_by(User.name.asc()).all(),
-                               req_dict_json=json.dumps(req_dict), schema_json=json.dumps(file_tree), 
+                               req_dict_json=json.dumps(req_dict),
+                               schema_json=json.dumps(file_tree), 
                                activities_json=json.dumps(activities_data),
-                               categories=categories,
-                               instruments=sorted([ShimOption(i) for i in instruments_set], key=lambda x: x.name),
-                               actions=sorted([ShimOption(a) for a in actions_set], key=lambda x: x.name),
+                               macro_scopes_json=json.dumps(macro_scopes_list),
+                               core_tasks_json=json.dumps(LEAN_CORE_TASKS),
+                               omni_cards_json=json.dumps(omni_cards),
+                               quick_chips_json=json.dumps(QUICK_PICK_CHIPS),
                                task_json=json.dumps(task_dict))
     except Exception as e:
         return f"<h2>DIAGNOSTIC CRASH REPORT (EDIT TASK)</h2><p>Error: {str(e)}</p><pre>{traceback.format_exc()}</pre>"
@@ -1619,8 +1648,7 @@ def generate_dtr():
 
         dtr_groups = {}
         for t in daily_tasks:
-            t.action_phrase = format_clean_description(t)
-            opening_remark = extract_opening_remark(t.remarks)
+            task_bullet = format_clean_description(t, include_opening_remark=True)
             assigned = t.assigned_to if t.assigned_to else t.surveyor_name
             surveyors = [s.strip() for s in assigned.split(',') if s.strip()]
 
@@ -1640,7 +1668,6 @@ def generate_dtr():
             if group_key not in dtr_groups:
                 dtr_groups[group_key] = {"title": group_key, "type": group_type, "surveyors": set(), "tasks": [], "boat": boat_name}
             for s in surveyors: dtr_groups[group_key]["surveyors"].add(s)
-            task_bullet = f"{t.action_phrase} - {opening_remark}" if opening_remark and t.action_phrase else (t.action_phrase or opening_remark)
             dtr_groups[group_key]["tasks"].append(task_bullet)
 
         report_blocks = []
@@ -1655,7 +1682,7 @@ def generate_dtr():
                 report_blocks.append(data)
 
         open_tasks = SurveyTask.query.filter_by(status='Open').all()
-        outstanding_set = {format_clean_description(t) for t in open_tasks if format_clean_description(t)}
+        outstanding_set = {format_clean_description(t, include_opening_remark=True) for t in open_tasks if format_clean_description(t)}
 
         template_path = os.path.join(app.root_path, 'static', 'report_templates', 'DTR_Template.docx')
         doc = DocxTemplate(template_path)
