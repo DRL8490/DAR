@@ -281,6 +281,89 @@
     </form>
 </div>
 
+
+<!-- LIVE QUICK-PICK CHIPS CUSTOMIZER MODAL (ADMINS) -->
+<div class="modal fade" id="customizeChipsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-dark text-warning">
+                <h5 class="modal-title fw-bold"><i class="fas fa-sliders-h me-1"></i> Customize Quick-Pick Chips Bar</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-muted mb-3">
+                    Add your favorite <strong>[Macro Work Scope + Core Task]</strong> shortcuts below. Clicking a chip on the form fills Work Scope, Location, Verb, Activity Type, Instrument, and Default Remark in 1 tap!
+                </p>
+
+                <!-- Add New Chip Builder -->
+                <div class="p-3 bg-light border rounded mb-3">
+                    <h6 class="fw-bold text-primary mb-2"><i class="fas fa-plus-circle"></i> Add New Quick-Pick Chip</h6>
+                    <div class="row g-2">
+                        <div class="col-md-5">
+                            <label class="form-label small fw-bold mb-1">Chip Button Label (with Emoji)</label>
+                            <input type="text" id="newChipLabel" class="form-control form-control-sm" placeholder="e.g., 🚤 NS-Dumping Area Bathy">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold mb-1">Default Opening Remark (Optional)</label>
+                            <input type="text" id="newChipRemark" class="form-control form-control-sm" placeholder="e.g., Dumping Area Monitoring">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold mb-1">Badge Color</label>
+                            <select id="newChipStyle" class="form-select form-select-sm fw-bold">
+                                <option value="primary">Blue (Primary)</option>
+                                <option value="success">Green (Success)</option>
+                                <option value="info">Cyan (Info)</option>
+                                <option value="warning">Amber (Warning)</option>
+                                <option value="danger">Red (Danger)</option>
+                                <option value="secondary">Grey (Secondary)</option>
+                                <option value="dark">Dark Slate</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold mb-1">Macro Work Scope (16 Zones)</label>
+                            <select id="newChipScope" class="form-select form-select-sm"></select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-bold mb-1">Core Survey Task (14 Tasks)</label>
+                            <select id="newChipTask" class="form-select form-select-sm"></select>
+                        </div>
+                    </div>
+                    <div class="text-end mt-2">
+                        <button type="button" class="btn btn-sm btn-primary fw-bold" onclick="addChipToEditorList()">
+                            <i class="fas fa-plus"></i> Add Chip to List
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Active Chips Table -->
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered align-middle mb-0" style="font-size: 12.5px;">
+                        <thead class="table-secondary">
+                            <tr>
+                                <th>#</th>
+                                <th>Chip Preview</th>
+                                <th>Paired Macro Scope & Core Task</th>
+                                <th>Default Remark</th>
+                                <th class="text-end">Order / Delete</th>
+                            </tr>
+                        </thead>
+                        <tbody id="chipsEditorBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <span id="chipsSaveFeedback" class="text-success fw-bold small" style="display:none;">✔ Saved to Database!</span>
+                <div class="ms-auto">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-success btn-sm fw-bold px-3" onclick="saveChipsToServer()">
+                        <i class="fas fa-save me-1"></i> Save Chips for All Sessions
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- PAGINATED FULL TASK HISTORY MODAL (10 PER PAGE) -->
 <div class="modal fade" id="historyModal" tabindex="-1">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -356,17 +439,113 @@
         taskById[t.id] = t;
     });
 
+    const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
+
     function initQuickChips() {
         const container = document.getElementById('quickChipsContainer');
-        if (!quickChips || quickChips.length === 0) return;
         let html = `<small class="fw-bold text-secondary me-1">⚡ Quick Picks:</small>`;
-        quickChips.forEach(c => {
-            const textClass = (c.style === 'info' || c.style === 'warning' || c.style === 'secondary') ? 'text-dark' : `text-${c.style}`;
+        (quickChips || []).forEach(c => {
+            const textClass = (c.style === 'info' || c.style === 'warning' || c.style === 'secondary' || c.style === 'dark') ? 'text-dark' : `text-${c.style}`;
             const safeRem = (c.default_remark || '').replace(/'/g, "\\'");
             html += `<span class="badge bg-${c.style} bg-opacity-10 ${textClass} border border-${c.style} rounded-pill quick-chip"
-                           onclick="selectMacroAndTask('${c.scope_id}', '${c.task_id}', '${safeRem}')">${c.label}</span>`;
+                           onclick="selectMacroAndTask('${c.scope_id}', '${c.task_id}', '${safeRem}')"
+                           title="${(scopeById[c.scope_id] ? scopeById[c.scope_id].label : c.scope_id)} ➔ ${(taskById[c.task_id] ? taskById[c.task_id].label : c.task_id)}">${c.label}</span>`;
         });
+        if (IS_ADMIN) {
+            html += `<button type="button" class="btn btn-sm btn-outline-dark rounded-pill py-0 px-2 ms-auto fw-bold" style="font-size: 11px;" onclick="openCustomizeChipsModal()">
+                        <i class="fas fa-cog"></i> Customize Chips
+                     </button>`;
+        }
         container.innerHTML = html;
+    }
+
+    function openCustomizeChipsModal() {
+        const scSel = document.getElementById('newChipScope');
+        const tkSel = document.getElementById('newChipTask');
+        if (scSel.options.length === 0) {
+            macroScopes.forEach(s => scSel.add(new Option(s.label, s.id)));
+        }
+        if (tkSel.options.length === 0) {
+            coreTasks.forEach(t => tkSel.add(new Option(`[${t.command_verb}] ${t.label}`, t.id)));
+        }
+        renderChipsEditorTable();
+        new bootstrap.Modal(document.getElementById('customizeChipsModal')).show();
+    }
+
+    function renderChipsEditorTable() {
+        const tbody = document.getElementById('chipsEditorBody');
+        tbody.innerHTML = quickChips.map((c, i) => {
+            const sLbl = scopeById[c.scope_id] ? scopeById[c.scope_id].label : c.scope_id;
+            const tLbl = taskById[c.task_id] ? taskById[c.task_id].label : c.task_id;
+            const textClass = (c.style === 'info' || c.style === 'warning' || c.style === 'secondary' || c.style === 'dark') ? 'text-dark' : `text-${c.style}`;
+            return `
+                <tr>
+                    <td class="fw-bold">${i + 1}</td>
+                    <td><span class="badge bg-${c.style} bg-opacity-10 ${textClass} border border-${c.style} rounded-pill">${c.label}</span></td>
+                    <td><strong class="text-success">${sLbl}</strong><br><small class="text-muted">${tLbl}</small></td>
+                    <td><small>${c.default_remark || '—'}</small></td>
+                    <td class="text-end text-nowrap">
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="moveChip(${i}, -1)" ${i === 0 ? 'disabled' : ''}>▲</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="moveChip(${i}, 1)" ${i === quickChips.length - 1 ? 'disabled' : ''}>▼</button>
+                        <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 ms-1" onclick="removeChip(${i})"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function addChipToEditorList() {
+        const lbl = document.getElementById('newChipLabel').value.trim();
+        const rem = document.getElementById('newChipRemark').value.trim();
+        const sty = document.getElementById('newChipStyle').value;
+        const scId = document.getElementById('newChipScope').value;
+        const tkId = document.getElementById('newChipTask').value;
+        if (!lbl) {
+            alert('Please enter a label for the chip (e.g., 🚤 NS-Dumping Area Bathy).');
+            return;
+        }
+        quickChips.push({ label: lbl, scope_id: scId, task_id: tkId, default_remark: rem, style: sty });
+        document.getElementById('newChipLabel').value = '';
+        document.getElementById('newChipRemark').value = '';
+        renderChipsEditorTable();
+        initQuickChips();
+    }
+
+    function moveChip(idx, dir) {
+        const target = idx + dir;
+        if (target < 0 || target >= quickChips.length) return;
+        const temp = quickChips[idx];
+        quickChips[idx] = quickChips[target];
+        quickChips[target] = temp;
+        renderChipsEditorTable();
+        initQuickChips();
+    }
+
+    function removeChip(idx) {
+        quickChips.splice(idx, 1);
+        renderChipsEditorTable();
+        initQuickChips();
+    }
+
+    async function saveChipsToServer() {
+        try {
+            const res = await fetch('/save_quick_chips', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chips: quickChips })
+            });
+            const data = await res.json();
+            if (data.success) {
+                initQuickChips();
+                const fb = document.getElementById('chipsSaveFeedback');
+                fb.style.display = 'inline';
+                setTimeout(() => { fb.style.display = 'none'; }, 2500);
+            } else {
+                alert('Error saving chips: ' + data.message);
+            }
+        } catch (e) {
+            alert('Network error saving Quick-Pick Chips.');
+        }
     }
 
     function initMacroScopeDropdown() {

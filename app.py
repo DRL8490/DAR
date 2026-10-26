@@ -322,15 +322,31 @@ LEAN_CORE_TASKS = [
     }
 ]
 
-# PINNED 1-CLICK QUICK CHIPS (Shown on both New Task & Edit Task pages)
+# PINNED 1-CLICK QUICK CHIPS (Tailored from Daryll's 317 Personal Tasks & Team Top Tasks; Editable in UI!)
 QUICK_PICK_CHIPS = [
-    {"label": "📏 TC-AHDD Settlement Monitoring", "scope_id": "MWS-05", "task_id": "CT-01", "default_remark": "Road Settlement Monitoring", "style": "primary"},
-    {"label": "📍 TX-Temp Platform Stake-Out",   "scope_id": "MWS-08", "task_id": "CT-04", "default_remark": "Temp Platform Stake-Out",   "style": "success"},
-    {"label": "🚤 NS-Trench 8 Bathy Monitoring", "scope_id": "MWS-12", "task_id": "CT-06", "default_remark": "T8 Dredging Monitoring",    "style": "info"},
-    {"label": "🚤 NS-Trench 1 Bathy Monitoring", "scope_id": "MWS-11", "task_id": "CT-06", "default_remark": "T1 Dredging Monitoring",    "style": "info"},
-    {"label": "⚓ OS-Subsea Crossings Survey",    "scope_id": "MWS-15", "task_id": "CT-06", "default_remark": "",                          "style": "warning"},
-    {"label": "📐 TC-AHDD CAD Drawing",          "scope_id": "MWS-05", "task_id": "CT-11", "default_remark": "",                          "style": "secondary"},
+    {"label": "📏 TC-AHDD Settlement Monitoring", "scope_id": "MWS-05", "task_id": "CT-01", "default_remark": "Road Settlement Monitoring",               "style": "primary"},
+    {"label": "📐 TC-AHDD Settlement / Sketch Dwg", "scope_id": "MWS-05", "task_id": "CT-11", "default_remark": "Road Settlement / AHDD Drawing",          "style": "secondary"},
+    {"label": "🚤 NS-Dumping Area Bathy",         "scope_id": "MWS-10", "task_id": "CT-06", "default_remark": "Dumping Area Dredging Monitoring",        "style": "info"},
+    {"label": "🚤 NS-Trench 8 Bathy",             "scope_id": "MWS-12", "task_id": "CT-06", "default_remark": "T8 Dredging Monitoring",                  "style": "info"},
+    {"label": "🚤 NS-Trench 1 Bathy",             "scope_id": "MWS-11", "task_id": "CT-06", "default_remark": "T1 Dredging Monitoring",                  "style": "info"},
+    {"label": "⚓ OS-Midline Tie-In Bathy",        "scope_id": "MWS-14", "task_id": "CT-06", "default_remark": "Midline Tie-In Dredging Monitoring",      "style": "primary"},
+    {"label": "⚓ OS-Subsea Crossings Survey",     "scope_id": "MWS-15", "task_id": "CT-06", "default_remark": "Crossing Mattress / SRI / Burial Survey", "style": "warning"},
+    {"label": "📍 TX-Temp Platform Stake-Out",    "scope_id": "MWS-08", "task_id": "CT-04", "default_remark": "Temp Platform Stake-Out",                 "style": "success"},
+    {"label": "📄 TPC-POE / EGST Tech Report",    "scope_id": "MWS-02", "task_id": "CT-14", "default_remark": "TPC-POE / EGST Subcon Tech Review",       "style": "danger"},
+    {"label": "🛠️ WS166 / Vessel Config & Calib",  "scope_id": "MWS-16", "task_id": "CT-13", "default_remark": "WS166 / Arzana Survey System Check",      "style": "dark"},
 ]
+
+def get_active_quick_chips():
+    """Returns custom Quick-Pick Chips saved in AppConfig, or falls back to QUICK_PICK_CHIPS."""
+    try:
+        config = AppConfig.query.first()
+        if config and config.schema_data:
+            data = json.loads(config.schema_data)
+            if "quick_chips" in data and isinstance(data["quick_chips"], list) and len(data["quick_chips"]) > 0:
+                return data["quick_chips"]
+    except Exception:
+        pass
+    return QUICK_PICK_CHIPS
 
 # Pre-seeded Top Historical Omni-Search Pairs from the 1,809-Task Register
 HISTORICAL_OMNI_SEEDS = [
@@ -906,7 +922,7 @@ def dashboard():
     is_admin = is_user_admin(current_user)
     all_users = User.query.order_by(User.name.asc()).all()
     initials_map = {u.name: (u.initials.upper() if u.initials else ((u.name.split()[0][0] + u.name.split()[1][0]).upper() if len(u.name.split()) >= 2 else u.name[:2].upper())) for u in all_users}
-    return render_template('dashboard.html', name=current_user.name, tasks=all_tasks, users=all_users, is_admin=is_admin, initials_map=initials_map)
+    return render_template('dashboard.html', name=current_user.name, tasks=all_tasks, users=all_users, is_admin=is_admin, initials_map=initials_map, scope_map=SCOPE_BY_CODE, macro_scopes=LEAN_MACRO_SCOPES)
 
 @app.route('/admin_dashboard')
 @login_required
@@ -941,7 +957,7 @@ def admin_dashboard():
                 if md['key'] == t_key:
                     md['count'] += 1
                     break
-    return render_template('admin_dashboard.html', name=current_user.name, tasks=all_tasks, users=users, kpi_summary_json=json.dumps(months_data), initials_map=initials_map)
+    return render_template('admin_dashboard.html', name=current_user.name, tasks=all_tasks, users=users, kpi_summary_json=json.dumps(months_data), initials_map=initials_map, scope_map=SCOPE_BY_CODE, macro_scopes=LEAN_MACRO_SCOPES)
 
 @app.route('/usage_telemetry')
 @login_required
@@ -1241,6 +1257,30 @@ def hidden_config():
     return render_template('hidden_admin.html', master_schema_json=json.dumps(master_schema))
 
 # --- UNIFIED OMNI-SEARCH + 16 MACRO WORK SCOPES + 14 CORE TASKS ---
+@app.route('/save_quick_chips', methods=['POST'])
+@login_required
+def save_quick_chips():
+    if not is_user_admin(current_user):
+        return jsonify({'success': False, 'message': 'Admins only.'}), 403
+    try:
+        payload = request.get_json() or {}
+        chips = payload.get('chips')
+        if not isinstance(chips, list):
+            return jsonify({'success': False, 'message': 'Invalid chips list.'}), 400
+        config = AppConfig.query.first()
+        schema = json.loads(config.schema_data) if (config and config.schema_data) else {}
+        schema['quick_chips'] = chips
+        if not config:
+            config = AppConfig(schema_data=json.dumps(schema))
+            db.session.add(config)
+        else:
+            config.schema_data = json.dumps(schema)
+        db.session.commit()
+        return jsonify({'success': True, 'chips': chips})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 @app.route('/new_task', methods=['GET', 'POST'])
 @login_required
 def new_task():
@@ -1391,7 +1431,7 @@ def new_task():
                                macro_scopes_json=json.dumps(macro_scopes_list),
                                core_tasks_json=json.dumps(LEAN_CORE_TASKS),
                                omni_cards_json=json.dumps(omni_cards),
-                               quick_chips_json=json.dumps(QUICK_PICK_CHIPS),
+                               quick_chips_json=json.dumps(get_active_quick_chips()), is_admin=is_user_admin(current_user),
                                presets_json=json.dumps(presets_dict),
                                frequent_patterns_json=json.dumps(frequent_patterns),
                                recent_history_json=json.dumps(recent_history),
@@ -1467,7 +1507,7 @@ def edit_task(task_id):
                                macro_scopes_json=json.dumps(macro_scopes_list),
                                core_tasks_json=json.dumps(LEAN_CORE_TASKS),
                                omni_cards_json=json.dumps(omni_cards),
-                               quick_chips_json=json.dumps(QUICK_PICK_CHIPS),
+                               quick_chips_json=json.dumps(get_active_quick_chips()), is_admin=is_user_admin(current_user),
                                task_json=json.dumps(task_dict))
     except Exception as e:
         return f"<h2>DIAGNOSTIC CRASH REPORT (EDIT TASK)</h2><p>Error: {str(e)}</p><pre>{traceback.format_exc()}</pre>"
@@ -1535,6 +1575,12 @@ def ajax_modal_action():
                 task.is_urgent = bool(data['is_urgent'])
             if 'assigned_to' in data and str(data['assigned_to']).strip():
                 task.assigned_to = str(data['assigned_to']).strip()
+            if 'work_scope' in data and data['work_scope'] in SCOPE_BY_CODE:
+                ms = SCOPE_BY_CODE[data['work_scope']]
+                task.area = ms['area']
+                task.location = ms['location']
+                task.sub_location = ms['sub_location']
+                task.work_scope = ms['work_scope']
             if 'execution_date' in data:
                 exec_str = (data.get('execution_date') or '').strip()
                 task.execution_date = datetime.strptime(exec_str, '%Y-%m-%d').date() if exec_str else None
@@ -1546,7 +1592,7 @@ def ajax_modal_action():
             'success': True,
             'task': {
                 'id': task.id, 'status': task.status, 'priority': task.priority, 'is_urgent': task.is_urgent,
-                'assigned_to': task.assigned_to or '', 'remarks': task.remarks or '', 'deliverable_link': task.deliverable_link or '',
+                'assigned_to': task.assigned_to or '', 'work_scope': task.work_scope or '', 'macro_label': SCOPE_BY_CODE[task.work_scope]['label'] if task.work_scope in SCOPE_BY_CODE else task.work_scope, 'remarks': task.remarks or '', 'deliverable_link': task.deliverable_link or '',
                 'date': task.execution_date.strftime('%Y-%m-%d') if task.execution_date else (task.start_time.strftime('%Y-%m-%d') if task.start_time else ''),
                 'execution_date': task.execution_date.strftime('%Y-%m-%d') if task.execution_date else '',
                 'start': task.execution_date.strftime('%Y-%m-%d (Backdated)') if task.execution_date else (task.start_time.strftime('%Y-%m-%d %H:%M') if task.start_time else ''),

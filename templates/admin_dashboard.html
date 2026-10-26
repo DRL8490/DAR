@@ -243,6 +243,9 @@
         {% set sub_clean = task.sub_location.split('_', 1)[-1].replace('_', ' ') if task.sub_location and task.sub_location != 'N/A' and '_' in task.sub_location else (task.sub_location if task.sub_location and task.sub_location != 'N/A' else '') %}
         {% set scope_code = task.work_scope.split('_', 1)[0] if task.work_scope and '_' in task.work_scope else '' %}
         {% set scope_text = task.work_scope.split('_', 1)[-1].replace('_', ' ') if task.work_scope and '_' in task.work_scope else task.work_scope %}
+        {% set macro_scope = scope_map.get(task.work_scope) if scope_map else None %}
+        {% set full_folder_path = area_clean ~ (' ➔ ' ~ loc_clean if loc_clean else '') ~ (' ➔ ' ~ sub_clean if sub_clean else '') %}
+        {% set macro_label = macro_scope.label if macro_scope else (full_folder_path ~ (' ➔ ' ~ scope_text if scope_text and scope_text.lower() != 'general' else '')) %}
         
         <div class="task-card" 
              draggable="true"
@@ -257,7 +260,8 @@
              data-mine="{% if (task.assigned_to and name in task.assigned_to) or name == task.surveyor_name %}true{% else %}false{% endif %}"
              data-creator="{{ task.surveyor_name }}"
              data-task-str="{{ task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else 'UNKNOWN-'~task.id }}"
-             data-path="📁 {{ area_clean }} {% if loc_clean %}➔ {{ loc_clean }}{% endif %} {% if sub_clean %}➔ {{ sub_clean }}{% endif %} ➔ {{ scope_text }}"
+             data-scope="{{ task.work_scope or '' }}"
+             data-path="📍 {{ macro_label }}  [📁 {{ full_folder_path }}]"
              data-remarks="{{ task.remarks or '' }}"
              data-links="{{ task.reference_links or '' }}"
              data-deliverable="{{ task.deliverable_link or '' }}"
@@ -308,14 +312,10 @@
                     </div>
                     {% endif %}
 
-                    <div style="font-size: 12px; color: #666; margin-bottom: 8px; display: flex; align-items: center; gap: 5px; flex-wrap: wrap;">
-                        📁 
-                        <span>{{ area_clean }}</span>
-                        {% if loc_clean %}<span>➔ {{ loc_clean }}</span>{% endif %}
-                        {% if sub_clean %}<span>➔ {{ sub_clean }}</span>{% endif %}
-                        {% if scope_text and scope_text.lower() != 'general' %}
-                            <span>➔ <strong style="color: #198754;">{{ scope_text }}</strong></span>
-                        {% endif %}
+                    <div style="font-size: 12px; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;" title="Auto-Tied Folder: 📁 {{ full_folder_path }}">
+                        <span class="card-macro-badge" style="background: #e8f5e9; color: #0f5132; border: 1px solid #a3cfbb; padding: 2px 8px; border-radius: 6px; font-weight: 700;">
+                            📍 <span class="card-macro-text">{{ macro_label }}</span>
+                        </span>
                     </div>
 
                     <div style="font-size: 11px; color: #888; border-top: 1px solid #f0f0f0; padding-top: 8px; margin-top: 5px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 5px;">
@@ -372,6 +372,16 @@
                             <span id="quickEditFeedback" style="color: #198754; font-size: 11px; display: none;">✔ Saved!</span>
                         </div>
                         <div class="quick-edit-grid">
+                            <div style="grid-column: 1 / -1;">
+                                <label>Macro Work Scope (Location Pre-Tied)</label>
+                                <select id="qeWorkScope" style="width: 100%; padding: 6px; border: 1px solid #9ec5fe; border-radius: 4px; font-size: 12px; font-weight: bold; color: #0f5132;">
+                                    {% if macro_scopes %}
+                                        {% for ms in macro_scopes %}
+                                        <option value="{{ ms.work_scope }}">{{ ms.label }}</option>
+                                        {% endfor %}
+                                    {% endif %}
+                                </select>
+                            </div>
                             <div>
                                 <label>Queue Priority</label>
                                 <input type="number" id="qePriority" min="0" max="99" value="99">
@@ -819,6 +829,8 @@
             document.getElementById('modalEnd').innerText = card.dataset.end;
 
             // Populate Inline Quick-Edit fields
+            const qeSc = document.getElementById('qeWorkScope');
+            if (qeSc && card.dataset.scope) qeSc.value = card.dataset.scope;
             document.getElementById('qePriority').value = card.dataset.priority || 99;
             document.getElementById('qeExecDate').value = card.dataset.execDate || '';
             document.getElementById('qeAssignedTo').value = card.dataset.assigned || '';
@@ -864,6 +876,12 @@
         function syncCardFromServerTask(card, t) {
             card.dataset.status = t.status;
             card.dataset.priority = t.priority;
+            if (t.work_scope) card.dataset.scope = t.work_scope;
+            if (t.macro_label) {
+                card.dataset.path = '📍 ' + t.macro_label;
+                const mSpan = card.querySelector('.card-macro-text');
+                if (mSpan) mSpan.innerText = t.macro_label;
+            }
             card.dataset.urgent = t.is_urgent ? 'true' : 'false';
             card.dataset.assigned = t.assigned_to;
             card.dataset.remarks = t.remarks;
@@ -894,6 +912,7 @@
             const payload = {
                 task_id: currentModalCard.dataset.id,
                 action: 'quick_edit',
+                work_scope: document.getElementById('qeWorkScope') ? document.getElementById('qeWorkScope').value : undefined,
                 priority: document.getElementById('qePriority').value,
                 execution_date: document.getElementById('qeExecDate').value,
                 assigned_to: document.getElementById('qeAssignedTo').value,
