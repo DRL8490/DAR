@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Task - NMDC</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { font-family: Arial; background-color: #f4f7f6; padding: 20px; max-width: 600px; margin: auto; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-top: 5px solid #ffc107; }
+        .form-group { margin-bottom: 15px; display: flex; flex-direction: column; }
+        label { font-weight: bold; margin-bottom: 5px; font-size: 14px; color: #444; }
+        select, input, textarea { padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; }
+        button { background-color: #ffc107; color: black; border: none; padding: 12px; font-size: 16px; border-radius: 6px; cursor: pointer; width: 100%; margin-top: 10px; font-weight: bold; }
+        .btn-add { background-color: #6c757d; color: white; width: 40px; padding: 10px; font-weight: bold; }
+        .btn-remove { background-color: #dc3545; color: white; width: 40px; padding: 10px; font-weight: bold; }
+        .smart-box { background: #e9ecef; padding: 12px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 15px; }
+        .override-box { background: #fdf2f2; padding: 15px; border-radius: 6px; border-left: 5px solid #dc3545; margin-bottom: 15px; border-right: 1px solid #ecc; border-top: 1px solid #ecc; border-bottom: 1px solid #ecc;}
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>✏️ Edit Task: {{ task_id_str }}</h2>
+        <form action="/edit_task/{{ task.id }}" method="POST">
+            
+            <div class="form-group"><label>Requestor Dept:</label><select name="requestor_dept" id="reqDept" onchange="updateReqNames()" required><option value="">-- Select Dept --</option></select></div>
+            <div class="form-group"><label>Requestor Name:</label><select name="requestor_name" id="reqName" required><option value="">-- Select Name --</option></select></div>
+            
+            <datalist id="user_list">
+                {% for u in users %}
+                    <option value="{{ u.name }}"></option>
+                {% endfor %}
+            </datalist>
+
+            <div class="form-group" id="surveyor_container">
+                <label>Assigned To</label>
+                {% if task.assigned_to %}
+                    {% for assignee in task.assigned_to.split(', ') %}
+                        <div style="display: flex; gap: 5px; margin-bottom: 5px;">
+                            <input list="user_list" name="assigned_to" value="{{ assignee }}" placeholder="Type custom name or select user..." style="flex: 1; padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px;" required>
+                            {% if loop.index > 1 %}
+                            <button type="button" class="btn-remove" onclick="this.parentElement.remove()"><i class="fas fa-trash"></i></button>
+                            {% else %}
+                            <button type="button" class="btn-add" style="background-color: #28a745;" onclick="addSurveyorDropdown()"><i class="fas fa-plus"></i></button>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div style="display: flex; gap: 5px; margin-bottom: 5px;">
+                        <input list="user_list" name="assigned_to" placeholder="Type custom name or select user..." style="flex: 1; padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px;" required>
+                        <button type="button" class="btn-add" style="background-color: #28a745;" onclick="addSurveyorDropdown()"><i class="fas fa-plus"></i></button>
+                    </div>
+                {% endif %}
+            </div>
+            
+            <div class="smart-box">
+                <label style="color: #0056b3;"><i class="fas fa-bolt"></i> Quick Find (Smart Search)</label>
+                <input list="smart_task_list" id="smart_task_input" style="width: 100%; box-sizing: border-box;" placeholder="Type keyword (e.g. Progress)..." oninput="applySmartTask()">
+                <datalist id="smart_task_list"></datalist>
+            </div>
+
+            <div class="form-group">
+                <label style="color: #dc3545;">1. Mission Verb:</label>
+                <select name="command_verb" id="command_verb" style="border: 1px solid #dc3545; padding: 10px; border-radius: 4px; font-size: 16px;" required>
+                    <optgroup label="Execution (Core)">
+                        <option value="PERFORM">PERFORM (Field Work & Physical Surveys)</option>
+                        <option value="PROCESS">PROCESS (Data Processing & Calculations)</option>
+                        <option value="DRAFT">DRAFT (Creating Drawings & Initial Reports)</option>
+                        <option value="SETUP">SETUP (Equipment Config & Troubleshooting)</option>
+                    </optgroup>
+                    <optgroup label="Quality & Coordination">
+                        <option value="VERIFY">VERIFY (Internal Checks & QA/QC)</option>
+                        <option value="REVIEW">REVIEW (Reviewing Subcon or Third-Party Reports)</option>
+                        <option value="PROVIDE">PROVIDE (Giving Input/Support to Other Depts)</option>
+                        <option value="ATTEND">ATTEND (Internal and External Meetings)</option>
+                    </optgroup>
+                    <optgroup label="Deliverables">
+                        <option value="SUBMIT">SUBMIT (Sending Reports to DC or Management)</option>
+                        <option value="FILE">FILE (Archiving Data or Storing Historical Files)</option>
+                    </optgroup>
+                </select>
+            </div>
+
+            <div class="form-group"><label>2. Activity Type:</label><select name="task_category" id="task_category" onchange="updateActions()" required><option value="">-- Select Category --</option></select></div>
+            <div class="form-group"><label>Action Required/Discipline:</label><select name="action_required" id="action_required" onchange="updateInstruments()" required><option value="">-- Select Action --</option></select></div>
+            <div class="form-group"><label>Instrument:</label><select name="instrument" id="instrument" required><option value="">-- Select Instrument --</option></select></div>
+            
+            <hr>
+
+            <div class="form-group"><label>Area:</label><select name="area" id="areaDropdown" onchange="updateLocations()" required></select></div>
+            <div class="form-group"><label>Location:</label><select name="location" id="locationDropdown" onchange="updateSubLocations()"></select></div>
+            <div class="form-group"><label>Sub-Location:</label><select name="sub_location" id="subLocationDropdown" onchange="updateWorkScopes()"></select></div>
+            <div class="form-group"><label>Work Scope:</label><select name="work_scope" id="workScopeDropdown" required></select></div>
+
+            <div class="form-group" id="link-container">
+                <label>Reference File Links:</label>
+                {% if task.reference_links %}
+                    {% for link in task.reference_links.split(' | ') %}
+                    <div style="display: flex; gap: 5px; margin-bottom: 5px;"><input type="url" name="reference_link" value="{{ link }}" style="flex: 1;"><button type="button" class="btn-remove" onclick="this.parentElement.remove()">X</button></div>
+                    {% endfor %}
+                {% endif %}
+                <div style="display: flex; gap: 5px; margin-bottom: 5px;"><input type="url" name="reference_link" placeholder="Add new link..." style="flex: 1;"><button type="button" class="btn-add" onclick="addLink()">+</button></div>
+            </div>
+
+            <div class="override-box form-group">
+                <label style="color: #dc3545; font-size: 15px;"><i class="fas fa-calendar-alt"></i> Backdate Survey Execution</label>
+                <p style="font-size: 12px; color: #666; margin-top: 0; line-height: 1.3;">Only use this if the survey was performed on a different day than when this task was created. This ensures WSR/DTR reports sort correctly without breaking your sequence numbers.</p>
+                <input type="date" id="execution_date" name="execution_date" style="border-color: #f5c6cb;"
+                       value="{{ task.execution_date.strftime('%Y-%m-%d') if task.execution_date else '' }}">
+            </div>
+
+            <div style="margin-bottom: 15px; background: #e9ecef; padding: 10px; border-left: 5px solid #6c757d; border-radius: 4px; display: flex; align-items: center; gap: 15px;">
+                <label style="font-weight: bold; color: #444; margin: 0;">Queue Priority:</label>
+                <input type="number" name="priority" value="{{ task.priority|default(99) }}" min="0" max="99" style="padding: 8px; border-radius: 4px; border: 1px solid #ccc; width: 80px;">
+                <span style="font-size: 12px; color: #666;">(0 = Highest Priority, 99 = Standard)</span>
+            </div>
+
+            <div class="form-group"><label>Opening Remarks:</label><textarea name="remarks" rows="3">{{ task.remarks or '' }}</textarea></div>
+            
+            <div style="margin-bottom: 20px; background: #fff3cd; padding: 10px; border-left: 5px solid #dc3545; border-radius: 4px;">
+                <label style="font-weight: bold; color: #dc3545; cursor: pointer;">
+                    <input type="checkbox" name="is_urgent" value="true" style="transform: scale(1.5); margin-right: 10px;" {% if task.is_urgent %}checked{% endif %}>
+                    🚨 Mark this task as URGENT
+                </label>
+            </div>
+            
+            <button type="submit">Save Changes</button>
+            <a href="{{ url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard') }}" style="display: block; text-align: center; margin-top: 15px; color: #666; text-decoration: none;">Cancel</a>
+        </form>
+    </div>
+
+    <script>
+        function addLink() { let d = document.createElement('div'); d.style.cssText = "display:flex; gap:5px; margin-bottom:5px;"; d.innerHTML = '<input type="url" name="reference_link" style="flex:1;"><button type="button" class="btn-remove" onclick="this.parentElement.remove()">X</button>'; document.getElementById('link-container').appendChild(d); }
+
+        function addSurveyorDropdown() {
+            let container = document.getElementById('surveyor_container');
+            let d = document.createElement('div');
+            d.style.cssText = "display:flex; gap:5px; margin-bottom:5px;";
+            d.innerHTML = `
+                <input list="user_list" name="assigned_to" placeholder="Type custom name or select user..." style="flex: 1; padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px;" required>
+                <button type="button" class="btn-remove" onclick="this.parentElement.remove()"><i class="fas fa-trash"></i></button>
+            `;
+            container.appendChild(d);
+        }
+
+        let reqTree = {{ req_dict_json | safe }};
+        function popReqDepts() { let d = document.getElementById("reqDept"); Object.keys(reqTree).sort().forEach(x => { let o = document.createElement("option"); o.value = x; o.innerHTML = x; d.appendChild(o); }); }
+        function updateReqNames() { let d = document.getElementById("reqDept").value; let n = document.getElementById("reqName"); n.innerHTML = '<option value="">-- Select Name --</option>'; if (d && reqTree[d]) { reqTree[d].sort().forEach(x => { let o = document.createElement("option"); o.value = x; o.innerHTML = x; n.appendChild(o); }); } }
+        popReqDepts();
+
+        let schema = {{ schema_json | safe }};
+        function popD(id, list) { let d = document.getElementById(id); d.innerHTML = '<option value="">-- Select --</option>'; list.sort().forEach(x => { let o = document.createElement('option'); o.value = x; o.innerHTML = x; d.appendChild(o); }); }
+        function loadAreas() { popD("areaDropdown", Object.keys(schema)); updateLocations(); }
+        function updateLocations() { let a = document.getElementById("areaDropdown").value; popD("locationDropdown", a && schema[a] ? Object.keys(schema[a]) : []); updateSubLocations(); }
+        function updateSubLocations() { let a = document.getElementById("areaDropdown").value; let l = document.getElementById("locationDropdown").value; popD("subLocationDropdown", (a && l && schema[a][l]) ? Object.keys(schema[a][l]) : []); updateWorkScopes(); }
+        function updateWorkScopes() { let a = document.getElementById("areaDropdown").value; let l = document.getElementById("locationDropdown").value; let s = document.getElementById("subLocationDropdown").value; popD("workScopeDropdown", (a && l && s && schema[a][l][s]) ? schema[a][l][s] : []); }
+        loadAreas();
+
+        let actData = {{ activities_json | safe }};
+        const actSelect = document.getElementById('task_category');
+        const reqActSelect = document.getElementById('action_required');
+        const instSelect = document.getElementById('instrument');
+
+        Object.keys(actData).sort().forEach(act => { actSelect.add(new Option(act, act)); });
+
+        function updateActions() {
+            reqActSelect.innerHTML = '<option value="">-- Select Action --</option>';
+            instSelect.innerHTML = '<option value="">-- Select Instrument --</option>';
+            const act = actSelect.value;
+            if(act && actData[act]) { Object.keys(actData[act]).sort().forEach(req => { reqActSelect.add(new Option(req, req)); }); }
+        }
+
+        function updateInstruments() {
+            instSelect.innerHTML = '<option value="">-- Select Instrument --</option>';
+            const act = actSelect.value;
+            const req = reqActSelect.value;
+            if(act && req && actData[act][req]) { actData[act][req].forEach(inst => { instSelect.add(new Option(inst, inst)); }); }
+        }
+
+        const smartList = document.getElementById('smart_task_list');
+        let taskCombinations = {}; 
+        for (const [act, actions] of Object.entries(actData)) {
+            for (const [req, insts] of Object.entries(actions)) {
+                insts.forEach(inst => {
+                    const comboStr = `${act} ➔ ${req} ➔ ${inst}`;
+                    taskCombinations[comboStr] = { act, req, inst };
+                    let option = document.createElement('option');
+                    option.value = comboStr;
+                    smartList.appendChild(option);
+                });
+            }
+        }
+
+        function applySmartTask() {
+            const inputVal = document.getElementById('smart_task_input').value;
+            const combo = taskCombinations[inputVal];
+            if (combo) {
+                setSafeVal('task_category', combo.act); updateActions(); 
+                setSafeVal('action_required', combo.req); updateInstruments(); 
+                setSafeVal('instrument', combo.inst);
+            }
+        }
+
+        function setSafeVal(idOrName, val) {
+            if (!val || val === "N/A" || val === "None") return;
+            let el = document.getElementById(idOrName) || document.querySelector(`[name="${idOrName}"]`);
+            if (!el) return;
+            
+            let exists = Array.from(el.options).some(opt => opt.value === val);
+            if (!exists) {
+                let opt = document.createElement('option');
+                opt.value = val;
+                opt.innerHTML = val; 
+                el.appendChild(opt);
+            }
+            el.value = val;
+        }
+
+        let tData = {{ task_json | safe }};
+        if (tData) {
+            setSafeVal('command_verb', tData.command_verb); // <--- LOAD SAVED VERB
+            setSafeVal('task_category', tData.task_category); updateActions();
+            setSafeVal('action_required', tData.action_required); updateInstruments();
+            setSafeVal('instrument', tData.instrument);
+            
+            setSafeVal('reqDept', tData.req_dept); updateReqNames();
+            setSafeVal('reqName', tData.req_name);
+            
+            setSafeVal('areaDropdown', tData.area); updateLocations();
+            setSafeVal('locationDropdown', tData.location); updateSubLocations();
+            setSafeVal('subLocationDropdown', tData.sub_location); updateWorkScopes();
+            setSafeVal('workScopeDropdown', tData.work_scope);
+        }
+    </script>
+</body>
+</html>
