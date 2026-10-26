@@ -918,25 +918,55 @@ def escalate_aging_tasks():
 def dashboard():
     session['dashboard_view'] = 'user'
     escalate_aging_tasks()
-    # Strictly fetch ONLY tasks assigned to the logged-in surveyor
+
+    # Fetch tasks where current_user is either Assigned OR Creator
     candidate_tasks = SurveyTask.query.filter(
         SurveyTask.status != 'Archived',
-        SurveyTask.assigned_to.ilike(f"%{current_user.name}%")
+        or_(
+            SurveyTask.assigned_to.ilike(f"%{current_user.name}%"),
+            SurveyTask.surveyor_name == current_user.name
+        )
     ).order_by(
         SurveyTask.is_urgent.desc(),
         SurveyTask.priority.asc(),
         SurveyTask.start_time.desc()
-    ).limit(300).all()
+    ).limit(350).all()
 
-    my_tasks = [
-        t for t in candidate_tasks
-        if current_user.name in [u.strip() for u in (t.assigned_to or '').split(',')]
-    ]
+    my_tasks = []
+    delegated_tasks = []
+    for t in candidate_tasks:
+        assigned_list = [u.strip() for u in (t.assigned_to or '').split(',') if u.strip()]
+        if current_user.name in assigned_list:
+            my_tasks.append(t)
+        elif t.surveyor_name == current_user.name:
+            delegated_tasks.append(t)
+
+    config = AppConfig.query.first()
+    master_schema = json.loads(config.schema_data) if (config and config.schema_data) else {}
+    file_tree = master_schema.get("file_tree", {})
+    req_dict = master_schema.get("requestors", {})
+    macro_scopes_list, omni_cards = get_merged_macro_scopes_and_cards(file_tree)
 
     is_admin = is_user_admin(current_user)
-    all_users = User.query.order_by(User.name.asc()).all()
+    all_users = User.query.filter_by(is_approved=True, is_active=True).order_by(User.name.asc()).all()
     initials_map = {u.name: (u.initials.upper() if u.initials else ((u.name.split()[0][0] + u.name.split()[1][0]).upper() if len(u.name.split()) >= 2 else u.name[:2].upper())) for u in all_users}
-    return render_template('dashboard.html', name=current_user.name, tasks=my_tasks, users=all_users, is_admin=is_admin, initials_map=initials_map, scope_map=SCOPE_BY_CODE, macro_scopes=LEAN_MACRO_SCOPES)
+
+    return render_template(
+        'dashboard.html',
+        name=current_user.name,
+        tasks=my_tasks,
+        delegated_tasks=delegated_tasks,
+        users=all_users,
+        is_admin=is_admin,
+        initials_map=initials_map,
+        scope_map=SCOPE_BY_CODE,
+        macro_scopes=macro_scopes_list,
+        req_dict_json=json.dumps(req_dict),
+        macro_scopes_json=json.dumps(macro_scopes_list),
+        core_tasks_json=json.dumps(LEAN_CORE_TASKS),
+        omni_cards_json=json.dumps(omni_cards),
+        quick_chips_json=json.dumps(get_active_quick_chips())
+    )
 
 @app.route('/admin_dashboard')
 @login_required

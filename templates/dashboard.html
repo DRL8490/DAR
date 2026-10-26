@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Assigned Tasks - NMDC</title>
+    <title>My Survey Workspace - NMDC</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background-color: #f0f4f8; padding: 20px; margin: 0; color: #1e293b; }
         
@@ -13,24 +13,30 @@
         .workspace-sub { font-size: 13px; color: #64748b; font-weight: 600; margin-top: 4px; }
         
         .header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-        .btn-new-task { background: linear-gradient(135deg, #0056b3 0%, #0d6efd 100%); color: white; padding: 11px 20px; text-decoration: none; border-radius: 8px; font-weight: 800; font-size: 14px; box-shadow: 0 4px 10px rgba(13,110,253,0.25); transition: transform 0.15s, box-shadow 0.15s; display: inline-flex; align-items: center; gap: 6px; }
-        .btn-new-task:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(13,110,253,0.35); color: white; }
+        .btn-quick-open { background: linear-gradient(135deg, #0056b3 0%, #0d6efd 100%); color: white; padding: 11px 20px; border: none; border-radius: 8px; font-weight: 800; font-size: 14px; cursor: pointer; box-shadow: 0 4px 10px rgba(13,110,253,0.25); transition: transform 0.15s, box-shadow 0.15s; display: inline-flex; align-items: center; gap: 6px; }
+        .btn-quick-open:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(13,110,253,0.35); color: white; }
         .btn-secondary-nav { background: #f1f5f9; color: #334155; padding: 10px 14px; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 13px; border: 1px solid #cbd5e1; transition: all 0.15s; }
         .btn-secondary-nav:hover { background: #e2e8f0; color: #0f172a; }
         .btn-admin-nav { background: #1e293b; color: #fbbf24; padding: 10px 14px; text-decoration: none; border-radius: 8px; font-weight: 800; font-size: 13px; }
         .btn-admin-nav:hover { background: #0f172a; color: #fcd34d; }
 
-        /* Personal Status Summary Bar (Zero Clutter) */
-        .summary-bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
-        .stat-pill { background: white; padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 800; display: flex; align-items: center; gap: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
-        .stat-count { padding: 2px 9px; border-radius: 12px; font-size: 13px; font-weight: 900; }
+        /* Personal Status Summary Bar & View Tabs */
+        .summary-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
+        .view-tab { background: white; color: #475569; padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 800; cursor: pointer; display: flex; align-items: center; gap: 8px; border: 2px solid #cbd5e1; transition: all 0.15s; }
+        .view-tab:hover { border-color: #94a3b8; color: #0f172a; }
+        .view-tab.active { background: #0056b3; color: white; border-color: #0056b3; box-shadow: 0 3px 8px rgba(0,86,179,0.25); }
+        .view-tab.active .tab-badge { background: white; color: #0056b3; }
+        .tab-badge { background: #e2e8f0; color: #1e293b; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 900; }
+
+        .stat-pill { background: white; padding: 9px 14px; border-radius: 10px; font-size: 12.5px; font-weight: 800; display: flex; align-items: center; gap: 7px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); border: 1px solid #e2e8f0; }
+        .stat-count { padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 900; }
         .stat-open .stat-count { background: #fef3c7; color: #92400e; }
         .stat-prog .stat-count { background: #e0f2fe; color: #075985; }
         .stat-done .stat-count { background: #dcfce7; color: #166534; }
         .stat-urgent { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
         .stat-urgent .stat-count { background: #dc2626; color: white; }
 
-        .search-input { margin-left: auto; min-width: 240px; padding: 10px 16px; border-radius: 20px; border: 1px solid #cbd5e1; font-size: 13px; outline: none; background: white; box-shadow: inset 0 1px 2px rgba(0,0,0,0.03); }
+        .search-input { margin-left: auto; min-width: 230px; padding: 10px 16px; border-radius: 20px; border: 1px solid #cbd5e1; font-size: 13px; outline: none; background: white; box-shadow: inset 0 1px 2px rgba(0,0,0,0.03); }
         .search-input:focus { border-color: #0d6efd; box-shadow: 0 0 0 3px rgba(13,110,253,0.15); }
 
         .flash-container { margin-bottom: 16px; }
@@ -53,8 +59,12 @@
 
         .empty-col-placeholder { text-align: center; padding: 35px 15px; color: #64748b; font-size: 13px; font-style: italic; border: 2px dashed #cbd5e1; border-radius: 8px; }
 
+        /* Delegated ("Created for Others") Section */
+        .delegated-section { display: none; background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-top: 5px solid #6366f1; }
+        .delegated-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; margin-top: 15px; }
+
         /* Intuitive Task Cards with 1-Click Inline Action Footer */
-        .task-card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.07); border-left: 5px solid #f59e0b; transition: transform 0.15s, box-shadow 0.15s; cursor: grab; }
+        .task-card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.07); border-left: 5px solid #f59e0b; transition: transform 0.15s, box-shadow 0.15s; cursor: grab; border-top: 1px solid #f1f5f9; border-right: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; }
         .task-card:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
         .task-card:active { cursor: grabbing; }
         .task-card.dragging { opacity: 0.6; transform: scale(0.98); border: 2px dashed #0056b3; }
@@ -76,11 +86,12 @@
         .inline-complete-drawer { display: none; flex-direction: column; gap: 6px; margin-top: 10px; padding: 10px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; }
         .inline-complete-drawer input { padding: 7px 10px; border: 1px solid #86efac; border-radius: 5px; font-size: 12.5px; width: 100%; box-sizing: border-box; }
 
-        /* Modal Styles */
+        /* Modal Styles (Task Details & Quick Open New Task) */
         .status-badge { font-size: 12px; padding: 3px 8px; border-radius: 12px; color: white; font-weight: bold; white-space: nowrap; }
         .badge-Open { background: #f59e0b; color: black; }
         .badge-In-Progress { background: #0ea5e9; color: white; }
         .badge-Closed { background: #10b981; }
+        .badge-Canceled { background: #ef4444; }
 
         .btn-action { color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; text-decoration: none; }
         .btn-progress { background-color: #0ea5e9; }
@@ -91,8 +102,8 @@
         .action-form { display: none; flex-direction: column; gap: 8px; margin-top: 10px; padding: 12px; background: #f9f9f9; border-radius: 6px; border: 1px solid #ddd; width: 100%; box-sizing: border-box; }
         .action-input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
 
-        .task-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.6); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
-        .task-modal-box { background: white; width: 92%; max-width: 820px; max-height: 92vh; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.35); }
+        .task-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.65); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+        .task-modal-box { background: white; width: 94%; max-width: 860px; max-height: 92vh; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
         .task-modal-header { background: #f8fafc; padding: 15px 20px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: flex-start; }
         .task-modal-close { font-size: 28px; cursor: pointer; color: #64748b; line-height: 1; border: none; background: none; font-weight: bold; }
         .task-modal-close:hover { color: #ef4444; }
@@ -108,6 +119,21 @@
         .quick-edit-grid label { font-size: 11px; font-weight: bold; color: #1e40af; display: block; margin-bottom: 3px; text-transform: uppercase; }
         .quick-edit-grid input { width: 100%; padding: 6px; border: 1px solid #93c5fd; border-radius: 4px; font-size: 12px; box-sizing: border-box; }
         .audit-pill { background: #f1f5f9; border-left: 3px solid #0d6efd; padding: 6px 10px; border-radius: 4px; font-size: 12px; color: #334155; margin-top: 6px; }
+
+        /* Quick Open New Task Modal Styles */
+        .qm-omni-box { background: #eff6ff; border: 2px solid #0d6efd; border-radius: 10px; padding: 14px; position: relative; margin-bottom: 14px; }
+        .qm-omni-results { position: absolute; left: 14px; right: 14px; top: 100%; z-index: 2100; max-height: 260px; overflow-y: auto; background: white; border: 1px solid #0d6efd; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); display: none; margin-top: 4px; }
+        .qm-omni-item { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13px; }
+        .qm-omni-item:hover { background: #e0f2fe; }
+        .qm-chip { display: inline-block; background: white; color: #1e3a8a; border: 1px solid #93c5fd; border-radius: 16px; padding: 4px 10px; font-size: 11.5px; font-weight: 700; cursor: pointer; transition: all 0.15s; user-select: none; }
+        .qm-chip:hover { background: #0d6efd; color: white; border-color: #0d6efd; transform: translateY(-1px); }
+        .qm-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+        .qm-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 12px; }
+        @media (max-width: 700px) { .qm-grid-2, .qm-grid-4 { grid-template-columns: 1fr; } }
+        .qm-label { display: block; font-size: 12px; font-weight: 800; color: #334155; margin-bottom: 4px; }
+        .qm-input, .qm-select, .qm-textarea { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; box-sizing: border-box; font-family: inherit; }
+        .qm-input:focus, .qm-select:focus, .qm-textarea:focus { border-color: #0d6efd; outline: none; box-shadow: 0 0 0 3px rgba(13,110,253,0.12); }
+        .qm-path-bar { background: #e8f5e9; border: 1px solid #a3cfbb; color: #0f5132; border-radius: 8px; padding: 7px 12px; font-size: 12.5px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
     </style>
 </head>
 <body>
@@ -115,13 +141,14 @@
     <!-- CLEAN PERSONAL WORKSPACE HEADER -->
     <div class="workspace-header">
         <div>
-            <h2 class="workspace-title">👷‍♂️ {{ name }}'s Personal Task Queue</h2>
+            <h2 class="workspace-title">👷‍♂️ {{ name }}'s Personal Survey Workspace</h2>
             <div class="workspace-sub">
-                Showing only survey tasks assigned to you • <span id="liveClock">Loading time...</span>
+                Focused on your assigned tasks & delegated requests • <span id="liveClock">Loading time...</span>
             </div>
         </div>
         <div class="header-actions">
-            <a href="/new_task" class="btn-new-task">➕ Open New Task</a>
+            <button type="button" class="btn-quick-open" onclick="openQuickNewTaskModal()">⚡ Quick Open Task</button>
+            <a href="/new_task" class="btn-secondary-nav" title="Open Full Task Launcher with 10/Page History Browser">📄 Full New Task Page</a>
             <a href="/reports" class="btn-secondary-nav">📊 Reports</a>
             {% if is_admin %}
             <a href="/admin_dashboard" class="btn-admin-nav">🛡️ Admin Command Center</a>
@@ -142,29 +169,41 @@
         {% endif %}
     {% endwith %}
 
-    <!-- GLANCEABLE PERSONAL STATUS BAR + SINGLE SEARCH INPUT -->
+    <!-- VIEW TABS (MY ASSIGNED QUEUE vs. CREATED FOR OTHERS) + STATUS PILLS -->
     <div class="summary-bar">
-        <div class="stat-pill stat-open">
-            <span>📥 To Do (Open)</span>
-            <span class="stat-count" id="countOpenPill">0</span>
-        </div>
-        <div class="stat-pill stat-prog">
-            <span>🚧 Working On</span>
-            <span class="stat-count" id="countProgPill">0</span>
-        </div>
-        <div class="stat-pill stat-done">
-            <span>✅ Done (Past 48h)</span>
-            <span class="stat-count" id="countDonePill">0</span>
-        </div>
-        <div class="stat-pill stat-urgent" id="urgentPillBox" style="display: none;">
-            <span>🚨 URGENT</span>
-            <span class="stat-count" id="countUrgentPill">0</span>
+        <button type="button" class="view-tab active" id="tabBtnMyQueue" onclick="switchWorkspaceTab('my_queue')">
+            <span>👷‍♂️ My Assigned Queue</span>
+            <span class="tab-badge" id="myQueueTotalBadge">0</span>
+        </button>
+
+        <button type="button" class="view-tab" id="tabBtnDelegated" onclick="switchWorkspaceTab('delegated')">
+            <span>📤 Created for Others</span>
+            <span class="tab-badge" id="delegatedTotalBadge">{{ delegated_tasks|length if delegated_tasks else 0 }}</span>
+        </button>
+
+        <div id="myQueueStatsGroup" style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+            <div class="stat-pill stat-open">
+                <span>📥 To Do</span>
+                <span class="stat-count" id="countOpenPill">0</span>
+            </div>
+            <div class="stat-pill stat-prog">
+                <span>🚧 Working On</span>
+                <span class="stat-count" id="countProgPill">0</span>
+            </div>
+            <div class="stat-pill stat-done">
+                <span>✅ Done (48h)</span>
+                <span class="stat-count" id="countDonePill">0</span>
+            </div>
+            <div class="stat-pill stat-urgent" id="urgentPillBox" style="display: none;">
+                <span>🚨 URGENT</span>
+                <span class="stat-count" id="countUrgentPill">0</span>
+            </div>
         </div>
 
-        <input type="text" id="userKeywordSearch" class="search-input" placeholder="🔍 Search my tasks by scope, remark, or requestor..." oninput="renderPersonalBoard()">
+        <input type="text" id="userKeywordSearch" class="search-input" placeholder="🔍 Search tasks by scope, remark, or person..." oninput="renderPersonalBoard()">
     </div>
 
-    <!-- HIDDEN POOL OF PERSONAL TASKS -->
+    <!-- HIDDEN POOL OF MY ASSIGNED TASKS -->
     <div id="taskContainer" style="display: none;">
         {% for task in tasks %}
         {% set area_clean = task.area.split('_', 1)[-1].replace('_', ' ') if task.area and '_' in task.area else task.area %}
@@ -175,7 +214,7 @@
         {% set full_folder_path = area_clean ~ (' ➔ ' ~ loc_clean if loc_clean else '') ~ (' ➔ ' ~ sub_clean if sub_clean else '') %}
         {% set macro_label = macro_scope.label if macro_scope else (full_folder_path ~ (' ➔ ' ~ scope_text if scope_text and scope_text.lower() != 'general' else '')) %}
         
-        <div class="task-card" 
+        <div class="task-card my-assigned-card" 
              draggable="true"
              ondragstart="drag(event)"
              data-id="{{ task.id }}"
@@ -266,7 +305,7 @@
         {% endfor %}
     </div>
 
-    <!-- 3-COLUMN PERSONAL WORKFLOW BOARD -->
+    <!-- VIEW 1: 3-COLUMN PERSONAL WORKFLOW BOARD -->
     <div id="kanbanContainer" class="kanban-container">
         <div class="kanban-col kb-open" ondragover="allowDrop(event)" ondrop="drop(event, 'Open')" ondragenter="this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')">
             <div class="col-header">
@@ -290,6 +329,240 @@
                 <span class="col-badge" id="colClosedCount">0</span>
             </div>
             <div id="col-closed" style="display: flex; flex-direction: column; gap: 12px; min-height: 60px;"></div>
+        </div>
+    </div>
+
+    <!-- VIEW 2: "CREATED FOR OTHERS / DELEGATED TASKS" SECTION -->
+    <div id="delegatedContainer" class="delegated-section">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px;">
+            <div>
+                <h3 style="margin: 0; font-size: 17px; color: #1e293b;">📤 Tasks I Created for Other Surveyors</h3>
+                <div style="font-size: 12.5px; color: #64748b; margin-top: 2px;">Track live progress of tasks you opened and assigned to teammates. Click any card to inspect or edit.</div>
+            </div>
+            <button type="button" class="btn-quick-open" style="padding: 8px 14px; font-size: 13px;" onclick="openQuickNewTaskModal()">➕ Assign New Task to Teammate</button>
+        </div>
+
+        {% if not delegated_tasks or delegated_tasks|length == 0 %}
+            <div class="empty-col-placeholder" style="margin-top: 15px;">
+                You haven't delegated any active tasks to other surveyors yet. Click "⚡ Quick Open Task" and select a teammate in "Assigned To" to delegate a task!
+            </div>
+        {% else %}
+            <div class="delegated-grid" id="delegatedGrid">
+                {% for task in delegated_tasks %}
+                {% set area_clean = task.area.split('_', 1)[-1].replace('_', ' ') if task.area and '_' in task.area else task.area %}
+                {% set loc_clean = task.location.split('_', 1)[-1].replace('_', ' ') if task.location and task.location != 'N/A' and '_' in task.location else (task.location if task.location and task.location != 'N/A' else '') %}
+                {% set sub_clean = task.sub_location.split('_', 1)[-1].replace('_', ' ') if task.sub_location and task.sub_location != 'N/A' and '_' in task.sub_location else (task.sub_location if task.sub_location and task.sub_location != 'N/A' else '') %}
+                {% set scope_text = task.work_scope.split('_', 1)[-1].replace('_', ' ') if task.work_scope and '_' in task.work_scope else task.work_scope %}
+                {% set macro_scope = scope_map.get(task.work_scope) if scope_map else None %}
+                {% set full_folder_path = area_clean ~ (' ➔ ' ~ loc_clean if loc_clean else '') ~ (' ➔ ' ~ sub_clean if sub_clean else '') %}
+                {% set macro_label = macro_scope.label if macro_scope else (full_folder_path ~ (' ➔ ' ~ scope_text if scope_text and scope_text.lower() != 'general' else '')) %}
+
+                <div class="task-card delegated-card"
+                     onclick="openTaskModal(this)"
+                     style="cursor: pointer;"
+                     data-id="{{ task.id }}"
+                     data-status="{{ task.status }}" 
+                     data-priority="{{ task.priority|default(99) }}"
+                     data-urgent="{{ 'true' if task.is_urgent else 'false' }}"
+                     data-exec-date="{{ task.execution_date.strftime('%Y-%m-%d') if task.execution_date else '' }}"
+                     data-date="{{ task.execution_date.strftime('%Y-%m-%d') if task.execution_date else (task.start_time.strftime('%Y-%m-%d') if task.start_time else '') }}" 
+                     data-assigned="{{ task.assigned_to or '' }}"
+                     data-mine="true"
+                     data-creator="{{ task.surveyor_name }}"
+                     data-task-str="{{ task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else 'UNKNOWN-'~task.id }}"
+                     data-scope="{{ task.work_scope or '' }}"
+                     data-path="📍 {{ macro_label }}  [📁 {{ full_folder_path }}]"
+                     data-remarks="{{ task.remarks or '' }}"
+                     data-links="{{ task.reference_links or '' }}"
+                     data-deliverable="{{ task.deliverable_link or '' }}"
+                     data-req="{{ task.requestor or '' }}"
+                     data-cat="{{ task.task_category or '' }}"
+                     data-disc="{{ task.action_required or '' }}"
+                     data-inst="{{ task.instrument or '' }}"
+                     data-start="{{ task.execution_date.strftime('%Y-%m-%d (Backdated)') if task.execution_date else (task.start_time.strftime('%Y-%m-%d %H:%M') if task.start_time else '') }}"
+                     data-end="{{ task.end_time.strftime('%Y-%m-%d %H:%M') if task.end_time else 'Pending' }}">
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 6px;">
+                        <span class="status-badge badge-{{ task.status.replace(' ', '-') }}">{{ task.status }}</span>
+                        <span style="font-size: 12px; font-weight: 800; color: #4f46e5; background: #eef2ff; border: 1px solid #c7d2fe; padding: 2px 8px; border-radius: 6px;">
+                            👷 Assigned: {{ task.assigned_to or 'Unassigned' }}
+                        </span>
+                    </div>
+
+                    <div class="task-line-1">
+                        {% if task.is_urgent and task.status in ['Open', 'In Progress'] %}
+                        <span class="card-urgent-badge" style="background: #dc2626; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold;">🚨 URGENT</span>
+                        {% endif %}
+                        <span style="color: #dc2626; font-family: monospace;">[{{ task.command_verb or 'PERFORM' }}]</span> 
+                        <span>{{ task.action_required }}</span>
+                    </div>
+
+                    <div style="font-size: 12px; margin-bottom: 8px;">
+                        <span class="card-macro-badge" style="background: #e8f5e9; color: #0f5132; border: 1px solid #a3cfbb; padding: 2px 8px; border-radius: 6px; font-weight: 700;">
+                            📍 <span class="card-macro-text">{{ macro_label }}</span>
+                        </span>
+                    </div>
+
+                    {% set short_remark = task.remarks.split('|')[0].strip() if task.remarks else '' %}
+                    {% if short_remark %}
+                    <div style="font-size: 12.5px; color: #334155; background: #f8fafc; padding: 6px 10px; border-radius: 6px; border-left: 3px solid #6366f1; margin-bottom: 8px;">
+                        {{ short_remark | truncate(95) }}
+                    </div>
+                    {% endif %}
+
+                    <div style="font-size: 11px; color: #64748b; display: flex; justify-content: space-between; border-top: 1px solid #f1f5f9; padding-top: 6px;">
+                        <span>📅 {{ task.execution_date.strftime('%Y-%m-%d') if task.execution_date else (task.start_time.strftime('%Y-%m-%d') if task.start_time else '') }}</span>
+                        <span style="color: #0056b3; font-weight: 700;">⤢ View / Edit</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- QUICK OPEN NEW TASK MODAL (RIGHT ON THE BOARD!) -->
+    <div class="task-modal-overlay" id="quickNewTaskModal">
+        <div class="task-modal-box" style="max-width: 900px;">
+            <div class="task-modal-header" style="background: linear-gradient(90deg, #0056b3 0%, #0d6efd 100%); color: white;">
+                <div>
+                    <h3 style="margin: 0; font-size: 18px; font-weight: 800;">⚡ Quick Open New Survey Task</h3>
+                    <div style="font-size: 12px; opacity: 0.9; margin-top: 2px;">16 Macro Work Scopes × 14 Core Survey Tasks • Stays right on your workspace</div>
+                </div>
+                <button class="task-modal-close" style="color: white;" onclick="closeQuickNewTaskModal()">&times;</button>
+            </div>
+
+            <form action="/new_task" method="POST" style="display: flex; flex-direction: column; overflow: hidden; flex: 1;">
+                <div class="task-modal-body" style="display: block; overflow-y: auto; padding: 18px 20px;">
+                    
+                    <!-- 1. UNIFIED OMNI-SEARCH + QUICK CHIPS -->
+                    <div class="qm-omni-box">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 6px;">
+                            <label class="qm-label" style="color: #0056b3; font-size: 13.5px; margin: 0;">🔍 Unified Omni-Search (Type Task + Work Scope Together)</label>
+                            <span style="font-size: 11px; font-weight: 800; color: #0d6efd;">TC = Taichung | TX = Tunghsiao | NS = Nearshore | OS = Offshore</span>
+                        </div>
+                        <div style="display: flex; gap: 6px;">
+                            <input type="text" id="qmOmniInput" class="qm-input" autocomplete="off"
+                                   placeholder="Type keywords (e.g., AHDD Settlement, Temp Platform Stakeout, T8 Bathy, Crossing)..."
+                                   onfocus="renderQmOmniResults()" oninput="renderQmOmniResults()">
+                            <button type="button" class="btn-card-details" onclick="clearQmOmniSearch()">Clear</button>
+                        </div>
+                        <div id="qmOmniDropdown" class="qm-omni-results"></div>
+
+                        <div id="qmQuickChipsBar" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center;"></div>
+                    </div>
+
+                    <!-- 2. STEP 1 (MACRO SCOPE) & STEP 2 (CORE TASK) -->
+                    <div class="qm-grid-2">
+                        <div>
+                            <label class="qm-label" style="color: #166534;">📍 Step 1: Work Scope (Location Pre-Tied)</label>
+                            <select id="qmScopeSelect" class="qm-select" style="border-color: #16a34a; font-weight: 700;" onchange="onQmScopeChange()" required>
+                                <option value="">-- Select Work Scope (16 Macro Zones) --</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="qm-label" style="color: #0056b3;">🛠️ Step 2: Survey Task / Discipline</label>
+                            <select id="qmTaskSelect" class="qm-select" style="border-color: #0d6efd; font-weight: 700;" onchange="onQmTaskChange()" required>
+                                <option value="">-- Select Survey Task (14 Core Tasks) --</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- AUTO-TIED PATH & LIVE KPI COL K PREVIEW -->
+                    <div class="qm-path-bar">
+                        <span id="qmPathDisplay">📁 [ Select a Work Scope or Tap a Quick Chip Above ]</span>
+                        <span id="qmKpiPreview" style="background: #16a34a; color: white; padding: 2px 8px; border-radius: 6px; font-size: 11.5px;">KPI Col K Preview</span>
+                    </div>
+
+                    <!-- Hidden DB Location Fields -->
+                    <input type="hidden" name="area" id="qmHiddenArea" required>
+                    <input type="hidden" name="location" id="qmHiddenLocation" required>
+                    <input type="hidden" name="sub_location" id="qmHiddenSub" required>
+                    <input type="hidden" name="work_scope" id="qmHiddenScope" required>
+
+                    <!-- AUTO-PAIRED VERB, ACTIVITY TYPE, DISCIPLINE & INSTRUMENT -->
+                    <div class="qm-grid-4">
+                        <div>
+                            <label class="qm-label" style="color: #dc2626;">Mission Verb (Auto)</label>
+                            <select name="command_verb" id="qmVerbSelect" class="qm-select" style="font-weight: 700; border-color: #dc2626;" required>
+                                <option value="PERFORM">PERFORM</option>
+                                <option value="PROCESS">PROCESS</option>
+                                <option value="DRAFT">DRAFT</option>
+                                <option value="SETUP">SETUP</option>
+                                <option value="VERIFY">VERIFY</option>
+                                <option value="REVIEW">REVIEW</option>
+                                <option value="COORDINATE">COORDINATE</option>
+                                <option value="PROVIDE">PROVIDE</option>
+                                <option value="ATTEND">ATTEND</option>
+                                <option value="SUBMIT">SUBMIT</option>
+                                <option value="FILE">FILE</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="qm-label">Activity Type (Auto)</label>
+                            <input type="text" name="task_category" id="qmCatInput" class="qm-input" style="background: #fff; font-weight: 600;" readonly required>
+                        </div>
+                        <div>
+                            <label class="qm-label">KPI Discipline (Auto)</label>
+                            <input type="text" name="action_required" id="qmDiscInput" class="qm-input" style="background: #fff; font-weight: 600;" readonly required>
+                        </div>
+                        <div>
+                            <label class="qm-label">Instrument / Tool</label>
+                            <select name="instrument" id="qmInstSelect" class="qm-select" style="font-weight: 700;" required>
+                                <option value="">-- Select Tool --</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- 3. REMARKS, ASSIGNED SURVEYOR(S) & REQUESTOR -->
+                    <div class="qm-grid-2">
+                        <div>
+                            <label class="qm-label">📝 Step 3: Specific Details / Opening Remarks (Appended to KPI Col K)</label>
+                            <textarea name="remarks" id="qmRemarksInput" rows="3" class="qm-textarea" oninput="updateQmKpiPreview()"
+                                      placeholder="Type specific details (e.g., Crossing ID, Pit name, Chainage Ch 0+120)..." required></textarea>
+                            <small id="qmScopeHint" style="color: #0056b3; font-size: 11.5px; font-weight: 600; display: block; margin-top: 4px;">
+                                💡 Whatever you type here is automatically included in KPI Master Register Column K.
+                            </small>
+                        </div>
+
+                        <div>
+                            <datalist id="qmUserList">
+                                {% for u in users %}
+                                    <option value="{{ u.name }}"></option>
+                                {% endfor %}
+                            </datalist>
+
+                            <div id="qmSurveyorContainer" style="margin-bottom: 10px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                    <label class="qm-label" style="margin: 0;">👷 Assigned To <span style="font-weight: normal; color: #64748b;">(Change to delegate to a teammate)</span></label>
+                                    <button type="button" class="btn-card-details" style="padding: 2px 8px; font-size: 11px;" onclick="addQmSurveyorRow('')">+ Add Teammate</button>
+                                </div>
+                                <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+                                    <input list="qmUserList" name="assigned_to" value="{{ name }}" class="qm-input" style="font-weight: 700;" placeholder="Select surveyor..." required>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="qm-label">👤 Requestor Name</label>
+                                <input list="qmRequestorList" name="requestor_name" id="qmReqName" class="qm-input" placeholder="Search requestor..." oninput="autoFillQmDept()" required>
+                                <datalist id="qmRequestorList"></datalist>
+                                <input type="hidden" name="requestor_dept" id="qmReqDept" value="General" required>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="task-modal-footer" style="justify-content: space-between; align-items: center;">
+                    <label style="font-weight: 800; color: #dc2626; cursor: pointer; font-size: 13.5px; display: flex; align-items: center; gap: 6px;">
+                        <input type="checkbox" name="is_urgent" value="true" style="transform: scale(1.3);">
+                        🚨 Mark as URGENT
+                    </label>
+                    <div style="display: flex; gap: 10px;">
+                        <button type="button" class="btn-card-details" style="padding: 9px 16px;" onclick="closeQuickNewTaskModal()">Cancel</button>
+                        <button type="submit" class="btn-quick-open" style="padding: 9px 22px;">🚀 Create Task</button>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -384,11 +657,43 @@
         </div>
     </div>
 
+    <script id="req_data" type="application/json">{{ req_dict_json | default('{}') | safe }}</script>
+    <script id="macro_scopes_data" type="application/json">{{ macro_scopes_json | default('[]') | safe }}</script>
+    <script id="core_tasks_data" type="application/json">{{ core_tasks_json | default('[]') | safe }}</script>
+    <script id="omni_cards_data" type="application/json">{{ omni_cards_json | default('[]') | safe }}</script>
+    <script id="quick_chips_data" type="application/json">{{ quick_chips_json | default('[]') | safe }}</script>
+
     <script>
         let currentModalCard = null;
+        let activeTab = 'my_queue';
+
+        const reqData = JSON.parse(document.getElementById('req_data').textContent || '{}');
+        const macroScopes = JSON.parse(document.getElementById('macro_scopes_data').textContent || '[]');
+        const coreTasks = JSON.parse(document.getElementById('core_tasks_data').textContent || '[]');
+        const omniCards = JSON.parse(document.getElementById('omni_cards_data').textContent || '[]');
+        const quickChips = JSON.parse(document.getElementById('quick_chips_data').textContent || '[]');
+
+        const scopeByCode = {};
+        const scopeById = {};
+        macroScopes.forEach(s => { scopeByCode[s.work_scope] = s; scopeById[s.id] = s; });
+        const taskById = {};
+        coreTasks.forEach(t => { taskById[t.id] = t; });
+
+        // --- TAB SWITCHING: MY ASSIGNED QUEUE vs. CREATED FOR OTHERS ---
+        function switchWorkspaceTab(tabName) {
+            activeTab = tabName;
+            document.getElementById('tabBtnMyQueue').classList.toggle('active', tabName === 'my_queue');
+            document.getElementById('tabBtnDelegated').classList.toggle('active', tabName === 'delegated');
+
+            document.getElementById('kanbanContainer').style.display = (tabName === 'my_queue') ? 'flex' : 'none';
+            document.getElementById('myQueueStatsGroup').style.display = (tabName === 'my_queue') ? 'flex' : 'none';
+            document.getElementById('delegatedContainer').style.display = (tabName === 'delegated') ? 'block' : 'none';
+            renderPersonalBoard();
+        }
 
         function renderPersonalBoard() {
-            const cards = document.querySelectorAll('.task-card');
+            const myCards = document.querySelectorAll('.my-assigned-card');
+            const delegatedCards = document.querySelectorAll('.delegated-card');
             const listContainer = document.getElementById('taskContainer');
             const colOpen = document.getElementById('col-open');
             const colProg = document.getElementById('col-progress');
@@ -400,16 +705,14 @@
 
             let openCnt = 0, progCnt = 0, doneCnt = 0, urgentCnt = 0;
 
-            // Remove old placeholders
-            document.querySelectorAll('.empty-col-placeholder').forEach(el => el.remove());
+            document.querySelectorAll('#col-open .empty-col-placeholder, #col-progress .empty-col-placeholder, #col-closed .empty-col-placeholder').forEach(el => el.remove());
 
-            cards.forEach(card => {
+            myCards.forEach(card => {
                 const status = card.dataset.status;
                 const isUrgent = card.dataset.urgent === 'true';
                 const hay = (card.textContent + ' ' + (card.dataset.remarks || '') + ' ' + (card.dataset.path || '')).toLowerCase();
                 const matchesKeyword = (!keyword || hay.includes(keyword));
 
-                // Update inline button visibility to match current card status
                 const startBtn = card.querySelector('.btn-card-start');
                 const compBtn = card.querySelector('.btn-card-complete');
                 const donePill = card.querySelector('.card-done-pill');
@@ -466,11 +769,202 @@
             document.getElementById('colOpenCount').innerText = openCnt;
             document.getElementById('colProgCount').innerText = progCnt;
             document.getElementById('colClosedCount').innerText = doneCnt;
+            document.getElementById('myQueueTotalBadge').innerText = (openCnt + progCnt);
 
             const urgBox = document.getElementById('urgentPillBox');
             document.getElementById('countUrgentPill').innerText = urgentCnt;
             urgBox.style.display = urgentCnt > 0 ? 'flex' : 'none';
+
+            // Filter Delegated cards by keyword too
+            let delVisible = 0;
+            delegatedCards.forEach(dCard => {
+                const hay = (dCard.textContent + ' ' + (dCard.dataset.remarks || '') + ' ' + (dCard.dataset.path || '')).toLowerCase();
+                const show = (!keyword || hay.includes(keyword));
+                dCard.style.display = show ? 'block' : 'none';
+                if (show) delVisible++;
+            });
+            document.getElementById('delegatedTotalBadge').innerText = delVisible;
         }
+
+        // --- QUICK OPEN NEW TASK MODAL LOGIC ---
+        const qmScopeSelect = document.getElementById('qmScopeSelect');
+        const qmTaskSelect = document.getElementById('qmTaskSelect');
+        const qmVerbSelect = document.getElementById('qmVerbSelect');
+        const qmCatInput = document.getElementById('qmCatInput');
+        const qmDiscInput = document.getElementById('qmDiscInput');
+        const qmInstSelect = document.getElementById('qmInstSelect');
+        let qmRequestorMap = {};
+
+        function initQuickNewTaskModal() {
+            // 1. Quick Chips
+            const chipsBar = document.getElementById('qmQuickChipsBar');
+            if (quickChips && quickChips.length > 0) {
+                let html = `<small style="font-weight:800; color:#475569; font-size:11.5px;">⚡ Quick Picks:</small>`;
+                quickChips.forEach(c => {
+                    const safeRem = (c.default_remark || '').replace(/'/g, "\\'");
+                    html += `<span class="qm-chip" onclick="selectQmMacroAndTask('${c.scope_id}', '${c.task_id}', '${safeRem}')">${c.label}</span>`;
+                });
+                chipsBar.innerHTML = html;
+            }
+
+            // 2. Macro Scopes Dropdown
+            const sGroups = {};
+            macroScopes.forEach(s => {
+                sGroups[s.group] = sGroups[s.group] || [];
+                sGroups[s.group].push(s);
+            });
+            for (const [gName, items] of Object.entries(sGroups)) {
+                const og = document.createElement('optgroup');
+                og.label = gName;
+                items.forEach(s => og.appendChild(new Option(s.label, s.work_scope)));
+                qmScopeSelect.appendChild(og);
+            }
+
+            // 3. Core Tasks Dropdown
+            const tGroups = {};
+            coreTasks.forEach(t => {
+                tGroups[t.task_category] = tGroups[t.task_category] || [];
+                tGroups[t.task_category].push(t);
+            });
+            for (const [cName, items] of Object.entries(tGroups)) {
+                const og = document.createElement('optgroup');
+                og.label = cName;
+                items.forEach(t => og.appendChild(new Option(`[${t.command_verb}] ${t.label}`, t.id)));
+                qmTaskSelect.appendChild(og);
+            }
+
+            // 4. Requestors Datalist
+            const reqList = document.getElementById('qmRequestorList');
+            for (const [dept, names] of Object.entries(reqData)) {
+                (names || []).forEach(n => {
+                    qmRequestorMap[n] = dept;
+                    const opt = document.createElement('option');
+                    opt.value = n;
+                    opt.text = `(${dept})`;
+                    reqList.appendChild(opt);
+                });
+            }
+        }
+
+        function openQuickNewTaskModal() {
+            document.getElementById('quickNewTaskModal').style.display = 'flex';
+            document.getElementById('qmOmniInput').focus();
+        }
+
+        function closeQuickNewTaskModal() {
+            document.getElementById('quickNewTaskModal').style.display = 'none';
+        }
+
+        function onQmScopeChange() {
+            const s = scopeByCode[qmScopeSelect.value];
+            if (!s) return;
+            document.getElementById('qmHiddenArea').value = s.area;
+            document.getElementById('qmHiddenLocation').value = s.location;
+            document.getElementById('qmHiddenSub').value = s.sub_location;
+            document.getElementById('qmHiddenScope').value = s.work_scope;
+            document.getElementById('qmPathDisplay').innerText = `📁 ${s.area} ➔ ${s.location} ➔ ${s.label}`;
+            document.getElementById('qmRemarksInput').placeholder = s.hint || 'Type specific details...';
+            document.getElementById('qmScopeHint').innerText = '💡 ' + (s.hint || 'Included automatically in KPI Column K.');
+            updateQmKpiPreview();
+        }
+
+        function onQmTaskChange() {
+            const t = taskById[qmTaskSelect.value];
+            if (!t) return;
+            qmVerbSelect.value = t.command_verb;
+            qmCatInput.value = t.task_category;
+            qmDiscInput.value = t.action_required;
+            qmInstSelect.innerHTML = '';
+            (t.instruments || []).forEach(inst => qmInstSelect.add(new Option(inst, inst)));
+            qmInstSelect.value = t.default_instrument;
+            updateQmKpiPreview();
+        }
+
+        function updateQmKpiPreview() {
+            const s = scopeByCode[qmScopeSelect.value];
+            const disc = qmDiscInput.value || '';
+            const rem = (document.getElementById('qmRemarksInput').value || '').trim();
+            const badge = document.getElementById('qmKpiPreview');
+            if (s && disc) {
+                let kpiText = `${s.kpi_prefix} ${disc}`.trim();
+                if (rem && !kpiText.toLowerCase().includes(rem.toLowerCase())) {
+                    kpiText = `${kpiText} - ${rem}`;
+                }
+                badge.innerText = `KPI Col K: "${kpiText}"`;
+            }
+        }
+
+        function selectQmMacroAndTask(scopeId, taskId, defaultRemark) {
+            const s = scopeById[scopeId];
+            const t = taskById[taskId];
+            if (s) {
+                qmScopeSelect.value = s.work_scope;
+                onQmScopeChange();
+            }
+            if (t) {
+                qmTaskSelect.value = t.id;
+                onQmTaskChange();
+            }
+            const remInp = document.getElementById('qmRemarksInput');
+            if (defaultRemark && !remInp.value.trim()) {
+                remInp.value = defaultRemark;
+            }
+            updateQmKpiPreview();
+            document.getElementById('qmOmniDropdown').style.display = 'none';
+            remInp.focus();
+        }
+
+        function renderQmOmniResults() {
+            const q = (document.getElementById('qmOmniInput').value || '').toLowerCase().trim();
+            const box = document.getElementById('qmOmniDropdown');
+            const tokens = q.split(/\s+/).filter(Boolean);
+            const matches = omniCards.filter(card => {
+                if (tokens.length === 0) return card.weight > 0;
+                const hay = `${card.display} ${card.scope_group} ${card.action_required} ${card.task_category} ${card.instrument} ${card.hint}`.toLowerCase();
+                return tokens.every(tok => hay.includes(tok));
+            }).slice(0, 15);
+
+            box.innerHTML = matches.length ? matches.map(c => `
+                <div class="qm-omni-item" onclick="selectQmMacroAndTask('${c.scope_id}', '${c.task_id}', '')">
+                    <div>
+                        <span style="background:#dc2626; color:white; padding:1px 6px; border-radius:4px; font-size:11px; font-weight:800; margin-right:5px;">[${c.command_verb}]</span>
+                        <strong>${c.task_label}</strong>
+                        <span style="color:#64748b; margin:0 4px;">@</span>
+                        <strong style="color:#166534;">${c.scope_label}</strong>
+                    </div>
+                    ${c.weight > 0 ? `<span style="background:#0d6efd; color:white; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:800;">🔥 ${c.weight}x</span>` : ''}
+                </div>
+            `).join('') : `<div style="padding:12px; text-align:center; color:#64748b; font-size:12px;">No exact match. Pick from Step 1 & Step 2 below.</div>`;
+            box.style.display = 'block';
+        }
+
+        function clearQmOmniSearch() {
+            document.getElementById('qmOmniInput').value = '';
+            document.getElementById('qmOmniDropdown').style.display = 'none';
+        }
+
+        function autoFillQmDept() {
+            const name = document.getElementById('qmReqName').value.trim();
+            document.getElementById('qmReqDept').value = qmRequestorMap[name] || 'General';
+        }
+
+        function addQmSurveyorRow(val) {
+            const container = document.getElementById('qmSurveyorContainer');
+            const div = document.createElement('div');
+            div.style.cssText = 'display: flex; gap: 6px; margin-bottom: 6px;';
+            div.innerHTML = `
+                <input list="qmUserList" name="assigned_to" value="${val || ''}" class="qm-input" placeholder="Select additional surveyor..." required>
+                <button type="button" class="btn-card-details" style="color:#dc2626;" onclick="this.parentElement.remove()">✕</button>
+            `;
+            container.appendChild(div);
+        }
+
+        document.addEventListener('click', function(ev) {
+            const omniBox = document.querySelector('.qm-omni-box');
+            if (omniBox && !omniBox.contains(ev.target)) {
+                document.getElementById('qmOmniDropdown').style.display = 'none';
+            }
+        });
 
         // --- 1-TAP INLINE CARD ACTIONS ---
         async function quickStartTask(ev, taskId) {
@@ -804,7 +1298,9 @@
 
         window.onclick = function(event) {
             let modal = document.getElementById('fullTaskModal');
+            let qModal = document.getElementById('quickNewTaskModal');
             if (event.target === modal) closeTaskModal();
+            if (event.target === qModal) closeQuickNewTaskModal();
         };
 
         function updateClock() {
@@ -814,6 +1310,7 @@
         updateClock();
 
         window.onload = () => {
+            initQuickNewTaskModal();
             renderPersonalBoard();
         };
     </script>
