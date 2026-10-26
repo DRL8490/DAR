@@ -8,22 +8,25 @@
     <style>
         body { background-color: #f4f7f6; padding-top: 30px; }
         .wizard-card { border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: none; transition: transform 0.2s; }
-        .wizard-card:hover { transform: translateY(-5px); box-shadow: 0 8px 15px rgba(0,0,0,0.1); }
+        .wizard-card:hover { transform: translateY(-3px); box-shadow: 0 8px 15px rgba(0,0,0,0.1); }
         .card-header { color: white; border-radius: 12px 12px 0 0 !important; padding: 15px; font-weight: bold; text-align: center; }
         
         .bg-dtr { background: #0d6efd; } 
-        .bg-wsr { background: #fd7e14; } 
-        .bg-tpc { background: #6f42c1; } 
         .bg-kpi { background: #198754; } 
-        .bg-wiz { background: #343a40; } 
+        .bg-preview { background: #343a40; } 
     </style>
 </head>
 <body>
 
 <div class="container pb-5">
-    <div class="mb-4 text-center">
-        <h2 class="fw-bold text-secondary mb-3"><i class="fas fa-chart-pie"></i> Reporting Page</h2>
-        <a href="{{ url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard') }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <h2 class="fw-bold text-secondary mb-0"><i class="fas fa-chart-pie"></i> Survey Reporting Center</h2>
+        <div class="d-flex gap-2">
+            {% if session.get('dashboard_view') == 'admin' %}
+            <a href="/usage_telemetry" class="btn btn-dark"><i class="fas fa-satellite-dish"></i> Usage Telemetry</a>
+            {% endif %}
+            <a href="{{ url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard') }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
+        </div>
     </div>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -38,82 +41,111 @@
     {% endwith %}
 
     <div class="row mb-4">
-        <div class="col-md-4">
+        <div class="col-md-6 mb-4">
             <div class="card wizard-card h-100">
                 <div class="card-header bg-dtr"><h5 class="mb-0"><i class="fas fa-calendar-day"></i> DTR Generator</h5></div>
                 <div class="card-body d-flex flex-column">
-                    <p class="small text-muted text-center mb-3">Daily Task Report (.docx)<br><em>*Separates Closed tasks and lists Outstanding tasks anonymously.</em></p>
+                    <p class="small text-muted text-center mb-3">Daily Task Report (.docx)<br><em>*Prioritizes Backdated Execution Date and strips internal system audit notes.</em></p>
                     <form action="/generate_dtr" method="POST" class="mt-auto">
                         <label class="form-label fw-bold small">Target Date</label>
-                        <input type="date" name="dtr_date" class="form-control mb-3" required>
-                        <button type="submit" class="btn btn-primary w-100"><i class="fas fa-download"></i> Generate DTR</button>
+                        <input type="date" name="dtr_date" id="dtrDateInput" class="form-control mb-3" required>
+                        <button type="submit" class="btn btn-primary w-100"><i class="fas fa-download"></i> Generate DTR (.docx)</button>
                     </form>
                 </div>
             </div>
         </div>
 
-        <div class="col-md-4">
+        <div class="col-md-6 mb-4">
             <div class="card wizard-card h-100">
-                <div class="card-header bg-wsr"><h5 class="mb-0"><i class="fas fa-calendar-week"></i> WSR Generator</h5></div>
+                <div class="card-header bg-kpi"><h5 class="mb-0"><i class="fas fa-file-excel"></i> KPI Master Register</h5></div>
                 <div class="card-body d-flex flex-column">
-                    <p class="small text-muted text-center mb-3">Weekly Survey Report (.docx)<br><em>*Aggregates Mon-Sun data.</em></p>
-                    <form action="/generate_wsr" method="POST" class="mt-auto">
-                        <label class="form-label fw-bold small">Select Week (Mon-Sun)</label>
-                        <input type="week" name="wsr_week" class="form-control mb-3" required>
-                        <button type="submit" class="btn btn-warning w-100 text-white"><i class="fas fa-download"></i> Generate WSR</button>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-4">
-            <div class="card wizard-card h-100">
-                <div class="card-header bg-tpc"><h5 class="mb-0"><i class="fas fa-file-contract"></i> TPC Weekly</h5></div>
-                <div class="card-body d-flex flex-column">
-                    <p class="small text-muted text-center mb-3">Client Report (.docx)<br><em>*Generates 1 Table and 2 Bulleted lists.</em></p>
-                    <form action="/generate_tpc" method="POST" class="mt-auto">
-                        <label class="form-label fw-bold small">Select Week</label>
-                        <input type="week" name="tpc_week" class="form-control mb-3" required>
-                        <button type="submit" class="btn text-white w-100" style="background-color: #6f42c1;"><i class="fas fa-download"></i> Generate TPC</button>
+                    <p class="small text-muted text-center mb-3">Monthly KPI Tracking Sheet (.xlsx)<br><em>*Chronologically sorted by Backdated Execution Date first, then Start Time.</em></p>
+                    <form action="/export_excel" method="POST" class="mt-auto">
+                        <label class="form-label fw-bold small">Select Target Month</label>
+                        <input type="month" name="kpi_month" id="kpiMonthInput" class="form-control mb-3" required onchange="loadKpiPreview(this.value)">
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-outline-success w-50" onclick="loadKpiPreview(document.getElementById('kpiMonthInput').value)"><i class="fas fa-eye"></i> Preview Table</button>
+                            <button type="submit" class="btn btn-success w-50"><i class="fas fa-file-download"></i> Download Excel</button>
+                        </div>
                     </form>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="row">
-        <div class="col-md-6 mb-4">
-            <div class="card wizard-card h-100">
-                <div class="card-header bg-kpi"><h5 class="mb-0"><i class="fas fa-file-excel"></i> KPI Master Register</h5></div>
-                <div class="card-body d-flex flex-column">
-                    <p class="small text-muted text-center mb-3">Monthly KPI Tracking Sheet (.xlsx)<br><em>*Automatically excludes non-survey items.</em></p>
-                    <form action="/export_excel" method="POST" class="mt-auto">
-                        <label class="form-label fw-bold small">Select Target Month</label>
-                        <input type="month" name="kpi_month" class="form-control mb-3" required>
-                        <button type="submit" class="btn btn-success w-100"><i class="fas fa-file-download"></i> Download KPI Excel</button>
-                    </form>
-                </div>
-            </div>
+    <div class="card wizard-card">
+        <div class="card-header bg-preview d-flex justify-content-between align-items-center">
+            <span><i class="fas fa-table"></i> Live KPI Master Register Preview</span>
+            <span id="previewCountBadge" class="badge bg-warning text-dark">Select a month to preview</span>
         </div>
-
-        <div class="col-md-6 mb-4">
-            <div class="card wizard-card h-100">
-                <div class="card-header bg-wiz"><h5 class="mb-0"><i class="fas fa-magic"></i> Custom Report Wizard</h5></div>
-                <div class="card-body d-flex flex-column">
-                    <p class="small text-muted text-center mb-3">Build custom queries and specific date ranges.</p>
-                    <form action="#" method="POST" class="mt-auto">
-                        <div class="row mb-3">
-                            <div class="col-6"><label class="form-label fw-bold small">Start Date</label><input type="date" class="form-control"></div>
-                            <div class="col-6"><label class="form-label fw-bold small">End Date</label><input type="date" class="form-control"></div>
-                        </div>
-                        <button type="button" class="btn btn-dark w-100" disabled><i class="fas fa-tools"></i> Under Construction</button>
-                    </form>
-                </div>
+        <div class="card-body p-0">
+            <div class="table-responsive" style="max-height: 450px; overflow-y: auto;">
+                <table class="table table-striped table-hover table-sm mb-0" style="font-size: 13px;">
+                    <thead class="table-dark" style="position: sticky; top: 0;">
+                        <tr>
+                            <th>Sl</th>
+                            <th>Survey Ref #</th>
+                            <th>Requestor</th>
+                            <th>Assigned To</th>
+                            <th>Received / Executed</th>
+                            <th>Completed</th>
+                            <th>Description of Survey Works</th>
+                            <th>Clean Remarks</th>
+                        </tr>
+                    </thead>
+                    <tbody id="kpiPreviewBody">
+                        <tr><td colspan="8" class="text-center py-4 text-muted">Click "Preview Table" above to inspect chronological KPI rows before downloading.</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    window.onload = function() {
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        document.getElementById('dtrDateInput').value = `${yyyy}-${mm}-${dd}`;
+        document.getElementById('kpiMonthInput').value = `${yyyy}-${mm}`;
+        loadKpiPreview(`${yyyy}-${mm}`);
+    };
+
+    async function loadKpiPreview(monthStr) {
+        const tbody = document.getElementById('kpiPreviewBody');
+        const badge = document.getElementById('previewCountBadge');
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4">Loading chronologically sorted KPI records...</td></tr>';
+        try {
+            const res = await fetch(`/api/preview_kpi?kpi_month=${encodeURIComponent(monthStr || '')}`);
+            const data = await res.json();
+            if (!data.success) {
+                tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">Error: ${data.message}</td></tr>`;
+                return;
+            }
+            badge.textContent = `${data.count} Task(s) in ${monthStr || 'All Months'}`;
+            if (data.rows.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">No closed KPI tasks found for this month.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.rows.map(r => `
+                <tr>
+                    <td class="fw-bold">${r['Sl No']}</td>
+                    <td class="font-monospace fw-bold text-primary">${r['Survey Ref. #']}</td>
+                    <td>${r['Requestor']}</td>
+                    <td>${r['Assigned to']}</td>
+                    <td class="text-nowrap">${r['Date/Time Received']}</td>
+                    <td class="text-nowrap">${r['Date/Time Completed']}</td>
+                    <td class="fw-semibold">${r['Description of Survey Works']}</td>
+                    <td class="text-muted">${r['Special Conditions / Remarks']}</td>
+                </tr>
+            `).join('');
+        } catch (err) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-danger py-4">Network error loading KPI preview.</td></tr>';
+        }
+    }
+</script>
 </body>
 </html>

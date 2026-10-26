@@ -3,32 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Active Tasks - NMDC</title>
+    <title>My Survey Workspace - NMDC</title>
     <style>
-        /* Base Styles */
         body { font-family: -apple-system, BlinkMacSystemFont, Arial, sans-serif; background-color: #f4f7f6; padding: 20px; margin: 0; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
-        .btn-new { background-color: #0056b3; color: white; padding: 10px 15px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; }
+        .btn-new-hero { background-color: #0056b3; color: white; padding: 12px 22px; text-decoration: none; border-radius: 8px; font-weight: 800; font-size: 15px; box-shadow: 0 4px 10px rgba(0,86,179,0.25); transition: transform 0.15s; }
+        .btn-new-hero:hover { transform: translateY(-2px); background-color: #004494; }
         
-        .flash-container { margin-bottom: 20px; }
+        .flash-container { margin-bottom: 15px; }
         .flash-msg { padding: 12px 15px; border-radius: 6px; font-weight: bold; margin-bottom: 10px; font-size: 14px; }
         .flash-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
         .flash-error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
 
-        .filter-bar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; background: #e9ecef; padding: 12px; border-radius: 8px; align-items: center; }
-        .btn-filter { background: white; color: #555; border: 1px solid #ccc; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-size: 13px; font-weight: bold; transition: all 0.2s; }
-        .btn-filter:hover { background: #ddd; }
-        .btn-filter.active { background: #0056b3; color: white; border-color: #0056b3; }
-        .date-input { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+        /* STREAMLINED USER BAR (NO FILTER CLUTTER) */
+        .workspace-bar { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; background: #e9ecef; padding: 10px 15px; border-radius: 8px; align-items: center; }
+        .scope-pill { background: white; color: #495057; border: 1px solid #ced4da; padding: 8px 18px; border-radius: 20px; cursor: pointer; font-size: 13px; font-weight: 800; transition: all 0.2s; }
+        .scope-pill.active { background: #0056b3; color: white; border-color: #0056b3; }
+        .search-box { flex-grow: 1; min-width: 200px; padding: 8px 14px; border: 1px solid #ccc; border-radius: 20px; font-size: 13px; outline: none; }
         
-        /* DRAG AND DROP STYLES */
         .task-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; border-left: 5px solid #ffc107; transition: all 0.2s; cursor: grab; }
         .task-card:active { cursor: grabbing; }
         .task-card.dragging { opacity: 0.6; transform: scale(0.98); border: 2px dashed #0056b3; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
         
         .task-card[data-status="In Progress"] { border-left-color: #17a2b8; }
         .task-card[data-status="Closed"] { border-left-color: #28a745; opacity: 0.8; }
-        .task-card[data-status="Canceled"] { border-left-color: #dc3545; opacity: 0.8; }
         
         .task-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
         .task-line-1 { font-family: monospace; font-size: 14px; color: #111; font-weight: bold; margin-bottom: 6px; line-height: 1.4; }
@@ -37,9 +35,7 @@
         .badge-Open { background: #ffc107; color: black; }
         .badge-In-Progress { background: #17a2b8; color: white; }
         .badge-Closed { background: #28a745; }
-        .badge-Canceled { background: #dc3545; }
 
-        .action-area { margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap; }
         .btn-action { color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; text-decoration: none; }
         .btn-progress { background-color: #17a2b8; }
         .btn-close { background-color: #28a745; }
@@ -49,51 +45,38 @@
         .action-form { display: none; flex-direction: column; gap: 8px; margin-top: 10px; padding: 12px; background: #f9f9f9; border-radius: 6px; border: 1px solid #ddd; width: 100%; box-sizing: border-box; }
         .action-input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
 
-        /* KANBAN STYLES */
-        .kanban-container { display: none; gap: 20px; align-items: flex-start; margin-top: 20px; }
-        .kanban-col { flex: 1; background: #e9ecef; border-radius: 8px; padding: 15px; min-height: 400px; display: flex; flex-direction: column; gap: 15px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); transition: background 0.2s; }
+        .kanban-container { display: flex; gap: 20px; align-items: flex-start; margin-top: 15px; }
+        .kanban-col { flex: 1; background: #e9ecef; border-radius: 8px; padding: 15px; min-height: 420px; display: flex; flex-direction: column; gap: 12px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); }
         .kanban-col.drag-over { background: #dee2e6; outline: 2px dashed #0056b3; outline-offset: -5px; }
-        .kanban-col h4 { margin: 0 0 15px 0; padding-bottom: 10px; border-bottom: 2px solid #ccc; color: #333; text-align: center; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+        .kanban-col h4 { margin: 0 0 10px 0; padding-bottom: 10px; border-bottom: 2px solid #ccc; color: #333; text-align: center; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
         .kb-open { border-top: 5px solid #ffc107; }
         .kb-progress { border-top: 5px solid #17a2b8; }
         .kb-closed { border-top: 5px solid #28a745; }
 
-        /* FULL TASK MODAL & QUICK-EDIT STYLES */
         .task-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
-        .task-modal-box { background: white; width: 92%; max-width: 850px; max-height: 92vh; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 5px 20px rgba(0,0,0,0.4); }
+        .task-modal-box { background: white; width: 92%; max-width: 800px; max-height: 90vh; border-radius: 8px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 5px 20px rgba(0,0,0,0.4); }
         .task-modal-header { background: #f8f9fa; padding: 15px 20px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: flex-start; }
         .task-modal-close { font-size: 28px; cursor: pointer; color: #888; line-height: 1; border: none; background: none; font-weight: bold; }
-        .task-modal-close:hover { color: #dc3545; }
         .task-modal-body { display: flex; flex-wrap: wrap; padding: 20px; overflow-y: auto; gap: 20px; }
-        .task-modal-left { flex: 2; min-width: 300px; }
-        .task-modal-right { flex: 1; min-width: 220px; background: #f8f9fa; padding: 15px; border-radius: 6px; border: 1px solid #eee; }
+        .task-modal-left { flex: 2; min-width: 280px; }
+        .task-modal-right { flex: 1; min-width: 200px; background: #f8f9fa; padding: 15px; border-radius: 6px; border: 1px solid #eee; }
         .task-modal-footer { background: #f8f9fa; padding: 15px 20px; border-top: 1px solid #ddd; display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
         .meta-item { margin-bottom: 12px; font-size: 13px; color: #222; }
         .meta-item strong { color: #555; display: block; margin-bottom: 3px; text-transform: uppercase; font-size: 11px; }
-
-        .quick-edit-box { background: #eef6ff; border: 1px solid #b6d4fe; border-radius: 6px; padding: 12px; margin-top: 20px; }
-        .quick-edit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 8px; align-items: end; }
-        .quick-edit-grid label { font-size: 11px; font-weight: bold; color: #084298; display: block; margin-bottom: 3px; text-transform: uppercase; }
-        .quick-edit-grid input { width: 100%; padding: 6px; border: 1px solid #9ec5fe; border-radius: 4px; font-size: 12px; box-sizing: border-box; }
-        .audit-pill { background: #f1f3f5; border-left: 3px solid #0d6efd; padding: 6px 10px; border-radius: 4px; font-size: 12px; color: #333; margin-top: 6px; }
     </style>
 </head>
 <body>
-    <div class="header" style="align-items: flex-start;">
+    <div class="header">
         <div>
-            <h2 style="margin-top: 0; margin-bottom: 4px;">Active Survey Tasks</h2>
-            <div id="liveClock" style="font-size: 14px; color: #555; font-weight: bold;">Loading time...</div>
+            <h2 style="margin: 0 0 4px 0;">👋 {{ name }}'s Survey Workspace</h2>
+            <div id="liveClock" style="font-size: 13px; color: #666; font-weight: bold;">Loading time...</div>
         </div>
-        <div style="display: flex; flex-direction: column; align-items: flex-end;">
-            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                {% if is_admin %}
-                <a href="/admin_dashboard" class="btn-new" style="background-color: #28a745;">🛡️ Switch to Admin Command Center</a>
-                {% endif %}
-                <a href="/reports" class="btn-new" style="background-color: #17a2b8;">📊 Reports</a>
-                <a href="/new_task" class="btn-new">+ Open New Task</a>
-            </div>
-            <span style="color: #333; font-weight: bold; margin-top: 8px;">👤 {{ name }}</span>
-            <a href="/logout" style="color: #dc3545; text-decoration: none; font-size: 12px; font-weight: bold; margin-top: 4px;">🚪 Logout</a>
+        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <a href="/new_task" class="btn-new-hero">➕ Open New Task</a>
+            {% if is_admin %}
+            <a href="/admin_dashboard" style="background: #212529; color: #ffc107; padding: 10px 14px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 13px;">🛡️ Admin Command Center</a>
+            {% endif %}
+            <a href="/logout" style="color: #dc3545; text-decoration: none; font-size: 13px; font-weight: bold;">🚪 Logout</a>
         </div>
     </div>
 
@@ -109,65 +92,20 @@
         {% endif %}
     {% endwith %}
 
-    <div class="filter-bar">
-        <strong style="font-size: 14px; color: #333;">Filters:</strong>
-        <button class="btn-filter" id="btnAll" onclick="toggleStatus('All')">All</button>
-        <button class="btn-filter active" id="btnOpen" onclick="toggleStatus('Open')">Open</button>
-        <button class="btn-filter active" id="btnInProgress" onclick="toggleStatus('In Progress')">In Progress</button>
-        <button class="btn-filter active" id="btnClosed" onclick="toggleStatus('Closed')">Closed</button>
-        <button class="btn-filter" id="btnCanceled" onclick="toggleStatus('Canceled')">Canceled</button>
-        <button class="btn-filter" id="btnMine" onclick="toggleMine()">Assigned to Me</button>
-        <input type="text" id="userKeywordSearch" class="date-input" style="flex-grow: 1; min-width: 160px; padding: 8px;" placeholder="Keyword search..." onkeyup="saveFilterMemory(); applyFilters();">
-        
-        <div style="margin-left: auto; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
-            <div style="display: flex; align-items: center; gap: 5px;">
-                <span style="font-size: 13px; color: #555;">From:</span>
-                <input type="date" id="dateStart" class="date-input" onchange="saveFilterMemory(); applyFilters();">
-                <span style="font-size: 13px; color: #555;">To:</span>
-                <input type="date" id="dateEnd" class="date-input" onchange="saveFilterMemory(); applyFilters();">
-                <button onclick="resetAllFilters()" style="background: #fff; border: 1px solid #ccc; border-radius: 4px; padding: 4px 8px; color: #dc3545; cursor: pointer; font-weight: bold; font-size: 12px;" title="Reset All Saved Filters">↺ Reset</button>
-            </div>
-            
-            <div style="display: flex; gap: 5px; background: #fff; padding: 3px; border-radius: 6px; border: 1px solid #ccc;">
-                <button id="btnListView" class="btn-filter" onclick="switchView('list')" style="border: none; padding: 4px 10px;">📄 List</button>
-                <button id="btnKanbanView" class="btn-filter active" onclick="switchView('kanban')" style="border: none; padding: 4px 10px;">📋 Kanban</button>
-            </div>
-        </div>
-    </div>
-    
-    {% set my_open_count = namespace(value=0) %}
-    {% set my_urgent_count = namespace(value=0) %}
-    {% for task in tasks %}
-        {% if task.status == 'Open' and task.assigned_to and name in task.assigned_to %}
-            {% set my_open_count.value = my_open_count.value + 1 %}
-            {% if task.is_urgent %}
-                {% set my_urgent_count.value = my_urgent_count.value + 1 %}
-            {% endif %}
-        {% endif %}
-    {% endfor %}
-
-    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px;">
-        <div style="flex: 1; background-color: #e3f2fd; border-left: 5px solid #0dcaf0; padding: 12px 20px; border-radius: 6px; font-weight: bold; color: #055160;">
-            📋 You have <span style="background: #0dcaf0; color: white; padding: 2px 8px; border-radius: 12px;">{{ my_open_count.value }}</span> standard open task(s).
-        </div>
-
-        {% if my_urgent_count.value > 0 %}
-        <div style="flex: 1; background-color: #fff3cd; border-left: 5px solid #dc3545; padding: 12px 20px; border-radius: 6px; font-weight: bold; color: #856404;">
-            🚨 You have <span style="background: #dc3545; color: white; padding: 2px 8px; border-radius: 12px; font-size: 14px;">{{ my_urgent_count.value }}</span> URGENT task(s)!
-        </div>
-        {% endif %}
+    <div class="workspace-bar">
+        <button class="scope-pill active" id="btnMyTasks" onclick="setWorkspaceScope(true)">👤 My Assigned Tasks</button>
+        <button class="scope-pill" id="btnTeamBoard" onclick="setWorkspaceScope(false)">🌐 Full Team Board</button>
+        <input type="text" id="quickSearch" class="search-box" placeholder="🔍 Quick search task, location, or requestor..." onkeyup="applyFilters()">
+        <span id="taskCountDisplay" style="font-size: 13px; font-weight: bold; color: #0056b3;"></span>
     </div>
 
-    <div id="taskCountDisplay" style="font-size: 14px; font-weight: bold; color: #0056b3; margin-bottom: 15px;">Loading task count...</div>
-    <p id="noTasksMsg" style="text-align: center; color: #777; margin-top: 50px; display: none;">No tasks match this filter configuration.</p>
+    <p id="noTasksMsg" style="text-align: center; color: #777; margin-top: 40px; display: none;">No active tasks in this view. Click "➕ Open New Task" above to log a survey job!</p>
 
     <div id="taskContainer" style="display: none;">
         {% for task in tasks %}
-        
         {% set area_clean = task.area.split('_', 1)[-1].replace('_', ' ') if task.area and '_' in task.area else task.area %}
         {% set loc_clean = task.location.split('_', 1)[-1].replace('_', ' ') if task.location and task.location != 'N/A' and '_' in task.location else (task.location if task.location and task.location != 'N/A' else '') %}
         {% set sub_clean = task.sub_location.split('_', 1)[-1].replace('_', ' ') if task.sub_location and task.sub_location != 'N/A' and '_' in task.sub_location else (task.sub_location if task.sub_location and task.sub_location != 'N/A' else '') %}
-        {% set scope_code = task.work_scope.split('_', 1)[0] if task.work_scope and '_' in task.work_scope else '' %}
         {% set scope_text = task.work_scope.split('_', 1)[-1].replace('_', ' ') if task.work_scope and '_' in task.work_scope else task.work_scope %}
         
         <div class="task-card" 
@@ -175,9 +113,6 @@
              ondragstart="drag(event)"
              data-id="{{ task.id }}"
              data-status="{{ task.status }}" 
-             data-priority="{{ task.priority|default(99) }}"
-             data-urgent="{{ 'true' if task.is_urgent else 'false' }}"
-             data-exec-date="{{ task.execution_date.strftime('%Y-%m-%d') if task.execution_date else '' }}"
              data-date="{{ task.execution_date.strftime('%Y-%m-%d') if task.execution_date else (task.start_time.strftime('%Y-%m-%d') if task.start_time else '') }}" 
              data-assigned="{{ task.assigned_to or '' }}"
              data-mine="{% if (task.assigned_to and name in task.assigned_to) or name == task.surveyor_name %}true{% else %}false{% endif %}"
@@ -197,18 +132,20 @@
             <div class="task-header">
                 <div style="flex: 1;" onclick="openTaskModal(this.closest('.task-card'))">
                     <div class="task-line-1" style="font-size: 15px; line-height: 1.4; margin-bottom: 4px;">
-                        <span class="card-urgent-badge" style="background: #dc3545; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; margin-right: 5px; vertical-align: top; {% if not (task.is_urgent and task.status in ['Open', 'In Progress']) %}display:none;{% endif %}">URGENT</span>
+                        {% if task.is_urgent and task.status in ['Open', 'In Progress'] %}
+                        <span style="background: #dc3545; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; margin-right: 5px; vertical-align: top;">URGENT</span>
+                        {% endif %}
                         
                         {% set p_val = task.priority|default(99) %}
                         {% set p_color = '#6c757d' %}{% if p_val == 0 %}{% set p_color = '#dc3545' %}{% elif p_val == 1 %}{% set p_color = '#fd7e14' %}{% elif p_val == 2 %}{% set p_color = '#007bff' %}{% endif %}
-                        <span class="card-priority-badge" style="background: {{ p_color }}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; margin-right: 8px; vertical-align: top;" title="Priority Queue">P{{ p_val }}</span>
+                        <span style="background: {{ p_color }}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; margin-right: 8px; vertical-align: top;">P{{ p_val }}</span>
 
                         <span style="color: #000; font-weight: 900;">
-                            <span style="color: #dc3545; letter-spacing: 0.5px;">[{{ task.command_verb or 'PERFORM' }}]</span> 
+                            <span style="color: #dc3545;">[{{ task.command_verb or 'PERFORM' }}]</span> 
                             {{ task.action_required }}
                         </span>
 
-                        <span class="card-initials-badge" style="color: #666; font-size: 12px; font-weight: bold; background: #eee; padding: 1px 5px; border-radius: 4px; margin-left: 5px;">
+                        <span style="color: #666; font-size: 12px; font-weight: bold; background: #eee; padding: 1px 5px; border-radius: 4px; margin-left: 5px;">
                             {% set initial_list = [] %}
                             {% for uname in (task.assigned_to or task.surveyor_name).split(',') %}
                                 {% set clean_name = uname.strip() %}
@@ -235,32 +172,25 @@
                     {% endif %}
 
                     <div style="font-size: 12px; color: #666; margin-bottom: 8px; display: flex; align-items: center; gap: 5px; flex-wrap: wrap;">
-                        📁 
-                        <span>{{ area_clean }}</span>
+                        📁 <span>{{ area_clean }}</span>
                         {% if loc_clean %}<span>➔ {{ loc_clean }}</span>{% endif %}
                         {% if sub_clean %}<span>➔ {{ sub_clean }}</span>{% endif %}
-                        {% if scope_text and scope_text.lower() != 'general' %}
-                            <span>➔ <strong style="color: #198754;">{{ scope_text }}</strong></span>
-                        {% endif %}
+                        <span>➔ <strong style="color: #198754;">{{ scope_text }}</strong></span>
                     </div>
 
-                    <div style="font-size: 11px; color: #888; border-top: 1px solid #f0f0f0; padding-top: 8px; margin-top: 5px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 5px;">
-                        <span>ID: {{ task.start_time.strftime('%Y%m%d-%H%M%S') if task.start_time else 'UNKNOWN-'~task.id }} | Act: {{ task.task_category }}</span>
+                    <div style="font-size: 11px; color: #888; border-top: 1px solid #f0f0f0; padding-top: 8px; margin-top: 5px; display: flex; justify-content: space-between;">
+                        <span>{{ task.instrument }}</span>
                         <span><strong>From:</strong> {{ task.requestor.split(' - ')[-1] if task.requestor and ' - ' in task.requestor else task.requestor }}</span>
                     </div>
-                </div>
-                
-                <div style="display: flex; align-items: center; padding-left: 8px;" onclick="openTaskModal(this.closest('.task-card'))">
-                    <span style="font-size: 18px; color: #0056b3; font-weight: bold; cursor: pointer;" title="View Details">⤢</span>
                 </div>
             </div>
         </div>
         {% endfor %}
     </div>
 
-    <div id="kanbanContainer" class="kanban-container" style="display: flex;">
+    <div id="kanbanContainer" class="kanban-container">
         <div class="kanban-col kb-open" ondragover="allowDrop(event)" ondrop="drop(event, 'Open')" ondragenter="this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')">
-            <h4>📥 Open Requests</h4>
+            <h4>📥 Open Tasks</h4>
             <div id="col-open" style="display: flex; flex-direction: column; gap: 10px; min-height: 50px;"></div>
         </div>
         <div class="kanban-col kb-progress" ondragover="allowDrop(event)" ondrop="drop(event, 'In Progress')" ondragenter="this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')">
@@ -268,16 +198,9 @@
             <div id="col-progress" style="display: flex; flex-direction: column; gap: 10px; min-height: 50px;"></div>
         </div>
         <div class="kanban-col kb-closed" ondragover="allowDrop(event)" ondrop="drop(event, 'Closed')" ondragenter="this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')">
-            <h4>✅ Closed (Past 48h)</h4>
+            <h4>✅ Recently Closed (48h)</h4>
             <div id="col-closed" style="display: flex; flex-direction: column; gap: 10px; min-height: 50px;"></div>
         </div>
-    </div>
-    
-    <div style="text-align: center; margin-top: 30px;">
-        {% if is_admin %}
-        <a href="/admin_dashboard" style="color: #28a745; font-weight: bold; text-decoration: none; margin-right: 20px;">🛡️ Switch to Admin Command Center</a>
-        {% endif %}
-        <a href="/logout" style="color: #dc3545; text-decoration: none;">Logout ({{ name }})</a>
     </div>
 
     <div class="task-modal-overlay" id="fullTaskModal">
@@ -291,73 +214,39 @@
             </div>
             <div class="task-modal-body">
                 <div class="task-modal-left">
-                    <h4 style="margin-top:0; color:#0056b3; border-bottom: 2px solid #eee; padding-bottom:5px;">📝 Opening Remarks & Audit Log</h4>
-                    <div id="modalRemarks" style="font-size:14px; color:#333; line-height: 1.5; white-space: pre-wrap;"></div>
+                    <h4 style="margin-top:0; color:#0056b3; border-bottom: 2px solid #eee; padding-bottom:5px;">📝 Remarks & Notes</h4>
+                    <p id="modalRemarks" style="font-size:14px; color:#333; line-height: 1.5; white-space: pre-wrap;"></p>
 
-                    <h4 style="color:#0056b3; border-bottom: 2px solid #eee; padding-bottom:5px; margin-top:20px;">🔗 Deliverables & References</h4>
+                    <h4 style="color:#0056b3; border-bottom: 2px solid #eee; padding-bottom:5px; margin-top:25px;">🔗 Deliverables & References</h4>
                     <div id="modalLinks" style="font-size:14px; line-height: 1.8;"></div>
-
-                    <!-- UPGRADE 3: INLINE QUICK-EDIT -->
-                    <div class="quick-edit-box" id="userQuickEditBox" style="display:none;">
-                        <div style="font-size: 12px; font-weight: 800; color: #084298; display: flex; justify-content: space-between; align-items: center;">
-                            <span>⚡ Inline Quick-Edit (Zero Reload)</span>
-                            <span id="quickEditFeedback" style="color: #198754; font-size: 11px; display: none;">✔ Saved!</span>
-                        </div>
-                        <div class="quick-edit-grid">
-                            <div>
-                                <label>Queue Priority</label>
-                                <input type="number" id="qePriority" min="0" max="99" value="99">
-                            </div>
-                            <div>
-                                <label>Backdate Execution</label>
-                                <input type="date" id="qeExecDate">
-                            </div>
-                            <div>
-                                <label>Assigned To</label>
-                                <input type="text" id="qeAssignedTo" placeholder="Surveyor name(s)...">
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 6px; padding-bottom: 6px;">
-                                <input type="checkbox" id="qeUrgent" style="width: auto;">
-                                <label for="qeUrgent" style="margin: 0; color: #dc3545; cursor: pointer;">🚨 URGENT</label>
-                            </div>
-                        </div>
-                        <div style="margin-top: 10px; text-align: right;">
-                            <button type="button" onclick="submitQuickEdit()" style="background: #0d6efd; color: white; border: none; padding: 6px 14px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer;">💾 Save Quick-Edit</button>
-                        </div>
-                    </div>
                 </div>
                 <div class="task-modal-right">
                     <h4 style="margin-top:0; color:#0056b3; border-bottom: 1px solid #ccc; padding-bottom:5px;">📌 Task Details</h4>
                     <div class="meta-item"><strong>Status</strong> <span id="modalStatusBadge"></span></div>
                     <div class="meta-item"><strong>Requested By</strong> <span id="modalReq"></span></div>
                     <div class="meta-item"><strong>Assigned To</strong> <span id="modalAssign"></span></div>
-                    <div class="meta-item"><strong>Creator</strong> <span id="modalCreator"></span></div>
                     <div class="meta-item"><strong>Activity Type</strong> <span id="modalCat"></span></div>
                     <div class="meta-item"><strong>Discipline</strong> <span id="modalDisc"></span></div>
                     <div class="meta-item"><strong>Instrument</strong> <span id="modalInst"></span></div>
-                    <h4 style="color:#0056b3; border-bottom: 1px solid #ccc; padding-bottom:5px; margin-top:20px;">⏱️ Timeline</h4>
                     <div class="meta-item"><strong>Opened / Executed</strong> <span id="modalStart"></span></div>
                     <div class="meta-item"><strong>Closed</strong> <span id="modalEnd"></span></div>
                 </div>
             </div>
             <div class="task-modal-footer" id="modalActionArea">
-                <a id="modalEditBtn" href="#" class="btn-action btn-edit">✏️ Full Edit Page</a>
-                
-                <form id="modalAckForm" action="" method="POST" onsubmit="return handleAjaxModalForm(event, 'acknowledge')" style="display:none; margin:0;">
+                <a id="modalEditBtn" href="#" class="btn-action btn-edit">✏️ Edit</a>
+                <form id="modalAckForm" action="" method="POST" style="display:none; margin:0;">
                     <button type="submit" class="btn-action btn-progress">🤝 Acknowledge & Start</button>
                 </form>
-
                 <button id="modalCompleteBtn" class="btn-action btn-close" onclick="document.getElementById('modalCloseForm').style.display='flex'; this.style.display='none'; document.getElementById('modalCancelTaskBtn').style.display='none'; document.getElementById('modalAckForm').style.display='none';">Complete Task</button>
                 <button id="modalCancelTaskBtn" class="btn-action btn-cancel" onclick="document.getElementById('modalCancelForm').style.display='flex'; this.style.display='none'; document.getElementById('modalCompleteBtn').style.display='none'; document.getElementById('modalAckForm').style.display='none';">Cancel Task</button>
                 
-                <form id="modalCloseForm" action="" method="POST" onsubmit="return handleAjaxModalForm(event, 'close')" class="action-form" style="width:100%; display:none;">
-                    <input type="text" id="modalClosingRemarksInput" name="closing_remarks" class="action-input" placeholder="Result/Closing remarks (Required)..." required>
-                    <input type="url" id="modalDeliverableInput" name="deliverable_link" class="action-input" placeholder="OneDrive Deliverable Link (Optional)...">
+                <form id="modalCloseForm" action="" method="POST" class="action-form" style="width:100%; display:none;">
+                    <input type="text" name="closing_remarks" class="action-input" placeholder="Result/Closing remarks (Required)..." required>
+                    <input type="url" name="deliverable_link" class="action-input" placeholder="OneDrive Deliverable Link (Optional)...">
                     <button type="submit" class="btn-action btn-close" style="margin-top:5px;">Confirm Close</button>
                 </form>
-                
-                <form id="modalCancelForm" action="" method="POST" onsubmit="return handleAjaxModalForm(event, 'cancel')" class="action-form" style="width:100%; display:none;">
-                    <input type="text" id="modalCancelReasonInput" name="cancel_reason" class="action-input" placeholder="Reason for cancellation (Required)..." required>
+                <form id="modalCancelForm" action="" method="POST" class="action-form" style="width:100%; display:none;">
+                    <input type="text" name="cancel_reason" class="action-input" placeholder="Reason for cancellation (Required)..." required>
                     <button type="submit" class="btn-action btn-cancel" style="margin-top:5px;">Confirm Cancel</button>
                 </form>
             </div>
@@ -365,168 +254,58 @@
     </div>
 
     <script>
-        const STORAGE_KEY = 'nmdc_user_filters_v1';
-        let activeStatuses = new Set(['Open', 'In Progress', 'Closed']); 
-        let isMineActive = false;
-        let viewMode = 'kanban'; 
-        let currentModalCard = null;
-        const IS_USER_ADMIN = {{ 'true' if is_admin else 'false' }};
+        // Default strictly to "My Assigned Tasks" as requested in Point #2 & #3
+        let isMineOnly = true;
 
-        function saveFilterMemory() {
-            try {
-                const state = {
-                    statuses: Array.from(activeStatuses),
-                    isMineActive: isMineActive,
-                    viewMode: viewMode,
-                    keyword: document.getElementById('userKeywordSearch').value,
-                    dateStart: document.getElementById('dateStart').value,
-                    dateEnd: document.getElementById('dateEnd').value
-                };
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-            } catch (e) {}
-        }
-
-        function loadFilterMemory() {
-            try {
-                const raw = localStorage.getItem(STORAGE_KEY);
-                if (!raw) return;
-                const state = JSON.parse(raw);
-                if (state.statuses && Array.isArray(state.statuses) && state.statuses.length > 0) {
-                    activeStatuses = new Set(state.statuses);
-                }
-                if (typeof state.isMineActive === 'boolean') isMineActive = state.isMineActive;
-                if (state.viewMode) viewMode = state.viewMode;
-                if (typeof state.keyword === 'string') document.getElementById('userKeywordSearch').value = state.keyword;
-                if (state.dateStart) document.getElementById('dateStart').value = state.dateStart;
-                if (state.dateEnd) document.getElementById('dateEnd').value = state.dateEnd;
-            } catch (e) {}
-        }
-
-        function resetAllFilters() {
-            localStorage.removeItem(STORAGE_KEY);
-            activeStatuses = new Set(['Open', 'In Progress', 'Closed']);
-            isMineActive = false;
-            viewMode = 'kanban';
-            document.getElementById('userKeywordSearch').value = '';
-            document.getElementById('dateStart').value = '';
-            document.getElementById('dateEnd').value = '';
-            switchView('kanban');
-            updateFilterUI();
+        function setWorkspaceScope(mineOnly) {
+            isMineOnly = mineOnly;
+            document.getElementById('btnMyTasks').classList.toggle('active', mineOnly);
+            document.getElementById('btnTeamBoard').classList.toggle('active', !mineOnly);
             applyFilters();
-        }
-
-        function switchView(mode) {
-            viewMode = mode;
-            document.getElementById('btnListView').classList.toggle('active', mode === 'list');
-            document.getElementById('btnKanbanView').classList.toggle('active', mode === 'kanban');
-            
-            if (mode === 'list') {
-                document.getElementById('taskContainer').style.display = 'block';
-                document.getElementById('kanbanContainer').style.display = 'none';
-            } else {
-                document.getElementById('taskContainer').style.display = 'none';
-                document.getElementById('kanbanContainer').style.display = 'flex';
-            }
-            saveFilterMemory();
-            applyFilters();
-        }
-
-        function toggleStatus(status) {
-            if (status === 'All') {
-                activeStatuses.clear();
-                activeStatuses.add('All');
-            } else {
-                activeStatuses.delete('All');
-                if (activeStatuses.has(status)) {
-                    activeStatuses.delete(status);
-                } else {
-                    activeStatuses.add(status);
-                }
-            }
-            updateFilterUI();
-            saveFilterMemory();
-            applyFilters();
-        }
-
-        function toggleMine() {
-            isMineActive = !isMineActive;
-            updateFilterUI();
-            saveFilterMemory();
-            applyFilters();
-        }
-
-        function updateFilterUI() {
-            document.getElementById('btnAll').classList.toggle('active', activeStatuses.has('All'));
-            document.getElementById('btnOpen').classList.toggle('active', activeStatuses.has('Open'));
-            document.getElementById('btnInProgress').classList.toggle('active', activeStatuses.has('In Progress'));
-            document.getElementById('btnClosed').classList.toggle('active', activeStatuses.has('Closed'));
-            document.getElementById('btnCanceled').classList.toggle('active', activeStatuses.has('Canceled'));
-            document.getElementById('btnMine').classList.toggle('active', isMineActive);
         }
 
         function applyFilters() {
             const cards = document.querySelectorAll('.task-card');
-            
             const listContainer = document.getElementById('taskContainer');
             const colOpen = document.getElementById('col-open');
             const colProg = document.getElementById('col-progress');
             const colClosed = document.getElementById('col-closed');
+            const keyword = (document.getElementById('quickSearch').value || '').toLowerCase();
 
-            const dStart = document.getElementById('dateStart').value;
-            const dEnd = document.getElementById('dateEnd').value;
-            const keyword = document.getElementById('userKeywordSearch').value.toLowerCase();
-            
             const twoDaysAgo = new Date();
             twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-
             let visibleCount = 0;
 
             cards.forEach(card => {
-                let show = false;
                 const status = card.dataset.status;
-                const date = card.dataset.date;
                 const isMine = card.dataset.mine === 'true';
-                const textContent = card.textContent.toLowerCase();
-                const remarksContent = (card.dataset.remarks || "").toLowerCase();
+                const textContent = (card.textContent + ' ' + (card.dataset.remarks || '')).toLowerCase();
 
-                let matchesStatus = (activeStatuses.has('All') || activeStatuses.has(status));
-                let matchesMine = (!isMineActive || isMine);
-                let matchesKeyword = (!keyword || textContent.includes(keyword) || remarksContent.includes(keyword));
+                let show = (!isMineOnly || isMine) && (!keyword || textContent.includes(keyword));
 
-                if (matchesStatus && matchesMine && matchesKeyword) {
-                    show = true;
-                    if (dStart && date < dStart) show = false;
-                    if (dEnd && date > dEnd) show = false;
-                }
-
-                if (viewMode === 'kanban') {
-                    if (show) {
-                        if (status === 'Open') {
-                            colOpen.appendChild(card);
-                            card.style.display = 'block';
-                            visibleCount++;
-                        } else if (status === 'In Progress') {
-                            colProg.appendChild(card);
-                            card.style.display = 'block';
-                            visibleCount++;
-                        } else if (status === 'Closed') {
-                            let endDateStr = card.dataset.end; 
-                            if (endDateStr && endDateStr !== 'Pending') {
-                                let endDate = new Date(endDateStr.replace(' ', 'T'));
-                                if (endDate >= twoDaysAgo) {
-                                    colClosed.appendChild(card);
-                                    card.style.display = 'block';
-                                    visibleCount++;
-                                } else {
-                                    card.style.display = 'none';
-                                    listContainer.appendChild(card);
-                                }
+                if (show) {
+                    if (status === 'Open') {
+                        colOpen.appendChild(card);
+                        card.style.display = 'block';
+                        visibleCount++;
+                    } else if (status === 'In Progress') {
+                        colProg.appendChild(card);
+                        card.style.display = 'block';
+                        visibleCount++;
+                    } else if (status === 'Closed') {
+                        let endDateStr = card.dataset.end;
+                        if (endDateStr && endDateStr !== 'Pending') {
+                            let endDate = new Date(endDateStr.replace(' ', 'T'));
+                            if (endDate >= twoDaysAgo) {
+                                colClosed.appendChild(card);
+                                card.style.display = 'block';
+                                visibleCount++;
                             } else {
                                 card.style.display = 'none';
                                 listContainer.appendChild(card);
                             }
                         } else {
-                            card.style.display = 'none'; 
+                            card.style.display = 'none';
                             listContainer.appendChild(card);
                         }
                     } else {
@@ -534,53 +313,35 @@
                         listContainer.appendChild(card);
                     }
                 } else {
+                    card.style.display = 'none';
                     listContainer.appendChild(card);
-                    card.style.display = show ? 'block' : 'none';
-                    if(show) visibleCount++;
                 }
             });
 
-            document.getElementById('taskCountDisplay').innerText = `Showing ${visibleCount} task${visibleCount === 1 ? '' : 's'}`;
+            document.getElementById('taskCountDisplay').innerText = `${visibleCount} active task${visibleCount === 1 ? '' : 's'}`;
             document.getElementById('noTasksMsg').style.display = visibleCount === 0 ? 'block' : 'none';
         }
 
         function updateClock() {
-            const now = new Date();
-            document.getElementById('liveClock').innerText = now.toLocaleString();
+            document.getElementById('liveClock').innerText = new Date().toLocaleString();
         }
         setInterval(updateClock, 1000);
         updateClock();
+        window.onload = () => applyFilters();
 
-        window.onload = () => {
-            loadFilterMemory();
-            switchView(viewMode);
-            updateFilterUI();
-            applyFilters();
-        };
-
-        // --- DRAG AND DROP JAVASCRIPT ENGINE ---
-        function allowDrop(ev) {
-            ev.preventDefault();
-        }
-
+        function allowDrop(ev) { ev.preventDefault(); }
         function drag(ev) {
             let card = ev.target.closest('.task-card');
-            if (card) {
-                ev.dataTransfer.setData("text", card.dataset.id);
-                card.classList.add('dragging');
-            }
+            if (card) { ev.dataTransfer.setData("text", card.dataset.id); card.classList.add('dragging'); }
         }
 
         async function drop(ev, newStatus) {
             ev.preventDefault();
             ev.currentTarget.classList.remove('drag-over');
-            
             let taskId = ev.dataTransfer.getData("text");
             if (!taskId) return;
-            
             let card = document.querySelector(`.task-card[data-id='${taskId}']`);
             if (!card) return;
-            
             card.classList.remove('dragging');
 
             if (card.dataset.status !== newStatus) {
@@ -592,10 +353,9 @@
                             completeBtn.click();
                             document.querySelector('#modalCloseForm input[name="closing_remarks"]').focus();
                         }
-                    }, 100); 
+                    }, 100);
                     return;
                 }
-                
                 let oldStatus = card.dataset.status;
                 card.dataset.status = newStatus;
                 applyFilters();
@@ -606,76 +366,34 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ task_id: taskId, new_status: newStatus })
                     });
-                    
                     let result = await response.json();
                     if (!result.success) {
                         alert('Action denied: ' + result.message);
                         card.dataset.status = oldStatus;
                         applyFilters();
-                    } else if (result.remarks) {
-                        card.dataset.remarks = result.remarks;
                     }
                 } catch (error) {
-                    alert('Network error. Reverting change.');
                     card.dataset.status = oldStatus;
                     applyFilters();
                 }
             }
         }
 
-        document.addEventListener('dragend', function(ev) {
-            if(ev.target && ev.target.classList && ev.target.classList.contains('task-card')) {
-                ev.target.classList.remove('dragging');
-            }
-            document.querySelectorAll('.kanban-col').forEach(col => col.classList.remove('drag-over'));
-        });
-
-        function formatCleanRemarksAndAudit(rawRemarks) {
-            if (!rawRemarks) {
-                return "<span style='color:#888; font-style:italic;'>No remarks provided.</span>";
-            }
-            let segments = rawRemarks.split('|').map(s => s.trim()).filter(Boolean);
-            let openingParts = [];
-            let auditPills = [];
-
-            segments.forEach(seg => {
-                if (seg.startsWith('Acknowledged & Started by')) {
-                    auditPills.push(`<div class="audit-pill" style="border-left-color:#17a2b8;">🤝 <strong>Acknowledged:</strong> ${seg.replace('Acknowledged & Started by', '').trim()}</div>`);
-                } else if (seg.startsWith('Closed:')) {
-                    auditPills.push(`<div class="audit-pill" style="border-left-color:#28a745;">✅ <strong>Closing Note:</strong> ${seg.replace('Closed:', '').trim()}</div>`);
-                } else if (seg.startsWith('CANCELED:')) {
-                    auditPills.push(`<div class="audit-pill" style="border-left-color:#dc3545;">🛑 <strong>Canceled Reason:</strong> ${seg.replace('CANCELED:', '').trim()}</div>`);
-                } else if (seg.startsWith('RESTORED FROM ARCHIVE:')) {
-                    auditPills.push(`<div class="audit-pill" style="border-left-color:#fd7e14;">♻️ <strong>Restored:</strong> ${seg.replace('RESTORED FROM ARCHIVE:', '').trim()}</div>`);
-                } else {
-                    openingParts.push(seg);
-                }
-            });
-
-            let html = `<div><strong>Opening Scope Notes:</strong><br>${openingParts.length ? openingParts.join(' | ') : 'None'}</div>`;
-            if (auditPills.length > 0) {
-                html += `<div style="margin-top: 12px;"><strong>System Audit Trail:</strong>${auditPills.join('')}</div>`;
-            }
-            return html;
-        }
-
         function openTaskModal(card) {
-            currentModalCard = card;
             document.getElementById('modalTaskId').innerText = '📋 ' + card.dataset.taskStr;
             document.getElementById('modalTaskPath').innerText = card.dataset.path;
-            document.getElementById('modalRemarks').innerHTML = formatCleanRemarksAndAudit(card.dataset.remarks);
+            document.getElementById('modalRemarks').innerText = card.dataset.remarks || 'No remarks provided.';
 
             let rawLinks = card.dataset.links;
             let rawDeliv = card.dataset.deliverable;
             let linksHtml = "";
             if (rawLinks) {
-                let links = rawLinks.split(' | ');
-                links.forEach((l, i) => linksHtml += `<div><a href="${l}" target="_blank" style="color:#0056b3; text-decoration:none; font-weight:bold;">[↗ Reference Link ${i+1}]</a></div>`);
+                rawLinks.split(' | ').forEach((l, i) => linksHtml += `<div><a href="${l}" target="_blank" style="color:#0056b3; font-weight:bold;">[↗ Reference Link ${i+1}]</a></div>`);
             }
             if (rawDeliv) {
-                linksHtml += `<div style="margin-top:8px;"><a href="${rawDeliv}" target="_blank" style="color:#28a745; text-decoration:none; font-weight:bold;">[↗ Final Deliverable]</a></div>`;
+                linksHtml += `<div style="margin-top:8px;"><a href="${rawDeliv}" target="_blank" style="color:#28a745; font-weight:bold;">[↗ Final Deliverable]</a></div>`;
             }
-            document.getElementById('modalLinks').innerHTML = linksHtml || "<span style='color:#888; font-style:italic;'>No links attached.</span>";
+            document.getElementById('modalLinks').innerHTML = linksHtml || "<span style='color:#888;'>No links attached.</span>";
 
             let status = card.dataset.status;
             let badge = document.getElementById('modalStatusBadge');
@@ -684,7 +402,6 @@
 
             document.getElementById('modalReq').innerText = card.dataset.req;
             document.getElementById('modalAssign').innerText = card.dataset.assigned;
-            document.getElementById('modalCreator').innerText = card.dataset.creator;
             document.getElementById('modalCat').innerText = card.dataset.cat;
             document.getElementById('modalDisc').innerText = card.dataset.disc;
             document.getElementById('modalInst').innerText = card.dataset.inst;
@@ -692,32 +409,19 @@
             document.getElementById('modalEnd').innerText = card.dataset.end;
 
             let taskId = card.dataset.id;
-            let isMine = card.dataset.mine === 'true' || IS_USER_ADMIN;
-            
-            document.getElementById('qePriority').value = card.dataset.priority || 99;
-            document.getElementById('qeExecDate').value = card.dataset.execDate || '';
-            document.getElementById('qeAssignedTo').value = card.dataset.assigned || '';
-            document.getElementById('qeUrgent').checked = (card.dataset.urgent === 'true');
-            document.getElementById('quickEditFeedback').style.display = 'none';
-            document.getElementById('userQuickEditBox').style.display = isMine ? 'block' : 'none';
-
+            let isMine = card.dataset.mine === 'true';
             document.getElementById('modalCloseForm').style.display = 'none';
             document.getElementById('modalCancelForm').style.display = 'none';
             document.getElementById('modalAckForm').style.display = 'none';
-            document.getElementById('modalClosingRemarksInput').value = '';
-            document.getElementById('modalDeliverableInput').value = '';
-            document.getElementById('modalCancelReasonInput').value = '';
 
             if ((status === 'Open' || status === 'In Progress' || status === 'Closed') && isMine) {
                 document.getElementById('modalEditBtn').href = '/edit_task/' + taskId;
                 document.getElementById('modalEditBtn').style.display = 'block';
-                
                 if (status === 'Open' || status === 'In Progress') {
                     document.getElementById('modalCloseForm').action = '/close_task/' + taskId;
                     document.getElementById('modalCancelForm').action = '/cancel_task/' + taskId;
                     document.getElementById('modalCompleteBtn').style.display = 'block';
                     document.getElementById('modalCancelTaskBtn').style.display = 'block';
-                    
                     if (status === 'Open') {
                         document.getElementById('modalAckForm').action = '/mark_in_progress/' + taskId;
                         document.getElementById('modalAckForm').style.display = 'block';
@@ -726,116 +430,15 @@
                     document.getElementById('modalCompleteBtn').style.display = 'none';
                     document.getElementById('modalCancelTaskBtn').style.display = 'none';
                 }
-
                 document.getElementById('modalActionArea').style.display = 'flex';
             } else {
                 document.getElementById('modalActionArea').style.display = 'none';
             }
-
             document.getElementById('fullTaskModal').style.display = 'flex';
         }
 
-        function syncCardFromServerTask(card, t) {
-            card.dataset.status = t.status;
-            card.dataset.priority = t.priority;
-            card.dataset.urgent = t.is_urgent ? 'true' : 'false';
-            card.dataset.assigned = t.assigned_to;
-            card.dataset.remarks = t.remarks;
-            card.dataset.deliverable = t.deliverable_link;
-            card.dataset.date = t.date;
-            card.dataset.execDate = t.execution_date;
-            card.dataset.start = t.start;
-            card.dataset.end = t.end;
-
-            const pBadge = card.querySelector('.card-priority-badge');
-            if (pBadge) {
-                pBadge.innerText = 'P' + t.priority;
-                let pColor = '#6c757d';
-                if (t.priority === 0) pColor = '#dc3545';
-                else if (t.priority === 1) pColor = '#fd7e14';
-                else if (t.priority === 2) pColor = '#007bff';
-                pBadge.style.background = pColor;
-            }
-            const uBadge = card.querySelector('.card-urgent-badge');
-            if (uBadge) {
-                uBadge.style.display = (t.is_urgent && (t.status === 'Open' || t.status === 'In Progress')) ? 'inline-block' : 'none';
-            }
-            applyFilters();
-        }
-
-        async function submitQuickEdit() {
-            if (!currentModalCard) return;
-            const payload = {
-                task_id: currentModalCard.dataset.id,
-                action: 'quick_edit',
-                priority: document.getElementById('qePriority').value,
-                execution_date: document.getElementById('qeExecDate').value,
-                assigned_to: document.getElementById('qeAssignedTo').value,
-                is_urgent: document.getElementById('qeUrgent').checked
-            };
-            try {
-                const res = await fetch('/ajax_modal_action', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const result = await res.json();
-                if (result.success) {
-                    syncCardFromServerTask(currentModalCard, result.task);
-                    openTaskModal(currentModalCard);
-                    const fb = document.getElementById('quickEditFeedback');
-                    fb.style.display = 'inline';
-                    setTimeout(() => { fb.style.display = 'none'; }, 2500);
-                } else {
-                    alert('Quick-Edit Error: ' + result.message);
-                }
-            } catch (err) {
-                alert('Network error saving Quick-Edit.');
-            }
-        }
-
-        async function handleAjaxModalForm(ev, actionType) {
-            ev.preventDefault();
-            if (!currentModalCard) return false;
-            const payload = {
-                task_id: currentModalCard.dataset.id,
-                action: actionType
-            };
-            if (actionType === 'close') {
-                payload.closing_remarks = document.getElementById('modalClosingRemarksInput').value;
-                payload.deliverable_link = document.getElementById('modalDeliverableInput').value;
-            } else if (actionType === 'cancel') {
-                payload.cancel_reason = document.getElementById('modalCancelReasonInput').value;
-            }
-            try {
-                const res = await fetch('/ajax_modal_action', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const result = await res.json();
-                if (result.success) {
-                    syncCardFromServerTask(currentModalCard, result.task);
-                    closeTaskModal();
-                } else {
-                    alert('Action Error: ' + result.message);
-                }
-            } catch (err) {
-                ev.target.submit();
-            }
-            return false;
-        }
-
-        function closeTaskModal() {
-            document.getElementById('fullTaskModal').style.display = 'none';
-        }
-
-        window.onclick = function(event) {
-            let modal = document.getElementById('fullTaskModal');
-            if (event.target === modal) {
-                closeTaskModal();
-            }
-        }
+        function closeTaskModal() { document.getElementById('fullTaskModal').style.display = 'none'; }
+        window.onclick = function(ev) { if (ev.target === document.getElementById('fullTaskModal')) closeTaskModal(); };
     </script>
 </body>
 </html>

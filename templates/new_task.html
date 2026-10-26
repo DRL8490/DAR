@@ -13,26 +13,48 @@
         .tree-folder:hover { color: #ffc107; }
         .tree-scope { cursor: pointer; color: #198754; margin-left: 20px; user-select: none; }
         .tree-scope:hover { text-decoration: underline; color: #146c43; }
-        .quick-chip { cursor: pointer; transition: all 0.2s; font-size: 13px; font-weight: 600; padding: 6px 12px; }
+        .quick-chip { cursor: pointer; transition: all 0.2s; font-size: 12px; font-weight: 600; padding: 6px 12px; }
         .quick-chip:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .freq-card { cursor: pointer; transition: all 0.2s; border: 1px solid #cfe2ff; background: #f8fbff; border-radius: 8px; padding: 10px 12px; }
+        .freq-card:hover { background: #e7f1ff; border-color: #0d6efd; transform: translateY(-2px); box-shadow: 0 4px 10px rgba(13,110,253,0.12); }
         .adv-toggle { cursor: pointer; color: #6c757d; font-size: 13px; font-weight: bold; text-decoration: none; }
         .adv-toggle:hover { color: #343a40; }
     </style>
 </head>
 <body>
 
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-3">
     <div class="container-fluid">
-        <a class="navbar-brand" href="#"><i class="fas fa-plus-circle"></i> Open New Task</a>
+        <a class="navbar-brand" href="#"><i class="fas fa-plus-circle"></i> Open New Survey Task</a>
         <a href="{{ url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard') }}" class="btn btn-outline-light btn-sm"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
     </div>
 </nav>
 
-{% if presets %}
-    <div class="card mb-4 mx-3 shadow-sm" style="border-left: 5px solid #0dcaf0;">
+<div class="container pb-5">
+
+    <!-- UPGRADE 8: TOP 3 MOST FREQUENT TASKS AUTOFILL + FULL HISTORY (10/PAGE) -->
+    <div class="card mb-3 shadow-sm" style="border-left: 5px solid #0d6efd;">
+        <div class="card-body py-3">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                <div>
+                    <span class="fw-bold text-primary"><i class="fas fa-bolt"></i> Your Top 3 Most Frequent Tasks (1-Click Autofill)</span>
+                    <small class="text-muted ms-2">Automatically learned from your personal task history</small>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="openHistoryModal()">
+                    <i class="fas fa-history"></i> 📜 Browse Full History (10 / page)
+                </button>
+            </div>
+            <div class="row g-2" id="top3Container">
+                <!-- Populated dynamically via JS from user history -->
+            </div>
+        </div>
+    </div>
+
+    {% if presets %}
+    <div class="card mb-3 shadow-sm" style="border-left: 5px solid #0dcaf0;">
         <div class="card-body py-2">
             <div class="row align-items-center">
-                <div class="col-auto fw-bold text-info"><i class="fas fa-star"></i> Load Preset:</div>
+                <div class="col-auto fw-bold text-info"><i class="fas fa-star"></i> Saved Presets:</div>
                 <div class="col">
                     <select class="form-select form-select-sm" id="presetLoader" onchange="loadPreset()">
                         <option value="">-- Choose a saved preset --</option>
@@ -51,28 +73,79 @@
             </div>
         </div>
     </div>
-{% endif %}
-
-{% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-        <div class="container mt-2 mb-3">
-        {% for category, message in messages %}
-            <div class="alert alert-{% if category == 'error' %}danger{% else %}success{% endif %} alert-dismissible fade show shadow-sm" role="alert">
-                <i class="fas {% if category == 'error' %}fa-exclamation-triangle{% else %}fa-check-circle{% endif %} me-2"></i>
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        {% endfor %}
-        </div>
     {% endif %}
-{% endwith %}
 
-<div class="container pb-5">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="mt-2 mb-3">
+            {% for category, message in messages %}
+                <div class="alert alert-{% if category == 'error' %}danger{% else %}success{% endif %} alert-dismissible fade show shadow-sm" role="alert">
+                    <i class="fas {% if category == 'error' %}fa-exclamation-triangle{% else %}fa-check-circle{% endif %} me-2"></i>
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
     <form method="POST">
         <div class="row">
+            <!-- LEFT CARD: WORK SCOPE FIRST + LOCATION AUTO-CASCADE -->
             <div class="col-md-6 mb-4">
                 <div class="card form-card h-100">
-                    <div class="card-header form-header"><i class="fas fa-users"></i> Staff & Task Details</div>
+                    <div class="card-header form-header bg-success"><i class="fas fa-crosshairs"></i> 1. Select Work Scope (Auto-Fills Location & Verb)</div>
+                    <div class="card-body">
+                        
+                        <div class="mb-3 p-3 bg-light border border-success rounded">
+                            <label class="form-label fw-bold text-success mb-1">
+                                <i class="fas fa-search"></i> Work Scope Search <span class="badge bg-success ms-1">TC = Taichung | TX = Tunghsiao</span>
+                            </label>
+                            <small class="text-muted d-block mb-2">Type work scope (e.g., <strong>TC-Thruster Pit</strong>, <strong>TX-Thruster Pit</strong>, <strong>T2-Pipelaying A</strong>) to auto-fill location & verb:</small>
+                            <div class="input-group">
+                                <input list="loc_search_list" class="form-control border-success fw-bold" id="location_code" placeholder="Search Work Scope (TC / TX / Trench / Crossing)..." oninput="applyLocationSearch()">
+                                <button class="btn btn-outline-success" type="button" data-bs-toggle="modal" data-bs-target="#treeModal" title="Browse Directory Tree"><i class="fas fa-folder-open"></i> Tree</button>
+                            </div>
+                            <datalist id="loc_search_list"></datalist>
+                        </div>
+
+                        <div class="p-3 bg-white border rounded mb-3 text-center shadow-sm">
+                            <strong class="text-secondary d-block mb-1 small text-uppercase">Auto-Mapped Directory Path:</strong>
+                            <div id="path_display" class="text-primary fw-bold" style="font-size: 1.05rem;">[ Select a Work Scope Above ]</div>
+                        </div>
+
+                        <input type="hidden" name="area" id="hidden_area" required>
+                        <input type="hidden" name="location" id="hidden_location" required>
+                        <input type="hidden" name="sub_location" id="hidden_sub" required>
+                        <input type="hidden" name="work_scope" id="hidden_scope" required>
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small">Opening Remarks / Specific Details</label>
+                            <textarea class="form-control" name="remarks" id="remarks_input" rows="3" placeholder="Enter brief scope details (e.g., Ch 0+120 to 0+250)..." required></textarea>
+                        </div>
+
+                        <div class="text-center mt-3">
+                            <a class="adv-toggle" onclick="toggleAdvanced()" id="advToggleBtn">
+                                <i class="fas fa-plus-circle"></i> Show Reference Links & Backdate Options
+                            </a>
+                        </div>
+
+                        <div id="advancedOptions" style="display: none;" class="mt-3 p-3 bg-light border rounded">
+                            <label class="form-label fw-bold small"><i class="fas fa-link"></i> Reference Links / Files</label>
+                            <div id="links_container">
+                                <input type="text" class="form-control mb-2" name="reference_link" placeholder="Paste SharePoint or OneDrive link...">
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-secondary mt-1" onclick="addReferenceLink()"><i class="fas fa-plus"></i> Add Another Link</button>
+                        </div>
+                        
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT CARD: STAFF & TASK DETAILS -->
+            <div class="col-md-6 mb-4">
+                <div class="card form-card h-100">
+                    <div class="card-header form-header"><i class="fas fa-users-cog"></i> 2. Staff, Mission Verb & Discipline</div>
                     <div class="card-body">
                         
                         <datalist id="user_list">
@@ -82,16 +155,19 @@
                         </datalist>
 
                         <div class="mb-3" id="surveyor_container">
-                            <label class="form-label fw-bold small">Assigned To</label>
+                            <label class="form-label fw-bold small">Assigned To <span class="text-muted fw-normal">(Pre-filled with your name)</span></label>
                             <div class="input-group mb-2">
-                                <input list="user_list" class="form-control" name="assigned_to" placeholder="Type custom name or select user..." required>
-                                <button class="btn btn-outline-success" type="button" onclick="addSurveyorDropdown()"><i class="fas fa-plus"></i></button>
+                                <input list="user_list" class="form-control" name="assigned_to" value="{{ current_user_name }}" placeholder="Type custom name or select user..." required>
+                                <button class="btn btn-outline-success" type="button" onclick="addSurveyorDropdown()" title="Add Second Surveyor"><i class="fas fa-user-plus"></i></button>
                             </div>
                         </div>
 
                         <div class="mb-3">
-                            <label class="form-label fw-bold small">Requestor Name</label>
-                            <input list="requestor_list" class="form-control" id="requestor_name" name="requestor_name" placeholder="Search for requestor..." oninput="autoFillDept()" required>
+                            <div class="d-flex justify-content-between align-items-center mb-1 flex-wrap">
+                                <label class="form-label fw-bold small mb-0">Requestor Name</label>
+                                <div id="topRequestorsBar" class="d-flex gap-1 flex-wrap"></div>
+                            </div>
+                            <input list="requestor_list" class="form-control" id="requestor_name" name="requestor_name" placeholder="Search for requestor (or tap a chip above)..." oninput="autoFillDept()" required>
                             <datalist id="requestor_list"></datalist>
                             <input type="hidden" id="requestor_dept" name="requestor_dept" required>
                         </div>
@@ -105,18 +181,20 @@
                                   onclick="applyQuickPick('PERFORM', 'Bathymetric Survey', 'Progress Survey', 'MBES  WS166')">🚤 WS166 Bathy</span>
                             <span class="badge bg-warning bg-opacity-10 text-warning border border-warning rounded-pill quick-chip" 
                                   onclick="applyQuickPick('PERFORM', 'Land Survey', 'Stake-Out/Marking', 'GNSS Rover')">📍 Rover Stakeout</span>
+                            <span class="badge bg-danger bg-opacity-10 text-danger border border-danger rounded-pill quick-chip" 
+                                  onclick="applyQuickPick('VERIFY', 'Land Survey', 'Check Survey', 'Levelling Machine')">🔍 Level Check</span>
                         </div>
 
-                        <div class="mb-3 p-3 bg-light border rounded">
-                            <label class="form-label fw-bold text-primary"><i class="fas fa-search"></i> Quick Find (Action & Instrument)</label>
-                            <input list="smart_task_list" class="form-control border-primary" id="smart_task_input" placeholder="Type keyword (e.g., Progress, Drone)..." oninput="applySmartTask()">
+                        <div class="mb-3 p-2 bg-light border rounded">
+                            <label class="form-label fw-bold text-primary small mb-1"><i class="fas fa-magic"></i> Quick Find (Discipline & Instrument)</label>
+                            <input list="smart_task_list" class="form-control form-control-sm border-primary" id="smart_task_input" placeholder="Type keyword (e.g., Check Survey, Volume, Drone)..." oninput="applySmartTask()">
                             <datalist id="smart_task_list"></datalist>
                         </div>
 
                         <div class="row mb-3">
                             <div class="col-md-5">
                                 <label class="form-label fw-bold text-danger small">1. Mission Verb</label>
-                                <select class="form-select border-danger shadow-sm" name="command_verb" required>
+                                <select class="form-select border-danger shadow-sm fw-bold" id="command_verb" name="command_verb" required>
                                     <optgroup label="Execution (Core)">
                                         <option value="PERFORM">PERFORM (Field Work & Physical Surveys)</option>
                                         <option value="PROCESS">PROCESS (Data Processing & Calculations)</option>
@@ -126,6 +204,7 @@
                                     <optgroup label="Quality & Coordination">
                                         <option value="VERIFY">VERIFY (Internal Checks & QA/QC)</option>
                                         <option value="REVIEW">REVIEW (Reviewing Subcon or Third-Party Reports)</option>
+                                        <option value="COORDINATE">COORDINATE (Cross-Team & Site Coordination)</option>
                                         <option value="PROVIDE">PROVIDE (Giving Input/Support to Other Depts)</option>
                                         <option value="ATTEND">ATTEND (Internal and External Meetings)</option>
                                     </optgroup>
@@ -145,8 +224,8 @@
 
                         <div class="row mb-3">
                             <div class="col-6">
-                                <label class="form-label fw-bold small">Action Required</label>
-                                <select class="form-select" id="action_required" name="action_required" onchange="updateInstruments()" required>
+                                <label class="form-label fw-bold small">Action Required (Discipline)</label>
+                                <select class="form-select" id="action_required" name="action_required" onchange="updateInstruments(); autoPairVerbFromDiscipline();" required>
                                     <option value="">-- Select Action --</option>
                                 </select>
                             </div>
@@ -161,60 +240,13 @@
                     </div>
                 </div>
             </div>
-
-            <div class="col-md-6 mb-4">
-                <div class="card form-card h-100">
-                    <div class="card-header form-header bg-success"><i class="fas fa-map-marker-alt"></i> Location & Scope</div>
-                    <div class="card-body">
-                        
-                        <div class="mb-3 p-3 bg-light border rounded">
-                            <label class="form-label fw-bold text-success"><i class="fas fa-search"></i> Quick Find (Location & Scope)</label>
-                            <div class="input-group">
-                                <input list="loc_search_list" class="form-control border-success" id="location_code" placeholder="Type keyword (e.g. Trench 2, 331)..." oninput="applyLocationSearch()">
-                                <button class="btn btn-outline-success" type="button" data-bs-toggle="modal" data-bs-target="#treeModal" title="Browse Tree"><i class="fas fa-folder-open"></i></button>
-                            </div>
-                            <datalist id="loc_search_list"></datalist>
-                        </div>
-
-                        <div class="p-3 bg-white border rounded mb-4 text-center shadow-sm">
-                            <strong class="text-secondary d-block mb-1">Selected Path:</strong>
-                            <div id="path_display" class="text-primary fw-bold" style="font-size: 1.1rem;">[ None Selected ]</div>
-                        </div>
-
-                        <input type="hidden" name="area" id="hidden_area" required>
-                        <input type="hidden" name="location" id="hidden_location" required>
-                        <input type="hidden" name="sub_location" id="hidden_sub" required>
-                        <input type="hidden" name="work_scope" id="hidden_scope" required>
-                        
-                        <div class="mb-3">
-                            <label class="form-label fw-bold small">Remarks</label>
-                            <textarea class="form-control" name="remarks" rows="2" placeholder="Enter brief details..." required></textarea>
-                        </div>
-
-                        <div class="text-center mt-4">
-                            <a class="adv-toggle" onclick="toggleAdvanced()" id="advToggleBtn">
-                                <i class="fas fa-plus-circle"></i> Show Advanced Options
-                            </a>
-                        </div>
-
-                        <div id="advancedOptions" style="display: none;" class="mt-3 p-3 bg-light border rounded">
-                            <label class="form-label fw-bold small"><i class="fas fa-link"></i> Reference Links / Files</label>
-                            <div id="links_container">
-                                <input type="text" class="form-control mb-2" name="reference_link" placeholder="Paste SharePoint or OneDrive link...">
-                            </div>
-                            <button type="button" class="btn btn-sm btn-outline-secondary mt-1" onclick="addReferenceLink()"><i class="fas fa-plus"></i> Add Another Link</button>
-                        </div>
-                        
-                    </div>
-                </div>
-            </div>
         </div>
 
         <div class="row mb-3 align-items-center bg-light p-3 border rounded mx-0 shadow-sm">
             <div class="col-md-6">
                 <div class="form-check form-switch">
                     <input class="form-check-input" type="checkbox" id="save_preset" name="save_preset" value="true" onchange="document.getElementById('preset_name_container').style.display = this.checked ? 'block' : 'none';" style="transform: scale(1.3); margin-right: 10px; cursor: pointer;">
-                    <label class="form-check-label fw-bold text-primary" for="save_preset" style="cursor: pointer;"><i class="fas fa-save"></i> Save these settings as a new Preset</label>
+                    <label class="form-check-label fw-bold text-primary" for="save_preset" style="cursor: pointer;"><i class="fas fa-save"></i> Save these settings as a manual Preset</label>
                 </div>
             </div>
             <div class="col-md-6" id="preset_name_container" style="display: none;">
@@ -235,14 +267,50 @@
     </form>
 </div>
 
+<!-- DIRECTORY TREE MODAL -->
 <div class="modal fade" id="treeModal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
         <div class="modal-content">
             <div class="modal-header bg-success text-white">
-                <h5 class="modal-title"><i class="fas fa-folder-open"></i> Project Directory Explorer</h5>
+                <h5 class="modal-title"><i class="fas fa-folder-open"></i> Project Directory Explorer (TC = Taichung | TX = Tunghsiao)</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body" id="tree_modal_body"></div>
+        </div>
+    </div>
+</div>
+
+<!-- UPGRADE 8: PAGINATED FULL TASK HISTORY MODAL (10 PER PAGE) -->
+<div class="modal fade" id="historyModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-history"></i> Full Task Autofill History (10 per Page)</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-sm btn-primary active" id="tabBtnPatterns" onclick="switchHistoryTab('patterns')">🏆 All Frequent Patterns (Ranked)</button>
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="tabBtnRecent" onclick="switchHistoryTab('recent')">🕒 Recent Tasks (Chronological)</button>
+                    </div>
+                    <input type="text" id="historySearchInput" class="form-control form-control-sm" style="max-width: 320px;" placeholder="Filter history by scope, discipline, requestor..." oninput="resetHistoryPageAndRender()">
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover table-bordered align-middle mb-0" style="font-size: 13px;">
+                        <thead class="table-light" id="historyTableHead"></thead>
+                        <tbody id="historyTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer d-flex justify-content-between align-items-center">
+                <span id="historyPageInfo" class="small fw-bold text-muted">Page 1 of 1</span>
+                <div class="btn-group">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btnPrevHist" onclick="changeHistoryPage(-1)">◀ Prev 10</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="btnNextHist" onclick="changeHistoryPage(1)">Next 10 ▶</button>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -251,6 +319,9 @@
 <script id="tree_data" type="application/json">{{ schema_json | safe }}</script>
 <script id="act_data" type="application/json">{{ activities_json | safe }}</script>
 <script id="presets_data" type="application/json">{{ presets_json | default('{}') | safe }}</script>
+<script id="frequent_patterns_data" type="application/json">{{ frequent_patterns_json | default('[]') | safe }}</script>
+<script id="recent_history_data" type="application/json">{{ recent_history_json | default('[]') | safe }}</script>
+<script id="top_requestors_data" type="application/json">{{ top_requestors_json | default('[]') | safe }}</script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
@@ -258,6 +329,188 @@
     const fileTree = JSON.parse(document.getElementById('tree_data').textContent);
     const actData = JSON.parse(document.getElementById('act_data').textContent);
     const allPresets = JSON.parse(document.getElementById('presets_data').textContent);
+    const frequentPatterns = JSON.parse(document.getElementById('frequent_patterns_data').textContent);
+    const recentHistory = JSON.parse(document.getElementById('recent_history_data').textContent);
+    const topRequestors = JSON.parse(document.getElementById('top_requestors_data').textContent);
+
+    const actSelect = document.getElementById('task_category');
+    const reqActSelect = document.getElementById('action_required');
+    const instSelect = document.getElementById('instrument');
+    const verbSelect = document.getElementById('command_verb');
+
+    // --- MISSION VERB AUTO-PAIRING ENGINE (Strictly by Scope / Discipline, NOT Requestor Dept) ---
+    function inferMissionVerb(scopeStr, actionStr) {
+        const s = (scopeStr || '').toLowerCase();
+        const a = (actionStr || '').toLowerCase();
+
+        // 1. Quality & Coordination Rules
+        if (a.includes('check survey') || a.includes('benchmark verification') || s.includes('verify')) return 'VERIFY';
+        if (s.includes('tech_review') || s.includes('tech review') || a.includes('review')) return 'REVIEW';
+        if (a.includes('internal coordination') || a.includes('external meeting')) return 'ATTEND';
+        if (s.includes('subcon') || s.includes('tpc-poe') || s.includes('coord')) return 'COORDINATE';
+        if (a.includes('survey input')) return 'PROVIDE';
+
+        // 2. Deliverables & Filing Rules
+        if (a.includes('survey report') || s.includes('kpi') || s.includes('wsr') || s.includes('timesheet') || s.includes('trf')) return 'SUBMIT';
+        if (s.includes('personnel_files') || s.includes('personnel files')) return 'FILE';
+
+        // 3. Execution Core Rules
+        if (a.includes('post-processing') || a.includes('volume calculation')) return 'PROCESS';
+        if (a.includes('design creation') || a.includes('background files') || a.includes('guidance files') || s.includes('dxf') || s.includes('routelines') || s.includes('3dm')) return 'DRAFT';
+        if (a.includes('configuration') || a.includes('calibration') || s.includes('equipment_list') || s.includes('sem') || s.includes('aho')) return 'SETUP';
+
+        return 'PERFORM';
+    }
+
+    function autoPairVerbFromDiscipline() {
+        const scopeVal = document.getElementById('hidden_scope').value;
+        const actVal = reqActSelect.value;
+        verbSelect.value = inferMissionVerb(scopeVal, actVal);
+    }
+
+    // --- RENDER TOP 3 FREQUENT TASKS & TOP REQUESTORS ---
+    function renderTopShortcuts() {
+        const top3Box = document.getElementById('top3Container');
+        if (!frequentPatterns || frequentPatterns.length === 0) {
+            top3Box.innerHTML = `<div class="col-12 text-muted small fst-italic">No historical tasks found for your profile yet. Once you submit tasks, your Top 3 most frequent combinations will appear here automatically!</div>`;
+        } else {
+            top3Box.innerHTML = frequentPatterns.slice(0, 3).map((item, idx) => `
+                <div class="col-md-4">
+                    <div class="freq-card h-100" onclick='applyHistoryItem(${JSON.stringify(item).replace(/'/g, "&#39;")})'>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="badge bg-primary">#${idx + 1} Frequent (${item.count}x)</span>
+                            <span class="badge bg-danger">[${item.command_verb || 'PERFORM'}]</span>
+                        </div>
+                        <div class="fw-bold text-dark" style="font-size: 13px;">${item.work_scope}</div>
+                        <div class="small text-secondary">${item.action_required} • <strong>${item.instrument}</strong></div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        const reqBar = document.getElementById('topRequestorsBar');
+        if (topRequestors && topRequestors.length > 0) {
+            reqBar.innerHTML = topRequestors.map(r => `
+                <span class="badge bg-secondary bg-opacity-10 text-dark border quick-chip" style="padding: 3px 8px; font-size: 11px;"
+                      onclick="selectRequestorChip('${r.name.replace(/'/g, "\\'")}')">
+                    ⚡ ${r.name} (${r.count})
+                </span>
+            `).join('');
+        }
+    }
+
+    function selectRequestorChip(name) {
+        document.getElementById('requestor_name').value = name;
+        autoFillDept();
+    }
+
+    function applyHistoryItem(item) {
+        if (item.area && item.work_scope) {
+            setPath(item.area, item.location || '', item.sub_location || '', item.work_scope);
+        }
+        if (item.task_category) {
+            actSelect.value = item.task_category;
+            updateActions();
+            if (item.action_required) {
+                reqActSelect.value = item.action_required;
+                updateInstruments();
+                if (item.instrument) {
+                    instSelect.value = item.instrument;
+                }
+            }
+        }
+        if (item.command_verb) {
+            verbSelect.value = item.command_verb;
+        } else {
+            autoPairVerbFromDiscipline();
+        }
+        if (item.req_name) {
+            document.getElementById('requestor_name').value = item.req_name;
+            autoFillDept();
+        }
+        const histModalEl = document.getElementById('historyModal');
+        const histModal = bootstrap.Modal.getInstance(histModalEl);
+        if (histModal) histModal.hide();
+    }
+
+    // --- PAGINATED FULL HISTORY MODAL (10 PER PAGE) ---
+    let currentHistoryTab = 'patterns';
+    let currentHistoryPage = 1;
+    const HISTORY_PAGE_SIZE = 10;
+
+    function openHistoryModal() {
+        currentHistoryPage = 1;
+        renderHistoryTable();
+        const modal = new bootstrap.Modal(document.getElementById('historyModal'));
+        modal.show();
+    }
+
+    function switchHistoryTab(tab) {
+        currentHistoryTab = tab;
+        currentHistoryPage = 1;
+        document.getElementById('tabBtnPatterns').className = tab === 'patterns' ? 'btn btn-sm btn-primary active' : 'btn btn-sm btn-outline-primary';
+        document.getElementById('tabBtnRecent').className = tab === 'recent' ? 'btn btn-sm btn-primary active' : 'btn btn-sm btn-outline-primary';
+        renderHistoryTable();
+    }
+
+    function resetHistoryPageAndRender() {
+        currentHistoryPage = 1;
+        renderHistoryTable();
+    }
+
+    function changeHistoryPage(delta) {
+        currentHistoryPage += delta;
+        renderHistoryTable();
+    }
+
+    function renderHistoryTable() {
+        const query = (document.getElementById('historySearchInput').value || '').toLowerCase();
+        const sourceList = currentHistoryTab === 'patterns' ? frequentPatterns : recentHistory;
+        const filtered = sourceList.filter(item => {
+            const hay = `${item.work_scope} ${item.action_required} ${item.instrument} ${item.task_category} ${item.req_name || ''} ${item.remarks || ''}`.toLowerCase();
+            return !query || hay.includes(query);
+        });
+
+        const totalPages = Math.max(1, Math.ceil(filtered.length / HISTORY_PAGE_SIZE));
+        if (currentHistoryPage > totalPages) currentHistoryPage = totalPages;
+        if (currentHistoryPage < 1) currentHistoryPage = 1;
+
+        const startIdx = (currentHistoryPage - 1) * HISTORY_PAGE_SIZE;
+        const pageItems = filtered.slice(startIdx, startIdx + HISTORY_PAGE_SIZE);
+
+        const thead = document.getElementById('historyTableHead');
+        const tbody = document.getElementById('historyTableBody');
+
+        if (currentHistoryTab === 'patterns') {
+            thead.innerHTML = `<tr><th>Rank</th><th>Uses</th><th>Verb & Discipline</th><th>Work Scope (Location)</th><th>Instrument</th><th class="text-end">Action</th></tr>`;
+            tbody.innerHTML = pageItems.length ? pageItems.map((item, i) => `
+                <tr>
+                    <td class="fw-bold">#${startIdx + i + 1}</td>
+                    <td><span class="badge bg-primary">${item.count}x</span></td>
+                    <td><span class="badge bg-danger me-1">[${item.command_verb}]</span> <strong>${item.action_required}</strong><br><small class="text-muted">${item.task_category}</small></td>
+                    <td class="fw-semibold text-success">${item.work_scope}<br><small class="text-muted">${item.area} ➔ ${item.location} ➔ ${item.sub_location}</small></td>
+                    <td>${item.instrument}</td>
+                    <td class="text-end"><button type="button" class="btn btn-sm btn-success fw-bold" onclick='applyHistoryItem(${JSON.stringify(item).replace(/'/g, "&#39;")})'>⚡ Autofill</button></td>
+                </tr>
+            `).join('') : `<tr><td colspan="6" class="text-center py-3 text-muted">No matching task patterns found.</td></tr>`;
+        } else {
+            thead.innerHTML = `<tr><th>Date</th><th>Requestor</th><th>Verb & Discipline</th><th>Work Scope</th><th>Instrument</th><th class="text-end">Action</th></tr>`;
+            tbody.innerHTML = pageItems.length ? pageItems.map(item => `
+                <tr>
+                    <td class="text-nowrap small">${item.date}</td>
+                    <td>${item.req_name || 'N/A'}</td>
+                    <td><span class="badge bg-danger me-1">[${item.command_verb}]</span> <strong>${item.action_required}</strong></td>
+                    <td class="fw-semibold text-success">${item.work_scope}<br><small class="text-muted">${item.remarks || ''}</small></td>
+                    <td>${item.instrument}</td>
+                    <td class="text-end"><button type="button" class="btn btn-sm btn-success fw-bold" onclick='applyHistoryItem(${JSON.stringify(item).replace(/'/g, "&#39;")})'>⚡ Autofill</button></td>
+                </tr>
+            `).join('') : `<tr><td colspan="6" class="text-center py-3 text-muted">No recent tasks found.</td></tr>`;
+        }
+
+        document.getElementById('historyPageInfo').innerText = `Showing ${pageItems.length} of ${filtered.length} records (Page ${currentHistoryPage} of ${totalPages})`;
+        document.getElementById('btnPrevHist').disabled = (currentHistoryPage <= 1);
+        document.getElementById('btnNextHist').disabled = (currentHistoryPage >= totalPages);
+    }
 
     function toggleAdvanced() {
         const advBox = document.getElementById('advancedOptions');
@@ -267,7 +520,7 @@
             btn.innerHTML = '<i class="fas fa-minus-circle"></i> Hide Advanced Options';
         } else {
             advBox.style.display = 'none';
-            btn.innerHTML = '<i class="fas fa-plus-circle"></i> Show Advanced Options';
+            btn.innerHTML = '<i class="fas fa-plus-circle"></i> Show Reference Links & Backdate Options';
         }
     }
 
@@ -296,12 +549,8 @@
     
     function autoFillDept() {
         const name = document.getElementById('requestor_name').value.trim();
-        document.getElementById('requestor_dept').value = requestorMap[name] || '';
+        document.getElementById('requestor_dept').value = requestorMap[name] || 'General';
     }
-
-    const actSelect = document.getElementById('task_category');
-    const reqActSelect = document.getElementById('action_required');
-    const instSelect = document.getElementById('instrument');
 
     Object.keys(actData).sort().forEach(act => { actSelect.add(new Option(act, act)); });
 
@@ -320,11 +569,14 @@
         const req = reqActSelect.value;
         if(act && req && actData[act][req]) {
             actData[act][req].forEach(inst => { instSelect.add(new Option(inst, inst)); });
+            if (actData[act][req].length === 1) {
+                instSelect.value = actData[act][req][0];
+            }
         }
     }
 
     function applyQuickPick(verb, category, action, instrument) {
-        document.querySelector('select[name="command_verb"]').value = verb;
+        verbSelect.value = verb;
         actSelect.value = category;
         updateActions(); 
         reqActSelect.value = action;
@@ -338,7 +590,7 @@
     for (const [act, actions] of Object.entries(actData)) {
         for (const [req, insts] of Object.entries(actions)) {
             insts.forEach(inst => {
-                const comboStr = `${act} ➔ ${req} ➔ ${inst}`;
+                const comboStr = `${req} ➔ ${inst} (${act})`;
                 taskCombinations[comboStr] = { act, req, inst };
                 let option = document.createElement('option');
                 option.value = comboStr;
@@ -356,9 +608,11 @@
             reqActSelect.value = combo.req;
             updateInstruments(); 
             instSelect.value = combo.inst;
+            autoPairVerbFromDiscipline();
         }
     }
 
+    // --- WORK-SCOPE-FIRST REVERSE CASCADE ---
     const locSearchList = document.getElementById('loc_search_list');
     let locCombinations = {}; 
     for(const [area, locs] of Object.entries(fileTree)) {
@@ -369,9 +623,10 @@
                     const cleanLoc = loc.replace(/^[0-9]+_/, '').replace(/_/g, ' ');
                     const cleanArea = area.replace(/^[0-9]+_/, '').replace(/_/g, ' ');
                     
-                    const searchStr = `${scope} [${cleanSub} - ${cleanLoc}]`;
+                    const searchStr = `${scope}  [📍 ${cleanLoc} ➔ ${cleanSub}]`;
                     
                     locCombinations[searchStr] = { area, loc, sub, scope };
+                    locCombinations[scope] = { area, loc, sub, scope };
                     let option = document.createElement('option');
                     option.value = searchStr;
                     option.textContent = cleanArea; 
@@ -382,7 +637,7 @@
     }
 
     function applyLocationSearch() {
-        const val = document.getElementById('location_code').value;
+        const val = document.getElementById('location_code').value.trim();
         const match = locCombinations[val];
         if(match) {
             setPath(match.area, match.loc, match.sub, match.scope);
@@ -398,17 +653,17 @@
         fId++; let areaId = fId;
         treeHTML += `<li>
             <div class="tree-folder py-1" onclick="toggleFolder('f_${areaId}', 'i_${areaId}')">
-                <i class="fas fa-folder" id="i_${areaId}"></i> ${area}
+                <i class="fas fa-folder-open" id="i_${areaId}"></i> ${area}
             </div>
-            <ul class="list-unstyled ms-4 border-start border-2 border-primary ps-2" id="f_${areaId}" style="display:none;">`;
+            <ul class="list-unstyled ms-4 border-start border-2 border-primary ps-2" id="f_${areaId}" style="display:block;">`;
         
         for(const [loc, subs] of Object.entries(locs)) {
             fId++; let locId = fId;
             treeHTML += `<li>
                 <div class="tree-folder py-1" onclick="toggleFolder('f_${locId}', 'i_${locId}')">
-                    <i class="fas fa-folder text-warning" id="i_${locId}"></i> ${loc}
+                    <i class="fas fa-folder-open text-warning" id="i_${locId}"></i> ${loc}
                 </div>
-                <ul class="list-unstyled ms-4 border-start border-2 border-warning ps-2" id="f_${locId}" style="display:none;">`;
+                <ul class="list-unstyled ms-4 border-start border-2 border-warning ps-2" id="f_${locId}" style="display:block;">`;
             
             for(const [sub, scopes] of Object.entries(subs)) {
                 fId++; let subId = fId;
@@ -419,7 +674,7 @@
                     <ul class="list-unstyled ms-3 border-start border-2 border-danger ps-2" id="f_${subId}" style="display:none;">`;
                 
                 for(const scope of scopes) {
-                    treeHTML += `<li><div class="tree-scope py-1" onclick="selectFromModal('${area}', '${loc}', '${sub}', '${scope}')"><i class="fas fa-file-alt text-success"></i> ${scope}</div></li>`;
+                    treeHTML += `<li><div class="tree-scope py-1" onclick="selectFromModal('${area}', '${loc}', '${sub}', '${scope}')"><i class="fas fa-file-alt text-success"></i> <strong>${scope}</strong></div></li>`;
                 }
                 treeHTML += `</ul></li>`;
             }
@@ -448,7 +703,7 @@
         setPath(area, loc, sub, scope);
         const modal = bootstrap.Modal.getInstance(document.getElementById('treeModal'));
         modal.hide();
-        document.getElementById('location_code').value = ''; 
+        document.getElementById('location_code').value = scope; 
     }
 
     function setPath(area, loc, sub, scope) {
@@ -458,11 +713,12 @@
         document.getElementById('hidden_scope').value = scope;
         
         document.getElementById('path_display').innerHTML = `
-            ${area} <i class="fas fa-caret-right text-muted mx-1"></i> 
+            📁 ${area} <i class="fas fa-caret-right text-muted mx-1"></i> 
             ${loc} <i class="fas fa-caret-right text-muted mx-1"></i> 
             ${sub} <i class="fas fa-caret-right text-muted mx-1"></i> 
             <span class="text-success">${scope}</span>
         `;
+        autoPairVerbFromDiscipline();
     }
 
     function addReferenceLink() {
@@ -484,7 +740,6 @@
             return;
         }
         
-        // MONOLITH FIX: Removed core. routing
         if(delForm) {
             delForm.action = "{{ url_for('delete_preset', preset_id=0) }}".replace('0', pId);
             delForm.style.display = 'block';
@@ -500,7 +755,7 @@
             document.querySelector('input[name="assigned_to"]').value = loadedPreset.assigned_to;
         }
         if (loadedPreset.command_verb) {
-            document.querySelector('select[name="command_verb"]').value = loadedPreset.command_verb;
+            verbSelect.value = loadedPreset.command_verb;
         }
         if (loadedPreset.task_category) {
             actSelect.value = loadedPreset.task_category;
@@ -525,6 +780,8 @@
             document.querySelector('textarea[name="remarks"]').value = loadedPreset.remarks;
         }
     }
+
+    renderTopShortcuts();
 </script>
 </body>
 </html>
