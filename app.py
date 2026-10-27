@@ -322,31 +322,241 @@ LEAN_CORE_TASKS = [
     }
 ]
 
-# PINNED 1-CLICK QUICK CHIPS (Tailored from Daryll's 317 Personal Tasks & Team Top Tasks; Editable in UI!)
+# PINNED 1-CLICK QUICK CHIPS (Fallback defaults for brand-new users)
 QUICK_PICK_CHIPS = [
-    {"label": "📏 TC-AHDD Settlement Monitoring", "scope_id": "MWS-05", "task_id": "CT-01", "default_remark": "Road Settlement Monitoring",               "style": "primary"},
-    {"label": "📐 TC-AHDD Settlement / Sketch Dwg", "scope_id": "MWS-05", "task_id": "CT-11", "default_remark": "Road Settlement / AHDD Drawing",          "style": "secondary"},
-    {"label": "🚤 NS-Dumping Area Bathy",         "scope_id": "MWS-10", "task_id": "CT-06", "default_remark": "Dumping Area Dredging Monitoring",        "style": "info"},
-    {"label": "🚤 NS-Trench 8 Bathy",             "scope_id": "MWS-12", "task_id": "CT-06", "default_remark": "T8 Dredging Monitoring",                  "style": "info"},
-    {"label": "🚤 NS-Trench 1 Bathy",             "scope_id": "MWS-11", "task_id": "CT-06", "default_remark": "T1 Dredging Monitoring",                  "style": "info"},
-    {"label": "⚓ OS-Midline Tie-In Bathy",        "scope_id": "MWS-14", "task_id": "CT-06", "default_remark": "Midline Tie-In Dredging Monitoring",      "style": "primary"},
-    {"label": "⚓ OS-Subsea Crossings Survey",     "scope_id": "MWS-15", "task_id": "CT-06", "default_remark": "Crossing Mattress / SRI / Burial Survey", "style": "warning"},
-    {"label": "📍 TX-Temp Platform Stake-Out",    "scope_id": "MWS-08", "task_id": "CT-04", "default_remark": "Temp Platform Stake-Out",                 "style": "success"},
-    {"label": "📄 TPC-POE / EGST Tech Report",    "scope_id": "MWS-02", "task_id": "CT-14", "default_remark": "TPC-POE / EGST Subcon Tech Review",       "style": "danger"},
-    {"label": "🛠️ WS166 / Vessel Config & Calib",  "scope_id": "MWS-16", "task_id": "CT-13", "default_remark": "WS166 / Arzana Survey System Check",      "style": "dark"},
+    {"label": "📏 TC-AHDD • Settlement Monitoring", "scope_id": "MWS-05", "task_id": "CT-01", "default_remark": "Road Settlement Monitoring",               "style": "primary"},
+    {"label": "📐 TC-AHDD • CAD Drawing",           "scope_id": "MWS-05", "task_id": "CT-11", "default_remark": "Road Settlement / AHDD Drawing",          "style": "secondary"},
+    {"label": "🚤 NS-Dumping Area • Bathy Survey",  "scope_id": "MWS-10", "task_id": "CT-06", "default_remark": "Dumping Area Dredging Monitoring",        "style": "info"},
+    {"label": "🚤 NS-Trench 8 • Bathy Survey",      "scope_id": "MWS-12", "task_id": "CT-06", "default_remark": "T8 Dredging Monitoring",                  "style": "info"},
+    {"label": "🚤 NS-Trench 1 • Bathy Survey",      "scope_id": "MWS-11", "task_id": "CT-06", "default_remark": "T1 Dredging Monitoring",                  "style": "info"},
+    {"label": "⚓ OS-Midline • Bathy Survey",       "scope_id": "MWS-14", "task_id": "CT-06", "default_remark": "Midline Tie-In Dredging Monitoring",      "style": "primary"},
+    {"label": "⚓ OS-Crossings • Bathy Survey",     "scope_id": "MWS-15", "task_id": "CT-06", "default_remark": "Crossing Mattress / SRI / Burial Survey", "style": "warning"},
+    {"label": "📍 TX-Temp Platform • Stake-Out",    "scope_id": "MWS-08", "task_id": "CT-04", "default_remark": "Temp Platform Stake-Out",                 "style": "success"},
 ]
 
-def get_active_quick_chips():
-    """Returns custom Quick-Pick Chips saved in AppConfig, or falls back to QUICK_PICK_CHIPS."""
+# Short display tags and styling for dynamic per-user Quick Picks
+SHORT_SCOPE_TAGS = {
+    "MWS-01": ("🏢 TC-Office Internal", "secondary"),
+    "MWS-02": ("📄 TPC-POE / EGST Ext", "danger"),
+    "MWS-03": ("🏛️ Abu Dhabi HQ", "dark"),
+    "MWS-04": ("📍 TC-Landfall Site", "primary"),
+    "MWS-05": ("📏 TC-AHDD", "primary"),
+    "MWS-06": ("📦 TC-Tienli", "primary"),
+    "MWS-07": ("⚓ TC-Berth 37", "primary"),
+    "MWS-08": ("🚧 TX-Temp Platform", "success"),
+    "MWS-09": ("🏭 TX-Inside Plant", "success"),
+    "MWS-10": ("🚤 NS-Nearshore/Dumping", "info"),
+    "MWS-11": ("🚤 NS-Trench 1", "info"),
+    "MWS-12": ("🚤 NS-Trench 8", "info"),
+    "MWS-13": ("🌊 OS-Mainline T2-T7", "warning"),
+    "MWS-14": ("⚓ OS-Midline Tie-In", "warning"),
+    "MWS-15": ("⚓ OS-Subsea Crossings", "warning"),
+    "MWS-16": ("🛠️ MAR-Vessels/Design", "dark"),
+}
+
+SHORT_TASK_TAGS = {
+    "CT-01": "Settlement Monitoring",
+    "CT-02": "Topo / Progress Survey",
+    "CT-03": "As-Built Survey",
+    "CT-04": "Stake-Out / Marking",
+    "CT-05": "Check / TBM Verify",
+    "CT-06": "Bathy Monitoring",
+    "CT-07": "Bathy Pre/Post Survey",
+    "CT-08": "Geophysical Survey",
+    "CT-09": "File & Design Prep",
+    "CT-10": "Volume Calculation",
+    "CT-11": "CAD Drawing",
+    "CT-12": "Charts & Profiles",
+    "CT-13": "Software Config/Calib",
+    "CT-14": "Report / Tech Review",
+}
+
+# Per-User Historical Baseline Seeds from the 1,809-Task Master Register
+USER_HISTORICAL_SEEDS = {
+    "mateo": [
+        ("MWS-16", "CT-12", 50, "Monitoring Survey Bathy & Profile Chart"),
+        ("MWS-10", "CT-12", 17, "Nearshore Overview & Diff Chart"),
+        ("MWS-16", "CT-10", 17, "Progress / Design Volume Calculation"),
+        ("MWS-15", "CT-11", 15, "Crossing Mattress Installation Sketch Drawing"),
+        ("MWS-11", "CT-12", 14, "T1 Monitoring Overview & Diff Chart"),
+        ("MWS-16", "CT-09", 13, "PDS / Design File Generation"),
+        ("MWS-08", "CT-11", 12, "Temp Platform As-Built / Sketch Drawing"),
+        ("MWS-12", "CT-12", 11, "T8 Monitoring Overview & Diff Chart"),
+    ],
+    "mohamad": [
+        ("MWS-08", "CT-11", 45, "Tunghsiao Temp Platform Progress / As-Built Drawing"),
+        ("MWS-04", "CT-11", 41, "Taichung Site As-Built / Progress Drawing"),
+        ("MWS-16", "CT-13", 35, "PDS / DTPS Survey Software Configuration"),
+        ("MWS-05", "CT-01", 35, "AHDD Road Settlement Monitoring"),
+        ("MWS-08", "CT-02", 34, "Tunghsiao Weekly Progress Survey"),
+        ("MWS-05", "CT-11", 32, "Taichung AHDD As-Built / Settlement Drawing"),
+        ("MWS-10", "CT-06", 31, "Nearshore Dumping Area Dredging Monitoring"),
+        ("MWS-05", "CT-04", 29, "Taichung AHDD Stake-Out / Marking"),
+    ],
+    "roderick": [
+        ("MWS-05", "CT-01", 80, "AHDD Road Settlement Monitoring Survey"),
+        ("MWS-08", "CT-02", 35, "Tunghsiao Temp Platform Progress Survey"),
+        ("MWS-04", "CT-11", 30, "Taichung Site Layout / As-Built Drawing"),
+        ("MWS-04", "CT-02", 23, "Taichung Weekly Progress / Topo Survey"),
+        ("MWS-08", "CT-11", 18, "Tunghsiao Temp Platform As-Built Drawing"),
+        ("MWS-05", "CT-11", 15, "Taichung AHDD Settlement / Sketch Drawing"),
+        ("MWS-05", "CT-04", 15, "Taichung AHDD Pit Stake-Out / Marking"),
+        ("MWS-08", "CT-04", 11, "Tunghsiao Temp Platform Stake-Out / Marking"),
+    ],
+    "danilo": [
+        ("MWS-05", "CT-01", 73, "AHDD Road Settlement Monitoring Survey"),
+        ("MWS-05", "CT-11", 55, "Taichung AHDD Settlement / Sketch Drawing"),
+        ("MWS-05", "CT-03", 24, "Taichung AHDD As-Built Survey"),
+        ("MWS-04", "CT-04", 18, "Taichung Site Stake-Out / Marking"),
+        ("MWS-08", "CT-04", 16, "Tunghsiao Temp Platform Stake-Out / Marking"),
+        ("MWS-08", "CT-11", 16, "Tunghsiao Temp Platform As-Built Drawing"),
+        ("MWS-05", "CT-04", 14, "Taichung AHDD Crossover / Thruster Pit Marking"),
+        ("MWS-08", "CT-02", 14, "Tunghsiao Temp Platform Progress Survey"),
+    ],
+    "daryll": [
+        ("MWS-10", "CT-06", 16, "Nearshore Dumping Area Dredging Monitoring"),
+        ("MWS-05", "CT-01", 14, "AHDD Road Settlement Monitoring"),
+        ("MWS-12", "CT-06", 9, "T8 Dredging Monitoring Survey"),
+        ("MWS-16", "CT-13", 9, "WS166 / Survey Equipment Calibration & Check"),
+        ("MWS-10", "CT-09", 9, "Nearshore Dumping Area File Generation"),
+        ("MWS-11", "CT-06", 8, "T1 Dredging Monitoring Survey"),
+        ("MWS-14", "CT-06", 7, "Midline Tie-In Dredging Monitoring"),
+        ("MWS-02", "CT-14", 7, "TPC-POE / EGST Subcon Survey Report"),
+    ],
+    "mok": [
+        ("MWS-02", "CT-14", 10, "TPC-POE / External Project Survey Report"),
+        ("MWS-04", "CT-14", 5, "Taichung Site Inspection & Coordination"),
+        ("MWS-08", "CT-02", 3, "Tunghsiao Temp Platform Progress Survey"),
+        ("MWS-04", "CT-13", 2, "Survey System Verification"),
+    ]
+}
+
+def infer_core_task_id(action_req, task_cat):
+    """Maps any task's action_required and task_category to one of the 14 Core Survey Tasks (CT-01..CT-14)."""
+    a = (action_req or '').lower().strip()
+    c = (task_cat or '').lower().strip()
+    for ct in LEAN_CORE_TASKS:
+        if ct["action_required"].lower() == a and ct["task_category"].lower() == c:
+            return ct["id"]
+    if "monitoring" in a:
+        return "CT-06" if "bathy" in c else "CT-01"
+    if "progress" in a and "drw" not in a and "drawing" not in a and "qty" not in a:
+        return "CT-06" if "bathy" in c else "CT-02"
+    if "as-built survey" in a or "as build survey" in a:
+        return "CT-07" if "bathy" in c else "CT-03"
+    if "stake-out" in a or "setting" in a or "marking" in a:
+        return "CT-04"
+    if "check survey" in a or "benchmark" in a:
+        return "CT-08" if "geophys" in c else "CT-05"
+    if "pre-survey" in a or "post survey" in a or "post-survey" in a:
+        return "CT-07" if "bathy" in c else "CT-02"
+    if "geophys" in c or "geophys" in a:
+        return "CT-08"
+    if "file generation" in a or "background" in a or "guidance" in a or "design creation" in a:
+        return "CT-09"
+    if "volume" in a or "qty" in a:
+        return "CT-10"
+    if "drawing" in a or "drw" in a or "sketch" in a or "settlement" in a:
+        return "CT-11"
+    if "chart" in a or "section" in a or "xsection" in a:
+        return "CT-12"
+    if "config" in a or "calib" in a or "system check" in a:
+        return "CT-13"
+    if "report" in a or "meeting" in a or "input" in a or "crs" in a:
+        return "CT-14"
+    return "CT-02"
+
+def get_active_quick_chips(user_name=None, limit=8):
+    """
+    Dynamically builds the user's Quick-Pick Chips based on the most frequent tasks
+    created or executed by that user in SurveyTask history/logs (plus historical seeds).
+    """
+    target_user = user_name
+    if not target_user and current_user and getattr(current_user, 'is_authenticated', False):
+        target_user = current_user.name
+
+    pair_counts = Counter()
+    pair_remarks = {}
+
+    if target_user:
+        try:
+            # 1. Query live SurveyTask history created by OR assigned to this user
+            # Tasks created by the user get counted directly; tasks assigned also count toward their workflow history
+            user_db_tasks = SurveyTask.query.filter(
+                or_(
+                    SurveyTask.surveyor_name == target_user,
+                    SurveyTask.assigned_to.ilike(f"%{target_user}%")
+                ),
+                SurveyTask.area != '900_Legacy_Data'
+            ).order_by(SurveyTask.start_time.desc()).limit(500).all()
+
+            for t in user_db_tasks:
+                s_obj = infer_macro_scope_for_task(t)
+                s_id = s_obj["id"] if s_obj else "MWS-04"
+                c_id = infer_core_task_id(t.action_required, t.task_category)
+                key = (s_id, c_id)
+                # Weight tasks created by the user slightly higher if they both created and executed
+                weight = 2 if (t.surveyor_name == target_user) else 1
+                pair_counts[key] += weight
+                clean_rem = extract_opening_remark(t.remarks)
+                if clean_rem:
+                    pair_remarks.setdefault(key, Counter())[clean_rem] += 1
+        except Exception:
+            pass
+
+        # 2. Enrich with historical Master Register seeds for this user so Day-1 history is rich
+        u_lower = target_user.lower()
+        for alias_key, seed_list in USER_HISTORICAL_SEEDS.items():
+            if alias_key in u_lower:
+                for s_id, c_id, h_cnt, default_rem in seed_list:
+                    key = (s_id, c_id)
+                    pair_counts[key] += h_cnt
+                    if default_rem:
+                        pair_remarks.setdefault(key, Counter())[default_rem] += 1
+                break
+
+    chips = []
+    seen_keys = set()
+
+    for (s_id, c_id), total_cnt in pair_counts.most_common(limit):
+        if s_id not in SHORT_SCOPE_TAGS or c_id not in SHORT_TASK_TAGS:
+            continue
+        scope_tag, style_color = SHORT_SCOPE_TAGS[s_id]
+        task_tag = SHORT_TASK_TAGS[c_id]
+        best_rem = ""
+        if (s_id, c_id) in pair_remarks and len(pair_remarks[(s_id, c_id)]) > 0:
+            best_rem = pair_remarks[(s_id, c_id)].most_common(1)[0][0]
+        chips.append({
+            "label": f"{scope_tag} • {task_tag} ({total_cnt}x)",
+            "scope_id": s_id,
+            "task_id": c_id,
+            "default_remark": best_rem[:80],
+            "style": style_color,
+            "count": total_cnt
+        })
+        seen_keys.add((s_id, c_id))
+
+    # 3. Also append any custom Admin-pinned chips from AppConfig if space remains
     try:
         config = AppConfig.query.first()
         if config and config.schema_data:
             data = json.loads(config.schema_data)
-            if "quick_chips" in data and isinstance(data["quick_chips"], list) and len(data["quick_chips"]) > 0:
-                return data["quick_chips"]
+            for c in data.get("quick_chips", []):
+                k = (c.get("scope_id"), c.get("task_id"))
+                if k not in seen_keys and len(chips) < limit:
+                    chips.append(c)
+                    seen_keys.add(k)
     except Exception:
         pass
-    return QUICK_PICK_CHIPS
+
+    # 4. Pad with fallback defaults if a brand-new user has fewer than 6 chips
+    for fb in QUICK_PICK_CHIPS:
+        k = (fb["scope_id"], fb["task_id"])
+        if k not in seen_keys and len(chips) < limit:
+            chips.append(fb)
+            seen_keys.add(k)
+
+    return chips
 
 # Pre-seeded Top Historical Omni-Search Pairs from the 1,809-Task Register
 HISTORICAL_OMNI_SEEDS = [
@@ -965,7 +1175,7 @@ def dashboard():
         macro_scopes_json=json.dumps(macro_scopes_list),
         core_tasks_json=json.dumps(LEAN_CORE_TASKS),
         omni_cards_json=json.dumps(omni_cards),
-        quick_chips_json=json.dumps(get_active_quick_chips())
+        quick_chips_json=json.dumps(get_active_quick_chips(current_user.name))
     )
 
 @app.route('/admin_dashboard')
@@ -1009,51 +1219,308 @@ def usage_telemetry():
     if not is_user_admin(current_user):
         flash('Access Denied: Admins only.', 'error')
         return redirect(url_for('dashboard'))
-    logs = UserActivityLog.query.order_by(UserActivityLog.timestamp.desc()).limit(500).all()
-    page_counts = Counter(l.endpoint for l in logs)
-    user_counts = Counter(l.user_name for l in logs)
+
+    # Filter parameters
+    selected_user = request.args.get('user', '').strip()
+    selected_endpoint = request.args.get('endpoint', '').strip()
+    date_from = request.args.get('date_from', '').strip()
+    date_to = request.args.get('date_to', '').strip()
+    page = max(1, request.args.get('page', 1, type=int))
+    per_page = request.args.get('per_page', 100, type=int)
+    if per_page not in [50, 100, 250, 500, 1000]:
+        per_page = 100
+
+    query = UserActivityLog.query
+    if selected_user:
+        query = query.filter(UserActivityLog.user_name == selected_user)
+    if selected_endpoint:
+        query = query.filter(UserActivityLog.endpoint == selected_endpoint)
+    if date_from:
+        try:
+            dt_from = datetime.strptime(date_from, '%Y-%m-%d') - timedelta(hours=8)
+            query = query.filter(UserActivityLog.timestamp >= dt_from)
+        except Exception:
+            pass
+    if date_to:
+        try:
+            dt_to = datetime.strptime(date_to, '%Y-%m-%d') + timedelta(days=1) - timedelta(hours=8)
+            query = query.filter(UserActivityLog.timestamp < dt_to)
+        except Exception:
+            pass
+
+    # Query ALL matching logs (no artificial 500 limit!)
+    all_matching_logs = query.order_by(UserActivityLog.timestamp.desc()).all()
+    total_logs_count = len(all_matching_logs)
+
+    page_counts = Counter(l.endpoint for l in all_matching_logs).most_common()
+    user_counts = Counter(l.user_name for l in all_matching_logs).most_common()
+
+    # All distinct users and endpoints for filter dropdowns
+    all_distinct_users = sorted([r[0] for r in db.session.query(UserActivityLog.user_name).distinct().all() if r[0]])
+    all_distinct_endpoints = sorted([r[0] for r in db.session.query(UserActivityLog.endpoint).distinct().all() if r[0]])
+
+    # Paginate stream
+    total_pages = max(1, (total_logs_count + per_page - 1) // per_page)
+    if page > total_pages:
+        page = total_pages
+    start_idx = (page - 1) * per_page
+    paginated_logs = all_matching_logs[start_idx:start_idx + per_page]
+
+    # Also compute All-Time Historical Task Participation from SurveyTask (across all database tasks)
+    all_db_tasks = SurveyTask.query.filter(SurveyTask.area != '900_Legacy_Data').all()
+    hist_assigned_counts = Counter()
+    hist_created_counts = Counter()
+    hist_closed_counts = Counter()
+    for t in all_db_tasks:
+        if t.surveyor_name:
+            hist_created_counts[t.surveyor_name.strip()] += 1
+        for u_part in (t.assigned_to or '').split(','):
+            clean_u = u_part.strip()
+            if clean_u:
+                hist_assigned_counts[clean_u] += 1
+                if t.status in ['Closed', 'Archived']:
+                    hist_closed_counts[clean_u] += 1
+
+    all_task_users = sorted(set(hist_assigned_counts.keys()) | set(hist_created_counts.keys()))
+    historical_user_stats = []
+    for u_name in all_task_users:
+        historical_user_stats.append({
+            'name': u_name,
+            'assigned': hist_assigned_counts[u_name],
+            'closed': hist_closed_counts[u_name],
+            'created': hist_created_counts[u_name],
+            'total_touchpoints': hist_assigned_counts[u_name] + hist_created_counts[u_name]
+        })
+    historical_user_stats.sort(key=lambda x: -x['assigned'])
+
     html = """
     <!DOCTYPE html>
     <html><head><title>Usage Telemetry - NMDC</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"></head>
-    <body class="bg-light p-4">
-    <div class="container">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h3 class="fw-bold mb-0">📈 User Usage & Page Telemetry</h3>
-            <a href="/admin_dashboard" class="btn btn-primary">⬅ Back to Admin Dashboard</a>
-        </div>
-        <div class="row mb-4">
-            <div class="col-md-6">
-                <div class="card shadow-sm"><div class="card-header bg-dark text-white fw-bold">Top Pages / Actions Used</div>
-                <ul class="list-group list-group-flush">
-                {% for ep, cnt in page_counts %}
-                    <li class="list-group-item d-flex justify-content-between"><code>{{ ep }}</code><span class="badge bg-primary">{{ cnt }} hits</span></li>
-                {% endfor %}
-                </ul></div>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f4f7f6; }
+        .card { border-radius: 10px; border: none; }
+        .tw-time { font-family: monospace; font-size: 12.5px; color: #0f5132; font-weight: bold; }
+    </style>
+    </head>
+    <body class="p-4">
+    <div class="container-fluid" style="max-width: 1400px;">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <div>
+                <h3 class="fw-bold mb-0">📈 User Usage & Page Telemetry Center</h3>
+                <small class="text-muted">Full unthrottled activity logs (Taiwan Time UTC+8) + All-Time Historical Task Participation</small>
             </div>
-            <div class="col-md-6">
-                <div class="card shadow-sm"><div class="card-header bg-secondary text-white fw-bold">Most Active Users</div>
-                <ul class="list-group list-group-flush">
-                {% for uname, cnt in user_counts %}
-                    <li class="list-group-item d-flex justify-content-between"><strong>{{ uname }}</strong><span class="badge bg-success">{{ cnt }} actions</span></li>
-                {% endfor %}
-                </ul></div>
+            <div class="d-flex gap-2">
+                <a href="/export_telemetry_excel?user={{ selected_user }}&endpoint={{ selected_endpoint }}&date_from={{ date_from }}&date_to={{ date_to }}" class="btn btn-success fw-bold">📥 Export Telemetry (.xlsx)</a>
+                <a href="/admin_dashboard" class="btn btn-primary fw-bold">⬅ Back to Admin Dashboard</a>
             </div>
         </div>
+
+        <!-- FILTER BAR -->
+        <form method="GET" action="/usage_telemetry" class="card shadow-sm p-3 mb-4 bg-white">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold mb-1">Filter by User</label>
+                    <select name="user" class="form-select form-select-sm">
+                        <option value="">All Users ({{ all_distinct_users|length }})</option>
+                        {% for u in all_distinct_users %}
+                        <option value="{{ u }}" {% if u == selected_user %}selected{% endif %}>{{ u }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold mb-1">Filter by Page / Endpoint</label>
+                    <select name="endpoint" class="form-select form-select-sm">
+                        <option value="">All Endpoints ({{ all_distinct_endpoints|length }})</option>
+                        {% for ep in all_distinct_endpoints %}
+                        <option value="{{ ep }}" {% if ep == selected_endpoint %}selected{% endif %}>{{ ep }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-bold mb-1">From Date (TW)</label>
+                    <input type="date" name="date_from" value="{{ date_from }}" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small fw-bold mb-1">To Date (TW)</label>
+                    <input type="date" name="date_to" value="{{ date_to }}" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-1">
+                    <label class="form-label small fw-bold mb-1">Rows/Page</label>
+                    <select name="per_page" class="form-select form-select-sm">
+                        {% for pp in [50, 100, 250, 500, 1000] %}
+                        <option value="{{ pp }}" {% if pp == per_page %}selected{% endif %}>{{ pp }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-1 d-flex gap-1">
+                    <button type="submit" class="btn btn-sm btn-dark fw-bold w-100">Filter</button>
+                    <a href="/usage_telemetry" class="btn btn-sm btn-outline-secondary">↺</a>
+                </div>
+            </div>
+        </form>
+
+        <div class="row mb-4 g-3">
+            <!-- LIVE PAGE TELEMETRY: ALL ENDPOINTS -->
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-dark text-white fw-bold d-flex justify-content-between align-items-center">
+                        <span>Top Pages / Actions Used (All {{ page_counts|length }})</span>
+                        <span class="badge bg-warning text-dark">{{ total_logs_count }} total hits</span>
+                    </div>
+                    <div style="max-height: 360px; overflow-y: auto;">
+                        <ul class="list-group list-group-flush">
+                        {% for ep, cnt in page_counts %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center py-2">
+                                <code>{{ ep }}</code>
+                                <span class="badge bg-primary rounded-pill">{{ cnt }} hits</span>
+                            </li>
+                        {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- LIVE PAGE TELEMETRY: ALL USERS -->
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-secondary text-white fw-bold d-flex justify-content-between align-items-center">
+                        <span>Live Page Activity by User (Since Oct 26)</span>
+                        <span class="badge bg-light text-dark">{{ user_counts|length }} users</span>
+                    </div>
+                    <div style="max-height: 360px; overflow-y: auto;">
+                        <ul class="list-group list-group-flush">
+                        {% for uname, cnt in user_counts %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center py-2">
+                                <strong>{{ uname }}</strong>
+                                <span class="badge bg-success rounded-pill">{{ cnt }} actions</span>
+                            </li>
+                        {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ALL-TIME HISTORICAL TASK TELEMETRY (FROM SURVEY_TASK DB) -->
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-primary text-white fw-bold d-flex justify-content-between align-items-center">
+                        <span>🏆 All-Time Task History (Database Tasks)</span>
+                        <span class="badge bg-light text-primary">{{ all_db_tasks_count }} tasks</span>
+                    </div>
+                    <div class="table-responsive" style="max-height: 360px; overflow-y: auto;">
+                        <table class="table table-sm table-hover mb-0" style="font-size: 12.5px;">
+                            <thead class="table-light" style="position: sticky; top: 0;">
+                                <tr><th>Surveyor</th><th class="text-center">Assigned</th><th class="text-center">Closed</th><th class="text-center">Created</th></tr>
+                            </thead>
+                            <tbody>
+                            {% for hs in historical_user_stats %}
+                                <tr>
+                                    <td><strong>{{ hs.name }}</strong></td>
+                                    <td class="text-center"><span class="badge bg-primary">{{ hs.assigned }}</span></td>
+                                    <td class="text-center"><span class="badge bg-success">{{ hs.closed }}</span></td>
+                                    <td class="text-center"><span class="badge bg-secondary">{{ hs.created }}</span></td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- FULL PAGINATED ACTIVITY STREAM -->
         <div class="card shadow-sm">
-            <div class="card-header bg-white fw-bold">Recent Activity Stream (Latest 100)</div>
-            <div class="table-responsive"><table class="table table-sm table-striped mb-0">
-                <thead><tr><th>Timestamp (UTC)</th><th>User</th><th>Endpoint</th><th>Path</th><th>Method</th></tr></thead>
-                <tbody>
-                {% for l in logs[:100] %}
-                    <tr><td>{{ l.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td><td><strong>{{ l.user_name }}</strong></td><td><code>{{ l.endpoint }}</code></td><td>{{ l.path }}</td><td>{{ l.method }}</td></tr>
-                {% endfor %}
-                </tbody>
-            </table></div>
+            <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center flex-wrap gap-2 py-3">
+                <span>🕒 Full Live Activity Stream (Showing {{ start_idx + 1 if total_logs_count > 0 else 0 }}–{{ start_idx + paginated_logs|length }} of {{ total_logs_count }} logged events)</span>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="small text-muted">Page {{ page }} of {{ total_pages }}</span>
+                    <div class="btn-group btn-group-sm">
+                        <a href="/usage_telemetry?user={{ selected_user }}&endpoint={{ selected_endpoint }}&date_from={{ date_from }}&date_to={{ date_to }}&per_page={{ per_page }}&page={{ page - 1 }}" class="btn btn-outline-secondary {% if page <= 1 %}disabled{% endif %}">◀ Prev</a>
+                        <a href="/usage_telemetry?user={{ selected_user }}&endpoint={{ selected_endpoint }}&date_from={{ date_from }}&date_to={{ date_to }}&per_page={{ per_page }}&page={{ page + 1 }}" class="btn btn-outline-secondary {% if page >= total_pages %}disabled{% endif %}">Next ▶</a>
+                    </div>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped table-hover mb-0" style="font-size: 13px;">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>#</th>
+                            <th>Taiwan Time (UTC+8)</th>
+                            <th>UTC Time</th>
+                            <th>User</th>
+                            <th>Endpoint</th>
+                            <th>Path</th>
+                            <th>Method</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for l in paginated_logs %}
+                        <tr>
+                            <td class="text-muted">{{ total_logs_count - (start_idx + loop.index0) }}</td>
+                            <td class="tw-time">{{ (l.timestamp + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                            <td class="text-muted small">{{ l.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                            <td><strong>{{ l.user_name }}</strong></td>
+                            <td><code>{{ l.endpoint }}</code></td>
+                            <td>{{ l.path }}</td>
+                            <td><span class="badge {% if l.method == 'POST' %}bg-warning text-dark{% else %}bg-light text-dark border{% endif %}">{{ l.method }}</span></td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div></body></html>
     """
-    return render_template_string(html, logs=logs, page_counts=page_counts.most_common(12), user_counts=user_counts.most_common(12))
+    return render_template_string(
+        html,
+        paginated_logs=paginated_logs,
+        total_logs_count=total_logs_count,
+        page_counts=page_counts,
+        user_counts=user_counts,
+        all_distinct_users=all_distinct_users,
+        all_distinct_endpoints=all_distinct_endpoints,
+        selected_user=selected_user,
+        selected_endpoint=selected_endpoint,
+        date_from=date_from,
+        date_to=date_to,
+        page=page,
+        per_page=per_page,
+        total_pages=total_pages,
+        start_idx=start_idx,
+        timedelta=timedelta,
+        historical_user_stats=historical_user_stats,
+        all_db_tasks_count=len(all_db_tasks)
+    )
+
+@app.route('/export_telemetry_excel')
+@login_required
+def export_telemetry_excel():
+    if not is_user_admin(current_user):
+        return "Unauthorized", 403
+    selected_user = request.args.get('user', '').strip()
+    selected_endpoint = request.args.get('endpoint', '').strip()
+    query = UserActivityLog.query
+    if selected_user:
+        query = query.filter(UserActivityLog.user_name == selected_user)
+    if selected_endpoint:
+        query = query.filter(UserActivityLog.endpoint == selected_endpoint)
+    logs = query.order_by(UserActivityLog.timestamp.desc()).all()
+    rows = [{
+        'Log ID': l.id,
+        'Taiwan Time (UTC+8)': (l.timestamp + timedelta(hours=8)).strftime('%Y-%m-%d %H:%M:%S') if l.timestamp else '',
+        'UTC Time': l.timestamp.strftime('%Y-%m-%d %H:%M:%S') if l.timestamp else '',
+        'User Name': l.user_name,
+        'Endpoint': l.endpoint,
+        'Path': l.path,
+        'HTTP Method': l.method
+    } for l in logs]
+    df = pd.DataFrame(rows)
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Usage Telemetry')
+    output.seek(0)
+    return send_file(output, download_name=f"NMDC_Usage_Telemetry_{datetime.utcnow().strftime('%Y%m%d')}.xlsx", as_attachment=True)
 
 @app.route('/update_initials/<int:user_id>', methods=['POST'])
 @login_required
@@ -1434,6 +1901,31 @@ def new_task():
                 'remarks': extract_opening_remark(t.remarks)[:65]
             })
 
+        # Enrich personal pattern_counter with user's historical Master Register seeds
+        u_lower = current_user.name.lower()
+        for alias_key, seed_list in USER_HISTORICAL_SEEDS.items():
+            if alias_key in u_lower:
+                for s_id, c_id, h_cnt, default_rem in seed_list:
+                    if s_id in SCOPE_BY_ID and c_id in TASK_BY_ID:
+                        s_obj = SCOPE_BY_ID[s_id]
+                        t_obj = TASK_BY_ID[c_id]
+                        key = (s_obj['work_scope'], t_obj['action_required'], t_obj['default_instrument'], t_obj['task_category'])
+                        pattern_counter[key] += h_cnt
+                        if key not in pattern_meta:
+                            pattern_meta[key] = {
+                                'command_verb': t_obj['command_verb'],
+                                'task_category': t_obj['task_category'],
+                                'action_required': t_obj['action_required'],
+                                'instrument': t_obj['default_instrument'],
+                                'area': s_obj['area'],
+                                'location': s_obj['location'],
+                                'sub_location': s_obj['sub_location'],
+                                'work_scope': s_obj['work_scope'],
+                                'scope_label': s_obj['label'],
+                                'remarks': default_rem
+                            }
+                break
+
         frequent_patterns = []
         for key, cnt in pattern_counter.most_common(100):
             entry = dict(pattern_meta[key])
@@ -1475,7 +1967,7 @@ def new_task():
                                macro_scopes_json=json.dumps(macro_scopes_list),
                                core_tasks_json=json.dumps(LEAN_CORE_TASKS),
                                omni_cards_json=json.dumps(omni_cards),
-                               quick_chips_json=json.dumps(get_active_quick_chips()), is_admin=is_user_admin(current_user),
+                               quick_chips_json=json.dumps(get_active_quick_chips(current_user.name)), is_admin=is_user_admin(current_user),
                                presets_json=json.dumps(presets_dict),
                                frequent_patterns_json=json.dumps(frequent_patterns),
                                recent_history_json=json.dumps(recent_history),
@@ -1551,7 +2043,7 @@ def edit_task(task_id):
                                macro_scopes_json=json.dumps(macro_scopes_list),
                                core_tasks_json=json.dumps(LEAN_CORE_TASKS),
                                omni_cards_json=json.dumps(omni_cards),
-                               quick_chips_json=json.dumps(get_active_quick_chips()), is_admin=is_user_admin(current_user),
+                               quick_chips_json=json.dumps(get_active_quick_chips(current_user.name)), is_admin=is_user_admin(current_user),
                                task_json=json.dumps(task_dict))
     except Exception as e:
         return f"<h2>DIAGNOSTIC CRASH REPORT (EDIT TASK)</h2><p>Error: {str(e)}</p><pre>{traceback.format_exc()}</pre>"

@@ -443,7 +443,7 @@
 
     function initQuickChips() {
         const container = document.getElementById('quickChipsContainer');
-        let html = `<small class="fw-bold text-secondary me-1">⚡ Quick Picks:</small>`;
+        let html = `<small class="fw-bold text-secondary me-1">⚡ Your Frequent Quick Picks (Auto-Learned):</small>`;
         (quickChips || []).forEach(c => {
             const textClass = (c.style === 'info' || c.style === 'warning' || c.style === 'secondary' || c.style === 'dark') ? 'text-dark' : `text-${c.style}`;
             const safeRem = (c.default_remark || '').replace(/'/g, "\\'");

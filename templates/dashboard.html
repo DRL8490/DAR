@@ -799,7 +799,7 @@
             // 1. Quick Chips
             const chipsBar = document.getElementById('qmQuickChipsBar');
             if (quickChips && quickChips.length > 0) {
-                let html = `<small style="font-weight:800; color:#475569; font-size:11.5px;">⚡ Quick Picks:</small>`;
+                let html = `<small style="font-weight:800; color:#475569; font-size:11.5px;">⚡ Your Frequent Quick Picks (Auto-Learned):</small>`;
                 quickChips.forEach(c => {
                     const safeRem = (c.default_remark || '').replace(/'/g, "\\'");
                     html += `<span class="qm-chip" onclick="selectQmMacroAndTask('${c.scope_id}', '${c.task_id}', '${safeRem}')">${c.label}</span>`;
