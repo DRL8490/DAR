@@ -1,0 +1,458 @@
+{
+  "leave": [
+    [
+      {
+        "highlight": false,
+        "text": "Daryll Enano"
+      },
+      {
+        "highlight": false,
+        "text": "01-12-2026"
+      },
+      {
+        "highlight": false,
+        "text": "05-01-2027"
+      },
+      {
+        "highlight": false,
+        "text": "09-01-2027"
+      },
+      {
+        "highlight": false,
+        "text": "Rotation"
+      },
+      {
+        "highlight": false,
+        "text": "Planned"
+      },
+      {
+        "highlight": false,
+        "text": "Philippines"
+      }
+    ],
+    [
+      {
+        "highlight": false,
+        "text": "Mohamad Abror Hediarto"
+      },
+      {
+        "highlight": true,
+        "text": "28.09.2026"
+      },
+      {
+        "highlight": true,
+        "text": "24.10.2026"
+      },
+      {
+        "highlight": false,
+        "text": "N/A"
+      },
+      {
+        "highlight": false,
+        "text": "Annual"
+      },
+      {
+        "highlight": true,
+        "text": "Ongoing"
+      },
+      {
+        "highlight": false,
+        "text": "Taiwan"
+      }
+    ],
+    [
+      {
+        "highlight": false,
+        "text": "Danilo Bartolome"
+      },
+      {
+        "highlight": false,
+        "text": "18.12.2026"
+      },
+      {
+        "highlight": false,
+        "text": "17.01.2027"
+      },
+      {
+        "highlight": false,
+        "text": "N/A"
+      },
+      {
+        "highlight": false,
+        "text": "Annual"
+      },
+      {
+        "highlight": false,
+        "text": "Planned"
+      },
+      {
+        "highlight": false,
+        "text": "Philippines"
+      }
+    ],
+    [
+      {
+        "highlight": false,
+        "text": "Mateo Mollaneda"
+      },
+      {
+        "highlight": false,
+        "text": "21.01-2027"
+      },
+      {
+        "highlight": false,
+        "text": "22.02.2027"
+      },
+      {
+        "highlight": false,
+        "text": "N/A"
+      },
+      {
+        "highlight": false,
+        "text": "Annual"
+      },
+      {
+        "highlight": false,
+        "text": "Planned"
+      },
+      {
+        "highlight": false,
+        "text": "Philippines"
+      }
+    ],
+    [
+      {
+        "highlight": false,
+        "text": "Roderick Clavel"
+      },
+      {
+        "highlight": false,
+        "text": "21-01-2027"
+      },
+      {
+        "highlight": false,
+        "text": "21-02.2027"
+      },
+      {
+        "highlight": false,
+        "text": "15-01-2027"
+      },
+      {
+        "highlight": false,
+        "text": "Rotation"
+      },
+      {
+        "highlight": false,
+        "text": "Planned"
+      },
+      {
+        "highlight": false,
+        "text": "Philippines"
+      }
+    ]
+  ],
+  "personnel": [
+    [
+      {
+        "highlight": false,
+        "text": "Daryll Enano"
+      },
+      {
+        "highlight": false,
+        "text": "5062"
+      },
+      {
+        "highlight": false,
+        "text": "CHIEF SURVEYOR"
+      },
+      {
+        "highlight": false,
+        "text": "01.07.2025"
+      },
+      {
+        "highlight": false,
+        "text": "-"
+      },
+      {
+        "highlight": false,
+        "text": "NMDC"
+      },
+      {
+        "highlight": false,
+        "text": "Site Office"
+      }
+    ],
+    [
+      {
+        "highlight": false,
+        "text": "Mohamad Abror Hediarto"
+      },
+      {
+        "highlight": false,
+        "text": "500652"
+      },
+      {
+        "highlight": false,
+        "text": "PROJECT SURVEYOR"
+      },
+      {
+        "highlight": false,
+        "text": "01.09.2025"
+      },
+      {
+        "highlight": false,
+        "text": "-"
+      },
+      {
+        "highlight": false,
+        "text": "BRUNEL"
+      },
+      {
+        "highlight": false,
+        "text": "Site Office"
+      }
+    ],
+    [
+      {
+        "highlight": false,
+        "text": "Danilo Bartolome"
+      },
+      {
+        "highlight": false,
+        "text": "502893"
+      },
+      {
+        "highlight": false,
+        "text": "PROJECT SURVEYOR"
+      },
+      {
+        "highlight": false,
+        "text": "01.12.2025"
+      },
+      {
+        "highlight": false,
+        "text": "-"
+      },
+      {
+        "highlight": false,
+        "text": "BRUNEL"
+      },
+      {
+        "highlight": false,
+        "text": "Site Office"
+      }
+    ],
+    [
+      {
+        "highlight": false,
+        "text": "Mateo Mollaneda"
+      },
+      {
+        "highlight": false,
+        "text": "503296"
+      },
+      {
+        "highlight": false,
+        "text": "SURVEY DATA PROCESSOR"
+      },
+      {
+        "highlight": false,
+        "text": "22.12.2025"
+      },
+      {
+        "highlight": false,
+        "text": "-"
+      },
+      {
+        "highlight": false,
+        "text": "BRUNEL"
+      },
+      {
+        "highlight": false,
+        "text": "Site Office"
+      }
+    ],
+    [
+      {
+        "highlight": false,
+        "text": "Roderick Clavel"
+      },
+      {
+        "highlight": false,
+        "text": "T3274"
+      },
+      {
+        "highlight": false,
+        "text": "SURVEYOR"
+      },
+      {
+        "highlight": false,
+        "text": "24.03.2025"
+      },
+      {
+        "highlight": false,
+        "text": "-"
+      },
+      {
+        "highlight": false,
+        "text": "NMDC"
+      },
+      {
+        "highlight": false,
+        "text": "Site Office"
+      }
+    ]
+  ],
+  "training": [
+    [
+      {
+        "highlight": false,
+        "text": "Daryll Enano"
+      },
+      {
+        "highlight": false,
+        "text": "2026-11-26"
+      },
+      {
+        "highlight": false,
+        "text": "BOSIET\n2026-01-20"
+      },
+      {
+        "highlight": false,
+        "text": "2026-04-21"
+      },
+      {
+        "highlight": false,
+        "text": "2026-06-30"
+      },
+      {
+        "highlight": false,
+        "text": "2026-12-31"
+      },
+      {
+        "highlight": false,
+        "text": "All Complete"
+      }
+    ],
+    [
+      {
+        "highlight": false,
+        "text": "Mohamad Abror Hediarto"
+      },
+      {
+        "highlight": false,
+        "text": "2027-08-24"
+      },
+      {
+        "highlight": false,
+        "text": "BOSIET\n2023-10-20"
+      },
+      {
+        "highlight": false,
+        "text": "2025-09-19"
+      },
+      {
+        "highlight": false,
+        "text": "2026-06-30"
+      },
+      {
+        "highlight": false,
+        "text": "2026-12-31"
+      },
+      {
+        "highlight": false,
+        "text": "All Complete"
+      }
+    ],
+    [
+      {
+        "highlight": false,
+        "text": "Danilo Bartolome"
+      },
+      {
+        "highlight": false,
+        "text": "2027-08-31"
+      },
+      {
+        "highlight": true,
+        "text": "Waiting for Project  Schedule"
+      },
+      {
+        "highlight": false,
+        "text": "2026-01-07"
+      },
+      {
+        "highlight": false,
+        "text": "2026-05-30"
+      },
+      {
+        "highlight": false,
+        "text": "Application \u2013 Processing"
+      },
+      {
+        "highlight": true,
+        "text": "Need to wait until Feb 2027 ARC Renewal"
+      }
+    ],
+    [
+      {
+        "highlight": false,
+        "text": "Mateo Mollaneda"
+      },
+      {
+        "highlight": false,
+        "text": "2026-12-21"
+      },
+      {
+        "highlight": false,
+        "text": "BOSIET\n2024-01-17"
+      },
+      {
+        "highlight": false,
+        "text": "2026-01-16"
+      },
+      {
+        "highlight": false,
+        "text": "2026-05-30"
+      },
+      {
+        "highlight": false,
+        "text": "Application \u2013 Processing"
+      },
+      {
+        "highlight": false,
+        "text": "On-going"
+      }
+    ],
+    [
+      {
+        "highlight": false,
+        "text": "Roderick Clavel"
+      },
+      {
+        "highlight": false,
+        "text": "2027-01-31"
+      },
+      {
+        "highlight": false,
+        "text": "BOSIET\n2026-04-01"
+      },
+      {
+        "highlight": false,
+        "text": "2026-04-21"
+      },
+      {
+        "highlight": false,
+        "text": "2026-05-30"
+      },
+      {
+        "highlight": false,
+        "text": "2026-12-31"
+      },
+      {
+        "highlight": false,
+        "text": "All Complete"
+      }
+    ]
+  ]
+}

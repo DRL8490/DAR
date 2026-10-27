@@ -23,6 +23,20 @@
 </head>
 <body>
 
+<!-- WSR V13 AUTOMATION STUDIO MODULE CARD -->
+<div style="background: linear-gradient(90deg, #0f2c59 0%, #0c4a6e 100%); color: #ffffff; border-radius: 12px; padding: 18px 22px; margin: 16px 0; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; box-shadow: 0 4px 12px rgba(15,44,89,0.18);">
+  <div>
+    <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #7dd3fc; font-weight: 700;">NMDC Project 20012 • 2-Week AI Context + Page-1 Admin Tables</div>
+    <div style="font-size: 18px; font-weight: 800; margin-top: 2px;">Weekly Survey Report (WSR V13) Automation Studio</div>
+    <div style="font-size: 12px; color: #e2e8f0; margin-top: 2px;">Pull 7-day closed SurveyTasks directly from the DPR database, edit Page-1 Personnel/Leave/Training tables, and generate pagination-locked Word &amp; PDF reports.</div>
+  </div>
+  <a href="#wsr-studio" onclick="openWsrStudioAndPull()" style="background-color: #10b981; color: #ffffff; font-weight: 700; padding: 10px 18px; border-radius: 8px; text-decoration: none; font-size: 13px; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">
+    🚀 Open WSR V13 Studio →
+  </a>
+</div>
+
+
+
 <div class="container pb-5">
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <h2 class="fw-bold text-secondary mb-0"><i class="fas fa-chart-pie"></i> Survey Reporting Center</h2>
@@ -357,5 +371,246 @@
         }
     }
 </script>
+
+<!-- === START AUTO-PATCH: EMBEDDED WSR STUDIO INSIDE REPORTS.HTML === -->
+<style>
+  #wsr-studio {
+    scroll-margin-top: 20px;
+    border-top: 4px solid #f59e0b;
+    border-radius: 14px;
+  }
+  .qp-chip-bar {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 12px;
+    padding: 10px 14px;
+  }
+</style>
+
+<!-- Dynamic Log-Driven Quick-Pick Bar & Admin Switcher (Daryll / Abror) -->
+<div class="qp-chip-bar d-flex flex-wrap justify-content-between align-items-center gap-2 my-3 shadow-sm">
+  <div class="d-flex flex-wrap align-items-center gap-2" id="reportsQuickPickList">
+    <span class="small fw-bold text-secondary me-1">⚡ Log-Driven Quick-Picks:</span>
+    {% for chip in quick_picks %}
+      {% if chip.is_admin_wsr %}
+        <button type="button"
+                class="btn btn-sm btn-warning fw-bold rounded-pill shadow-sm"
+                onclick="openWsrStudioAndPull()">
+          {{ chip.label }} (Admin Shortcut)
+        </button>
+      {% else %}
+        <span class="badge bg-{{ chip.style | default('secondary') }} rounded-pill px-3 py-2">
+          {{ chip.label }}
+          {% if chip.score %}<small class="opacity-75">({{ chip.score }}x)</small>{% endif %}
+        </span>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  <div class="d-flex align-items-center gap-2">
+    <label class="small fw-bold text-muted mb-0">Active User:</label>
+    <select id="reportsUserSelector" class="form-select form-select-sm w-auto fw-semibold" onchange="refreshDynamicQuickPicks(this.value)">
+      <option value="Daryll" {% if 'daryll' in (current_user_name|default('Daryll')|lower) %}selected{% endif %}>👑 Daryll (Admin)</option>
+      <option value="Abror" {% if 'abror' in (current_user_name|default('')|lower) %}selected{% endif %}>👑 Abror (Admin)</option>
+      <option value="Mateo">Mateo</option>
+      <option value="Mohamad">Mohamad</option>
+      <option value="Roderick">Roderick</option>
+      <option value="Danilo">Danilo</option>
+      <option value="Mok">Mok</option>
+    </select>
+  </div>
+</div>
+
+<!-- Embedded WSR Studio Workspace -->
+<div id="wsr-studio" class="card shadow-sm my-4">
+  <div class="card-header bg-white py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+    <div class="d-flex align-items-center gap-2">
+      <span class="fs-4">📊</span>
+      <div>
+        <h5 class="fw-bold mb-0">Embedded WSR Studio (Weekly Survey Report Generator)</h5>
+        <small class="text-muted">Directly integrated inside <code>reports.html</code> • Pulls live from <code>SurveyTask</code> SQL logs</small>
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      <button type="button" class="btn btn-primary btn-sm fw-bold" onclick="pullSqlLogsForWsr()">
+        🔄 1. Pull SQL Logs for Date Window
+      </button>
+      <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#wsrStudioCollapse" aria-expanded="true">
+        Toggle Studio
+      </button>
+    </div>
+  </div>
+
+  <div id="wsrStudioCollapse" class="collapse show">
+    <div class="card-body">
+      <form id="wsrEmbeddedForm" action="/wsr/generate" method="POST">
+        <div class="row g-3 mb-3 p-3 bg-light rounded-3 border">
+          <div class="col-md-3">
+            <label class="form-label small fw-bold">WSR Report No.</label>
+            <input type="text" name="report_no" id="wsr_report_no" class="form-control form-control-sm"
+                   value="{{ report_no | default('WSR-2026-W43') }}" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-bold">Week Start Date</label>
+            <input type="date" name="start_date" id="wsr_start_date" class="form-control form-control-sm"
+                   value="{{ default_start }}" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-bold">Week End Date</label>
+            <input type="date" name="end_date" id="wsr_end_date" class="form-control form-control-sm"
+                   value="{{ default_end }}" required>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small fw-bold">Compiled By (Admin)</label>
+            <select name="prepared_by" id="wsr_prepared_by" class="form-select form-select-sm">
+              <option value="Daryll Enano">Daryll Enano (Chief Surveyor)</option>
+              <option value="Abror">Abror (Admin / Lead Surveyor)</option>
+            </select>
+          </div>
+        </div>
+
+        <ul class="nav nav-tabs mb-3" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active fw-bold" data-bs-toggle="tab" data-bs-target="#wsr-tab-logs" type="button" role="tab">
+              🗓️ Daily Survey Logs & Executive Highlights
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link fw-bold" data-bs-toggle="tab" data-bs-target="#wsr-tab-plan" type="button" role="tab">
+              🎯 Look-Ahead & HSEQ
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link fw-bold" data-bs-toggle="tab" data-bs-target="#wsr-tab-tables" type="button" role="tab">
+              ⚙️ Persistent Admin Tables
+            </button>
+          </li>
+        </ul>
+
+        <div class="tab-content">
+          <div class="tab-pane fade show active" id="wsr-tab-logs" role="tabpanel">
+            <div class="mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <label class="form-label small fw-bold mb-0">Executive Summary / Key Weekly Highlights</label>
+                <span id="wsrPullBadge" class="badge bg-secondary">Ready</span>
+              </div>
+              <textarea name="highlights" id="wsr_highlights" rows="4" class="form-control form-control-sm font-monospace"
+                        placeholder="Click '1. Pull SQL Logs for Date Window' to auto-populate from completed SurveyTask logs...">{{ wsr_state.highlights if wsr_state else '' }}</textarea>
+            </div>
+            <div class="mb-2">
+              <label class="form-label small fw-bold">Chronological Daily Survey Logs (Auto-Compiled from SQL)</label>
+              <textarea name="daily_logs_raw" id="wsr_daily_logs" rows="8" class="form-control form-control-sm font-monospace"
+                        placeholder="Daily survey logs will appear here...">{{ wsr_state.daily_logs_raw if wsr_state else '' }}</textarea>
+            </div>
+          </div>
+
+          <div class="tab-pane fade" id="wsr-tab-plan" role="tabpanel">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label small fw-bold">Next Week Planned Activities</label>
+                <textarea name="next_week_plan" id="wsr_next_week" rows="6" class="form-control form-control-sm">{{ wsr_state.next_week_plan if wsr_state else '' }}</textarea>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small fw-bold">HSEQ & Operational Notes</label>
+                <textarea name="hseq_notes" id="wsr_hseq" rows="6" class="form-control form-control-sm">{{ wsr_state.hseq_notes if wsr_state else 'Zero LTI / Zero HSEQ incidents recorded during the reporting period.' }}</textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-pane fade" id="wsr-tab-tables" role="tabpanel">
+            <label class="form-label small fw-bold">Persistent Manpower, Vessels & Equipment State (JSON)</label>
+            <textarea name="admin_tables_json" id="wsr_admin_tables_json" rows="6" class="form-control form-control-sm font-monospace">{{ (wsr_state.admin_tables | tojson(indent=2)) if (wsr_state and wsr_state.admin_tables) else '{}' }}</textarea>
+          </div>
+        </div>
+
+        <div class="d-flex flex-wrap justify-content-between align-items-center mt-3 pt-3 border-top gap-2">
+          <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" name="export_pdf" id="wsr_export_pdf" value="1" checked>
+            <label class="form-check-label small fw-semibold" for="wsr_export_pdf">
+              Compile both <code>.docx</code> and <code>.pdf</code> deliverables
+            </label>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" name="action" value="save_draft" class="btn btn-outline-dark btn-sm fw-bold">
+              💾 Save WSR Draft State
+            </button>
+            <button type="submit" name="action" value="generate" class="btn btn-warning btn-sm fw-bold px-4 shadow-sm">
+              🚀 2. Generate WSR Package (.DOCX / .PDF)
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function openWsrStudioAndPull() {
+  const studio = document.getElementById("wsr-studio");
+  const collapseEl = document.getElementById("wsrStudioCollapse");
+  if (collapseEl && !collapseEl.classList.contains("show")) {
+    collapseEl.classList.add("show");
+  }
+  if (studio) studio.scrollIntoView({ behavior: "smooth" });
+  pullSqlLogsForWsr();
+}
+
+async function pullSqlLogsForWsr() {
+  const start = document.getElementById("wsr_start_date").value;
+  const end = document.getElementById("wsr_end_date").value;
+  const badge = document.getElementById("wsrPullBadge");
+  badge.className = "badge bg-warning text-dark";
+  badge.textContent = "⏳ Querying SurveyTask SQL Logs...";
+
+  try {
+    const res = await fetch(`/wsr/api/pull_logs_json?start_date=${encodeURIComponent(start)}&end_date=${encodeURIComponent(end)}`);
+    const data = await res.json();
+    if (data.status === "ok") {
+      document.getElementById("wsr_highlights").value = data.highlights || "";
+      document.getElementById("wsr_daily_logs").value = data.daily_logs || "";
+      if (data.next_week_plan && !document.getElementById("wsr_next_week").value) {
+        document.getElementById("wsr_next_week").value = data.next_week_plan;
+      }
+      badge.className = "badge bg-success";
+      badge.textContent = `✅ Pulled ${data.task_count} SQL Tasks (${start} → ${end})`;
+    } else {
+      throw new Error(data.message || "Unknown error");
+    }
+  } catch (err) {
+    badge.className = "badge bg-danger";
+    badge.textContent = `⚠️ Pull Error: ${err.message}`;
+  }
+}
+
+async function refreshDynamicQuickPicks(userName) {
+  try {
+    const res = await fetch(`/api/quick_picks?user=${encodeURIComponent(userName)}`);
+    const data = await res.json();
+    const container = document.getElementById("reportsQuickPickList");
+    if (!container || data.status !== "ok") return;
+
+    let html = `<span class="small fw-bold text-secondary me-1">⚡ Log-Driven Quick-Picks (${data.user}):</span>`;
+    data.chips.forEach(chip => {
+      if (chip.is_admin_wsr) {
+        html += `<button type="button" class="btn btn-sm btn-warning fw-bold rounded-pill shadow-sm" onclick="openWsrStudioAndPull()">${chip.label} (Admin Shortcut)</button>`;
+      } else {
+        const scoreTag = chip.score ? ` <small class="opacity-75">(${chip.score}x)</small>` : "";
+        html += `<span class="badge bg-${chip.style || 'secondary'} rounded-pill px-3 py-2">${chip.label}${scoreTag}</span>`;
+      }
+    });
+    container.innerHTML = html;
+
+    // Toggle WSR Studio visibility warning for non-admins if desired
+    const studio = document.getElementById("wsr-studio");
+    if (studio) {
+      studio.style.opacity = data.is_wsr_admin ? "1" : "0.65";
+    }
+  } catch (e) {
+    console.error("Failed to refresh dynamic quick picks:", e);
+  }
+}
+</script>
+<!-- === END AUTO-PATCH: EMBEDDED WSR STUDIO INSIDE REPORTS.HTML === -->
+
 </body>
 </html>

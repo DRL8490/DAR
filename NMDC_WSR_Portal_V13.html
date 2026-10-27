@@ -1,0 +1,2315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NMDC Project 20012 | Comprehensive WSR Portal V13 (2-Week AI Context + Polish)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Mammoth.js for parsing .docx files locally in the browser -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.21/mammoth.browser.min.js"></script>
+  <!-- PDF.js for parsing Previous Week's Committed WSR PDF locally in the browser -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    if (window.pdfjsLib) {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+    .nmdc-blue { background-color: #0f2c59; }
+    .nmdc-accent { background-color: #0284c7; }
+    .tab-active { border-bottom: 3px solid #0284c7; color: #0f2c59; font-weight: 700; background-color: #ffffff; }
+    textarea, input[type="text"] { font-family: Arial, Helvetica, sans-serif; }
+    @media print {
+      .no-print { display: none !important; }
+      #view-surveyor, #view-chief, #view-images, #boss-archive-card { display: none !important; }
+      #view-boss { display: block !important; }
+      body { background-color: #ffffff; }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- TOP NAVIGATION BAR -->
+  <header class="nmdc-blue text-white shadow-lg no-print">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex flex-wrap justify-between items-center gap-4">
+      <div class="flex items-center space-x-4">
+        <div class="bg-white text-[#0f2c59] font-extrabold px-3 py-1.5 rounded text-lg tracking-wider">NMDC</div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight">SURVEY DEPARTMENT — WSR AUTOMATION PORTAL (V13)</h1>
+          <p class="text-xs text-sky-200">Project 20012: Tung-Hsiao Power Plant 2nd Stage Renewal Subsea Gas Pipeline</p>
+        </div>
+      </div>
+      <div class="flex items-center space-x-3 text-xs">
+        <a href="/reports" id="back-to-dpr-btn" class="bg-white/15 hover:bg-white/25 border border-white/30 text-white px-3 py-1 rounded-full font-semibold transition">
+          ← Back to DPR App
+        </a>
+        <span id="context-status-badge" class="bg-indigo-500/30 border border-indigo-300 text-indigo-100 px-3 py-1 rounded-full font-medium">
+          2-Week Context: Ready
+        </span>
+        <span id="server-status-badge" class="bg-amber-500/20 border border-amber-400 text-amber-200 px-3 py-1 rounded-full font-medium">
+          Checking Local Python Server...
+        </span>
+        <span class="text-slate-300">Chief Surveyor: <strong>Daryll Enano</strong></span>
+      </div>
+    </div>
+
+    <!-- ROLE SWITCHER TABS -->
+    <div class="bg-slate-200 text-slate-600 border-t border-slate-300">
+      <div class="max-w-7xl mx-auto px-6 flex space-x-2">
+        <button onclick="switchTab('surveyor')" id="tab-surveyor" class="px-4 py-3 text-sm transition tab-active">
+          1. 2-Week Context Input
+        </button>
+        <button onclick="switchTab('admin')" id="tab-admin" class="px-4 py-3 text-sm transition">
+          2. Personnel & Admin Tables
+        </button>
+        <button onclick="switchTab('chief')" id="tab-chief" class="px-4 py-3 text-sm transition">
+          3. Chief Surveyor Studio (AI)
+        </button>
+        <button onclick="switchTab('images')" id="tab-images" class="px-4 py-3 text-sm transition">
+          4. Images & Excel Screenshots
+        </button>
+        <button onclick="switchTab('boss')" id="tab-boss" class="px-4 py-3 text-sm transition">
+          5. Executive Portal
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT CONTAINER -->
+  <main class="max-w-7xl w-full mx-auto px-6 py-6 flex-1">
+
+    <!-- ==================== VIEW 1: 2-WEEK CONTEXT INPUT (PREV WSR PDF + DAILY LOGS) ==================== -->
+    <section id="view-surveyor" class="space-y-6 no-print">
+
+      <!-- STEP 1A: PREVIOUS WEEK COMMITTED WSR PDF / DOCX INPUT BOX -->
+      <div class="bg-white rounded-xl shadow-sm border-2 border-indigo-200 p-6">
+        <div class="flex flex-wrap justify-between items-start gap-4 mb-3">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-800 px-2.5 py-0.5 rounded">Week N-1 Baseline Context</span>
+              <span id="prev-wsr-loaded-pill" class="text-[11px] bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full font-semibold">No Previous WSR Loaded Yet (Using WSR 2026.42 Baseline)</span>
+            </div>
+            <h2 class="text-base font-bold text-slate-800 mt-1">Input 1: Previous Week's Final Committed WSR (`.pdf` or `.docx`)</h2>
+            <p class="text-xs text-slate-500">
+              Upload last week's signed/committed WSR PDF (e.g., `20012-WSR-2026.42.pdf`) or Word file. The engine extracts last week's <strong>Highlights, Look Ahead, Outstanding Tasks, Hardware Status, and 13 Image Survey Dates</strong> to form a <strong>2-Week Rolling Context</strong> with this week's daily logs.
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="autoLoadLatestWsrFromServer()" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-300 text-xs font-bold px-3.5 py-2 rounded-lg transition">
+              ⚡ Auto-Load Latest WSR from `committed_reports/`
+            </button>
+            <button onclick="document.getElementById('prev-wsr-inspector').classList.toggle('hidden')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-xs font-semibold px-3 py-2 rounded-lg transition">
+              👁 View / Edit Extracted Week N-1 Context
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center bg-indigo-50/50 border border-indigo-100 rounded-lg p-4">
+          <div class="md:col-span-2">
+            <input type="file" id="prev-wsr-file" accept=".pdf,.docx,.txt" onchange="handlePrevWsrUpload()" class="w-full text-xs file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer" />
+          </div>
+          <div class="text-xs text-slate-600">
+            <span class="font-semibold text-indigo-900">What gets carried over:</span> Unresolved Outstanding Tasks, recurring Look Ahead items, standing HQ Hardware memos, and last week's 13 chart dates.
+          </div>
+        </div>
+
+        <!-- Collapsible Inspector for Extracted Previous Week WSR Text -->
+        <div id="prev-wsr-inspector" class="hidden mt-4 pt-3 border-t border-slate-200">
+          <label class="block text-xs font-bold uppercase tracking-wider text-indigo-900 mb-1">Extracted Previous Week WSR Summary Context (Editable — Fed to AI & 2-Week NLP Engine)</label>
+          <textarea id="prev-wsr-context-box" rows="6" class="w-full border border-indigo-200 rounded-lg p-3 text-xs bg-slate-50 leading-relaxed">[Previous Committed WSR: 2026.42]
+Previous Highlights:
+1. Mobilization & Verification of Survey Vessel Echo 4 (Seatrench): Conducted vessel inspection, MBES patch testing, and GNSS RTK position verification against TPC benchmarks (TG01 & TG03) and NMDC GPS systems. Following calibration, Echo 4 successfully completed pre-surveys at the Fengmiao (FEM), Taijin Cable, and Yong'an Crossings.
+2. Resumption of Nearshore & Offshore Hydrographic Surveys (WS166 - EGST): Following weather standby (Oct 12-14) and a rapid auxiliary engine repair at Hsinchu Fishery Port on Oct 16, WS166 resumed offshore operations and completed the MBES monitoring surveys for Tunghsiao Trench 8 and Midline Tie-In, as well as the MBES pre-survey for Crossings A3 & B3.
+3. Tunghsiao Temporary Platform Benchmark & As-Built Surveys: Established new Temporary Benchmarks (TBMs) via two-way leveling loops from TG06. Completed level checks and as-built sketch drawings for the completed pipe railings, crane plate/stopper bar alignments, AHDD thruster pit, and weekly site progress updates (NMDC-SUR-20012-OVW-252).
+
+Previous Look Ahead:
+1. Request for Diff Charts and Volume calculations for different survey data is expected due to current planning changes and justifications.
+2. Update Tunghsiao and Taichung site installation as-built drawings (weekly progress update).
+3. Settlement Monitoring (Road and protection sheetpile) at Taichung site for NMDC surveyor (Daily activity).
+4. Depth of Burial Survey for Fengmiao Cable Crossings prior to Filter Unit Installation (Under planning with Seatrench and EGST).
+
+Previous Outstanding Tasks:
+1. TPC Entry Pass for Danilo on hold until 2027 Feb ARC Renewal. Now Danilo can enter site with temporary gate pass, currently Abror, Roderick and Daryll have TPC yearly pass (Taichung and Tunghsiao).
+2. Taiwan government E-GNSS correction NTRIP account cannot be requested by NMDC due to company entity registered as foreign company, request to EGST to apply for NMDC operational use. Need to ask EGST for assistance for the EGNSS service. (Stewart Ho assist for the service).
+3. Danilo to be scheduled for BOSIET. Waiting for Project Schedule.
+4. Rick Jhou - shortlisted as Lead/Chief Surveyor, Sophie update: will join before 23 Nov 2026.
+
+Previous Hardware Movement and Status:
+1. Survey Forms Compliance - IA-IM-26.005 and Survey Equipment Mob/Demob Compliance - IA-IM-26.006 memo from HQ to be implemented in the Taiwan Project.</textarea>
+        </div>
+      </div>
+
+      <!-- STEP 1B: CURRENT WEEK DAILY SURVEY ACTIVITIES INPUT -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
+          <div>
+            <!-- 1-CLICK LIVE DPR DATABASE PULLER -->
+            <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-4">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-[11px] font-bold uppercase tracking-wider text-emerald-900">⚡ Direct DPR Database Sync (SurveyTask)</span>
+                <span class="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded font-semibold">DPR App Connected</span>
+              </div>
+              <p class="text-[11px] text-emerald-800 mb-2">Pull all <strong>Closed</strong> SurveyTasks &amp; <strong>Open</strong> Actions directly from the DPR SQL database for your target week:</p>
+              <div class="grid grid-cols-2 gap-2 mb-2 text-xs">
+                <div>
+                  <label class="block text-[10px] font-semibold text-emerald-900">Week Start (Monday)</label>
+                  <input type="date" id="db-pull-start" value="2026-10-19" class="w-full border border-emerald-300 rounded px-2 py-1 text-xs bg-white" />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-semibold text-emerald-900">Week End (Sunday)</label>
+                  <input type="date" id="db-pull-end" value="2026-10-25" class="w-full border border-emerald-300 rounded px-2 py-1 text-xs bg-white" />
+                </div>
+              </div>
+              <button onclick="pullWeekFromDprDatabase()" id="btn-pull-db" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 rounded shadow transition">
+                ⚡ Pull 7-Day Logs from DPR Database &amp; Synthesize
+              </button>
+            </div>
+
+            <div class="flex items-center justify-between mb-1">
+              <h2 class="text-base font-bold text-slate-800">Input 2A: Or Upload DTR Files (`.docx` / `.txt`)</h2>
+              <span class="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-medium">Week N Daily Logs</span>
+            </div>
+            <p class="text-xs text-slate-500 mb-3">
+              Select all 7 `DTR-Report.docx` files for the current week. Combines with <strong>Input 1 (Previous WSR)</strong> to calculate the Monday Issue Date and synthesize all 4 sections.
+            </p>
+            
+            <div class="border-2 border-dashed border-slate-300 rounded-lg p-5 text-center bg-slate-50 mb-3">
+              <input type="file" id="dtr-files" multiple accept=".docx,.txt" class="w-full text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-sky-100 file:text-sky-700 hover:file:bg-sky-200 cursor-pointer">
+            </div>
+
+            <div class="flex items-center gap-2 mb-2">
+              <span class="text-xs font-semibold text-slate-500">OR Paste Raw Current Week DTR Text:</span>
+            </div>
+            <textarea id="raw-dump-input" rows="3" class="w-full border border-slate-300 rounded-lg p-3 text-xs font-mono bg-slate-50" placeholder="Paste raw DTR text here..."></textarea>
+          </div>
+          
+          <div class="mt-4 flex gap-3">
+            <button onclick="parseDTRFiles()" class="flex-1 bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold py-2.5 rounded-lg transition">
+              Parse Current Week DTRs + Combine 2-Week Context ➔
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+          <h2 class="text-base font-bold text-slate-800 mb-1">Input 2B: Add Single Daily Survey Update</h2>
+          <p class="text-xs text-slate-500 mb-4">Append an individual field/office or vessel entry into the current week's compilation.</p>
+          
+          <div class="space-y-4 text-sm">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Date</label>
+                <input type="date" id="log-date" value="2026-10-25" class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Work Scope / Category</label>
+                <select id="log-category" class="w-full border border-slate-300 rounded-lg px-3 py-2">
+                  <option value="Onshore-Land">Onshore-Land</option>
+                  <option value="Wuqi Office">Wuqi Office</option>
+                  <option value="Marine Offshore">Marine Offshore</option>
+                  <option value="EGST Hydro Survey (Survey Boat: WS166 | Surveyor: Min-Ying Tsai)">EGST Hydro Survey (WS166)</option>
+                  <option value="Seatrench Hydro Survey (Survey Boat: Echo 4 | Surveyor: Johannes Jacobsen)">Seatrench Hydro Survey (Echo 4)</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Surveyors Involved</label>
+              <input type="text" id="log-staff" value="Danilo Bartolome, Roderick Clavel" class="w-full border border-slate-300 rounded-lg px-3 py-2" />
+            </div>
+
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Activity Description</label>
+              <textarea id="log-task" rows="3" placeholder="e.g., Taichung AHDD Road Settlement Monitoring Survey - Gather data and process daily report." class="w-full border border-slate-300 rounded-lg px-3 py-2"></textarea>
+            </div>
+
+            <button onclick="addSingleLog()" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2.5 rounded-lg shadow transition">
+              + Append to Weekly Activity Log & Auto-Update 4 Sections
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+        <!-- ==================== VIEW 2: PAGE-1 PERSONNEL & ADMIN TABLES EDITOR ==================== -->
+    <section id="view-admin" class="hidden space-y-6 no-print">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div class="flex flex-wrap justify-between items-center border-b border-slate-200 pb-4 mb-5 gap-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-bold uppercase tracking-wider bg-sky-100 text-sky-800 px-2.5 py-0.5 rounded">Page 1 Native Word Tables</span>
+              <span id="admin-tables-status" class="text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 rounded-full font-semibold">Auto-Synced in Arial 8pt</span>
+            </div>
+            <h2 class="text-lg font-bold text-slate-800 mt-1">Page-1 Personnel Overview, Leave Planning & Training/Pass Editor</h2>
+            <p class="text-xs text-slate-500">Edit any cell directly. Click the <strong>🖍</strong> button inside any cell to toggle <strong>Yellow Highlight</strong> in both the browser and the generated Word/PDF report.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button onclick="addNewPersonnelAllTables()" class="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-lg shadow transition">
+              + Add Personnel to All 3 Tables
+            </button>
+            <button onclick="saveAdminTablesToServer(true)" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow transition">
+              💾 Save Tables to Template & Server
+            </button>
+            <button onclick="reloadAdminTablesFromTemplate()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-xs font-semibold rounded-lg transition">
+              ↻ Reload from Template
+            </button>
+            <button onclick="switchTab('chief')" class="px-4 py-2 bg-[#0f2c59] hover:bg-slate-800 text-white text-xs font-bold rounded-lg shadow transition">
+              Next: Chief Studio ➔
+            </button>
+          </div>
+        </div>
+
+        <!-- TABLE 1: PERSONNEL OVERVIEW -->
+        <div class="mb-8">
+          <div class="flex justify-between items-center mb-2">
+            <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">1. Personnel Overview</h3>
+            <button onclick="addAdminTableRow('personnel')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold px-3 py-1 rounded border border-slate-300 transition">
+              + Add Row to Personnel Overview
+            </button>
+          </div>
+          <div class="overflow-x-auto border border-slate-300 rounded-lg">
+            <table class="w-full text-xs text-center border-collapse">
+              <thead class="bg-slate-100 text-slate-800 font-bold">
+                <tr>
+                  <th rowspan="2" class="border border-slate-300 px-2 py-1.5 w-44">NAME</th>
+                  <th rowspan="2" class="border border-slate-300 px-2 py-1.5 w-24">FILE<br>NUMBER</th>
+                  <th rowspan="2" class="border border-slate-300 px-2 py-1.5 w-44">DESIGNATION</th>
+                  <th class="border border-slate-300 px-2 py-1 w-28">To Project</th>
+                  <th class="border border-slate-300 px-2 py-1 w-28">From Project</th>
+                  <th rowspan="2" class="border border-slate-300 px-2 py-1.5 w-24">COMPANY</th>
+                  <th rowspan="2" class="border border-slate-300 px-2 py-1.5 w-28">WORK<br>AREA</th>
+                  <th rowspan="2" class="border border-slate-300 px-2 py-1.5 w-20">Actions</th>
+                </tr>
+                <tr>
+                  <th class="border border-slate-300 px-2 py-1 text-[11px]">Date of Arrival</th>
+                  <th class="border border-slate-300 px-2 py-1 text-[11px]">Date of Dep</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-admin-personnel" class="divide-y divide-slate-200"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- TABLE 2: LEAVE PLANNING -->
+        <div class="mb-8">
+          <div class="flex justify-between items-center mb-2">
+            <div>
+              <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">2. Leave Planning</h3>
+              <p class="text-[11px] text-slate-500">Tip: Click <strong>🖍</strong> on Start of Leave, End of Leave, or Remarks (e.g., "Ongoing") to toggle Yellow Highlight.</p>
+            </div>
+            <button onclick="addAdminTableRow('leave')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold px-3 py-1 rounded border border-slate-300 transition">
+              + Add Row to Leave Planning
+            </button>
+          </div>
+          <div class="overflow-x-auto border border-slate-300 rounded-lg">
+            <table class="w-full text-xs text-center border-collapse">
+              <thead class="bg-slate-100 text-slate-800 font-bold">
+                <tr>
+                  <th rowspan="2" class="border border-slate-300 px-2 py-1.5 w-44">NAME</th>
+                  <th colspan="2" class="border border-slate-300 px-2 py-1">Leave Plans</th>
+                  <th rowspan="2" class="border border-slate-300 px-2 py-1.5 w-28">UAE Visa Run</th>
+                  <th rowspan="2" class="border border-slate-300 px-2 py-1.5 w-24">Leave Type</th>
+                  <th rowspan="2" class="border border-slate-300 px-2 py-1.5 w-28">Remarks</th>
+                  <th rowspan="2" class="border border-slate-300 px-2 py-1.5 w-28">Destination</th>
+                  <th rowspan="2" class="border border-slate-300 px-2 py-1.5 w-20">Actions</th>
+                </tr>
+                <tr>
+                  <th class="border border-slate-300 px-2 py-1 text-[11px] w-28">Start of Leave</th>
+                  <th class="border border-slate-300 px-2 py-1 text-[11px] w-28">End of Leave</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-admin-leave" class="divide-y divide-slate-200"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- TABLE 3: TRAINING AND PASS STATUS -->
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <div>
+              <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">3. Training and Pass Status</h3>
+              <p class="text-[11px] text-slate-500">Supports multi-line entries (e.g., <code>BOSIET</code> on line 1 and <code>2026-01-20</code> on line 2) and <strong>🖍</strong> Yellow Highlighting.</p>
+            </div>
+            <button onclick="addAdminTableRow('training')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold px-3 py-1 rounded border border-slate-300 transition">
+              + Add Row to Training & Pass Status
+            </button>
+          </div>
+          <div class="overflow-x-auto border border-slate-300 rounded-lg">
+            <table class="w-full text-xs text-center border-collapse">
+              <thead class="bg-slate-100 text-slate-800 font-bold">
+                <tr>
+                  <th class="border border-slate-300 px-2 py-2 w-40">Name</th>
+                  <th class="border border-slate-300 px-2 py-2 w-28">ARC expiry</th>
+                  <th class="border border-slate-300 px-2 py-2 w-36">Offshore<br>Training</th>
+                  <th class="border border-slate-300 px-2 py-2 w-28">OSHA<br>Training date</th>
+                  <th class="border border-slate-300 px-2 py-2 w-32">Taichung Port<br>Gate Pass - Validity</th>
+                  <th class="border border-slate-300 px-2 py-2 w-32">TPC PASS<br>Validity</th>
+                  <th class="border border-slate-300 px-2 py-2 w-44">Remarks</th>
+                  <th class="border border-slate-300 px-2 py-2 w-20">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="tbody-admin-training" class="divide-y divide-slate-200"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==================== VIEW 3: CHIEF SURVEYOR STUDIO ==================== -->
+    <section id="view-chief" class="hidden space-y-6 no-print">
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div class="flex flex-wrap justify-between items-center border-b border-slate-200 pb-4 mb-5 gap-4">
+          <div>
+            <h2 class="text-lg font-bold text-slate-800">Chief Surveyor WSR Assembly Studio (2-Week Context + AI Polish)</h2>
+            <p class="text-xs text-slate-500" id="auto-sync-banner">WSR Number, Issue Dates (Monday after last entry), and all 4 sections auto-sync from Previous WSR + Current Daily Logs.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button onclick="switchTab('images')" class="px-5 py-2.5 bg-[#0f2c59] hover:bg-slate-800 text-white text-xs font-bold rounded-lg shadow transition">
+              Next: Manage Images & Excel Screenshots ➔
+            </button>
+          </div>
+        </div>
+
+        <!-- AI LOG READER & 2-WEEK EXECUTIVE SYNTHESIZER BAR -->
+        <div class="bg-gradient-to-r from-sky-900 via-[#0f2c59] to-indigo-950 text-white rounded-xl p-4 mb-6 shadow-md border border-sky-700/50">
+          <div class="flex flex-wrap justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+              <div class="bg-sky-500/20 border border-sky-400/40 rounded-lg p-2 text-lg">✨</div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="text-sm font-bold tracking-wide">2-Week AI Context Engine & Per-Box Executive Polisher</h3>
+                  <span id="ai-engine-status" class="text-[10px] bg-emerald-500/20 border border-emerald-400/50 text-emerald-200 px-2 py-0.5 rounded-full font-semibold">Ready</span>
+                </div>
+                <p class="text-xs text-sky-200 mt-0.5">Combines <strong>Previous Week's Committed WSR</strong> + <strong>Current Week's Daily Activities</strong> to generate or polish numbered items for all 4 boxes.</p>
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <button onclick="toggleAiSettings()" class="px-3 py-2 bg-white/10 hover:bg-white/20 text-xs font-semibold rounded-lg border border-white/20 transition">
+                ⚙ AI Engine Settings
+              </button>
+              <button id="btn-ai-generate" onclick="runAiLogAnalyzer()" class="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white text-xs font-bold rounded-lg shadow-lg transition flex items-center gap-1.5">
+                <span>✨ AI Read 2-Week Context & Generate All 4 Sections</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Collapsible AI Settings Drawer -->
+          <div id="ai-settings-drawer" class="hidden mt-4 pt-3 border-t border-sky-800/80 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <div>
+              <label class="block text-[11px] font-semibold text-sky-200 mb-1">AI Provider</label>
+              <select id="ai-provider" onchange="saveAiSettingsLocal()" class="w-full bg-slate-900/90 border border-sky-700 rounded-lg px-3 py-2 text-white text-xs">
+                <option value="gemini">Google Gemini AI (gemini-2.5-flash) — Recommended</option>
+                <option value="ollama">Local Ollama LLM (http://127.0.0.1:11434)</option>
+                <option value="nlp">Built-In 2-Week Survey NLP Synthesizer (Offline / Instant)</option>
+              </select>
+            </div>
+            <div id="gemini-key-box">
+              <label class="block text-[11px] font-semibold text-sky-200 mb-1">Gemini API Key <span class="text-sky-400 font-normal">(Saved locally in browser & server)</span></label>
+              <input type="password" id="ai-gemini-key" oninput="saveAiSettingsLocal()" placeholder="Paste AIzaSy... Gemini API Key (optional; falls back to NLP if blank)" class="w-full bg-slate-900/90 border border-sky-700 rounded-lg px-3 py-2 text-white text-xs" />
+            </div>
+            <div class="flex items-end">
+              <p class="text-[11px] text-sky-300 leading-relaxed">
+                💡 <strong>Per-Box AI Polish:</strong> Type rough shorthand notes into any of the 4 boxes below and click its <strong>✨ AI Polish</strong> button to rewrite your notes into formal, numbered NMDC executive sentences.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">
+              WSR Week Number (`YYYY.WW`) <span class="text-[10px] text-emerald-700 font-normal">(Auto from Last Entry)</span>
+            </label>
+            <input type="text" id="wsr-week" value="2026.42" onchange="onWeekNumberManuallyEdited()" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-semibold" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">
+              Report Issue Date (Top Header) <span class="text-[10px] text-emerald-700 font-normal">(Monday After Last Entry)</span>
+            </label>
+            <input type="text" id="wsr-date-top" value="October 19, 2026" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">
+              Sign-Off Date (Footer) <span class="text-[10px] text-emerald-700 font-normal">(Monday After Last Entry)</span>
+            </label>
+            <input type="text" id="wsr-date-bottom" value="19th October 2026" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+          </div>
+        </div>
+
+        <!-- 4 Editable Text Sections with Per-Box AI Polish + Regenerate Buttons -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          
+          <!-- 1. Highlights -->
+          <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
+            <div class="flex flex-wrap justify-between items-center mb-2 gap-1">
+              <label class="block text-xs font-bold uppercase tracking-wider text-sky-800">1. Executive Highlights (Numbered)</label>
+              <div class="flex items-center space-x-2">
+                <button id="btn-polish-highlights" onclick="polishSingleSection('wsr-highlights', 'Executive Highlights', 'btn-polish-highlights')" class="text-[11px] bg-sky-100 hover:bg-sky-200 text-sky-900 border border-sky-300 px-2 py-0.5 rounded font-bold transition">✨ AI Polish</button>
+                <button onclick="regenerateSingleSection('highlights')" class="text-[11px] text-sky-700 hover:underline font-semibold">↻ Regenerate</button>
+              </div>
+            </div>
+            <textarea id="wsr-highlights" rows="6" class="w-full border border-slate-300 rounded-lg p-3 text-xs leading-relaxed bg-white"></textarea>
+            <div class="mt-2 flex gap-2">
+              <input type="text" id="add-highlight-input" placeholder="Type rough note or new Highlight item..." class="flex-1 border border-slate-300 rounded px-2.5 py-1.5 text-xs bg-white" />
+              <button onclick="quickAddLine('wsr-highlights', 'add-highlight-input')" class="bg-sky-700 hover:bg-sky-800 text-white px-3 py-1.5 rounded text-xs font-semibold">+ Add</button>
+            </div>
+          </div>
+
+          <!-- 2. Look Ahead -->
+          <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
+            <div class="flex flex-wrap justify-between items-center mb-2 gap-1">
+              <label class="block text-xs font-bold uppercase tracking-wider text-amber-800">2. Look Ahead (Numbered)</label>
+              <div class="flex items-center space-x-2">
+                <button id="btn-polish-lookahead" onclick="polishSingleSection('wsr-lookahead', 'Look Ahead Schedule', 'btn-polish-lookahead')" class="text-[11px] bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 px-2 py-0.5 rounded font-bold transition">✨ AI Polish</button>
+                <button onclick="regenerateSingleSection('lookahead')" class="text-[11px] text-amber-700 hover:underline font-semibold">↻ Regenerate</button>
+              </div>
+            </div>
+            <textarea id="wsr-lookahead" rows="6" class="w-full border border-slate-300 rounded-lg p-3 text-xs leading-relaxed bg-white"></textarea>
+            <div class="mt-2 flex gap-2">
+              <input type="text" id="add-lookahead-input" placeholder="Type rough note or new Look Ahead item..." class="flex-1 border border-slate-300 rounded px-2.5 py-1.5 text-xs bg-white" />
+              <button onclick="quickAddLine('wsr-lookahead', 'add-lookahead-input')" class="bg-amber-700 hover:bg-amber-800 text-white px-3 py-1.5 rounded text-xs font-semibold">+ Add</button>
+            </div>
+          </div>
+
+          <!-- 3. Outstanding Tasks -->
+          <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
+            <div class="flex flex-wrap justify-between items-center mb-2 gap-1">
+              <label class="block text-xs font-bold uppercase tracking-wider text-rose-800">3. Outstanding Tasks (Numbered)</label>
+              <div class="flex items-center space-x-2">
+                <button id="btn-polish-outstanding" onclick="polishSingleSection('wsr-outstanding', 'Outstanding Tasks', 'btn-polish-outstanding')" class="text-[11px] bg-rose-100 hover:bg-rose-200 text-rose-900 border border-rose-300 px-2 py-0.5 rounded font-bold transition">✨ AI Polish</button>
+                <button onclick="regenerateSingleSection('outstanding')" class="text-[11px] text-rose-700 hover:underline font-semibold">↻ Regenerate</button>
+              </div>
+            </div>
+            <textarea id="wsr-outstanding" rows="6" class="w-full border border-slate-300 rounded-lg p-3 text-xs leading-relaxed bg-white"></textarea>
+            <div class="mt-2 flex gap-2">
+              <input type="text" id="add-outstanding-input" placeholder="Type rough note or new Outstanding Task..." class="flex-1 border border-slate-300 rounded px-2.5 py-1.5 text-xs bg-white" />
+              <button onclick="quickAddLine('wsr-outstanding', 'add-outstanding-input')" class="bg-rose-700 hover:bg-rose-800 text-white px-3 py-1.5 rounded text-xs font-semibold">+ Add</button>
+            </div>
+          </div>
+
+          <!-- 4. Hardware Movement and Status -->
+          <div class="bg-slate-50 border border-slate-200 rounded-lg p-4">
+            <div class="flex flex-wrap justify-between items-center mb-2 gap-1">
+              <label class="block text-xs font-bold uppercase tracking-wider text-indigo-800">4. Hardware Movement and Status (Numbered)</label>
+              <div class="flex items-center space-x-2">
+                <button id="btn-polish-hardware" onclick="polishSingleSection('wsr-hardware-status', 'Hardware Movement and Status', 'btn-polish-hardware')" class="text-[11px] bg-indigo-100 hover:bg-indigo-200 text-indigo-900 border border-indigo-300 px-2 py-0.5 rounded font-bold transition">✨ AI Polish</button>
+                <button onclick="regenerateSingleSection('hardware')" class="text-[11px] text-indigo-700 hover:underline font-semibold">↻ Regenerate</button>
+              </div>
+            </div>
+            <textarea id="wsr-hardware-status" rows="6" class="w-full border border-slate-300 rounded-lg p-3 text-xs leading-relaxed bg-white"></textarea>
+            <div class="mt-2 flex gap-2">
+              <input type="text" id="add-hwstatus-input" placeholder="Type rough note or new Hardware Movement item..." class="flex-1 border border-slate-300 rounded px-2.5 py-1.5 text-xs bg-white" />
+              <button onclick="quickAddLine('wsr-hardware-status', 'add-hwstatus-input')" class="bg-indigo-700 hover:bg-indigo-800 text-white px-3 py-1.5 rounded text-xs font-semibold">+ Add</button>
+            </div>
+          </div>
+
+        </div>
+
+        <div>
+          <div class="flex flex-wrap justify-between items-center mb-2 gap-2">
+            <div class="flex items-center gap-3">
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-700">Compiled & Sanitized Current Week Daily Survey Activities</label>
+              <label class="flex items-center space-x-1.5 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded cursor-pointer">
+                <input type="checkbox" id="cb-auto-sync-on-edit" checked class="rounded text-emerald-600" />
+                <span>Auto-update Dates & 4 Sections (with Previous WSR Context) as I edit/paste</span>
+              </label>
+            </div>
+            <button onclick="document.getElementById('wsr-daily-compiled').value=''" class="text-xs text-red-600 hover:underline">Clear Daily Log</button>
+          </div>
+          <textarea id="wsr-daily-compiled" rows="14" oninput="onDailyLogEdited()" class="w-full border border-slate-300 rounded-lg p-3 text-xs font-mono bg-slate-50 leading-relaxed">19.10.2026 Monday
+
+Onshore-Land: Danilo Bartolome, Mateo Mollaneda, Roderick Clavel
+
+- Taichung AHDD Check Survey - Gather data of AHDD Road settlement monitoring
+
+- Taichung AHDD Survey Reports - Process report of the Taichung AHDD Road settlement report
+
+- Taichung Landside Progress Survey - Generate Sketch Drawing of Taichung Site Weekly Progress Update survey
+
+- Taichung AHDD Stake-Out/Marking - [Thruster Pit] Generate a sketch drawing showing the remarking of the previously marked sheet pile corner near the roadside, with a 0.50 m inward offset from the design location.
+
+- Taichung Landside Survey Input - Drawings - 20261017_RQ0419_Taichung Vertical Drilling Profile
+
+Marine Offshore: Daryll Enano, Mateo Mollaneda
+
+- Offshore Mainline Cross-Section - [DLS-4200] 20261019_RQ0421_Crossing A1-A3 260928 Survey Overview Diff Chart Cross Sections
+
+- Offshore Mainline Cross-Section - [DLS-4200] 20261019_RQ0422_Crossing B1-B2 260928 Survey Overview Diff Chart Cross Sections
+
+20.10.2026 Tuesday
+
+Wuqi Office: Danilo Bartolome
+
+- Taichung Office Internal Survey Reports - Process survey report of the Taichung AHDD Road settlement monitoring
+
+Onshore-Land: Danilo Bartolome, Roderick Clavel
+
+- Tunghsiao Temp Platform Stake-Out/Marking - Assist Thaitan with staking out and marking the location of their facilities area at Tunghsiao Site.
+
+- Taichung Landside Progress Survey - Generate a sketch drawing of the newly installed fence at the Taichung site near the TPC access gate.
+
+- Taichung AHDD Monitoring Survey - Gather data of the Taichung AHDD Road settlement monitoring
+
+- Tunghsiao Temp Platform Benchmark Verification - Conduct traverse levelling for the Tunghsiao platform area TBM for vertical control values and re-evaluation on TBM's interrelationship.
+
+21.10.2026 Wednesday
+
+Wuqi Office: Daryll Enano
+
+- Taichung Office Internal Coordination Meetings - Daily Stand-up Meeting
+
+Onshore-Land: Danilo Bartolome, Daryll Enano, Roderick Clavel
+
+- Taichung AHDD Monitoring Survey - Gather data of the Taichung AHDD Road settlement monitoring
+
+- Taichung AHDD Survey Reports - Generate report of the Taichung AHDD Road settlement monitoring
+
+- Taichung AHDD Progress Survey - [Crossover Pits] Monitor progress of the on-going 2.5m diameter encased Vertical Drilling activity
+
+- Tunghsiao Temp Platform External Meetings - [Microtunneling] Thaitan AHDD Coordination Meeting
+
+- Taichung AHDD Stake-Out/Marking - Stake out and mark the first vertical drilling point of the Thruster Pit, as requested by Nandu. (TH_VD_01)
+
+- Taichung AHDD Stake-Out/Marking - Stake out and mark the alignment of Pipes A and B, as requested by Jeff.
+
+- Tunghsiao Temp Platform Sketch Drawing - Generate a sketch drawing showing the layout and locations of the Thaitan facilities at the Tunghsiao site.
+
+- Taichung AHDD Stake-Out/Marking - Generate a sketch drawing showing the stake-out and marking of the Thruster Pit vertical drilling location (TH_VD-01) at the Taichung site.
+
+Marine Offshore: Daryll Enano, Mateo Mollaneda
+
+- Offshore Mainline Volume Calculation - [DLS-4200] 20261021_RQ0428_Trenching SRI Design Volume 1-5in
+
+- Offshore Subsea Crossings External Meetings - Mattress Installation Meeting
+
+22.10.2026 Thursday
+
+Onshore-Land: Roderick Clavel
+
+- Taichung AHDD Stake-Out/Marking - Generate a sketch drawing showing the stake-out and marking of the Thruster Pit vertical drilling location (TH_VD-13) at the Taichung site.
+
+- Taichung Landside Progress Survey - Update the base drawing using the latest drawings received from the Operations Team, incorporating the latest survey updates for the Tunghsiao site.
+
+23.10.2026 Friday
+
+No survey tasks logged for this date.
+
+24.10.2026 Saturday
+
+No survey tasks logged for this date.
+
+25.10.2026 Sunday
+
+Onshore-Land: Danilo Bartolome, Roderick Clavel
+
+- Taichung AHDD Monitoring Survey - Gather data of Taichung AHDD Road settlement monitoring
+
+- Taichung AHDD Survey Report - Process survey report of the Taichung AHDD Road settlement monitoring
+
+- Tunghsiao Temp Platform Survey Input - Drawings - Update the base drawing using the latest drawings received from the Operations Team, incorporating the latest survey updates for the Tunghsiao and Taichung sites.
+
+- Tunghsiao Temp Platform Survey Input - Drawings - Update the Data Controller background using the latest drawings and incorporate the latest survey updates for the Tunghsiao site.</textarea>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== VIEW 3: IMAGE & TABLE SCREENSHOTS MANAGER ==================== -->
+    <section id="view-images" class="hidden space-y-6 no-print">
+      <div class="bg-sky-50 border border-sky-200 rounded-xl p-4 flex items-start gap-3 shadow-sm">
+        <div class="text-sky-600 mt-0.5">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <div>
+          <h3 class="text-sm font-bold text-sky-900">Pagination-Locked Image & Caption Dimensions</h3>
+          <p class="text-xs text-sky-800 mt-1">
+            All section titles and 2-line image descriptions are locked (`keep_with_next = True`) directly above their images and tables. Uploading a Previous Week WSR PDF in Tab 1 automatically updates the baseline survey dates shown below!
+          </p>
+        </div>
+      </div>
+
+      <!-- PART A: 5 STATIC EXCEL TABLE SCREENSHOTS -->
+      <div class="bg-white rounded-xl shadow-sm border border-indigo-200 p-6">
+        <div class="flex flex-wrap justify-between items-center mb-4 border-b border-indigo-100 pb-4 gap-3">
+          <div>
+            <span class="text-[10px] font-bold uppercase tracking-wider bg-indigo-100 text-indigo-800 px-2.5 py-0.5 rounded">Excel Table Screenshots</span>
+            <h2 class="text-lg font-bold text-slate-800 mt-1">Static Excel Screenshot Sections (5 Tables)</h2>
+            <p class="text-xs text-slate-500">These 5 sections inject your cropped Excel table screenshots directly under their headings. Keep the box ticked to reuse last week's table screenshot, or untick to upload a fresh Excel snip.</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="excel-table-grid"></div>
+      </div>
+
+      <!-- PART B: 13 SURVEY PROGRESS IMAGES & CHARTS -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+        <div class="flex flex-wrap justify-between items-center mb-4 border-b pb-4 gap-3">
+          <div>
+            <span class="text-[10px] font-bold uppercase tracking-wider bg-sky-100 text-sky-800 px-2.5 py-0.5 rounded">Survey Maps & Progress Photos</span>
+            <h2 class="text-lg font-bold text-slate-800 mt-1">Weekly Survey Image & Chart Updates (13 Locations)</h2>
+            <p class="text-xs text-slate-500">Tick the box to retain last week's visuals. Untick to upload a new chart and update its survey date caption.</p>
+          </div>
+          <div class="flex gap-3">
+            <button onclick="addPlaceholder()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded text-sm font-bold border border-slate-300 transition">
+              + Add New Placeholder
+            </button>
+            <button id="btn-commit" onclick="commitReportForBoss()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold shadow transition">
+              ✓ Commit Final WSR (Generate Word & PDF)
+            </button>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="image-grid"></div>
+      </div>
+    </section>
+
+    <!-- ==================== VIEW 4: EXECUTIVE BOSS PORTAL ==================== -->
+    <section id="view-boss" class="hidden space-y-6">
+      <div id="boss-archive-card" class="space-y-6 no-print">
+        <div class="bg-gradient-to-r from-[#0f2c59] to-sky-900 rounded-xl shadow-md p-6 text-white flex flex-wrap justify-between items-center gap-4">
+          <div>
+            <span class="text-xs uppercase tracking-widest text-sky-300 font-semibold">Project 20012 Executive Repository</span>
+            <h2 class="text-2xl font-bold mt-1">Committed Weekly Survey Reports (WSR)</h2>
+            <p class="text-xs text-slate-200 mt-1" id="boss-status-subtext">Verified and committed by Chief Surveyor Daryll Enano.</p>
+          </div>
+          <div class="flex flex-wrap gap-3">
+            <button onclick="downloadCommittedFile('pdf')" class="bg-white text-[#0f2c59] hover:bg-sky-50 font-bold px-5 py-3 rounded-lg shadow text-sm flex items-center gap-2 transition">
+              ⬇ Download Official PDF
+            </button>
+            <button onclick="downloadCommittedFile('docx')" class="bg-sky-700 hover:bg-sky-600 text-white font-semibold px-4 py-3 rounded-lg shadow text-sm flex items-center gap-2 transition">
+              ⬇ Download Word (.docx)
+            </button>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+            <h3 class="text-sm font-bold text-slate-800">Committed WSR Release History</h3>
+          </div>
+          <table class="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr class="bg-slate-50 text-slate-600 text-xs uppercase border-b border-slate-200">
+                <th class="py-3 px-6">WSR No.</th>
+                <th class="py-3 px-6">Commit Date</th>
+                <th class="py-3 px-6">Status</th>
+                <th class="py-3 px-6 text-right">Deliverables</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 text-xs">
+              <tr class="bg-emerald-50/40">
+                <td class="py-3.5 px-6 font-bold text-slate-900" id="boss-wsr-id">20012-WSR-2026.42</td>
+                <td class="py-3.5 px-6" id="boss-commit-date">October 19, 2026</td>
+                <td class="py-3.5 px-6"><span class="bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-semibold">Committed & Signed</span></td>
+                <td class="py-3.5 px-6 text-right space-x-2">
+                  <button onclick="downloadCommittedFile('pdf')" class="bg-[#0f2c59] text-white px-3 py-1.5 rounded font-semibold hover:bg-slate-800">Download PDF</button>
+                  <button onclick="downloadCommittedFile('docx')" class="bg-slate-200 text-slate-800 px-3 py-1.5 rounded font-semibold hover:bg-slate-300">Word (.docx)</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- LIVE PRINTABLE EXECUTIVE SUMMARY REPORT PREVIEW -->
+      <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-8 space-y-6">
+        <div class="flex justify-between items-start border-b-2 border-[#0f2c59] pb-4">
+          <div>
+            <p class="text-xs font-bold text-sky-700 uppercase">NMDC Group P.J.S.C — Survey Department</p>
+            <h3 class="text-xl font-extrabold text-slate-900" id="preview-title">Weekly Survey Report — WSR 2026.42</h3>
+            <p class="text-xs text-slate-500">Tung-Hsiao Power Plant 2nd Stage Renewal Project Turn-key Contract of Subsea Gas Pipeline</p>
+          </div>
+          <div class="text-right text-xs text-slate-600">
+            <p><strong>Project No:</strong> 20012</p>
+            <p><strong>Date:</strong> <span id="preview-date">October 19, 2026</span></p>
+            <p><strong>Chief Surveyor:</strong> Daryll Enano</p>
+          </div>
+        </div>
+
+                <!-- PAGE-1 PERSONNEL & ADMIN TABLES PREVIEW -->
+        <div class="space-y-4">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-[#0f2c59]">Page 1 — Personnel Overview, Leave Planning & Training/Pass Status</h4>
+          <div id="preview-admin-tables" class="space-y-4 text-xs"></div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="bg-sky-50/60 border border-sky-100 rounded-lg p-4">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-[#0f2c59] mb-2">1. Key Weekly Highlights</h4>
+            <ol id="preview-highlights" class="list-decimal list-inside text-xs text-slate-700 space-y-2 leading-relaxed"></ol>
+          </div>
+          <div class="bg-amber-50/60 border border-amber-100 rounded-lg p-4">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-amber-900 mb-2">2. Look Ahead Schedule</h4>
+            <ol id="preview-lookahead" class="list-decimal list-inside text-xs text-slate-700 space-y-2 leading-relaxed"></ol>
+          </div>
+          <div class="bg-rose-50/60 border border-rose-100 rounded-lg p-4">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-rose-900 mb-2">3. Outstanding Tasks</h4>
+            <ol id="preview-outstanding" class="list-decimal list-inside text-xs text-slate-700 space-y-2 leading-relaxed"></ol>
+          </div>
+          <div class="bg-indigo-50/60 border border-indigo-100 rounded-lg p-4">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-indigo-900 mb-2">4. Hardware Movement and Status</h4>
+            <ol id="preview-hardware" class="list-decimal list-inside text-xs text-slate-700 space-y-2 leading-relaxed"></ol>
+          </div>
+        </div>
+
+        <div>
+          <h4 class="text-xs font-bold uppercase tracking-wider text-slate-700 mb-2">Daily Survey Activities Log</h4>
+          <pre id="preview-daily" style="font-family: Arial, sans-serif;" class="text-xs bg-slate-50 border border-slate-200 rounded-lg p-4 whitespace-pre-wrap leading-relaxed text-slate-800"></pre>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    let latestGeneratedPdf = null;
+    let latestGeneratedDocx = null;
+    let extractedDtrOutstanding = ["Stakeout and marking of the vertical drilling point number A_VD_31 at the Taichung site", "Generate sketch drawing of the completed stake out and marking of the vertical drilling point location"];
+    let parsedPrevWsrData = {
+      prev_week: '2026.42',
+      highlights: [],
+      look_ahead: [
+        'Request for Diff Charts and Volume calculations for different survey data is expected due to current planning changes and justifications.',
+        'Update Tunghsiao and Taichung site installation as-built drawings (weekly progress update).',
+        'Settlement Monitoring (Road and protection sheetpile) at Taichung site for NMDC surveyor (Daily activity).',
+        'Depth of Burial Survey for Fengmiao Cable Crossings prior to Filter Unit Installation (Under planning with Seatrench and EGST).'
+      ],
+      outstanding_tasks: [
+        'TPC Entry Pass for Danilo on hold until 2027 Feb ARC Renewal. Now Danilo can enter site with temporary gate pass, currently Abror, Roderick and Daryll have TPC yearly pass (Taichung and Tunghsiao).',
+        'Taiwan government E-GNSS correction NTRIP account cannot be requested by NMDC due to company entity registered as foreign company, request to EGST to apply for NMDC operational use. Need to ask EGST for assistance for the EGNSS service. (Stewart Ho assist for the service).',
+        'Danilo to be scheduled for BOSIET. Waiting for Project Schedule.',
+        'Rick Jhou - shortlisted as Lead/Chief Surveyor, Sophie update: will join before 23 Nov 2026.'
+      ],
+      hardware_status: [
+        'Survey Forms Compliance - IA-IM-26.005 and Survey Equipment Mob/Demob Compliance - IA-IM-26.006 memo from HQ to be implemented in the Taiwan Project.'
+      ]
+    };
+
+    const API_BASE = window.location.pathname.startsWith('/wsr') ? '/wsr' : '';
+    let isServerOnline = (window.location.protocol === 'http:' || window.location.protocol === 'https:');
+
+    const statusBadge = document.getElementById('server-status-badge');
+    if (isServerOnline) {
+      statusBadge.textContent = '● Local Python Server Connected';
+      statusBadge.className = 'bg-emerald-500/20 border border-emerald-400 text-emerald-200 px-3 py-1 rounded-full font-medium';
+    } else {
+      statusBadge.textContent = '○ Offline Mode (Run Start_WSR_Portal_V13.bat for Word/PDF Generation)';
+    }
+
+    
+    // ==================== PAGE-1 ADMIN TABLES DATA & EDITOR ENGINE ====================
+    const DEFAULT_ADMIN_TABLES = {
+      personnel: [
+        [{text:'Daryll Enano',highlight:false},{text:'5062',highlight:false},{text:'CHIEF SURVEYOR',highlight:false},{text:'01.07.2025',highlight:false},{text:'-',highlight:false},{text:'NMDC',highlight:false},{text:'Site Office',highlight:false}],
+        [{text:'Mohamad Abror Hediarto',highlight:false},{text:'500652',highlight:false},{text:'PROJECT SURVEYOR',highlight:false},{text:'01.09.2025',highlight:false},{text:'-',highlight:false},{text:'BRUNEL',highlight:false},{text:'Site Office',highlight:false}],
+        [{text:'Danilo Bartolome',highlight:false},{text:'502893',highlight:false},{text:'PROJECT SURVEYOR',highlight:false},{text:'01.12.2025',highlight:false},{text:'-',highlight:false},{text:'BRUNEL',highlight:false},{text:'Site Office',highlight:false}],
+        [{text:'Mateo Mollaneda',highlight:false},{text:'503296',highlight:false},{text:'SURVEY DATA PROCESSOR',highlight:false},{text:'22.12.2025',highlight:false},{text:'-',highlight:false},{text:'BRUNEL',highlight:false},{text:'Site Office',highlight:false}],
+        [{text:'Roderick Clavel',highlight:false},{text:'T3274',highlight:false},{text:'SURVEYOR',highlight:false},{text:'24.03.2025',highlight:false},{text:'-',highlight:false},{text:'NMDC',highlight:false},{text:'Site Office',highlight:false}]
+      ],
+      leave: [
+        [{text:'Daryll Enano',highlight:false},{text:'01-12-2026',highlight:false},{text:'05-01-2027',highlight:false},{text:'09-01-2027',highlight:false},{text:'Rotation',highlight:false},{text:'Planned',highlight:false},{text:'Philippines',highlight:false}],
+        [{text:'Mohamad Abror Hediarto',highlight:false},{text:'28.09.2026',highlight:true},{text:'24.10.2026',highlight:true},{text:'N/A',highlight:false},{text:'Annual',highlight:false},{text:'Ongoing',highlight:true},{text:'Taiwan',highlight:false}],
+        [{text:'Danilo Bartolome',highlight:false},{text:'18.12.2026',highlight:false},{text:'17.01.2027',highlight:false},{text:'N/A',highlight:false},{text:'Annual',highlight:false},{text:'Planned',highlight:false},{text:'Philippines',highlight:false}],
+        [{text:'Mateo Mollaneda',highlight:false},{text:'21.01-2027',highlight:false},{text:'22.02.2027',highlight:false},{text:'N/A',highlight:false},{text:'Annual',highlight:false},{text:'Planned',highlight:false},{text:'Philippines',highlight:false}],
+        [{text:'Roderick Clavel',highlight:false},{text:'21-01-2027',highlight:false},{text:'21-02.2027',highlight:false},{text:'15-01-2027',highlight:false},{text:'Rotation',highlight:false},{text:'Planned',highlight:false},{text:'Philippines',highlight:false}]
+      ],
+      training: [
+        [{text:'Daryll Enano',highlight:false},{text:'2026-11-26',highlight:false},{text:'BOSIET\n2026-01-20',highlight:false},{text:'2026-04-21',highlight:false},{text:'2026-06-30',highlight:false},{text:'2026-12-31',highlight:false},{text:'All Complete',highlight:false}],
+        [{text:'Mohamad Abror Hediarto',highlight:false},{text:'2027-08-24',highlight:false},{text:'BOSIET\n2023-10-20',highlight:false},{text:'2025-09-19',highlight:false},{text:'2026-06-30',highlight:false},{text:'2026-12-31',highlight:false},{text:'All Complete',highlight:false}],
+        [{text:'Danilo Bartolome',highlight:false},{text:'2027-08-31',highlight:false},{text:'Waiting for Project Schedule',highlight:true},{text:'2026-01-07',highlight:false},{text:'2026-05-30',highlight:false},{text:'Application – Processing',highlight:false},{text:'Need to wait until Feb 2027 ARC Renewal',highlight:true}],
+        [{text:'Mateo Mollaneda',highlight:false},{text:'2026-12-21',highlight:false},{text:'BOSIET\n2024-01-17',highlight:false},{text:'2026-01-16',highlight:false},{text:'2026-05-30',highlight:false},{text:'Application – Processing',highlight:false},{text:'On-going',highlight:false}],
+        [{text:'Roderick Clavel',highlight:false},{text:'2027-01-31',highlight:false},{text:'BOSIET\n2026-04-01',highlight:false},{text:'2026-04-21',highlight:false},{text:'2026-05-30',highlight:false},{text:'2026-12-31',highlight:false},{text:'All Complete',highlight:false}]
+      ]
+    };
+
+    let adminTablesData = JSON.parse(JSON.stringify(DEFAULT_ADMIN_TABLES));
+
+    function escapeHtmlAttr(str) {
+      return String(str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function renderSingleAdminTable(tableKey, tbodyId) {
+      const tbody = document.getElementById(tbodyId);
+      if (!tbody) return;
+      tbody.innerHTML = '';
+      const rows = adminTablesData[tableKey] || [];
+      rows.forEach((rowCells, rIdx) => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-50/80';
+        let cellsHtml = '';
+        rowCells.forEach((cellObj, cIdx) => {
+          const txt = cellObj.text || '';
+          const hl = !!cellObj.highlight;
+          const bgClass = hl ? 'bg-yellow-200 font-semibold' : 'bg-white';
+          const btnClass = hl ? 'bg-yellow-400 text-slate-900 border-yellow-500' : 'bg-slate-100 text-slate-400 border-slate-200 hover:text-slate-700';
+          const isMultiline = (tableKey === 'training' && (cIdx === 2 || cIdx === 5 || cIdx === 6)) || txt.includes('\n');
+          const inputControl = isMultiline
+            ? `<textarea rows="2" oninput="onAdminCellEdit('${tableKey}', ${rIdx}, ${cIdx}, this.value)" class="w-full text-center text-xs px-1.5 py-1 rounded border border-transparent focus:border-sky-400 focus:bg-white resize-y ${bgClass}">${escapeHtmlAttr(txt)}</textarea>`
+            : `<input type="text" value="${escapeHtmlAttr(txt)}" oninput="onAdminCellEdit('${tableKey}', ${rIdx}, ${cIdx}, this.value)" class="w-full text-center text-xs px-1.5 py-1.5 rounded border border-transparent focus:border-sky-400 focus:bg-white ${bgClass}" />`;
+
+          cellsHtml += `
+            <td class="border border-slate-300 p-1 relative group ${bgClass}" id="td_${tableKey}_${rIdx}_${cIdx}">
+              <div class="flex items-center gap-0.5">
+                <div class="flex-1">${inputControl}</div>
+                <button type="button" title="Toggle Yellow Highlight in Word & PDF" onclick="toggleAdminCellHighlight('${tableKey}', ${rIdx}, ${cIdx})" class="text-[10px] px-1 py-0.5 rounded border ${btnClass} transition">🖍</button>
+              </div>
+            </td>`;
+        });
+
+        const upDisabled = rIdx === 0 ? 'disabled class="text-slate-200 px-1 cursor-not-allowed"' : `onclick="moveAdminTableRow('${tableKey}', ${rIdx}, -1)" class="text-slate-500 hover:text-slate-900 px-1"`;
+        const downDisabled = rIdx === rows.length - 1 ? 'disabled class="text-slate-200 px-1 cursor-not-allowed"' : `onclick="moveAdminTableRow('${tableKey}', ${rIdx}, 1)" class="text-slate-500 hover:text-slate-900 px-1"`;
+
+        cellsHtml += `
+          <td class="border border-slate-300 px-1 py-1 bg-slate-50 whitespace-nowrap">
+            <button type="button" title="Move Up" ${upDisabled}>▲</button>
+            <button type="button" title="Move Down" ${downDisabled}>▼</button>
+            <button type="button" title="Delete Row" onclick="deleteAdminTableRow('${tableKey}', ${rIdx})" class="text-rose-500 hover:text-rose-700 font-bold px-1">✕</button>
+          </td>`;
+
+        tr.innerHTML = cellsHtml;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderAllAdminTables() {
+      renderSingleAdminTable('personnel', 'tbody-admin-personnel');
+      renderSingleAdminTable('leave', 'tbody-admin-leave');
+      renderSingleAdminTable('training', 'tbody-admin-training');
+      renderExecutiveAdminTablesPreview();
+    }
+
+    function onAdminCellEdit(tableKey, rIdx, cIdx, newVal) {
+      if (adminTablesData[tableKey] && adminTablesData[tableKey][rIdx] && adminTablesData[tableKey][rIdx][cIdx]) {
+        adminTablesData[tableKey][rIdx][cIdx].text = newVal;
+        saveAdminTablesLocal();
+      }
+    }
+
+    function toggleAdminCellHighlight(tableKey, rIdx, cIdx) {
+      if (adminTablesData[tableKey] && adminTablesData[tableKey][rIdx] && adminTablesData[tableKey][rIdx][cIdx]) {
+        adminTablesData[tableKey][rIdx][cIdx].highlight = !adminTablesData[tableKey][rIdx][cIdx].highlight;
+        renderAllAdminTables();
+        saveAdminTablesLocal();
+      }
+    }
+
+    function addAdminTableRow(tableKey) {
+      const defaults = {
+        personnel: ['New Personnel', 'TBD', 'SURVEYOR', '01.11.2026', '-', 'NMDC', 'Site Office'],
+        leave: ['New Personnel', 'TBD', 'TBD', 'N/A', 'Rotation', 'Planned', 'Philippines'],
+        training: ['New Personnel', 'TBD', 'BOSIET\nTBD', 'TBD', 'TBD', 'Application – Processing', 'On-going']
+      };
+      const row = (defaults[tableKey] || ['','','','','','','']).map(t => ({ text: t, highlight: false }));
+      adminTablesData[tableKey].push(row);
+      renderAllAdminTables();
+      saveAdminTablesLocal();
+    }
+
+    function addNewPersonnelAllTables() {
+      const name = prompt('Enter full name of the new survey personnel (e.g., Rick Jhou):');
+      if (!name || !name.trim()) return;
+      const cleanName = name.trim();
+      adminTablesData.personnel.push([
+        {text: cleanName, highlight: false},
+        {text: 'TBD', highlight: false},
+        {text: 'LEAD / CHIEF SURVEYOR', highlight: false},
+        {text: 'TBD', highlight: false},
+        {text: '-', highlight: false},
+        {text: 'NMDC', highlight: false},
+        {text: 'Site Office', highlight: false}
+      ]);
+      adminTablesData.leave.push([
+        {text: cleanName, highlight: false},
+        {text: 'N/A', highlight: false},
+        {text: 'N/A', highlight: false},
+        {text: 'N/A', highlight: false},
+        {text: 'Rotation', highlight: false},
+        {text: 'Planned', highlight: false},
+        {text: '-', highlight: false}
+      ]);
+      adminTablesData.training.push([
+        {text: cleanName, highlight: false},
+        {text: 'TBD', highlight: false},
+        {text: 'BOSIET\nTBD', highlight: false},
+        {text: 'TBD', highlight: false},
+        {text: 'TBD', highlight: false},
+        {text: 'Application – Processing', highlight: false},
+        {text: 'On-going', highlight: true}
+      ]);
+      renderAllAdminTables();
+      saveAdminTablesLocal();
+      saveAdminTablesToServer(false);
+    }
+
+    function deleteAdminTableRow(tableKey, rIdx) {
+      const name = adminTablesData[tableKey]?.[rIdx]?.[0]?.text || 'this row';
+      if (!confirm(`Remove "${name}" from ${tableKey.toUpperCase()} table?`)) return;
+      adminTablesData[tableKey].splice(rIdx, 1);
+      renderAllAdminTables();
+      saveAdminTablesLocal();
+    }
+
+    function moveAdminTableRow(tableKey, rIdx, dir) {
+      const rows = adminTablesData[tableKey];
+      const nIdx = rIdx + dir;
+      if (nIdx >= 0 && nIdx < rows.length) {
+        [rows[rIdx], rows[nIdx]] = [rows[nIdx], rows[rIdx]];
+        renderAllAdminTables();
+        saveAdminTablesLocal();
+      }
+    }
+
+    function saveAdminTablesLocal() {
+      try {
+        localStorage.setItem('nmdc_wsr_admin_tables_v13', JSON.stringify(adminTablesData));
+        const st = document.getElementById('admin-tables-status');
+        if (st) st.textContent = '✓ Saved Locally (Click 💾 Save to update Word Template)';
+      } catch (e) {}
+    }
+
+    async function loadAdminTablesOnStartup() {
+      const savedLocal = localStorage.getItem('nmdc_wsr_admin_tables_v13');
+      if (savedLocal) {
+        try {
+          const parsed = JSON.parse(savedLocal);
+          if (parsed.personnel && parsed.leave && parsed.training) {
+            adminTablesData = parsed;
+          }
+        } catch (e) {}
+      }
+      if (isServerOnline) {
+        try {
+          const res = await fetch(API_BASE + '/api/admin_tables');
+          if (res.ok) {
+            const data = await res.json();
+            if (data.status === 'ok' && data.admin_tables?.personnel?.length) {
+              adminTablesData = data.admin_tables;
+              localStorage.setItem('nmdc_wsr_admin_tables_v13', JSON.stringify(adminTablesData));
+            }
+          }
+        } catch (e) {}
+      }
+      renderAllAdminTables();
+    }
+
+    async function saveAdminTablesToServer(showAlert = true) {
+      saveAdminTablesLocal();
+      if (!isServerOnline) {
+        if (showAlert) alert('Saved in browser! Launch via Start_WSR_Portal_V13.bat to write directly to WSR_Master_Template_V8.docx.');
+        return;
+      }
+      try {
+        const res = await fetch(API_BASE + '/api/admin_tables', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ admin_tables: adminTablesData })
+        });
+        const data = await res.json();
+        const st = document.getElementById('admin-tables-status');
+        if (st) st.textContent = '✓ Synced to WSR_Master_Template_V8.docx & Server';
+        if (showAlert) alert(data.message || 'Saved Page-1 Admin Tables to Server & Master Template!');
+      } catch (err) {
+        if (showAlert) alert('Error saving admin tables to server: ' + err);
+      }
+    }
+
+    async function reloadAdminTablesFromTemplate() {
+      if (isServerOnline) {
+        try {
+          const res = await fetch(API_BASE + '/api/admin_tables?reload=1');
+          const data = await res.json();
+          if (data.status === 'ok' && data.admin_tables?.personnel?.length) {
+            adminTablesData = data.admin_tables;
+            saveAdminTablesLocal();
+            renderAllAdminTables();
+            alert('Reloaded all 3 Personnel & Admin Tables directly from WSR_Master_Template_V8.docx!');
+            return;
+          }
+        } catch (e) {}
+      }
+      adminTablesData = JSON.parse(JSON.stringify(DEFAULT_ADMIN_TABLES));
+      saveAdminTablesLocal();
+      renderAllAdminTables();
+      alert('Reset all 3 Personnel & Admin Tables to baseline defaults.');
+    }
+
+    function renderExecutiveAdminTablesPreview() {
+      const container = document.getElementById('preview-admin-tables');
+      if (!container) return;
+      const buildTableHtml = (title, headers, rows) => {
+        let ths = headers.map(h => `<th class="border border-slate-300 bg-slate-100 px-2 py-1 font-bold text-slate-800">${h}</th>`).join('');
+        let trs = (rows || []).map(r => {
+          let tds = r.map(c => {
+            const hlStyle = c.highlight ? 'background-color:#fef08a;font-weight:600;' : '';
+            const val = escapeHtmlAttr(c.text || '').replace(/\n/g, '<br>');
+            return `<td class="border border-slate-300 px-2 py-1 text-center" style="${hlStyle}">${val}</td>`;
+          }).join('');
+          return `<tr>${tds}</tr>`;
+        }).join('');
+        return `
+          <div>
+            <p class="font-bold text-slate-800 mb-1">${title}</p>
+            <table class="w-full border-collapse text-[11px]">
+              <thead><tr>${ths}</tr></thead>
+              <tbody>${trs}</tbody>
+            </table>
+          </div>`;
+      };
+      container.innerHTML =
+        buildTableHtml('Personnel Overview', ['NAME', 'FILE NO.', 'DESIGNATION', 'Date of Arrival', 'Date of Dep', 'COMPANY', 'WORK AREA'], adminTablesData.personnel) +
+        buildTableHtml('Leave Planning', ['NAME', 'Start of Leave', 'End of Leave', 'UAE Visa Run', 'Leave Type', 'Remarks', 'Destination'], adminTablesData.leave) +
+        buildTableHtml('Training and Pass Status', ['Name', 'ARC expiry', 'Offshore Training', 'OSHA Training', 'Taichung Port Pass', 'TPC PASS Validity', 'Remarks'], adminTablesData.training);
+    }
+
+    // ==================== PREVIOUS WEEK WSR PDF / DOCX PARSER (2-WEEK CONTEXT) ====================
+    function parsePrevWsrTextClient(rawText, sourceFilename = 'Previous WSR') {
+      const textFixed = rawText.replace(/([a-zA-Z])-\r?\n\s*([a-zA-Z])/g, '$1-$2');
+      let cleaned = textFixed.replace(/From No\.:\s*#\d+\s*\d*/gi, '');
+      cleaned = cleaned.replace(/MDC\s+DREDGING & MARINE[\s\S]*?20012\s*WSR\s*\d{4}\.\d{2}/gi, '');
+      cleaned = cleaned.replace(/Weekly Survey Report[\s\S]*?20012\s*WSR\s*\d{4}\.\d{2}/gi, '');
+
+      const mWk = rawText.match(/WSR\s*(\d{4}\.\d{2})/i);
+      const prevWeek = mWk ? mWk[1] : 'Previous Week';
+
+      function extractBlock(startHdr, endHdr) {
+        const regex = new RegExp(startHdr + '\\s*([\\s\\S]*?)\\s*' + endHdr, 'i');
+        const m = cleaned.match(regex);
+        if (!m) return [];
+        const block = m[1].trim();
+        const items = block.split(/(?:^|\n)\s*(?:\d+[\.\)]\s+|\*\s+|-\s+)/);
+        const out = [];
+        items.forEach(it => {
+          const single = it.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('---')).join(' ');
+          if (single) out.push(single);
+        });
+        return out;
+      }
+
+      const hl = extractBlock('Highlights', 'Look ahead');
+      const la = extractBlock('Look ahead', 'Outstanding Tasks');
+      const ot = extractBlock('Outstanding Tasks', 'Hardware Movement and Status');
+      const hw = extractBlock('Hardware Movement and Status', 'NMDC Hardware from Abu Dhabi');
+
+      if (hl.length) parsedPrevWsrData.highlights = hl;
+      if (la.length) parsedPrevWsrData.look_ahead = la;
+      if (ot.length) parsedPrevWsrData.outstanding_tasks = ot;
+      if (hw.length) parsedPrevWsrData.hardware_status = hw;
+      parsedPrevWsrData.prev_week = prevWeek;
+
+      // Also extract the 13 image survey dates from the previous WSR so Tab 3 stays in sync!
+      const datePatterns = {
+        img_on_ahdd: /Taichung AHDD Site:\s*\(([^)]+)\)/i,
+        img_on_tienli: /Taichung Tienli Site:\s*\(([^)]+)\)/i,
+        img_on_b37: /Taichung Berth 37 Site:\s*\(([^)]+)\)/i,
+        img_on_tunghsiao: /Tunghsiao Temporary Platform AHDD Site:\s*\(([^)]+)\)/i,
+        img_nr_t1_float: /Floatation Channel CH\s*[-–]265 to \+CH 180[\s\S]{0,80}?Monitoring Survey\s*\(([^)]+)\)/i,
+        img_nr_t1_main: /CH 180 to CH 1340[\s\S]{0,80}?Monitoring Survey\s*\(([^)]+)\)/i,
+        img_nr_t8: /Trench 8[\s\S]{0,80}?Monitoring Survey\s*\(([^)]+)\)/i,
+        img_nr_midline: /Midline Tie-In[\s\S]{0,80}?Monitoring Survey\s*\(([^)]+)\)/i,
+        img_nr_dump_tc: /Dumping area monitoring \(Taichung Nearshore\)[\s\S]{0,80}?Monitoring Survey\s*\(([^)]+)\)/i,
+        img_nr_dump_ts: /Dumping area monitoring \(Tunghsiao Nearshore\)[\s\S]{0,80}?Monitoring Survey\s*\(([^)]+)\)/i,
+        img_off_matt_1: /Crossings A 1,2 and B 1,2\s*\(([^)]+)\)/i,
+        img_off_matt_3: /Crossings A 3 and B 3\s*\(([^)]+)\)/i,
+        img_off_fengmiao: /Fengmiao OEC1 and OEC2\s*\(([^)]+)\)/i
+      };
+
+      let updatedDatesCount = 0;
+      imageLocations.forEach(loc => {
+        const pat = datePatterns[loc.id];
+        if (pat) {
+          const mDt = rawText.match(pat);
+          if (mDt && mDt[1]) {
+            loc.lastDate = mDt[1].trim();
+            updatedDatesCount++;
+          }
+        }
+      });
+      if (updatedDatesCount > 0) renderImageGrid();
+
+      // Populate the inspector box
+      const summaryText = `[Previous Committed WSR: ${prevWeek} (${sourceFilename})]\n` +
+        `Previous Highlights:\n` + parsedPrevWsrData.highlights.map((x, i) => `${i + 1}. ${x}`).join('\n') + `\n\n` +
+        `Previous Look Ahead:\n` + parsedPrevWsrData.look_ahead.map((x, i) => `${i + 1}. ${x}`).join('\n') + `\n\n` +
+        `Previous Outstanding Tasks:\n` + parsedPrevWsrData.outstanding_tasks.map((x, i) => `${i + 1}. ${x}`).join('\n') + `\n\n` +
+        `Previous Hardware Movement and Status:\n` + parsedPrevWsrData.hardware_status.map((x, i) => `${i + 1}. ${x}`).join('\n');
+
+      document.getElementById('prev-wsr-context-box').value = summaryText;
+
+      const pill = document.getElementById('prev-wsr-loaded-pill');
+      if (pill) {
+        pill.textContent = `✓ Loaded ${sourceFilename} (WSR ${prevWeek}) + ${updatedDatesCount} Chart Dates`;
+        pill.className = 'text-[11px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-2.5 py-0.5 rounded-full font-bold';
+      }
+      const topBadge = document.getElementById('context-status-badge');
+      if (topBadge) {
+        topBadge.textContent = `● 2-Week Context Active (Prev: ${prevWeek})`;
+        topBadge.className = 'bg-emerald-500/30 border border-emerald-300 text-emerald-100 px-3 py-1 rounded-full font-semibold';
+      }
+    }
+
+    async function handlePrevWsrUpload() {
+      const fileInput = document.getElementById('prev-wsr-file');
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      const pill = document.getElementById('prev-wsr-loaded-pill');
+      if (pill) pill.textContent = `⏳ Parsing ${file.name}...`;
+
+      try {
+        let extractedText = '';
+        if (file.name.toLowerCase().endsWith('.pdf')) {
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+            const page = await pdf.getPage(pageNum);
+            const content = await page.getTextContent();
+            const pageLines = content.items.map(item => item.str).join(' ');
+            extractedText += pageLines + '\n';
+          }
+        } else if (file.name.toLowerCase().endsWith('.docx')) {
+          const arrayBuffer = await file.arrayBuffer();
+          const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+          extractedText = result.value;
+        } else {
+          extractedText = await file.text();
+        }
+
+        parsePrevWsrTextClient(extractedText, file.name);
+        await runAiLogAnalyzer();
+        alert(`Loaded Previous Week WSR (${file.name})!\n\n• Extracted Previous Highlights, Look Ahead, Outstanding Tasks & Hardware Status\n• Synced baseline chart dates in Tab 3\n• Updated Current Week's 4 sections using 2-Week Context!`);
+      } catch (err) {
+        alert('Error parsing Previous Week WSR file: ' + err);
+      }
+    }
+
+    async function autoLoadLatestWsrFromServer() {
+      if (!isServerOnline) {
+        alert('Please launch the portal via Start_WSR_Portal_V13.bat to auto-load from committed_reports/, or use the file upload box directly.');
+        return;
+      }
+      try {
+        const res = await fetch(API_BASE + '/api/auto_load_latest_wsr');
+        const data = await res.json();
+        if (data.status === 'ok') {
+          parsePrevWsrTextClient(data.raw_text, data.filename);
+          if (data.admin_tables && data.admin_tables.personnel && data.admin_tables.personnel.length) { adminTablesData = data.admin_tables; saveAdminTablesLocal(); renderAllAdminTables(); }
+          await runAiLogAnalyzer();
+          alert(`Auto-loaded ${data.filename} from committed_reports/ as your Week N-1 baseline!`);
+        } else {
+          alert(data.message || 'No previous WSR found in committed_reports/.');
+        }
+      } catch (err) {
+        alert('Could not auto-load from server: ' + err);
+      }
+    }
+
+    // ==================== AI LOG READER & PER-BOX AI POLISHER ====================
+    const AI_SYSTEM_INSTRUCTION = `You are the Chief Surveyor's AI Executive Assistant for NMDC Group Project 20012 (Tung-Hsiao Power Plant 2nd Stage Renewal Project Turn-key Contract of Subsea Gas Pipeline in Taichung and Tunghsiao, Taiwan).
+You are given a **2-Week Rolling Context Input**:
+- INPUT A: The Previous Week's Committed WSR (Highlights, Look Ahead, Outstanding Tasks, and Hardware Movement & Status).
+- INPUT B: The Current Week's Daily Survey Activities Log (Monday-Sunday) and any DTR Outstanding Actions.
+
+Synthesize and generate concise, executive-grade items for the Current Week's 4 WSR sections:
+1. "highlights": 3 to 5 executive summary bullets for the CURRENT week grouped by scope (Hydrographic Survey Vessels WS166 / Echo 4, Taichung AHDD & Onshore Site Progress, Tunghsiao Temporary Platform & Benchmark/As-Built Surveys, Wuqi Office & Marine Engineering Deliverables). Preserve exact benchmark IDs (TG01, TG03, TG06), point numbers (A-VD-33), vessel names, and drawing numbers (RQ0405, NMDC-SUR-20012-OVW-252).
+2. "look_ahead": 4 to 6 actionable look-ahead items for NEXT week. Carry forward recurring/unfinished Look Ahead items from Previous Week's WSR, remove one-off scopes completed in Current Week's Daily Activities, and add new upcoming scopes from this week's logs or DTR Outstanding Actions.
+3. "outstanding_tasks": Carry forward unresolved administrative/technical items from Previous Week's WSR Outstanding Tasks (Danilo TPC Entry Pass / Feb 2027 ARC renewal, Taiwan E-GNSS NTRIP account via EGST/Stewart Ho, Danilo BOSIET scheduling, Rick Jhou onboarding), update/remove any resolved item, and add 1 to 2 synthesized items covering pending field/office DTR actions.
+4. "hardware_status": Carry forward standing HQ compliance memos ("Survey Forms Compliance - IA-IM-26.005 and Survey Equipment Mob/Demob Compliance - IA-IM-26.006 memo from HQ to be implemented in the Taiwan Project.") AND extract any vessel/equipment inspections, MBES patch tests, GNSS/RTK benchmark verifications, total station/level checks, or engine/equipment repairs mentioned in Current Week's Daily Activities.
+Return STRICT JSON ONLY with keys "highlights", "look_ahead", "outstanding_tasks", "hardware_status" (each an array of strings without leading numbers).`;
+
+    const AI_POLISH_INSTRUCTION = `You are the Chief Surveyor's AI Executive Editor for NMDC Group Project 20012 (Subsea Gas Pipeline in Taiwan).
+Rewrite and polish the user's draft notes for the specified WSR section into formal, concise, executive-grade engineering English suitable for an official NMDC Weekly Survey Report.
+- Preserve all technical identifiers, benchmark names (TG01, TG06), vessel names (WS166, Echo 4), personnel names, and drawing/document codes.
+- Keep each line as a distinct item in the returned JSON array.
+- Return STRICT JSON ONLY in this schema (without leading numbers):
+{
+  "items": ["polished item 1", "polished item 2"]
+}`;
+
+    function toggleAiSettings() {
+      const dr = document.getElementById('ai-settings-drawer');
+      if (dr) dr.classList.toggle('hidden');
+    }
+
+    function loadAiSettingsLocal() {
+      const savedProvider = localStorage.getItem('nmdc_wsr_ai_provider') || 'gemini';
+      const savedKey = localStorage.getItem('nmdc_wsr_gemini_key') || '';
+      const provEl = document.getElementById('ai-provider');
+      const keyEl = document.getElementById('ai-gemini-key');
+      if (provEl) provEl.value = savedProvider;
+      if (keyEl) keyEl.value = savedKey;
+      updateAiStatusBadge();
+    }
+
+    function saveAiSettingsLocal() {
+      const provEl = document.getElementById('ai-provider');
+      const keyEl = document.getElementById('ai-gemini-key');
+      if (provEl) localStorage.setItem('nmdc_wsr_ai_provider', provEl.value);
+      if (keyEl) localStorage.setItem('nmdc_wsr_gemini_key', keyEl.value.trim());
+      updateAiStatusBadge();
+      if (isServerOnline && provEl && keyEl) {
+        fetch(API_BASE + '/api/ai_config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider: provEl.value, gemini_api_key: keyEl.value.trim() })
+        }).catch(() => {});
+      }
+    }
+
+    function updateAiStatusBadge(customText) {
+      const badge = document.getElementById('ai-engine-status');
+      if (!badge) return;
+      if (customText) {
+        badge.textContent = customText;
+        return;
+      }
+      const prov = document.getElementById('ai-provider')?.value || 'gemini';
+      const key = document.getElementById('ai-gemini-key')?.value?.trim() || '';
+      if (prov === 'gemini' && key) {
+        badge.textContent = '● Gemini 2.5 Flash Active (2-Week Context)';
+        badge.className = 'text-[10px] bg-emerald-500/30 border border-emerald-400 text-emerald-200 px-2 py-0.5 rounded-full font-semibold';
+      } else if (prov === 'ollama') {
+        badge.textContent = '● Local Ollama LLM Active (2-Week Context)';
+        badge.className = 'text-[10px] bg-sky-500/30 border border-sky-400 text-sky-200 px-2 py-0.5 rounded-full font-semibold';
+      } else {
+        badge.textContent = '● Built-In 2-Week Survey NLP Active (Add Gemini Key in ⚙ Settings for Cloud LLM)';
+        badge.className = 'text-[10px] bg-amber-500/30 border border-amber-400 text-amber-200 px-2 py-0.5 rounded-full font-semibold';
+      }
+    }
+
+    async function runAiLogAnalyzer() {
+      const btn = document.getElementById('btn-ai-generate');
+      const origHtml = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span>⏳ AI Synthesizing 2-Week Context...</span>';
+      }
+
+      autoSyncDatesFromDailyLog();
+
+      const rawText = document.getElementById('wsr-daily-compiled').value;
+      const prevWsrText = document.getElementById('prev-wsr-context-box')?.value || '';
+      const prov = document.getElementById('ai-provider')?.value || 'gemini';
+      const apiKey = document.getElementById('ai-gemini-key')?.value?.trim() || '';
+
+      let aiSuccess = false;
+
+      if (prov === 'gemini' && apiKey) {
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
+          const userPrompt = `=== INPUT A: PREVIOUS WEEK COMMITTED WSR CONTEXT ===\n${prevWsrText}\n\n=== INPUT B: CURRENT WEEK DAILY SURVEY ACTIVITIES LOG ===\n${rawText}\n\n=== EXTRACTED DTR OUTSTANDING ACTIONS ===\n` +
+            (extractedDtrOutstanding.length ? extractedDtrOutstanding.map(x => `- ${x}`).join('\n') : 'None explicitly listed.');
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              system_instruction: { parts: [{ text: AI_SYSTEM_INSTRUCTION }] },
+              contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+              generationConfig: { temperature: 0.2, responseMimeType: 'application/json' }
+            })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const rawJson = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (rawJson) {
+              const parsed = JSON.parse(rawJson);
+              applyAiSectionsToStudio(parsed, 'Gemini 2.5 Flash (2-Week Context)');
+              aiSuccess = true;
+            }
+          }
+        } catch (err) {
+          console.warn('Direct Gemini API call failed, trying local server / NLP fallback:', err);
+        }
+      }
+
+      if (!aiSuccess && isServerOnline && (prov === 'gemini' || prov === 'ollama')) {
+        try {
+          const res = await fetch(API_BASE + '/api/ai_generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              raw_daily_text: rawText,
+              prev_wsr_text: prevWsrText,
+              dtr_outstanding: extractedDtrOutstanding,
+              provider: prov,
+              gemini_api_key: apiKey
+            })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.status === 'ok' && data.sections) {
+              applyAiSectionsToStudio(data.sections, data.source || 'Server AI (2-Week Context)');
+              aiSuccess = true;
+            }
+          }
+        } catch (err) {
+          console.warn('Server /api/ai_generate not available:', err);
+        }
+      }
+
+      if (!aiSuccess) {
+        regenerateAllFromDailyLog(true);
+        updateAiStatusBadge('✓ Generated via Built-In 2-Week Survey NLP Engine');
+      }
+
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+      }
+    }
+
+    function offlineExecutivePolishLine(line) {
+      let s = line.replace(/^\s*\d+[\.\)]\s*/, '').replace(/^[>\-\*\s]+/, '').trim();
+      if (!s) return '';
+      // Expand common shorthand notations cleanly
+      s = s.replace(/\bw\//gi, 'with ')
+           .replace(/\bb\/w\b/gi, 'between')
+           .replace(/\bch\b/gi, 'CH')
+           .replace(/\btbm\b/gi, 'TBM')
+           .replace(/\bmbes\b/gi, 'MBES')
+           .replace(/\bahdd\b/gi, 'AHDD')
+           .replace(/\bgnss\b/gi, 'GNSS')
+           .replace(/\brtk\b/gi, 'RTK')
+           .replace(/\btpc\b/gi, 'TPC')
+           .replace(/\begst\b/gi, 'EGST')
+           .replace(/\bnmdc\b/gi, 'NMDC')
+           .replace(/\bws166\b/gi, 'WS166')
+           .replace(/\becho\s*4\b/gi, 'Echo 4')
+           .replace(/\s{2,}/g, ' ');
+      s = s.charAt(0).toUpperCase() + s.slice(1);
+      if (!/[\.!\)]$/.test(s)) s += '.';
+      return s;
+    }
+
+    async function polishSingleSection(textareaId, sectionTitle, btnId) {
+      const ta = document.getElementById(textareaId);
+      const rawLines = ta.value.split('\n').map(l => l.replace(/^\s*\d+[\.\)]\s*/, '').trim()).filter(Boolean);
+      if (rawLines.length === 0) {
+        alert(`Please type at least one rough note or item in "${sectionTitle}" to polish.`);
+        return;
+      }
+
+      const btn = document.getElementById(btnId);
+      const origText = btn ? btn.textContent : '✨ AI Polish';
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ Polishing...';
+      }
+
+      const prov = document.getElementById('ai-provider')?.value || 'gemini';
+      const apiKey = document.getElementById('ai-gemini-key')?.value?.trim() || '';
+      const prevWsrText = document.getElementById('prev-wsr-context-box')?.value || '';
+      const rawDaily = document.getElementById('wsr-daily-compiled')?.value || '';
+
+      let polishedItems = null;
+
+      if (prov === 'gemini' && apiKey) {
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
+          const userPrompt = `SECTION TO POLISH: ${sectionTitle}\n\nUSER DRAFT NOTES (1 item per line):\n` +
+            rawLines.map(x => `- ${x}`).join('\n') +
+            `\n\n2-WEEK PROJECT CONTEXT:\n${prevWsrText.slice(0, 1500)}\n${rawDaily.slice(0, 2000)}`;
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              system_instruction: { parts: [{ text: AI_POLISH_INSTRUCTION }] },
+              contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+              generationConfig: { temperature: 0.2, responseMimeType: 'application/json' }
+            })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const rawJson = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (rawJson) {
+              const parsed = JSON.parse(rawJson);
+              if (parsed.items && parsed.items.length) {
+                polishedItems = parsed.items;
+                updateAiStatusBadge(`✓ Polished "${sectionTitle}" via Gemini 2.5 Flash`);
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Direct Gemini Polish failed, trying server / offline polisher:', err);
+        }
+      }
+
+      if (!polishedItems && isServerOnline && (prov === 'gemini' || prov === 'ollama')) {
+        try {
+          const res = await fetch(API_BASE + '/api/ai_polish', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              section_name: sectionTitle,
+              draft_lines: rawLines,
+              prev_wsr_text: prevWsrText,
+              raw_daily_text: rawDaily,
+              gemini_api_key: apiKey
+            })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.status === 'ok' && data.items?.length) {
+              polishedItems = data.items;
+              updateAiStatusBadge(`✓ Polished "${sectionTitle}" via ${data.source}`);
+            }
+          }
+        } catch (err) {
+          console.warn('Server /api/ai_polish failed:', err);
+        }
+      }
+
+      if (!polishedItems) {
+        polishedItems = rawLines.map(offlineExecutivePolishLine).filter(Boolean);
+        updateAiStatusBadge(`✓ Polished "${sectionTitle}" via Built-In Survey Executive Formatter`);
+      }
+
+      ta.value = polishedItems.map((x, i) => `${i + 1}. ${String(x).replace(/^\s*\d+[\.\)]\s*/, '').trim()}`).join('\n');
+      syncExecutivePreview();
+
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = origText;
+      }
+    }
+
+    function applyAiSectionsToStudio(sections, sourceLabel) {
+      const cleanNumbered = (arr) => (arr || []).map(x => String(x).replace(/^\s*\d+[\.\)]\s*/, '').trim()).filter(Boolean).map((x, i) => `${i + 1}. ${x}`).join('\n');
+      if (sections.highlights?.length) {
+        document.getElementById('wsr-highlights').value = cleanNumbered(sections.highlights);
+      }
+      if (sections.look_ahead?.length) {
+        document.getElementById('wsr-lookahead').value = cleanNumbered(sections.look_ahead);
+      }
+      if (sections.outstanding_tasks?.length) {
+        document.getElementById('wsr-outstanding').value = cleanNumbered(sections.outstanding_tasks);
+      }
+      if (sections.hardware_status?.length) {
+        document.getElementById('wsr-hardware-status').value = cleanNumbered(sections.hardware_status);
+      }
+      updateAiStatusBadge(`✓ Synthesized by ${sourceLabel}`);
+      syncExecutivePreview();
+    }
+
+    // ==================== AUTOMATIC DATE & ISO WEEK ENGINE ====================
+    const MONTHS_FULL = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+
+    function getOrdinalSuffix(day) {
+      if (day >= 11 && day <= 13) return 'th';
+      switch (day % 10) {
+        case 1: return 'st';
+        case 2: return 'nd';
+        case 3: return 'rd';
+        default: return 'th';
+      }
+    }
+
+    function getISOWeekAndYear(dateObj) {
+      const d = new Date(Date.UTC(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate()));
+      const dayNum = d.getUTCDay() || 7;
+      d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+      return { year: d.getUTCFullYear(), week: weekNo, isoWeekday: dayNum };
+    }
+
+    function formatTopDate(dateObj) {
+      return `${MONTHS_FULL[dateObj.getMonth()]} ${dateObj.getDate()}, ${dateObj.getFullYear()}`;
+    }
+
+    function formatBottomDate(dateObj) {
+      const d = dateObj.getDate();
+      return `${d}${getOrdinalSuffix(d)} ${MONTHS_FULL[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
+    }
+
+    function autoSyncDatesFromDailyLog() {
+      const rawText = document.getElementById('wsr-daily-compiled').value;
+      const regex = /\b(\d{2})\.(\d{2})\.(\d{4})\b/g;
+      let match;
+      let maxDate = null;
+
+      while ((match = regex.exec(rawText)) !== null) {
+        const dd = parseInt(match[1], 10);
+        const mm = parseInt(match[2], 10);
+        const yyyy = parseInt(match[3], 10);
+        const dObj = new Date(yyyy, mm - 1, dd, 12, 0, 0);
+        if (!isNaN(dObj.getTime())) {
+          if (!maxDate || dObj > maxDate) {
+            maxDate = dObj;
+          }
+        }
+      }
+
+      if (!maxDate) return null;
+
+      const iso = getISOWeekAndYear(maxDate);
+      const weekStr = `${iso.year}.${String(iso.week).padStart(2, '0')}`;
+
+      const daysUntilMonday = 8 - iso.isoWeekday;
+      const issueMonday = new Date(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate() + daysUntilMonday, 12, 0, 0);
+
+      document.getElementById('wsr-week').value = weekStr;
+      document.getElementById('wsr-date-top').value = formatTopDate(issueMonday);
+      document.getElementById('wsr-date-bottom').value = formatBottomDate(issueMonday);
+
+      const banner = document.getElementById('auto-sync-banner');
+      if (banner) {
+        const lastStr = `${String(maxDate.getDate()).padStart(2, '0')}.${String(maxDate.getMonth() + 1).padStart(2, '0')}.${maxDate.getFullYear()}`;
+        banner.innerHTML = `2-Week Context (Prev: <strong>${parsedPrevWsrData.prev_week}</strong> ➔ Current Last Entry: <strong>${lastStr}</strong>) | Auto-set WSR to <strong>${weekStr}</strong> & Monday Issue Date to <strong>${formatTopDate(issueMonday)}</strong>.`;
+      }
+      return { maxDate, weekStr, issueMonday };
+    }
+
+    function onWeekNumberManuallyEdited() {
+      const val = document.getElementById('wsr-week').value.trim();
+      const m = val.match(/^(\d{4})\.(\d{1,2})$/);
+      if (!m) return;
+      const year = parseInt(m[1], 10);
+      const week = parseInt(m[2], 10);
+      const simple = new Date(year, 0, 1 + (week - 1) * 7, 12, 0, 0);
+      const dow = simple.getDay() || 7;
+      const isoWeekMonday = new Date(simple);
+      if (dow <= 4) {
+        isoWeekMonday.setDate(simple.getDate() - dow + 1);
+      } else {
+        isoWeekMonday.setDate(simple.getDate() + 8 - dow);
+      }
+      const mondayAfterWeek = new Date(isoWeekMonday.getFullYear(), isoWeekMonday.getMonth(), isoWeekMonday.getDate() + 7, 12, 0, 0);
+      document.getElementById('wsr-date-top').value = formatTopDate(mondayAfterWeek);
+      document.getElementById('wsr-date-bottom').value = formatBottomDate(mondayAfterWeek);
+      syncExecutivePreview();
+    }
+
+    // ==================== 2-WEEK OFFLINE NLP SYNTHESIZER ====================
+    function stripTaskCategoryPrefix(task) {
+      const parts = task.split(/\s+-\s+/);
+      if (parts.length >= 2) {
+        const p0 = parts[0].toLowerCase();
+        if (p0.includes('taichung') || p0.includes('tunghsiao') || p0.includes('offshore') || p0.includes('survey') || p0.includes('drawing')) {
+          if (parts.length >= 3 && ['drawings', 'survey', 'reports'].includes(parts[1].trim().toLowerCase())) {
+            return parts.slice(2).join(' - ').trim();
+          }
+          return parts.slice(1).join(' - ').trim();
+        }
+      }
+      return task.trim();
+    }
+
+    function analyzeDailyLogAndBuildSections(rawText, dtrOutstandingList = []) {
+      const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+
+      const taichungTasks = [];
+      const tunghsiaoTasks = [];
+      const officeMarineTasks = [];
+      const vesselActivities = {};
+      const hardwareEvents = [];
+      const otherTasks = [];
+
+      let currentSec = '';
+      let currentBoat = '';
+
+      for (const line of lines) {
+        if (/^\d{2}\.\d{2}\.\d{4}\s+/i.test(line)) {
+          currentSec = '';
+          currentBoat = '';
+          continue;
+        }
+        if (/^Wuqi Office:/i.test(line)) {
+          currentSec = 'office';
+          continue;
+        }
+        if (/^Onshore-Land:/i.test(line)) {
+          currentSec = 'onshore';
+          continue;
+        }
+        if (/^Marine Offshore:/i.test(line)) {
+          currentSec = 'marine';
+          continue;
+        }
+        if (/Hydro Survey/i.test(line)) {
+          currentSec = 'vessel';
+          const m = line.match(/Survey Boat:\s*([^|\)]+)/i);
+          currentBoat = m ? m[1].trim() : line.replace(/Hydro Survey/i, '').trim();
+          if (!vesselActivities[currentBoat]) vesselActivities[currentBoat] = [];
+          continue;
+        }
+        if (currentSec === 'vessel' && /^Survey Boat:/i.test(line)) {
+          currentBoat = line.split(':')[1].trim();
+          if (!vesselActivities[currentBoat]) vesselActivities[currentBoat] = [];
+          continue;
+        }
+        if (currentSec === 'vessel' && /^Surveyor:/i.test(line)) {
+          continue;
+        }
+
+        if (line.startsWith('-')) {
+          const task = line.replace(/^-+\s*/, '').trim();
+          if (!task) continue;
+
+          if (/(calibration|troubleshooting|\bengine\b|gnss|rtk|patch test|position check|gps survey system|dongle|total station|trimble|leica)/i.test(task)) {
+            const cleanHw = stripTaskCategoryPrefix(task);
+            if (!hardwareEvents.includes(cleanHw)) hardwareEvents.push(cleanHw);
+          }
+
+          if (currentSec === 'vessel') {
+            if (!vesselActivities[currentBoat]) vesselActivities[currentBoat] = [];
+            if (!vesselActivities[currentBoat].includes(task)) {
+              vesselActivities[currentBoat].push(task);
+            }
+          } else if (currentSec === 'office' || currentSec === 'marine') {
+            if (/settlement/i.test(task)) {
+              if (!taichungTasks.includes(task)) taichungTasks.push(task);
+            } else if (!/daily stand-up meeting/i.test(task)) {
+              if (!officeMarineTasks.includes(task)) officeMarineTasks.push(task);
+            }
+          } else if (currentSec === 'onshore') {
+            if (/tunghsiao/i.test(task)) {
+              if (!tunghsiaoTasks.includes(task)) tunghsiaoTasks.push(task);
+            } else if (/taichung/i.test(task)) {
+              if (!taichungTasks.includes(task)) taichungTasks.push(task);
+            } else {
+              if (!otherTasks.includes(task)) otherTasks.push(task);
+            }
+          } else {
+            if (!otherTasks.includes(task)) otherTasks.push(task);
+          }
+        }
+      }
+
+      // 1. Build Executive Highlights from Current Week's Log
+      const highlights = [];
+
+      for (const [boat, statuses] of Object.entries(vesselActivities)) {
+        if (!statuses || statuses.length === 0) continue;
+        const activeOps = statuses.filter(s => !/standby/i.test(s));
+        const standbyCount = statuses.filter(s => /standby/i.test(s)).length;
+        if (activeOps.length > 0) {
+          let hStr = `Hydrographic Survey Vessel (${boat}): ${activeOps.map(s => s.replace(/\.$/, '')).join('; ')}`;
+          if (standbyCount > 0) {
+            hStr += ` (following weather standby at port).`;
+          } else {
+            hStr += `.`;
+          }
+          highlights.push(hStr);
+        } else if (standbyCount > 0) {
+          highlights.push(`Hydrographic Survey Vessel (${boat}): On weather standby at port.`);
+        }
+      }
+
+      if (taichungTasks.length > 0) {
+        const hasSettlement = taichungTasks.some(t => /settlement/i.test(t));
+        const specificTc = [];
+        if (hasSettlement) {
+          specificTc.push('Completed daily Taichung AHDD road settlement monitoring surveys and daily processing reports');
+        }
+        taichungTasks.forEach(t => {
+          if (!/settlement/i.test(t)) {
+            const stripped = stripTaskCategoryPrefix(t).replace(/\.$/, '');
+            if (stripped && !specificTc.includes(stripped)) specificTc.push(stripped);
+          }
+        });
+        highlights.push(`Taichung Onshore & AHDD Site Operations: ${specificTc.join('; ')}.`);
+      }
+
+      if (tunghsiaoTasks.length > 0) {
+        const specificTs = [];
+        tunghsiaoTasks.forEach(t => {
+          const stripped = stripTaskCategoryPrefix(t).replace(/\.$/, '');
+          if (stripped && !specificTs.includes(stripped)) specificTs.push(stripped);
+        });
+        highlights.push(`Tunghsiao Temporary Platform & AHDD Site Operations: ${specificTs.join('; ')}.`);
+      }
+
+      if (officeMarineTasks.length > 0) {
+        const specificOm = [];
+        officeMarineTasks.forEach(t => {
+          const stripped = stripTaskCategoryPrefix(t).replace(/\.$/, '');
+          if (stripped && !specificOm.includes(stripped)) specificOm.push(stripped);
+        });
+        highlights.push(`Wuqi Office & Marine Engineering Deliverables: ${specificOm.join('; ')}.`);
+      }
+
+      otherTasks.forEach(ot => {
+        highlights.push(stripTaskCategoryPrefix(ot));
+      });
+
+      // 2. Build Look Ahead (Carry forward from Previous WSR + add new DTR follow-ups)
+      const lookAhead = [...(parsedPrevWsrData.look_ahead || [])];
+      if (dtrOutstandingList && dtrOutstandingList.length > 0) {
+        const uniqueDtrOut = [...new Set(dtrOutstandingList.map(x => x.replace(/^[>\-\s]+/, '').trim()).filter(Boolean))];
+        uniqueDtrOut.forEach(item => {
+          if (!lookAhead.some(existing => existing.toLowerCase().includes(item.toLowerCase()))) {
+            lookAhead.push(`Scheduled Follow-Up Scope: ${item.replace(/\.+$/, '')}.`);
+          }
+        });
+      }
+
+      // 3. Build Outstanding Tasks (Carry forward from Previous WSR + append current DTR actions)
+      const outstanding = (parsedPrevWsrData.outstanding_tasks || []).filter(
+        x => !x.startsWith('Active Field/Office DTR Action Items:')
+      );
+      if (dtrOutstandingList && dtrOutstandingList.length > 0) {
+        const uniqueDtrOut = [...new Set(dtrOutstandingList.map(x => x.replace(/^[>\-\s]+/, '').trim()).filter(Boolean))];
+        if (uniqueDtrOut.length > 0) {
+          outstanding.push(`Active Field/Office DTR Action Items: ${uniqueDtrOut.map(u => u.replace(/\.+$/, '')).join('; ')}.`);
+        }
+      }
+
+      // 4. Build Hardware Movement and Status (Carry forward standing HQ memos from Previous WSR + add current week hardware events)
+      const hardware = [...(parsedPrevWsrData.hardware_status || [])];
+      hardwareEvents.forEach(he => {
+        if (!hardware.some(existing => existing.toLowerCase().includes(he.toLowerCase()))) {
+          hardware.push(he.endsWith('.') ? he : he + '.');
+        }
+      });
+
+      return { highlights, lookAhead, outstanding, hardware };
+    }
+
+    function regenerateAllFromDailyLog(forceOverwrite = true) {
+      autoSyncDatesFromDailyLog();
+      const rawText = document.getElementById('wsr-daily-compiled').value;
+      const generated = analyzeDailyLogAndBuildSections(rawText, extractedDtrOutstanding);
+
+      const hlEl = document.getElementById('wsr-highlights');
+      const laEl = document.getElementById('wsr-lookahead');
+      const otEl = document.getElementById('wsr-outstanding');
+      const hwEl = document.getElementById('wsr-hardware-status');
+
+      if (forceOverwrite || !hlEl.value.trim()) {
+        hlEl.value = generated.highlights.map((x, i) => `${i + 1}. ${x}`).join('\n');
+      }
+      if (forceOverwrite || !laEl.value.trim()) {
+        laEl.value = generated.lookAhead.map((x, i) => `${i + 1}. ${x}`).join('\n');
+      }
+      if (forceOverwrite || !otEl.value.trim()) {
+        otEl.value = generated.outstanding.map((x, i) => `${i + 1}. ${x}`).join('\n');
+      }
+      if (forceOverwrite || !hwEl.value.trim()) {
+        hwEl.value = generated.hardware.map((x, i) => `${i + 1}. ${x}`).join('\n');
+      }
+      syncExecutivePreview();
+    }
+
+    function regenerateSingleSection(sec) {
+      const rawText = document.getElementById('wsr-daily-compiled').value;
+      const generated = analyzeDailyLogAndBuildSections(rawText, extractedDtrOutstanding);
+      if (sec === 'highlights') {
+        document.getElementById('wsr-highlights').value = generated.highlights.map((x, i) => `${i + 1}. ${x}`).join('\n');
+      } else if (sec === 'lookahead') {
+        document.getElementById('wsr-lookahead').value = generated.lookAhead.map((x, i) => `${i + 1}. ${x}`).join('\n');
+      } else if (sec === 'outstanding') {
+        document.getElementById('wsr-outstanding').value = generated.outstanding.map((x, i) => `${i + 1}. ${x}`).join('\n');
+      } else if (sec === 'hardware') {
+        document.getElementById('wsr-hardware-status').value = generated.hardware.map((x, i) => `${i + 1}. ${x}`).join('\n');
+      }
+      syncExecutivePreview();
+    }
+
+    function onDailyLogEdited() {
+      autoSyncDatesFromDailyLog();
+      if (document.getElementById('cb-auto-sync-on-edit').checked) {
+        regenerateAllFromDailyLog(true);
+      }
+    }
+
+    // ==================== IMAGE & EXCEL SCREENSHOT GRIDS ====================
+    let excelTableLocations = [
+      { id: 'img_tbl_hardware', title: 'NMDC Hardware from Abu Dhabi', category: 'EXCEL_TABLE', isStaticTable: true },
+      { id: 'img_tbl_dongles', title: 'PDS Dongles', category: 'EXCEL_TABLE', isStaticTable: true },
+      { id: 'img_tbl_vessel', title: 'NMDC Survey Vessel & Chartered Survey Vessel', category: 'EXCEL_TABLE', isStaticTable: true },
+      { id: 'img_tbl_dredging', title: 'Dredging and Reclamation Overall Quantity', category: 'EXCEL_TABLE', isStaticTable: true },
+      { id: 'img_tbl_doc_summary', title: 'Survey Document Summary', category: 'EXCEL_TABLE', isStaticTable: true }
+    ];
+
+    let imageLocations = [
+      { id: 'img_on_ahdd', title: 'Taichung AHDD Site', category: 'ONSHORE', lastDate: '2026-October-13', isDeletable: false },
+      { id: 'img_on_tienli', title: 'Taichung Tienli Site', category: 'ONSHORE', lastDate: '2026-September-20', isDeletable: false },
+      { id: 'img_on_b37', title: 'Taichung Berth 37 Site', category: 'ONSHORE', lastDate: '2026-September-20', isDeletable: false },
+      { id: 'img_on_tunghsiao', title: 'Tunghsiao Temp Platform AHDD', category: 'ONSHORE', lastDate: '2026-September-20', isDeletable: false },
+      { id: 'img_nr_t1_float', title: 'Trench 1 Floatation CH-265 to CH180', category: 'NEARSHORE', lastDate: '2026-Sept-28', isDeletable: false },
+      { id: 'img_nr_t1_main', title: 'Trench 1 CH180 to CH1340', category: 'NEARSHORE', lastDate: '2026-Sept-28', isDeletable: false },
+      { id: 'img_nr_t8', title: 'Trench 8 Tunghsiao', category: 'NEARSHORE', lastDate: '2026-Sept-27', isDeletable: false },
+      { id: 'img_nr_midline', title: 'Midline Tie-In Tunghsiao', category: 'NEARSHORE', lastDate: '2026-September-27', isDeletable: false },
+      { id: 'img_nr_dump_tc', title: 'Dumping Area Taichung', category: 'NEARSHORE', lastDate: '2026-September-28', isDeletable: false },
+      { id: 'img_nr_dump_ts', title: 'Dumping Area Tunghsiao', category: 'NEARSHORE', lastDate: '2026-September-28', isDeletable: false },
+      { id: 'img_off_matt_1', title: 'Concrete Mattress Crossings A1,2 / B1,2', category: 'OFFSHORE', lastDate: '2026-July-29', isDeletable: false },
+      { id: 'img_off_matt_3', title: 'Concrete Mattress Crossings A3 / B3', category: 'OFFSHORE', lastDate: '2026-August-17', isDeletable: false },
+      { id: 'img_off_fengmiao', title: 'Fengmiao OEC1/OEC2 Crossings', category: 'OFFSHORE', lastDate: '2026-August-30', isDeletable: false }
+    ];
+
+    function renumberTextarea(textareaId) {
+      const ta = document.getElementById(textareaId);
+      const lines = ta.value.split('\n').map(l => l.replace(/^\s*\d+[\.\)]\s*/, '').trim()).filter(Boolean);
+      ta.value = lines.map((l, idx) => `${idx + 1}. ${l}`).join('\n');
+    }
+
+    function quickAddLine(textareaId, inputId) {
+      const inp = document.getElementById(inputId);
+      const val = inp.value.replace(/^\s*\d+[\.\)]\s*/, '').trim();
+      if (!val) return;
+      const ta = document.getElementById(textareaId);
+      ta.value = (ta.value.trim() + '\n' + val).trim();
+      renumberTextarea(textareaId);
+      inp.value = '';
+      syncExecutivePreview();
+    }
+
+    function renderExcelTableGrid() {
+      const grid = document.getElementById('excel-table-grid');
+      grid.innerHTML = '';
+      excelTableLocations.forEach(loc => {
+        const card = document.createElement('div');
+        card.className = 'border border-indigo-100 rounded-lg p-4 bg-indigo-50/30 relative';
+        card.innerHTML = `
+          <div class="flex justify-between items-start mb-2">
+            <div>
+              <span class="text-[10px] font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded uppercase">STATIC EXCEL SCREENSHOT</span>
+              <h3 class="text-sm font-bold text-slate-800 mt-1">${loc.title} <span class="text-[10px] font-mono text-slate-400 font-normal">({{ ${loc.id} }})</span></h3>
+            </div>
+          </div>
+          <div class="mb-2">
+            <label class="flex items-center space-x-2 text-xs font-semibold text-slate-700 cursor-pointer">
+              <input type="checkbox" id="cb_${loc.id}" checked class="form-checkbox text-indigo-600 rounded" onchange="toggleUpload('${loc.id}')">
+              <span>No update this week (Keep existing Excel screenshot)</span>
+            </label>
+          </div>
+          <div id="inputs_${loc.id}" class="hidden space-y-2 p-3 bg-white border border-indigo-200 rounded mt-2">
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Upload New Excel Table Screenshot (.png / .jpg)</label>
+            <input type="file" id="file_${loc.id}" accept="image/*" class="w-full text-xs file:mr-4 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function renderImageGrid() {
+      const grid = document.getElementById('image-grid');
+      grid.innerHTML = '';
+      imageLocations.forEach((loc, index) => {
+        const card = document.createElement('div');
+        card.className = 'border border-slate-200 rounded-lg p-4 bg-slate-50 relative';
+        let deleteBtnHTML = loc.isDeletable ? `<button onclick="removePlaceholder('${loc.id}')" class="text-red-500 hover:text-red-700 text-xs font-bold ml-3">✕ Remove</button>` : '';
+        let upBtn = index > 0 ? `<button onclick="moveImage(${index}, -1)" class="text-slate-400 hover:text-slate-700 bg-white px-1.5 border rounded">▲</button>` : `<button disabled class="text-slate-200 bg-white px-1.5 border rounded cursor-not-allowed">▲</button>`;
+        let downBtn = index < imageLocations.length - 1 ? `<button onclick="moveImage(${index}, 1)" class="text-slate-400 hover:text-slate-700 bg-white px-1.5 border rounded">▼</button>` : `<button disabled class="text-slate-200 bg-white px-1.5 border rounded cursor-not-allowed">▼</button>`;
+
+        card.innerHTML = `
+          <div class="flex justify-between items-start mb-2">
+            <div>
+              <span class="text-[10px] font-bold text-sky-600 bg-sky-100 px-2 py-0.5 rounded uppercase">${loc.category}</span>
+              <h3 class="text-sm font-bold text-slate-800 mt-1">${loc.title} <span class="text-[10px] font-mono text-slate-400 font-normal">({{ ${loc.id} }})</span></h3>
+            </div>
+            <div class="flex items-center space-x-1">${upBtn}${downBtn}${deleteBtnHTML}</div>
+          </div>
+          <div class="mb-3">
+            <label class="flex items-center space-x-2 text-xs font-semibold text-slate-700 cursor-pointer">
+              <input type="checkbox" id="cb_${loc.id}" checked class="form-checkbox text-sky-600 rounded" onchange="toggleUpload('${loc.id}')">
+              <span>No update this week (Keep existing image & date)</span>
+            </label>
+            <p class="text-[10px] text-slate-400 mt-0.5 ml-5">Currently showing: ${loc.lastDate}</p>
+          </div>
+          <div id="inputs_${loc.id}" class="hidden space-y-3 p-3 bg-white border border-sky-200 rounded">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">New Survey Date / Caption</label>
+              <input type="text" id="date_${loc.id}" value="${loc.lastDate}" class="w-full border border-slate-300 rounded px-2 py-1 text-xs">
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Upload New Image / Chart</label>
+              <input type="file" id="file_${loc.id}" accept="image/*" class="w-full text-xs file:mr-4 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100">
+            </div>
+          </div>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    function toggleUpload(id) {
+      document.getElementById(`inputs_${id}`).classList.toggle('hidden', document.getElementById(`cb_${id}`).checked);
+    }
+
+    function moveImage(index, dir) {
+      const nI = index + dir;
+      if (nI >= 0 && nI < imageLocations.length) {
+        [imageLocations[index], imageLocations[nI]] = [imageLocations[nI], imageLocations[index]];
+        renderImageGrid();
+      }
+    }
+
+    function addPlaceholder() {
+      const title = prompt("Enter title for new chart placeholder:");
+      if (!title) return;
+      const category = prompt("Enter category (ONSHORE, NEARSHORE, OFFSHORE, or EXCEL_TABLE):", "ONSHORE");
+      if (!category) return;
+      const safeId = "img_custom_" + Date.now();
+      imageLocations.push({ id: safeId, title: title, category: category.toUpperCase(), lastDate: 'New Entry', isDeletable: true });
+      renderImageGrid();
+      setTimeout(() => { document.getElementById(`cb_${safeId}`).checked = false; toggleUpload(safeId); }, 100);
+    }
+
+    function removePlaceholder(id) {
+      if(confirm("Remove this placeholder?")) { imageLocations = imageLocations.filter(loc => loc.id !== id); renderImageGrid(); }
+    }
+
+    function syncExecutivePreview() {
+      renderExecutiveAdminTablesPreview();
+      const week = document.getElementById('wsr-week').value;
+      const dateTop = document.getElementById('wsr-date-top').value;
+      document.getElementById('preview-title').textContent = 'Weekly Survey Report — WSR ' + week;
+      document.getElementById('preview-date').textContent = dateTop;
+      document.getElementById('boss-wsr-id').textContent = '20012-WSR-' + week;
+      document.getElementById('boss-commit-date').textContent = dateTop;
+
+      const hlList = document.getElementById('preview-highlights');
+      hlList.innerHTML = '';
+      document.getElementById('wsr-highlights').value.split('\n').filter(Boolean).forEach(line => {
+        const li = document.createElement('li');
+        li.textContent = line.replace(/^\s*\d+[\.\)]\s*/, '');
+        hlList.appendChild(li);
+      });
+
+      const laList = document.getElementById('preview-lookahead');
+      laList.innerHTML = '';
+      document.getElementById('wsr-lookahead').value.split('\n').filter(Boolean).forEach(line => {
+        const li = document.createElement('li');
+        li.textContent = line.replace(/^\s*\d+[\.\)]\s*/, '');
+        laList.appendChild(li);
+      });
+
+      const otList = document.getElementById('preview-outstanding');
+      otList.innerHTML = '';
+      document.getElementById('wsr-outstanding').value.split('\n').filter(Boolean).forEach(line => {
+        const li = document.createElement('li');
+        li.textContent = line.replace(/^\s*\d+[\.\)]\s*/, '');
+        otList.appendChild(li);
+      });
+
+      const hwList = document.getElementById('preview-hardware');
+      if (hwList) {
+        hwList.innerHTML = '';
+        document.getElementById('wsr-hardware-status').value.split('\n').filter(Boolean).forEach(line => {
+          const li = document.createElement('li');
+          li.textContent = line.replace(/^\s*\d+[\.\)]\s*/, '');
+          hwList.appendChild(li);
+        });
+      }
+
+      const rawDaily = document.getElementById('wsr-daily-compiled').value;
+      const formattedDailyHtml = rawDaily.split('\n').map(line => {
+        const trimmed = line.trim();
+        if (/^\d{2}\.\d{2}\.\d{4}\s+(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/i.test(trimmed)) {
+          return `<span class="bg-[#00ff00] font-bold px-1">${trimmed}</span>`;
+        }
+        if (/^(Wuqi Office:|Onshore-Land:|Marine Offshore:|Survey Boat:|Surveyor:)/i.test(trimmed)) {
+          const parts = trimmed.split(':');
+          return `<strong>${parts[0]}:</strong>${parts.slice(1).join(':')}`;
+        }
+        if (/Hydro Survey/i.test(trimmed)) {
+          return `<strong>${trimmed}</strong>`;
+        }
+        return line;
+      }).join('\n');
+      document.getElementById('preview-daily').innerHTML = formattedDailyHtml;
+    }
+
+    function switchTab(role) {
+      ['surveyor', 'admin', 'chief', 'images', 'boss'].forEach(r => {
+        document.getElementById('view-' + r).classList.add('hidden');
+        document.getElementById('tab-' + r).classList.remove('tab-active');
+      });
+      document.getElementById('view-' + role).classList.remove('hidden');
+      document.getElementById('tab-' + role).classList.add('tab-active');
+      if (role === 'chief') {
+        regenerateAllFromDailyLog(false);
+      }
+      if (role === 'boss') syncExecutivePreview();
+    }
+
+    function cleanSurveyText(raw) {
+      return raw.replace(/\|\s*Acknowledged\s*Started by[^\n]*/gi, '')
+        .replace(/Settlement Settlement/g, 'Settlement')
+        .replace(/Benchmark Benchmark/g, 'Benchmark')
+        .replace(/Internal Internal/g, 'Internal')
+        .replace(/Others Others/g, 'Survey')
+        .replace(/Survey Survey/g, 'Survey')
+        .replace(/TAichung/g, 'Taichung')
+        .replace(/Tungshiao and sites|Tunghsiao and sites/gi, 'Tunghsiao and Taichung sites')
+        .replace(/Tungshiao|Tungshioa|Tungxiao|Tonghsiao/gi, 'Tunghsiao')
+        .replace(/sttlement/gi, 'settlement')
+        .replace(/  +/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+    }
+
+    function processSingleDTR(text) {
+      // Split into daily blocks first so a single .docx containing all 7 days is never truncated at Day 1!
+      const normalized = text.replace(/\r\n/g, '\n');
+      let chunks = normalized.split(/(?:Project name:[\s\S]*?Daily Survey Activities:|Daily Survey Activities:)/i)
+        .map(c => c.trim())
+        .filter(Boolean);
+      if (chunks.length === 0) chunks = [normalized];
+
+      const dailyBlocks = [];
+
+      chunks.forEach(chunk => {
+        const parts = chunk.split(/Outstanding Actions|Outstanding Tasks/i);
+        const dayAct = cleanSurveyText(parts[0])
+          .split('\n')
+          .map(l => l.trim())
+          .filter(Boolean)
+          .join('\n');
+        if (dayAct && /\b\d{2}\.\d{2}\.\d{4}\b/.test(dayAct)) {
+          dailyBlocks.push(dayAct);
+        }
+
+        if (parts.length > 1) {
+          const outLines = parts[1].split('\n')
+            .map(l => cleanSurveyText(l.replace(/^[>\-\*\s]+/, '')).replace(/\.+$/, '').trim())
+            .filter(Boolean);
+          outLines.forEach(ol => {
+            const low = ol.toLowerCase();
+            if (
+              low.includes('project name:') ||
+              low.includes('tung-hsiao power plant 2nd stage') ||
+              low.includes('daily survey activities') ||
+              low.includes('drafting 20012-wsr') ||
+              low.includes('road settlement monitoring') ||
+              /^\d{2}\.\d{2}\.\d{4}\s+/.test(ol)
+            ) {
+              return;
+            }
+            const strippedOl = stripTaskCategoryPrefix(ol).replace(/\.+$/, '').trim();
+            if (strippedOl && !extractedDtrOutstanding.includes(strippedOl)) {
+              extractedDtrOutstanding.push(strippedOl);
+            }
+          });
+        }
+      });
+
+      // Sort daily blocks chronologically by DD.MM.YYYY
+      dailyBlocks.sort((a, b) => {
+        const ma = a.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+        const mb = b.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+        const ka = ma ? `${ma[3]}${ma[2]}${ma[1]}` : '99999999';
+        const kb = mb ? `${mb[3]}${mb[2]}${mb[1]}` : '99999999';
+        return ka.localeCompare(kb);
+      });
+
+      return dailyBlocks.join('\n\n');
+    }
+
+    async function pullWeekFromDprDatabase() {
+      if (!isServerOnline) {
+        alert('Please run the app in VS Code (python app.py) to pull directly from the DPR database.');
+        return;
+      }
+      const startVal = document.getElementById('db-pull-start').value;
+      const endVal = document.getElementById('db-pull-end').value;
+      const btn = document.getElementById('btn-pull-db');
+      const origText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '⏳ Querying DPR SurveyTask Database...';
+      try {
+        const res = await fetch(API_BASE + '/api/pull_db_week', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ start_date: startVal, end_date: endVal })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          document.getElementById('wsr-daily-compiled').value = data.raw_daily_text || '';
+          if (Array.isArray(data.dtr_outstanding)) {
+            extractedDtrOutstanding = data.dtr_outstanding;
+          }
+          await runAiLogAnalyzer();
+          alert(`Pulled ${data.closed_count || 0} Closed SurveyTasks (${data.start_date} to ${data.end_date}) & ${extractedDtrOutstanding.length} Open Actions from the DPR Database!`);
+          switchTab('chief');
+        } else {
+          alert(data.message || 'Could not pull from DPR database.');
+        }
+      } catch (err) {
+        alert('Error pulling from DPR database: ' + err);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = origText;
+      }
+    }
+
+    async function parseDTRFiles() {
+      const fileInput = document.getElementById('dtr-files');
+      const files = Array.from(fileInput.files).sort((a, b) => a.name.localeCompare(b.name));
+      const rawText = document.getElementById('raw-dump-input').value;
+      
+      if (files.length === 0 && !rawText.trim()) { alert('Select .docx files or paste text.'); return; }
+
+      extractedDtrOutstanding = [];
+      let finalCompiledText = '';
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        let text = '';
+        if (file.name.endsWith('.docx')) {
+          const arrayBuffer = await file.arrayBuffer();
+          const result = await mammoth.extractRawText({arrayBuffer: arrayBuffer});
+          text = result.value;
+        } else if (file.name.endsWith('.txt')) {
+          text = await file.text();
+        }
+        finalCompiledText += processSingleDTR(text) + '\n\n';
+      }
+
+      if (rawText.trim()) {
+        finalCompiledText += processSingleDTR(rawText) + '\n\n';
+      }
+
+      document.getElementById('wsr-daily-compiled').value = finalCompiledText.replace(/\n{3,}/g, '\n\n').trim();
+      fileInput.value = '';
+      document.getElementById('raw-dump-input').value = '';
+
+      await runAiLogAnalyzer();
+
+      const weekVal = document.getElementById('wsr-week').value;
+      const issueVal = document.getElementById('wsr-date-top').value;
+      alert(`2-Week Context Synthesis Complete!\n\n• Baseline Previous WSR: ${parsedPrevWsrData.prev_week}\n• Current WSR Week: ${weekVal}\n• Monday Issue Date: ${issueVal}\n• Generated Highlights, Look Ahead, Outstanding Tasks & Hardware Status!`);
+      switchTab('chief');
+    }
+
+    function addSingleLog() {
+      const dateInput = document.getElementById('log-date').value;
+      const task = cleanSurveyText(document.getElementById('log-task').value);
+      if (!task || !dateInput) { alert('Please enter a date and activity description.'); return; }
+
+      const dObj = new Date(dateInput + 'T12:00:00');
+      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      const dayName = days[dObj.getDay()];
+      const parts = dateInput.split('-');
+      const formattedDate = `${parts[2]}.${parts[1]}.${parts[0]}`;
+
+      const cat = document.getElementById('log-category').value;
+      const staff = document.getElementById('log-staff').value;
+
+      let block = `\n\n${formattedDate} ${dayName}\n`;
+      if (cat.includes('Hydro Survey')) {
+        block += `${cat}\n- ${task}`;
+      } else {
+        block += `${cat}: ${staff}\n- ${task}`;
+      }
+
+      document.getElementById('wsr-daily-compiled').value = (document.getElementById('wsr-daily-compiled').value + block).trim();
+      document.getElementById('log-task').value = '';
+
+      regenerateAllFromDailyLog(true);
+
+      alert(`Activity appended for ${formattedDate} ${dayName}!\nWSR Week (${document.getElementById('wsr-week').value}), Monday Issue Date (${document.getElementById('wsr-date-top').value}), and all 4 sections updated.`);
+      switchTab('chief');
+    }
+
+    function readFileAsBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function commitReportForBoss() {
+      const commitBtn = document.getElementById('btn-commit');
+      commitBtn.textContent = '⏳ Generating Word & PDF...';
+      commitBtn.disabled = true;
+
+      regenerateAllFromDailyLog(false);
+
+      const payload = {
+        year_week: document.getElementById('wsr-week').value,
+        report_date_top: document.getElementById('wsr-date-top').value,
+        report_date_bottom: document.getElementById('wsr-date-bottom').value,
+        highlights: document.getElementById('wsr-highlights').value.split('\n').filter(Boolean),
+        look_ahead: document.getElementById('wsr-lookahead').value.split('\n').filter(Boolean),
+        outstanding_tasks: document.getElementById('wsr-outstanding').value.split('\n').filter(Boolean),
+        hardware_status: document.getElementById('wsr-hardware-status').value.split('\n').filter(Boolean),
+        raw_daily_text: document.getElementById('wsr-daily-compiled').value,
+        admin_tables: adminTablesData,
+        images: {}
+      };
+
+      const allLocations = [...excelTableLocations, ...imageLocations];
+      for (const loc of allLocations) {
+        const noUpdate = document.getElementById(`cb_${loc.id}`).checked;
+        const fileEl = document.getElementById(`file_${loc.id}`);
+        let b64 = null;
+        if (!noUpdate && fileEl && fileEl.files[0]) {
+          b64 = await readFileAsBase64(fileEl.files[0]);
+        }
+        const dateEl = document.getElementById(`date_${loc.id}`);
+        payload.images[loc.id] = {
+          title: loc.title,
+          category: loc.category,
+          keep_old: noUpdate,
+          new_date: loc.isStaticTable ? null : (noUpdate ? loc.lastDate : (dateEl?.value || loc.lastDate)),
+          new_filename: (!noUpdate && fileEl?.files[0]) ? fileEl.files[0].name : null,
+          file_base64: b64
+        };
+      }
+
+      syncExecutivePreview();
+
+      if (isServerOnline) {
+        try {
+          const res = await fetch(API_BASE + '/api/commit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          latestGeneratedDocx = data.docx_filename;
+          latestGeneratedPdf = data.pdf_filename;
+
+          if (data.pdf_created) {
+            alert(`SUCCESS! Generated ${data.docx_filename} and ${data.pdf_filename} in committed_reports/.`);
+          } else {
+            alert(`Generated Word file (${data.docx_filename}), but PDF conversion reported: ${data.pdf_error || 'MS Word not available'}. You can still download the .docx or print to PDF!`);
+          }
+        } catch (err) {
+          alert('Error communicating with local Python server: ' + err);
+        }
+      } else {
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `wsr_commit_payload_${payload.year_week}.json`;
+        a.click();
+        alert('Offline Mode: Exported JSON payload. Run Start_WSR_Portal_V13.bat to enable 1-click Word & PDF generation!');
+      }
+
+      commitBtn.textContent = '✓ Commit Final WSR (Generate Word & PDF)';
+      commitBtn.disabled = false;
+      switchTab('boss');
+    }
+
+    function downloadCommittedFile(type) {
+      const week = document.getElementById('wsr-week').value;
+      if (isServerOnline) {
+        if (type === 'pdf' && latestGeneratedPdf) {
+          window.location.href = `${API_BASE}/download/${latestGeneratedPdf}`;
+          return;
+        }
+        if (type === 'docx') {
+          const fname = latestGeneratedDocx || `20012-WSR-${week}.docx`;
+          window.location.href = `${API_BASE}/download/${fname}`;
+          return;
+        }
+      }
+      window.print();
+    }
+
+    renderExcelTableGrid();
+    renderImageGrid();
+    loadAiSettingsLocal();
+    loadAdminTablesOnStartup();
+    regenerateAllFromDailyLog(true);
+  </script>
+</body>
+</html>

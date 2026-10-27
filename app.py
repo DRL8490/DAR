@@ -16,6 +16,8 @@ from flask_mail import Mail, Message
 from itsdangerous import URLSafeTimedSerializer
 
 app = Flask(__name__)
+from wsr_blueprint import wsr_bp
+app.register_blueprint(wsr_bp)
 
 db_url = os.environ.get('DATABASE_URL', 'sqlite:///./survey_data.db')
 if db_url.startswith("postgres://"):
@@ -2404,6 +2406,194 @@ def wipe_all_presets():
     db.session.commit()
     flash(f'Successfully deleted {deleted_count} old presets across all users.', 'success')
     return redirect(url_for('admin_dashboard'))
+
+
+
+# --- START AUTO-PATCH: DYNAMIC LOG QUICK-PICKS + ADMIN WSR (DARYLL & ABROR) ---
+ADMIN_WSR_USERS = {"daryll", "abror"}
+
+ADMIN_WSR_CHIP = {
+    "label": "📊 WSR Compilation",
+    "scope_id": "ADMIN",
+    "task_id": "WSR_REPORT",
+    "verb": "Compile",
+    "category": "Reporting & Deliverable",
+    "action": "Weekly Survey Report (WSR)",
+    "instrument": "THPP WSR Engine",
+    "default_remark": "Weekly Survey Report compilation, QA/QC of daily logs, and client submittal.",
+    "style": "dark",
+    "is_admin_wsr": True,
+    "allowed_users": ["Daryll", "Abror"],
+    "wsr_shortcut": "/reports#wsr-studio"
+}
+
+
+def get_dynamic_log_quick_chips(user_name: str = "Daryll", max_chips: int = 8):
+    """
+    1. Dynamically analyzes SurveyTask SQL logs for `user_name`:
+       - Created by user = +2.0 weight
+       - Assigned to user = +1.0 weight
+    2. Merges pre-seeded historical counts from USER_HISTORICAL_SEEDS (if defined).
+    3. Ranks top combinations and hydrates into Quick-Pick chips with frequent remarks.
+    4. Pins the Admin WSR Compilation chip strictly for Daryll and Abror.
+    """
+    from collections import Counter, defaultdict
+
+    norm_user = (user_name or "").strip().lower()
+    pair_scores = Counter()
+    pair_remarks = defaultdict(Counter)
+    pair_meta = {}
+
+    # Stage 1: Merge pre-seeded historical Master Register counts if available in app.py
+    seeds_dict = globals().get("USER_HISTORICAL_SEEDS") or globals().get("HISTORICAL_OMNI_SEEDS") or {}
+    for seed_user, seed_items in seeds_dict.items():
+        if seed_user.lower() in norm_user or norm_user in seed_user.lower():
+            if isinstance(seed_items, dict):
+                for k, weight in seed_items.items():
+                    pair_scores[k] += weight
+            elif isinstance(seed_items, list):
+                for item in seed_items:
+                    if isinstance(item, dict):
+                        key = (item.get("scope_id", "SURVEY"), item.get("task_id", "GENERAL"))
+                        pair_scores[key] += int(item.get("count", 3))
+                        if item.get("default_remark"):
+                            pair_remarks[key][item["default_remark"]] += 2
+                        pair_meta[key] = item
+
+    # Stage 2: Live SQL frequency analysis from SurveyTask logs
+    if "SurveyTask" in globals():
+        try:
+            SurveyTaskModel = globals()["SurveyTask"]
+            recent_tasks = SurveyTaskModel.query.order_by(SurveyTaskModel.id.desc()).limit(500).all()
+            for t in recent_tasks:
+                creator = (getattr(t, "created_by", "") or "").strip().lower()
+                assignee = (getattr(t, "assigned_to", "") or "").strip().lower()
+
+                weight = 0
+                if norm_user and norm_user in creator:
+                    weight += 2  # 2x weight for tasks created by the user
+                if norm_user and norm_user in assignee:
+                    weight += 1  # 1x weight for tasks assigned to the user
+
+                if weight > 0:
+                    scope_id = getattr(t, "macro_scope", None) or getattr(t, "scope_id", None) or "TOPO"
+                    task_id = getattr(t, "task_id", None) or getattr(t, "action", None) or getattr(t, "task_name", None) or "SURVEY_TASK"
+                    key = (str(scope_id), str(task_id))
+                    pair_scores[key] += weight
+
+                    rem = (getattr(t, "remarks", "") or "").strip()
+                    if rem:
+                        # Take clean opening sentence/phrase
+                        clean_rem = rem.split("\n")[0][:120]
+                        pair_remarks[key][clean_rem] += weight
+
+                    if key not in pair_meta:
+                        pair_meta[key] = {
+                            "scope_id": str(scope_id),
+                            "task_id": str(task_id),
+                            "verb": getattr(t, "verb", "Conduct") or "Conduct",
+                            "category": getattr(t, "category", str(scope_id)) or str(scope_id),
+                            "action": getattr(t, "action", str(task_id)) or str(task_id),
+                            "instrument": getattr(t, "instrument", "") or "",
+                        }
+        except Exception as e:
+            print(f"[QuickPick SQL Analyzer Note]: {e}")
+
+    # Stage 3: Build hydrated chip objects from ranked scores
+    palette = ["primary", "info", "success", "warning", "secondary", "danger"]
+    scope_icons = {
+        "TOPO": "🚁",
+        "BATHY": "🚤",
+        "HYDRO": "🚤",
+        "CONST": "📍",
+        "QC": "🔍",
+        "ADMIN": "📊",
+        "CAD": "📐",
+    }
+
+    chips = []
+    for idx, ((scope_id, task_id), score) in enumerate(pair_scores.most_common(max_chips)):
+        meta = pair_meta.get((scope_id, task_id), {})
+        top_remark = (
+            pair_remarks[(scope_id, task_id)].most_common(1)[0][0]
+            if pair_remarks[(scope_id, task_id)]
+            else meta.get("default_remark", f"{scope_id} - {task_id}")
+        )
+        icon = next((v for k, v in scope_icons.items() if k in scope_id.upper()), "⚡")
+        short_label = task_id.replace("_", " ").title()
+        chips.append({
+            "label": meta.get("label") or f"{icon} {short_label}",
+            "scope_id": scope_id,
+            "task_id": task_id,
+            "verb": meta.get("verb", "Conduct"),
+            "category": meta.get("category", scope_id),
+            "action": meta.get("action", short_label),
+            "instrument": meta.get("instrument", ""),
+            "default_remark": top_remark,
+            "style": meta.get("style") or palette[idx % len(palette)],
+            "score": score,
+            "allowed_users": ["all"]
+        })
+
+    # Fallback to default QUICK_PICK_CHIPS if user has zero SQL logs and zero seeds
+    if not chips and "QUICK_PICK_CHIPS" in globals():
+        for c in globals()["QUICK_PICK_CHIPS"]:
+            allowed = [u.lower() for u in c.get("allowed_users", ["all"])]
+            if "all" in allowed or any(a in norm_user for a in allowed):
+                chips.append(dict(c))
+
+    # Stage 4: Role-Pinned Admin WSR Chip for Daryll and Abror ONLY
+    is_wsr_admin = any(admin_name in norm_user for admin_name in ADMIN_WSR_USERS)
+    if is_wsr_admin:
+        if not any(c.get("task_id") == "WSR_REPORT" for c in chips):
+            chips.append(dict(ADMIN_WSR_CHIP))
+
+    return chips
+
+
+# Override or alias get_active_quick_chips so existing routes automatically use it
+get_active_quick_chips = get_dynamic_log_quick_chips
+
+
+@app.route("/api/quick_picks")
+def api_get_quick_picks():
+    """Live JSON endpoint to recalculate log-based Quick-Picks when switching user."""
+    from flask import request, session, jsonify
+    user = request.args.get("user") or session.get("user_name") or "Daryll"
+    chips = get_dynamic_log_quick_chips(user)
+    is_admin = any(a in user.lower() for a in ADMIN_WSR_USERS)
+    return jsonify({
+        "status": "ok",
+        "user": user,
+        "is_wsr_admin": is_admin,
+        "chips": chips
+    })
+
+
+@app.context_processor
+def inject_wsr_and_quickpicks_context():
+    """Automatically provides wsr_state and dynamic log-based quick_picks to all templates including reports.html."""
+    from flask import session, request
+    current_user = (
+        request.args.get("user")
+        or session.get("user_name")
+        or session.get("username")
+        or "Daryll"
+    )
+    is_admin = any(a in str(current_user).lower() for a in ADMIN_WSR_USERS)
+    ctx = {
+        "current_user_name": current_user,
+        "is_wsr_admin": is_admin,
+        "quick_picks": get_dynamic_log_quick_chips(str(current_user)),
+    }
+    try:
+        from wsr_blueprint import get_wsr_context
+        ctx.update(get_wsr_context())
+    except Exception:
+        pass
+    return ctx
+# --- END AUTO-PATCH: DYNAMIC LOG QUICK-PICKS + ADMIN WSR (DARYLL & ABROR) ---
+
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)

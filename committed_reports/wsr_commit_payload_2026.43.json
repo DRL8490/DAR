@@ -1,0 +1,633 @@
+{
+  "year_week": "2026.43",
+  "report_date_top": "October 26, 2026",
+  "report_date_bottom": "26th October 2026",
+  "highlights": [
+    "1. Taichung Onshore & AHDD Site Operations: Completed daily Taichung AHDD road settlement monitoring surveys and daily processing reports; Generate Sketch Drawing of Taichung Site Weekly Progress Update survey; [Thruster Pit] Generate a sketch drawing showing the remarking of the previously marked sheet pile corner near the roadside, with a 0.50 m inward offset from the design location; 20261017_RQ0419_Taichung Vertical Drilling Profile; Generate a sketch drawing of the newly installed fence at the Taichung site near the TPC access gate; [Crossover Pits] Monitor progress of the on-going 2.5m diameter encased Vertical Drilling activity; Stake out and mark the first vertical drilling point of the Thruster Pit, as requested by Nandu. (TH_VD_01); Stake out and mark the alignment of Pipes A and B, as requested by Jeff; Generate a sketch drawing showing the stake-out and marking of the Thruster Pit vertical drilling location (TH_VD-01) at the Taichung site; Generate a sketch drawing showing the stake-out and marking of the Thruster Pit vertical drilling location (TH_VD-13) at the Taichung site.",
+    "2. Tunghsiao Temporary Platform & AHDD Site Operations: Assist Thaitan with staking out and marking the location of their facilities area at Tunghsiao Site; Conduct traverse levelling for the Tunghsiao platform area TBM for vertical control values and re-evaluation on TBM's interrelationship; [Microtunneling] Thaitan AHDD Coordination Meeting; Generate a sketch drawing showing the layout and locations of the Thaitan facilities at the Tunghsiao site; Update the base drawing using the latest drawings received from the Operations Team, incorporating the latest survey updates for the Tunghsiao site; Update the base drawing using the latest drawings received from the Operations Team, incorporating the latest survey updates for the Tunghsiao and Taichung sites; Update the Data Controller background using the latest drawings and incorporate the latest survey updates for the Tunghsiao site.",
+    "3. Wuqi Office & Marine Engineering Deliverables: [DLS-4200] 20261019_RQ0421_Crossing A1-A3 260928 Survey Overview Diff Chart Cross Sections; [DLS-4200] 20261019_RQ0422_Crossing B1-B2 260928 Survey Overview Diff Chart Cross Sections; [DLS-4200] 20261021_RQ0428_Trenching SRI Design Volume 1-5in; Mattress Installation Meeting."
+  ],
+  "look_ahead": [
+    "1. Request for Diff Charts and Volume calculations for different survey data is expected due to current planning changes and justifications.",
+    "2. Update Tunghsiao and Taichung site installation as-built drawings (weekly progress update).",
+    "3. Settlement Monitoring (Road and protection sheetpile) at Taichung site for NMDC surveyor (Daily activity).",
+    "4. Depth of Burial Survey for Fengmiao Cable Crossings prior to Filter Unit Installation (Under planning with Seatrench and EGST).",
+    "5. Scheduled Follow-Up Scope: Stakeout and marking of the vertical drilling point number A_VD_31 at the Taichung site.",
+    "6. Scheduled Follow-Up Scope: Generate sketch drawing of the completed stake out and marking of the vertical drilling point location."
+  ],
+  "outstanding_tasks": [
+    "1. TPC Entry Pass for Danilo on hold until 2027 Feb ARC Renewal. Now Danilo can enter site with temporary gate pass, currently Abror, Roderick and Daryll have TPC yearly pass (Taichung and Tunghsiao).",
+    "2. Taiwan government E-GNSS correction NTRIP account cannot be requested by NMDC due to company entity registered as foreign company, request to EGST to apply for NMDC operational use. Need to ask EGST for assistance for the EGNSS service. (Stewart Ho assist for the service).",
+    "3. Danilo to be scheduled for BOSIET. Waiting for Project Schedule.",
+    "4. Rick Jhou - shortlisted as Lead/Chief Surveyor, Sophie update: will join before 23 Nov 2026.",
+    "5. Active Field/Office DTR Action Items: Stakeout and marking of the vertical drilling point number A_VD_31 at the Taichung site; Generate sketch drawing of the completed stake out and marking of the vertical drilling point location."
+  ],
+  "hardware_status": [
+    "1. Survey Forms Compliance - IA-IM-26.005 and Survey Equipment Mob/Demob Compliance - IA-IM-26.006 memo from HQ to be implemented in the Taiwan Project."
+  ],
+  "raw_daily_text": "19.10.2026 Monday\n\nOnshore-Land: Danilo Bartolome, Mateo Mollaneda, Roderick Clavel\n\n- Taichung AHDD Check Survey - Gather data of AHDD Road settlement monitoring\n\n- Taichung AHDD Survey Reports - Process report of the Taichung AHDD Road settlement report\n\n- Taichung Landside Progress Survey - Generate Sketch Drawing of Taichung Site Weekly Progress Update survey\n\n- Taichung AHDD Stake-Out/Marking - [Thruster Pit] Generate a sketch drawing showing the remarking of the previously marked sheet pile corner near the roadside, with a 0.50 m inward offset from the design location.\n\n- Taichung Landside Survey Input - Drawings - 20261017_RQ0419_Taichung Vertical Drilling Profile\n\nMarine Offshore: Daryll Enano, Mateo Mollaneda\n\n- Offshore Mainline Cross-Section - [DLS-4200] 20261019_RQ0421_Crossing A1-A3 260928 Survey Overview Diff Chart Cross Sections\n\n- Offshore Mainline Cross-Section - [DLS-4200] 20261019_RQ0422_Crossing B1-B2 260928 Survey Overview Diff Chart Cross Sections\n\n20.10.2026 Tuesday\n\nWuqi Office: Danilo Bartolome\n\n- Taichung Office Internal Survey Reports - Process survey report of the Taichung AHDD Road settlement monitoring\n\nOnshore-Land: Danilo Bartolome, Roderick Clavel\n\n- Tunghsiao Temp Platform Stake-Out/Marking - Assist Thaitan with staking out and marking the location of their facilities area at Tunghsiao Site.\n\n- Taichung Landside Progress Survey - Generate a sketch drawing of the newly installed fence at the Taichung site near the TPC access gate.\n\n- Taichung AHDD Monitoring Survey - Gather data of the Taichung AHDD Road settlement monitoring\n\n- Tunghsiao Temp Platform Benchmark Verification - Conduct traverse levelling for the Tunghsiao platform area TBM for vertical control values and re-evaluation on TBM's interrelationship.\n\n21.10.2026 Wednesday\n\nWuqi Office: Daryll Enano\n\n- Taichung Office Internal Coordination Meetings - Daily Stand-up Meeting\n\nOnshore-Land: Danilo Bartolome, Daryll Enano, Roderick Clavel\n\n- Taichung AHDD Monitoring Survey - Gather data of the Taichung AHDD Road settlement monitoring\n\n- Taichung AHDD Survey Reports - Generate report of the Taichung AHDD Road settlement monitoring\n\n- Taichung AHDD Progress Survey - [Crossover Pits] Monitor progress of the on-going 2.5m diameter encased Vertical Drilling activity\n\n- Tunghsiao Temp Platform External Meetings - [Microtunneling] Thaitan AHDD Coordination Meeting\n\n- Taichung AHDD Stake-Out/Marking - Stake out and mark the first vertical drilling point of the Thruster Pit, as requested by Nandu. (TH_VD_01)\n\n- Taichung AHDD Stake-Out/Marking - Stake out and mark the alignment of Pipes A and B, as requested by Jeff.\n\n- Tunghsiao Temp Platform Sketch Drawing - Generate a sketch drawing showing the layout and locations of the Thaitan facilities at the Tunghsiao site.\n\n- Taichung AHDD Stake-Out/Marking - Generate a sketch drawing showing the stake-out and marking of the Thruster Pit vertical drilling location (TH_VD-01) at the Taichung site.\n\nMarine Offshore: Daryll Enano, Mateo Mollaneda\n\n- Offshore Mainline Volume Calculation - [DLS-4200] 20261021_RQ0428_Trenching SRI Design Volume 1-5in\n\n- Offshore Subsea Crossings External Meetings - Mattress Installation Meeting\n\n22.10.2026 Thursday\n\nOnshore-Land: Roderick Clavel\n\n- Taichung AHDD Stake-Out/Marking - Generate a sketch drawing showing the stake-out and marking of the Thruster Pit vertical drilling location (TH_VD-13) at the Taichung site.\n\n- Taichung Landside Progress Survey - Update the base drawing using the latest drawings received from the Operations Team, incorporating the latest survey updates for the Tunghsiao site.\n\n23.10.2026 Friday\n\nNo survey tasks logged for this date.\n\n24.10.2026 Saturday\n\nNo survey tasks logged for this date.\n\n25.10.2026 Sunday\n\nOnshore-Land: Danilo Bartolome, Roderick Clavel\n\n- Taichung AHDD Monitoring Survey - Gather data of Taichung AHDD Road settlement monitoring\n\n- Taichung AHDD Survey Report - Process survey report of the Taichung AHDD Road settlement monitoring\n\n- Tunghsiao Temp Platform Survey Input - Drawings - Update the base drawing using the latest drawings received from the Operations Team, incorporating the latest survey updates for the Tunghsiao and Taichung sites.\n\n- Tunghsiao Temp Platform Survey Input - Drawings - Update the Data Controller background using the latest drawings and incorporate the latest survey updates for the Tunghsiao site.",
+  "admin_tables": {
+    "leave": [
+      [
+        {
+          "highlight": false,
+          "text": "Daryll Enano"
+        },
+        {
+          "highlight": false,
+          "text": "01-12-2026"
+        },
+        {
+          "highlight": false,
+          "text": "05-01-2027"
+        },
+        {
+          "highlight": false,
+          "text": "09-01-2027"
+        },
+        {
+          "highlight": false,
+          "text": "Rotation"
+        },
+        {
+          "highlight": false,
+          "text": "Planned"
+        },
+        {
+          "highlight": false,
+          "text": "Philippines"
+        }
+      ],
+      [
+        {
+          "highlight": false,
+          "text": "Mohamad Abror Hediarto"
+        },
+        {
+          "highlight": true,
+          "text": "28.09.2026"
+        },
+        {
+          "highlight": true,
+          "text": "24.10.2026"
+        },
+        {
+          "highlight": false,
+          "text": "N/A"
+        },
+        {
+          "highlight": false,
+          "text": "Annual"
+        },
+        {
+          "highlight": true,
+          "text": "Ongoing"
+        },
+        {
+          "highlight": false,
+          "text": "Taiwan"
+        }
+      ],
+      [
+        {
+          "highlight": false,
+          "text": "Danilo Bartolome"
+        },
+        {
+          "highlight": false,
+          "text": "18.12.2026"
+        },
+        {
+          "highlight": false,
+          "text": "17.01.2027"
+        },
+        {
+          "highlight": false,
+          "text": "N/A"
+        },
+        {
+          "highlight": false,
+          "text": "Annual"
+        },
+        {
+          "highlight": false,
+          "text": "Planned"
+        },
+        {
+          "highlight": false,
+          "text": "Philippines"
+        }
+      ],
+      [
+        {
+          "highlight": false,
+          "text": "Mateo Mollaneda"
+        },
+        {
+          "highlight": false,
+          "text": "21.01-2027"
+        },
+        {
+          "highlight": false,
+          "text": "22.02.2027"
+        },
+        {
+          "highlight": false,
+          "text": "N/A"
+        },
+        {
+          "highlight": false,
+          "text": "Annual"
+        },
+        {
+          "highlight": false,
+          "text": "Planned"
+        },
+        {
+          "highlight": false,
+          "text": "Philippines"
+        }
+      ],
+      [
+        {
+          "highlight": false,
+          "text": "Roderick Clavel"
+        },
+        {
+          "highlight": false,
+          "text": "21-01-2027"
+        },
+        {
+          "highlight": false,
+          "text": "21-02.2027"
+        },
+        {
+          "highlight": false,
+          "text": "15-01-2027"
+        },
+        {
+          "highlight": false,
+          "text": "Rotation"
+        },
+        {
+          "highlight": false,
+          "text": "Planned"
+        },
+        {
+          "highlight": false,
+          "text": "Philippines"
+        }
+      ]
+    ],
+    "personnel": [
+      [
+        {
+          "highlight": false,
+          "text": "Daryll Enano"
+        },
+        {
+          "highlight": false,
+          "text": "5062"
+        },
+        {
+          "highlight": false,
+          "text": "CHIEF SURVEYOR"
+        },
+        {
+          "highlight": false,
+          "text": "01.07.2025"
+        },
+        {
+          "highlight": false,
+          "text": "-"
+        },
+        {
+          "highlight": false,
+          "text": "NMDC"
+        },
+        {
+          "highlight": false,
+          "text": "Site Office"
+        }
+      ],
+      [
+        {
+          "highlight": false,
+          "text": "Mohamad Abror Hediarto"
+        },
+        {
+          "highlight": false,
+          "text": "500652"
+        },
+        {
+          "highlight": false,
+          "text": "PROJECT SURVEYOR"
+        },
+        {
+          "highlight": false,
+          "text": "01.09.2025"
+        },
+        {
+          "highlight": false,
+          "text": "-"
+        },
+        {
+          "highlight": false,
+          "text": "BRUNEL"
+        },
+        {
+          "highlight": false,
+          "text": "Site Office"
+        }
+      ],
+      [
+        {
+          "highlight": false,
+          "text": "Danilo Bartolome"
+        },
+        {
+          "highlight": false,
+          "text": "502893"
+        },
+        {
+          "highlight": false,
+          "text": "PROJECT SURVEYOR"
+        },
+        {
+          "highlight": false,
+          "text": "01.12.2025"
+        },
+        {
+          "highlight": false,
+          "text": "-"
+        },
+        {
+          "highlight": false,
+          "text": "BRUNEL"
+        },
+        {
+          "highlight": false,
+          "text": "Site Office"
+        }
+      ],
+      [
+        {
+          "highlight": false,
+          "text": "Mateo Mollaneda"
+        },
+        {
+          "highlight": false,
+          "text": "503296"
+        },
+        {
+          "highlight": false,
+          "text": "SURVEY DATA PROCESSOR"
+        },
+        {
+          "highlight": false,
+          "text": "22.12.2025"
+        },
+        {
+          "highlight": false,
+          "text": "-"
+        },
+        {
+          "highlight": false,
+          "text": "BRUNEL"
+        },
+        {
+          "highlight": false,
+          "text": "Site Office"
+        }
+      ],
+      [
+        {
+          "highlight": false,
+          "text": "Roderick Clavel"
+        },
+        {
+          "highlight": false,
+          "text": "T3274"
+        },
+        {
+          "highlight": false,
+          "text": "SURVEYOR"
+        },
+        {
+          "highlight": false,
+          "text": "24.03.2025"
+        },
+        {
+          "highlight": false,
+          "text": "-"
+        },
+        {
+          "highlight": false,
+          "text": "NMDC"
+        },
+        {
+          "highlight": false,
+          "text": "Site Office"
+        }
+      ]
+    ],
+    "training": [
+      [
+        {
+          "highlight": false,
+          "text": "Daryll Enano"
+        },
+        {
+          "highlight": false,
+          "text": "2026-11-26"
+        },
+        {
+          "highlight": false,
+          "text": "BOSIET\n2026-01-20"
+        },
+        {
+          "highlight": false,
+          "text": "2026-04-21"
+        },
+        {
+          "highlight": false,
+          "text": "2026-06-30"
+        },
+        {
+          "highlight": false,
+          "text": "2026-12-31"
+        },
+        {
+          "highlight": false,
+          "text": "All Complete"
+        }
+      ],
+      [
+        {
+          "highlight": false,
+          "text": "Mohamad Abror Hediarto"
+        },
+        {
+          "highlight": false,
+          "text": "2027-08-24"
+        },
+        {
+          "highlight": false,
+          "text": "BOSIET\n2023-10-20"
+        },
+        {
+          "highlight": false,
+          "text": "2025-09-19"
+        },
+        {
+          "highlight": false,
+          "text": "2026-06-30"
+        },
+        {
+          "highlight": false,
+          "text": "2026-12-31"
+        },
+        {
+          "highlight": false,
+          "text": "All Complete"
+        }
+      ],
+      [
+        {
+          "highlight": false,
+          "text": "Danilo Bartolome"
+        },
+        {
+          "highlight": false,
+          "text": "2027-08-31"
+        },
+        {
+          "highlight": true,
+          "text": "Waiting for Project  Schedule"
+        },
+        {
+          "highlight": false,
+          "text": "2026-01-07"
+        },
+        {
+          "highlight": false,
+          "text": "2026-05-30"
+        },
+        {
+          "highlight": false,
+          "text": "Application \u2013 Processing"
+        },
+        {
+          "highlight": true,
+          "text": "Need to wait until Feb 2027 ARC Renewal"
+        }
+      ],
+      [
+        {
+          "highlight": false,
+          "text": "Mateo Mollaneda"
+        },
+        {
+          "highlight": false,
+          "text": "2026-12-21"
+        },
+        {
+          "highlight": false,
+          "text": "BOSIET\n2024-01-17"
+        },
+        {
+          "highlight": false,
+          "text": "2026-01-16"
+        },
+        {
+          "highlight": false,
+          "text": "2026-05-30"
+        },
+        {
+          "highlight": false,
+          "text": "Application \u2013 Processing"
+        },
+        {
+          "highlight": false,
+          "text": "On-going"
+        }
+      ],
+      [
+        {
+          "highlight": false,
+          "text": "Roderick Clavel"
+        },
+        {
+          "highlight": false,
+          "text": "2027-01-31"
+        },
+        {
+          "highlight": false,
+          "text": "BOSIET\n2026-04-01"
+        },
+        {
+          "highlight": false,
+          "text": "2026-04-21"
+        },
+        {
+          "highlight": false,
+          "text": "2026-05-30"
+        },
+        {
+          "highlight": false,
+          "text": "2026-12-31"
+        },
+        {
+          "highlight": false,
+          "text": "All Complete"
+        }
+      ]
+    ]
+  },
+  "images": {
+    "img_tbl_hardware": {
+      "title": "NMDC Hardware from Abu Dhabi",
+      "category": "EXCEL_TABLE",
+      "keep_old": true,
+      "new_date": null,
+      "new_filename": null,
+      "file_base64": null
+    },
+    "img_tbl_dongles": {
+      "title": "PDS Dongles",
+      "category": "EXCEL_TABLE",
+      "keep_old": true,
+      "new_date": null,
+      "new_filename": null,
+      "file_base64": null
+    },
+    "img_tbl_vessel": {
+      "title": "NMDC Survey Vessel & Chartered Survey Vessel",
+      "category": "EXCEL_TABLE",
+      "keep_old": true,
+      "new_date": null,
+      "new_filename": null,
+      "file_base64": null
+    },
+    "img_tbl_dredging": {
+      "title": "Dredging and Reclamation Overall Quantity",
+      "category": "EXCEL_TABLE",
+      "keep_old": true,
+      "new_date": null,
+      "new_filename": null,
+      "file_base64": null
+    },
+    "img_tbl_doc_summary": {
+      "title": "Survey Document Summary",
+      "category": "EXCEL_TABLE",
+      "keep_old": true,
+      "new_date": null,
+      "new_filename": null,
+      "file_base64": null
+    },
+    "img_on_ahdd": {
+      "title": "Taichung AHDD Site",
+      "category": "ONSHORE",
+      "keep_old": true,
+      "new_date": "2026-October-13",
+      "new_filename": null,
+      "file_base64": null
+    },
+    "img_on_tienli": {
+      "title": "Taichung Tienli Site",
+      "category": "ONSHORE",
+      "keep_old": true,
+      "new_date": "2026-September-20",
+      "new_filename": null,
+      "file_base64": null
+    },
+    "img_on_b37": {
+      "title": "Taichung Berth 37 Site",
+      "category": "ONSHORE",
+      "keep_old": true,
+      "new_date": "2026-September-20",
+      "new_filename": null,
+      "file_base64": null
+    },
+    "img_on_tunghsiao": {
+      "title": "Tunghsiao Temp Platform AHDD",
+      "category": "ONSHORE",
+      "keep_old": true,
+      "new_date": "2026-September-20",
+      "new_filename": null,
+      "file_base64": null
+    },
+    "img_nr_t1_float": {
+      "title": "Trench 1 Floatation CH-265 to CH180",
+      "category": "NEARSHORE",
+      "keep_old": true,
+      "new_date": "2026-Sept-28",
+      "new_filename": null,
+      "file_base64": null
+    },
+    "img_nr_t1_main": {
+      "title": "Trench 1 CH180 to CH1340",
+      "category": "NEARSHORE",
+      "keep_old": true,
+      "new_date": "2026-Sept-28",
+      "new_filename": null,
+      "file_base64": null
+    },
+    "img_nr_t8": {
+      "title": "Trench 8 Tunghsiao",
+      "category": "NEARSHORE",
+      "keep_old": true,
+      "new_date": "2026-Sept-27",
+      "new_filename": null,
+      "file_base64": null
+    },
+    "img_nr_midline": {
+      "title": "Midline Tie-In Tunghsiao",
+      "category": "NEARSHORE",
+      "keep_old": true,
+      "new_date": "2026-September-27",
+      "new_filename": null,
+      "file_base64": null
+    },
+    "img_nr_dump_tc": {
+      "title": "Dumping Area Taichung",
+      "category": "NEARSHORE",
+      "keep_old": true,
+      "new_date": "2026-September-28",
+      "new_filename": null,
+      "file_base64": null
+    },
+    "img_nr_dump_ts": {
+      "title": "Dumping Area Tunghsiao",
+      "category": "NEARSHORE",
+      "keep_old": true,
+      "new_date": "2026-September-28",
+      "new_filename": null,
+      "file_base64": null
+    },
+    "img_off_matt_1": {
+      "title": "Concrete Mattress Crossings A1,2 / B1,2",
+      "category": "OFFSHORE",
+      "keep_old": true,
+      "new_date": "2026-July-29",
+      "new_filename": null,
+      "file_base64": null
+    },
+    "img_off_matt_3": {
+      "title": "Concrete Mattress Crossings A3 / B3",
+      "category": "OFFSHORE",
+      "keep_old": true,
+      "new_date": "2026-August-17",
+      "new_filename": null,
+      "file_base64": null
+    },
+    "img_off_fengmiao": {
+      "title": "Fengmiao OEC1/OEC2 Crossings",
+      "category": "OFFSHORE",
+      "keep_old": true,
+      "new_date": "2026-August-30",
+      "new_filename": null,
+      "file_base64": null
+    }
+  }
+}
