@@ -2215,69 +2215,158 @@ def api_preview_kpi():
 @login_required
 def generate_dtr():
     try:
-        target_date_str = request.form.get('dtr_date')
-        if not target_date_str: return redirect(url_for('reports'))
-        target_date = datetime.strptime(target_date_str, '%Y-%m-%d')
-        next_day = target_date + timedelta(days=1)
-        
-        daily_tasks = SurveyTask.query.filter(
-            SurveyTask.status == 'Closed',
-            or_(
-                SurveyTask.execution_date == target_date.date(),
-                and_(SurveyTask.execution_date == None, SurveyTask.start_time >= target_date, SurveyTask.start_time < next_day)
-            )
-        ).all()
+        from copy import deepcopy
+        from docx import Document
 
-        dtr_groups = {}
-        for t in daily_tasks:
-            task_bullet = format_clean_description(t, include_opening_remark=True)
-            assigned = t.assigned_to if t.assigned_to else t.surveyor_name
-            surveyors = [s.strip() for s in assigned.split(',') if s.strip()]
+        # Collect dates from multi-date CSV, multiple inputs, date range, or single date input
+        raw_dates = set()
 
-            group_type, boat_name = "inline", ""
-            raw_remark = t.remarks or ""
-            if "WS166" in str(t.instrument) or "WS166" in raw_remark:
-                group_key, group_type, boat_name = "EGST Hydro Survey", "hydro", "WS166"
-            elif "Arzana" in str(t.instrument) or "Arzana" in str(t.work_scope) or "Arzana" in raw_remark:
-                group_key, group_type = "Arzana", "vessel"
-            elif t.area and t.area.startswith('100'):
-                group_key, group_type = "Wuqi Office", "inline"
-            elif t.area and t.area.startswith('200'):
-                group_key, group_type = "Onshore-Land", "inline"
-            else:
-                group_key, group_type = "Marine Offshore", "inline"
+        csv_dates = (request.form.get('selected_dates_csv') or '').strip()
+        if csv_dates:
+            for part in csv_dates.split(','):
+                if part.strip():
+                    raw_dates.add(part.strip())
 
-            if group_key not in dtr_groups:
-                dtr_groups[group_key] = {"title": group_key, "type": group_type, "surveyors": set(), "tasks": [], "boat": boat_name}
-            for s in surveyors: dtr_groups[group_key]["surveyors"].add(s)
-            dtr_groups[group_key]["tasks"].append(task_bullet)
+        for d_str in request.form.getlist('dtr_date'):
+            if d_str and d_str.strip():
+                raw_dates.add(d_str.strip())
 
-        report_blocks = []
-        sort_order = ["Wuqi Office", "EGST Hydro Survey", "Arzana", "Onshore-Land", "Marine Offshore"]
-        for key in sort_order:
-            if key in dtr_groups:
-                dtr_groups[key]["surveyors"] = ", ".join(sorted(list(dtr_groups[key]["surveyors"])))
-                report_blocks.append(dtr_groups[key])
-        for key, data in dtr_groups.items():
-            if key not in sort_order:
-                data["surveyors"] = ", ".join(sorted(list(data["surveyors"])))
-                report_blocks.append(data)
+        range_start = (request.form.get('dtr_start_date') or '').strip()
+        range_end = (request.form.get('dtr_end_date') or '').strip()
+        if range_start and range_end:
+            dt_s = datetime.strptime(range_start, '%Y-%m-%d')
+            dt_e = datetime.strptime(range_end, '%Y-%m-%d')
+            if dt_s > dt_e:
+                dt_s, dt_e = dt_e, dt_s
+            curr_dt = dt_s
+            while curr_dt <= dt_e and (curr_dt - dt_s).days <= 62:
+                raw_dates.add(curr_dt.strftime('%Y-%m-%d'))
+                curr_dt += timedelta(days=1)
+
+        if not raw_dates:
+            flash('Please select at least one date to generate the DTR.', 'error')
+            return redirect(url_for('reports'))
+
+        sorted_dates = sorted(
+            [datetime.strptime(d, '%Y-%m-%d') for d in raw_dates]
+        )
+
+        add_page_break = (request.form.get('page_break', 'true') == 'true')
+        skip_empty_dates = (request.form.get('skip_empty', 'false') == 'true')
 
         open_tasks = SurveyTask.query.filter_by(status='Open').all()
-        outstanding_set = {format_clean_description(t, include_opening_remark=True) for t in open_tasks if format_clean_description(t)}
+        outstanding_list = sorted(list({
+            format_clean_description(t, include_opening_remark=True)
+            for t in open_tasks if format_clean_description(t)
+        }))
 
         template_path = os.path.join(app.root_path, 'static', 'report_templates', 'DTR_Template.docx')
-        doc = DocxTemplate(template_path)
-        doc.render({
-            'target_date': target_date.strftime('%d.%m.%Y'),
-            'day_of_week': target_date.strftime('%A'),
-            'report_blocks': report_blocks,
-            'outstanding_tasks': list(outstanding_set)
-        })
-        output = io.BytesIO()
-        doc.save(output)
-        output.seek(0)
-        return send_file(output, download_name=f"{target_date.strftime('%Y%m%d')}-DTR-Report.docx", as_attachment=True)
+        rendered_streams = []
+        included_dates = []
+
+        for target_date in sorted_dates:
+            next_day = target_date + timedelta(days=1)
+            daily_tasks = SurveyTask.query.filter(
+                SurveyTask.status.in_(['Closed', 'Archived']),
+                or_(
+                    SurveyTask.execution_date == target_date.date(),
+                    and_(
+                        SurveyTask.execution_date == None,
+                        SurveyTask.start_time >= target_date,
+                        SurveyTask.start_time < next_day
+                    )
+                )
+            ).all()
+
+            if skip_empty_dates and len(daily_tasks) == 0 and len(sorted_dates) > 1:
+                continue
+
+            dtr_groups = {}
+            for t in daily_tasks:
+                task_bullet = format_clean_description(t, include_opening_remark=True)
+                assigned = t.assigned_to if t.assigned_to else t.surveyor_name
+                surveyors = [s.strip() for s in assigned.split(',') if s.strip()]
+
+                group_type, boat_name = "inline", ""
+                raw_remark = t.remarks or ""
+                if "WS166" in str(t.instrument) or "WS166" in raw_remark:
+                    group_key, group_type, boat_name = "EGST Hydro Survey", "hydro", "WS166"
+                elif "Arzana" in str(t.instrument) or "Arzana" in str(t.work_scope) or "Arzana" in raw_remark:
+                    group_key, group_type = "Arzana", "vessel"
+                elif t.area and t.area.startswith('100'):
+                    group_key, group_type = "Wuqi Office", "inline"
+                elif t.area and t.area.startswith('200'):
+                    group_key, group_type = "Onshore-Land", "inline"
+                else:
+                    group_key, group_type = "Marine Offshore", "inline"
+
+                if group_key not in dtr_groups:
+                    dtr_groups[group_key] = {"title": group_key, "type": group_type, "surveyors": set(), "tasks": [], "boat": boat_name}
+                for s in surveyors:
+                    dtr_groups[group_key]["surveyors"].add(s)
+                dtr_groups[group_key]["tasks"].append(task_bullet)
+
+            report_blocks = []
+            sort_order = ["Wuqi Office", "EGST Hydro Survey", "Arzana", "Onshore-Land", "Marine Offshore"]
+            for key in sort_order:
+                if key in dtr_groups:
+                    dtr_groups[key]["surveyors"] = ", ".join(sorted(list(dtr_groups[key]["surveyors"])))
+                    report_blocks.append(dtr_groups[key])
+            for key, data in dtr_groups.items():
+                if key not in sort_order:
+                    data["surveyors"] = ", ".join(sorted(list(data["surveyors"])))
+                    report_blocks.append(data)
+
+            doc = DocxTemplate(template_path)
+            doc.render({
+                'target_date': target_date.strftime('%d.%m.%Y'),
+                'day_of_week': target_date.strftime('%A'),
+                'report_blocks': report_blocks,
+                'outstanding_tasks': outstanding_list
+            })
+            buf = io.BytesIO()
+            doc.save(buf)
+            buf.seek(0)
+            rendered_streams.append(buf)
+            included_dates.append(target_date)
+
+        if not rendered_streams:
+            flash('No completed tasks found across the selected dates.', 'error')
+            return redirect(url_for('reports'))
+
+        if len(rendered_streams) == 1:
+            single_dt = included_dates[0]
+            return send_file(
+                rendered_streams[0],
+                download_name=f"{single_dt.strftime('%Y%m%d')}-DTR-Report.docx",
+                as_attachment=True
+            )
+
+        # Combine multiple rendered Word documents into a single .docx file
+        master_doc = Document(rendered_streams[0])
+        for sub_stream in rendered_streams[1:]:
+            if add_page_break:
+                master_doc.add_page_break()
+            sub_doc = Document(sub_stream)
+            sect_pr = master_doc.element.body.find('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}sectPr')
+            for element in sub_doc.element.body:
+                if element.tag.endswith('sectPr'):
+                    continue
+                cloned_el = deepcopy(element)
+                if sect_pr is not None:
+                    sect_pr.addprevious(cloned_el)
+                else:
+                    master_doc.element.body.append(cloned_el)
+
+        combined_output = io.BytesIO()
+        master_doc.save(combined_output)
+        combined_output.seek(0)
+
+        first_str = included_dates[0].strftime('%Y%m%d')
+        last_str = included_dates[-1].strftime('%Y%m%d')
+        dl_name = f"{first_str}_to_{last_str}-DTR-Report ({len(included_dates)} Days).docx"
+        return send_file(combined_output, download_name=dl_name, as_attachment=True)
+
     except Exception as e:
         flash(f'DTR Generation Failed. Error: {str(e)}', 'error')
         return redirect(url_for('reports'))
