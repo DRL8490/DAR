@@ -38,6 +38,36 @@
 
 
 <div class="container pb-5">
+    <!-- WSR V13 AUTOMATION STUDIO TOP BANNER (ONLY ON REPORTS.HTML) -->
+    <div id="wsrV13TopBanner" style="background: linear-gradient(90deg, #0b2e4c 0%, #0d3b61 100%); color: white; padding: 18px 24px; border-radius: 12px; margin-bottom: 22px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.12);">
+        <div>
+            <div style="font-size: 11px; font-weight: 800; color: #5bc0de; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 4px;">
+                NMDC PROJECT 20012 • 2-WEEK AI CONTEXT + PAGE-1 ADMIN TABLES
+            </div>
+            <h4 style="margin: 0 0 4px 0; font-weight: 800; font-size: 20px; color: #ffffff;">
+                Weekly Survey Report (WSR V13) Automation Studio
+            </h4>
+            <div style="font-size: 13px; color: #d1e7f5;">
+                Pull 7-day closed SurveyTasks directly from the DPR database, edit Page-1 Personnel/Leave/Training tables, and generate pagination-locked Word &amp; PDF reports.
+            </div>
+        </div>
+        <a href="/wsr" class="btn btn-success fw-bold px-4 py-2" style="background-color: #10b981; border: none; border-radius: 8px; font-size: 14px; white-space: nowrap; box-shadow: 0 3px 8px rgba(16,185,129,0.3);">
+            🚀 Open WSR V13 Studio →
+        </a>
+    </div>
+    <script>
+        // Deduplicate if wsr_blueprint also injects a second banner on /reports
+        document.addEventListener('DOMContentLoaded', function() {
+            const banners = Array.from(document.querySelectorAll('div, section')).filter(el =>
+                el.id !== 'wsrV13TopBanner' &&
+                el.children.length <= 5 &&
+                el.textContent &&
+                el.textContent.includes('Weekly Survey Report (WSR V13) Automation Studio') &&
+                !el.contains(document.getElementById('wsrV13TopBanner'))
+            );
+            banners.forEach(b => b.remove());
+        });
+    </script>
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
         <h2 class="fw-bold text-secondary mb-0"><i class="fas fa-chart-pie"></i> Survey Reporting Center</h2>
         <div class="d-flex gap-2">
