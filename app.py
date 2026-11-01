@@ -772,8 +772,283 @@ def log_user_usage(response):
         db.session.rollback()
     return response
 
+
+# --- IDEMPOTENT SEEDER: MMA PRESTIGE MOBILIZATION TASKS (29 OCT - 01 NOV 2026) ---
+def seed_mma_prestige_tasks_20261029_1101():
+    from datetime import date
+    mma_tasks = [
+        {
+            "exec_date": date(2026, 10, 29),
+            "start_dt": datetime(2026, 10, 29, 20, 0),
+            "end_dt": datetime(2026, 10, 29, 23, 30),
+            "area": "200_Onshore-Land",
+            "location": "210_Taichung",
+            "sub_location": "214_Berth37",
+            "work_scope": "214-00_TC_Berth37",
+            "task_category": "Land Survey",
+            "action_required": "Check Survey",
+            "command_verb": "VERIFY",
+            "instrument": "GNSS Rover",
+            "status": "Closed",
+            "assigned_to": "Daryll Enano",
+            "requestor": "Offshore - Walaa Ezzat Gomaa",
+            "opening": "Quayside Control Point Verification at Taichung Port Berth for MMA Prestige Mobilization (Items 2.0-2.3).",
+            "closing": "Occupied primary quayside berth benchmark and established secondary inter-visible azimuth backsight with NMDC RTK GNSS Rover (WGS84 / TWD97 TM2); handed over verified E, N, Z coordinates to Seatrench DimCon party."
+        },
+        {
+            "exec_date": date(2026, 10, 29),
+            "start_dt": datetime(2026, 10, 29, 20, 30),
+            "end_dt": datetime(2026, 10, 29, 23, 45),
+            "area": "300_Marine",
+            "location": "310_General",
+            "sub_location": "311_Marine_Engineering",
+            "work_scope": "311-00_MAR_Vessels_Design_Qty",
+            "task_category": "Equipment Configuration",
+            "action_required": "Survey Software Configuration",
+            "command_verb": "SETUP",
+            "instrument": "PDS",
+            "status": "Closed",
+            "assigned_to": "Daryll Enano",
+            "requestor": "Offshore - Walaa Ezzat Gomaa",
+            "opening": "MMA Prestige (H910) Night-Shift Survey Hardware Offload, Remote Displays & Cable Routing (Items 1.0, 3.0, 4.0, 5.1-5.2, 7.0, 8.0).",
+            "closing": "Lifted USBL, GPS, and ADCP hardware to Main Deck; verified serial numbers; installed remote navigation monitors in NMDC Office, Bridge Helmsman area, and WROV Container; interfaced vessel USBL/Gyro/GPS strings to Survey Control Room and routed coaxial cables to Monkey Deck Mast."
+        },
+        {
+            "exec_date": date(2026, 10, 29),
+            "start_dt": datetime(2026, 10, 29, 21, 0),
+            "end_dt": datetime(2026, 10, 29, 23, 50),
+            "area": "300_Marine",
+            "location": "330_Offshore",
+            "sub_location": "338_Subsea_Crossings",
+            "work_scope": "338-00_OS_Subsea_Crossings",
+            "task_category": "Survey Data Deliverables",
+            "action_required": "File Generation",
+            "command_verb": "PROCESS",
+            "instrument": "PDS",
+            "status": "Closed",
+            "assigned_to": "Daryll Enano",
+            "requestor": "Offshore - Walaa Ezzat Gomaa",
+            "opening": "Bridge ECDIS Crossing Waypoint Preparation and Upload on MMA Prestige (Items 6.0-6.2).",
+            "closing": "Extracted approved cable/pipeline crossing coordinates from project Route Position List (RPL), uploaded waypoints to MMA Prestige Bridge ECDIS, and cross-checked WGS84 coordinates with Bridge Officer."
+        },
+        {
+            "exec_date": date(2026, 10, 30),
+            "start_dt": datetime(2026, 10, 30, 8, 30),
+            "end_dt": datetime(2026, 10, 30, 12, 0),
+            "area": "300_Marine",
+            "location": "310_General",
+            "sub_location": "311_Marine_Engineering",
+            "work_scope": "311-00_MAR_Vessels_Design_Qty",
+            "task_category": "Equipment Configuration",
+            "action_required": "Survey Software Configuration",
+            "command_verb": "SETUP",
+            "instrument": "GNSS Rover",
+            "status": "Closed",
+            "assigned_to": "Daryll Enano",
+            "requestor": "Offshore - Walaa Ezzat Gomaa",
+            "opening": "MMA Prestige Monkey Deck Mast GPS Installation & PPP Signal Verification (Items 9.0, 10.0).",
+            "closing": "Mounted Primary and Secondary GNSS antennas on Monkey Deck Mast (FR 100) and verified Fugro Marinestar G2+ PPP differential convergence in Survey Control Room."
+        },
+        {
+            "exec_date": date(2026, 10, 30),
+            "start_dt": datetime(2026, 10, 30, 10, 0),
+            "end_dt": datetime(2026, 10, 30, 15, 30),
+            "area": "300_Marine",
+            "location": "310_General",
+            "sub_location": "311_Marine_Engineering",
+            "work_scope": "311-00_MAR_Vessels_Design_Qty",
+            "task_category": "Equipment Configuration",
+            "action_required": "Survey Software Configuration",
+            "command_verb": "SETUP",
+            "instrument": "PDS",
+            "status": "Closed",
+            "assigned_to": "Daryll Enano",
+            "requestor": "Offshore - Walaa Ezzat Gomaa",
+            "opening": "Over-the-Side Survey Pole Mechanical Mounting of Sonardyne HPT USBL & RDI ADCP (Items 11.0, 11.1, 12.1).",
+            "closing": "Completed pre-deployment bench DimCon offset measurements; bolted NOR-rented Red Sonardyne Ranger 2 HPT USBL transceiver and caged Teledyne RDI ADCP onto dual-branch over-the-side pole; strain-relieved umbilicals."
+        },
+        {
+            "exec_date": date(2026, 10, 30),
+            "start_dt": datetime(2026, 10, 30, 13, 0),
+            "end_dt": datetime(2026, 10, 30, 18, 0),
+            "area": "300_Marine",
+            "location": "310_General",
+            "sub_location": "311_Marine_Engineering",
+            "work_scope": "311-00_MAR_Vessels_Design_Qty",
+            "task_category": "Equipment Configuration",
+            "action_required": "Survey Software Configuration",
+            "command_verb": "SETUP",
+            "instrument": "Total Station",
+            "status": "Closed",
+            "assigned_to": "Daryll Enano",
+            "requestor": "Offshore - Walaa Ezzat Gomaa",
+            "opening": "Total Station Dimensional Control Survey (Phase 1 Hull VRF Network & Phase 2 Sensor Offsets) on MMA Prestige (Items 13.0-13.5, 14.1-14.2).",
+            "closing": "Set up Total Station on Monkey Deck with dual-axis compensator OFF; observed Face Left/Face Right rounds to hull benchmarks; shot Primary/Secondary GPS ARPs and projected 3D VRF coordinates (X, Y, Z) of submerged USBL and ADCP acoustic centers."
+        },
+        {
+            "exec_date": date(2026, 10, 30),
+            "start_dt": datetime(2026, 10, 30, 15, 0),
+            "end_dt": None,
+            "area": "300_Marine",
+            "location": "310_General",
+            "sub_location": "311_Marine_Engineering",
+            "work_scope": "311-00_MAR_Vessels_Design_Qty",
+            "task_category": "Equipment Configuration",
+            "action_required": "Survey Software Configuration",
+            "command_verb": "SETUP",
+            "instrument": "PDS",
+            "status": "In Progress",
+            "assigned_to": "Daryll Enano",
+            "requestor": "Offshore - Walaa Ezzat Gomaa",
+            "opening": "Lower-Deck Sonardyne NSH LAN Integration & Octans MRU Telemetry Injection (Items 12.0, 12.2, 12.3).",
+            "closing": "Due to 50 m USBL cable length limit, Subcontractor installed Sonardyne Navigation Sensor Hub (NSH) on lower deck bridged via LAN to Survey Control Room; resolving Octans MRU injection and 1PPS + $GPZDA time-sync lock."
+        },
+        {
+            "exec_date": date(2026, 10, 31),
+            "start_dt": datetime(2026, 10, 31, 0, 22),
+            "end_dt": datetime(2026, 10, 31, 18, 30),
+            "area": "300_Marine",
+            "location": "310_General",
+            "sub_location": "311_Marine_Engineering",
+            "work_scope": "311-00_MAR_Vessels_Design_Qty",
+            "task_category": "Equipment Configuration",
+            "action_required": "Survey Software Configuration",
+            "command_verb": "SETUP",
+            "instrument": "PDS",
+            "status": "Closed",
+            "assigned_to": "Daryll Enano",
+            "requestor": "Offshore - Walaa Ezzat Gomaa",
+            "opening": "SAAB Seaeye Cougar XTi (S/N 1495) WROV Crane Lift, LARS Integration & Quayside Wet Test on MMA Prestige (Item 5.5).",
+            "closing": "Completed 100T main crane lift of WROV cage (00:22), rigged Cougar XTi into DIVES SWL 1.5 TON LARS A-frame (03:05), inspected deployed USBL/ADCP pole and deck mattress stacks A040/A051 (07:29), and executed submerged quayside wet test (18:11)."
+        },
+        {
+            "exec_date": date(2026, 10, 31),
+            "start_dt": datetime(2026, 10, 31, 9, 0),
+            "end_dt": None,
+            "area": "300_Marine",
+            "location": "310_General",
+            "sub_location": "311_Marine_Engineering",
+            "work_scope": "311-00_MAR_Vessels_Design_Qty",
+            "task_category": "Equipment Configuration",
+            "action_required": "Survey Software Configuration",
+            "command_verb": "SETUP",
+            "instrument": "PDS",
+            "status": "In Progress",
+            "assigned_to": "Daryll Enano",
+            "requestor": "Offshore - Walaa Ezzat Gomaa",
+            "opening": "EIVA NaviPac VRF Lever-Arm Configuration & Quayside Position/Heading/MRU C-O Calibrations (Items 5.3-5.4, 14.3, 15.0-20.1).",
+            "closing": "Plotting verified VRF sensor offsets and vessel/WROV 3D shapes in EIVA NaviPac; executing unified 30-minute 1 Hz quayside Total Station and EIVA static logging for GPS Position check, Vessel Gyro Heading C-O, and MRU Pitch/Roll/Yaw C-O."
+        },
+        {
+            "exec_date": date(2026, 10, 31),
+            "start_dt": datetime(2026, 10, 31, 14, 0),
+            "end_dt": None,
+            "area": "300_Marine",
+            "location": "330_Offshore",
+            "sub_location": "331_Offshore_Mainline",
+            "work_scope": "331-00_OS_Trenches_2_7",
+            "task_category": "Survey Data Deliverables",
+            "action_required": "File Generation",
+            "command_verb": "PROCESS",
+            "instrument": "PDS",
+            "status": "Open",
+            "assigned_to": "Daryll Enano, Mateo Moralleda",
+            "requestor": "Offshore - Walaa Ezzat Gomaa",
+            "opening": "Upload of Existing and Planned Design Pipeline RPL Waypoints to MMA Prestige Bridge ECDIS (Item 6.3).",
+            "closing": "Pending approved pipeline waypoint dataset from Mateo; to be cross-checked on WGS84 with Bridge Officer prior to departure."
+        },
+        {
+            "exec_date": date(2026, 10, 31),
+            "start_dt": datetime(2026, 10, 31, 16, 0),
+            "end_dt": datetime(2026, 10, 31, 21, 0),
+            "area": "100_Office",
+            "location": "110_Taichung",
+            "sub_location": "113_Project-External",
+            "work_scope": "113-10_OFC_External_TPC_Subcon",
+            "task_category": "Office Admin Works",
+            "action_required": "Survey Report",
+            "command_verb": "SUBMIT",
+            "instrument": "PC",
+            "status": "Closed",
+            "assigned_to": "Daryll Enano",
+            "requestor": "Survey - Mok Wai Heng",
+            "opening": "Subcontractor Mobilization Audit, FEM 1 DoB Survey SoW Rev. 1 Update & WROV QA/QC Checklists Generation.",
+            "closing": "Audited Seatrench R1 Mobilization Checklist (MMA_Prestige_ST_Subcon_Survey_Mobilization_Checklist-R1-v2.xlsx); revised FEM 1 Cable Crossing DoB Survey SoW (2913-SOW-PMT-017 Rev. 1) per Fengmiao OWF directive ruling out passive magnetometers in favor of SBP, TSS 440, PanGeo, and eBOSS across R=20.0 m circles 499A-499D; compiled Seatrench/EGST WROV Pre-Deployment, Pre-Dive, and Post-Dive Checklists (ST-4242-CHK-01 to 03)."
+        },
+        {
+            "exec_date": date(2026, 11, 1),
+            "start_dt": datetime(2026, 11, 1, 8, 0),
+            "end_dt": None,
+            "area": "300_Marine",
+            "location": "310_General",
+            "sub_location": "311_Marine_Engineering",
+            "work_scope": "311-00_MAR_Vessels_Design_Qty",
+            "task_category": "Equipment Configuration",
+            "action_required": "Survey Software Configuration",
+            "command_verb": "SETUP",
+            "instrument": "PDS",
+            "status": "Open",
+            "assigned_to": "Daryll Enano",
+            "requestor": "Offshore - Walaa Ezzat Gomaa",
+            "opening": "Offshore Dynamic USBL Calibration at Sea on DP2 MMA Prestige (Items 21.0-21.2).",
+            "closing": "Deploy stationary seabed transponder on clump weight; execute DP2 4-heading Nadir Spin Test and Cardinal Box-In / Sonardyne CASIUS maneuvers to solve and verify USBL Roll, Pitch, and Heading C-O offsets in EIVA NaviPac."
+        }
+    ]
+
+    inserted = 0
+    for item in mma_tasks:
+        if item["status"] == "Closed":
+            full_rem = f"{item['opening']} | Closed: {item['closing']}"
+            prio = 99
+        elif item["status"] == "In Progress":
+            full_rem = f"{item['opening']} — {item['closing']} | Acknowledged & Started by Daryll Enano"
+            prio = 1
+        else:
+            full_rem = f"{item['opening']} — Plan: {item['closing']}"
+            prio = 2
+
+        existing = SurveyTask.query.filter(
+            SurveyTask.execution_date == item["exec_date"],
+            SurveyTask.remarks.ilike(f"%{item['opening'][:45]}%")
+        ).first()
+
+        if not existing:
+            new_t = SurveyTask(
+                surveyor_name="Daryll Enano",
+                assigned_to=item["assigned_to"],
+                requestor=item["requestor"],
+                command_verb=item["command_verb"],
+                task_category=item["task_category"],
+                action_required=item["action_required"],
+                instrument=item["instrument"],
+                area=item["area"],
+                location=item["location"],
+                sub_location=item["sub_location"],
+                work_scope=item["work_scope"],
+                remarks=full_rem,
+                status=item["status"],
+                is_urgent=False,
+                priority=prio,
+                start_time=item["start_dt"],
+                execution_date=item["exec_date"],
+                end_time=item["end_dt"]
+            )
+            db.session.add(new_t)
+            inserted += 1
+    if inserted > 0:
+        db.session.commit()
+        try:
+            resequence_queue("Daryll Enano")
+        except Exception:
+            pass
+    return inserted
+
 with app.app_context():
     db.create_all()
+    try:
+        seed_mma_prestige_tasks_20261029_1101()
+    except Exception:
+        db.session.rollback()
     try:
         db.session.execute(text("UPDATE survey_task SET status = 'Open' WHERE status = 'OPEN_REQUESTS'"))
         db.session.execute(text("UPDATE survey_task SET status = 'In Progress' WHERE status IN ('FIELD_ACQUISITION', 'DATA_PROCESSING', 'QA_QC_REVIEW')"))
