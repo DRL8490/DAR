@@ -272,19 +272,19 @@ LEAN_CORE_TASKS = [
         "id": "CT-06", "label": "Bathymetric Monitoring & Progress Survey",
         "action_required": "Monitoring Survey", "task_category": "Bathymetric Survey",
         "command_verb": "PERFORM", "default_instrument": "MBES  WS166",
-        "instruments": ["MBES  WS166", "SBES"]
+        "instruments": ["MBES  WS166", "SBES", "USBL", "ADCP", "ROV"]
     },
     {
         "id": "CT-07", "label": "Bathymetric Pre / Post / As-Built Survey",
         "action_required": "Post Survey", "task_category": "Bathymetric Survey",
         "command_verb": "PERFORM", "default_instrument": "MBES  WS166",
-        "instruments": ["MBES  WS166", "SBES"]
+        "instruments": ["MBES  WS166", "SBES", "USBL", "ADCP", "ROV"]
     },
     {
         "id": "CT-08", "label": "Geophysical Survey & Processing (SSS/Maggy/SBP/GPR)",
         "action_required": "Geophysical Check Survey", "task_category": "Geophysical Survey",
         "command_verb": "PERFORM", "default_instrument": "SSS",
-        "instruments": ["SSS", "Maggy", "SBP", "CAD", "Reporting"]
+        "instruments": ["SSS", "Maggy", "SBP", "USBL", "ADCP", "ROV", "CAD", "Reporting"]
     },
     {
         "id": "CT-09", "label": "File Generation & Design/Background Prep (PDS/DXF/3DM)",
@@ -314,7 +314,7 @@ LEAN_CORE_TASKS = [
         "id": "CT-13", "label": "Vessel Software Config & Calibration (PDS / DTPS / System)",
         "action_required": "Survey Software Configuration", "task_category": "Equipment Configuration",
         "command_verb": "SETUP", "default_instrument": "PDS",
-        "instruments": ["PDS", "DTPS", "GNSS Rover", "Total Station", "PC"]
+        "instruments": ["PDS", "DTPS", "GNSS Rover", "Total Station", "PC", "USBL", "ADCP", "ROV"]
     },
     {
         "id": "CT-14", "label": "Survey Reports, Tech Review & Coordination Meetings",
@@ -664,7 +664,43 @@ def format_clean_description(task, include_opening_remark=False):
 
     return base_phrase
 
-def get_merged_macro_scopes_and_cards(file_tree):
+
+def get_merged_core_tasks(activities_dict=None):
+    merged_tasks = []
+    for ct in LEAN_CORE_TASKS:
+        ct_copy = dict(ct)
+        inst_list = list(ct["instruments"])
+        if activities_dict and isinstance(activities_dict, dict):
+            cat_dict = activities_dict.get(ct["task_category"], {})
+            if isinstance(cat_dict, dict):
+                saved_insts = cat_dict.get(ct["action_required"], [])
+                for si in saved_insts:
+                    if si and si not in inst_list:
+                        inst_list.append(si)
+        ct_copy["instruments"] = inst_list
+        merged_tasks.append(ct_copy)
+
+    known_pairs = {(t["task_category"], t["action_required"]) for t in merged_tasks}
+    if activities_dict and isinstance(activities_dict, dict):
+        for cat_k, act_map in activities_dict.items():
+            if not isinstance(act_map, dict):
+                continue
+            for act_k, inst_v in act_map.items():
+                if (cat_k, act_k) not in known_pairs:
+                    inst_clean = list(inst_v) if isinstance(inst_v, list) and inst_v else ["PC"]
+                    merged_tasks.append({
+                        "id": f"CT-CUSTOM-{len(merged_tasks)+1}",
+                        "label": f"{act_k} ({cat_k})",
+                        "action_required": act_k,
+                        "task_category": cat_k,
+                        "command_verb": "PERFORM",
+                        "default_instrument": inst_clean[0],
+                        "instruments": inst_clean
+                    })
+                    known_pairs.add((cat_k, act_k))
+    return merged_tasks
+
+def get_merged_macro_scopes_and_cards(file_tree, activities_dict=None):
     """Merges the 16 canonical Macro Scopes with any custom scopes added via /system_config_hidden."""
     macro_scopes_list = [dict(s) for s in LEAN_MACRO_SCOPES]
     known_codes = {s["work_scope"] for s in macro_scopes_list}
@@ -686,8 +722,9 @@ def get_merged_macro_scopes_and_cards(file_tree):
 
     seed_weights = {(m_id, c_id): w for m_id, c_id, w in HISTORICAL_OMNI_SEEDS}
     omni_cards = []
+    active_core_tasks = get_merged_core_tasks(activities_dict)
     for s in macro_scopes_list:
-        for ct in LEAN_CORE_TASKS:
+        for ct in active_core_tasks:
             hist_w = seed_weights.get((s["id"], ct["id"]), 0)
             omni_cards.append({
                 "scope_id": s["id"],
@@ -1120,7 +1157,18 @@ with app.app_context():
         try:
             existing_schema = json.loads(config.schema_data)
             existing_schema["file_tree"] = lean_file_tree
-            existing_schema["activities"] = lean_activities
+            saved_acts = existing_schema.get("activities", {})
+            if not isinstance(saved_acts, dict):
+                saved_acts = {}
+            for cat_k, act_map in lean_activities.items():
+                saved_acts.setdefault(cat_k, {})
+                for act_k, inst_list in act_map.items():
+                    curr_insts = saved_acts[cat_k].get(act_k, [])
+                    for inst_item in inst_list:
+                        if inst_item not in curr_insts:
+                            curr_insts.append(inst_item)
+                    saved_acts[cat_k][act_k] = curr_insts
+            existing_schema["activities"] = saved_acts
             if "requestors" not in existing_schema or not existing_schema["requestors"]:
                 existing_schema["requestors"] = default_requestors
             config.schema_data = json.dumps(existing_schema)
@@ -1432,7 +1480,7 @@ def dashboard():
     master_schema = json.loads(config.schema_data) if (config and config.schema_data) else {}
     file_tree = master_schema.get("file_tree", {})
     req_dict = master_schema.get("requestors", {})
-    macro_scopes_list, omni_cards = get_merged_macro_scopes_and_cards(file_tree)
+    macro_scopes_list, omni_cards = get_merged_macro_scopes_and_cards(file_tree, master_schema.get('activities', {}))
 
     is_admin = is_user_admin(current_user)
     all_users = User.query.filter_by(is_approved=True, is_active=True).order_by(User.name.asc()).all()
@@ -1450,7 +1498,7 @@ def dashboard():
         macro_scopes=macro_scopes_list,
         req_dict_json=json.dumps(req_dict),
         macro_scopes_json=json.dumps(macro_scopes_list),
-        core_tasks_json=json.dumps(LEAN_CORE_TASKS),
+        core_tasks_json=json.dumps(get_merged_core_tasks(master_schema.get('activities', {}))),
         omni_cards_json=json.dumps(omni_cards),
         quick_chips_json=json.dumps(get_active_quick_chips(current_user.name))
     )
@@ -2038,6 +2086,39 @@ def hidden_config():
             if area in master_schema['file_tree'] and loc in master_schema['file_tree'][area] and sub in master_schema['file_tree'][area][loc]:
                 if scope in master_schema['file_tree'][area][loc][sub]:
                     master_schema['file_tree'][area][loc][sub].remove(scope)
+        elif action in ('add_activity', 'add_category', 'add_task_category'):
+            act_type = (request.form.get('activity') or request.form.get('activity_type') or request.form.get('task_category') or request.form.get('category') or '').strip()
+            if act_type:
+                master_schema['activities'].setdefault(act_type, {})
+        elif action in ('delete_activity', 'delete_category', 'delete_task_category'):
+            act_type = (request.form.get('activity') or request.form.get('activity_type') or request.form.get('task_category') or request.form.get('category') or '').strip()
+            master_schema['activities'].pop(act_type, None)
+        elif action in ('add_action', 'add_action_req', 'add_discipline'):
+            act_type = (request.form.get('activity') or request.form.get('activity_type') or request.form.get('task_category') or request.form.get('category') or '').strip()
+            act_req = (request.form.get('action_req') or request.form.get('action_required') or request.form.get('action_name') or request.form.get('sub_activity') or request.form.get('new_action') or '').strip()
+            if act_type and act_req:
+                master_schema['activities'].setdefault(act_type, {}).setdefault(act_req, [])
+        elif action in ('delete_action', 'delete_action_req', 'delete_discipline'):
+            act_type = (request.form.get('activity') or request.form.get('activity_type') or request.form.get('task_category') or request.form.get('category') or '').strip()
+            act_req = (request.form.get('action_req') or request.form.get('action_required') or request.form.get('action_name') or request.form.get('sub_activity') or '').strip()
+            if act_type in master_schema['activities']:
+                master_schema['activities'][act_type].pop(act_req, None)
+        elif action in ('add_inst', 'add_instrument', 'add_tool'):
+            act_type = (request.form.get('activity') or request.form.get('activity_type') or request.form.get('task_category') or request.form.get('category') or '').strip()
+            act_req = (request.form.get('action_req') or request.form.get('action_required') or request.form.get('action_name') or request.form.get('sub_activity') or '').strip()
+            inst_raw = (request.form.get('instrument') or request.form.get('inst') or request.form.get('new_inst') or request.form.get('inst_name') or '').strip()
+            if act_type and act_req and inst_raw:
+                master_schema['activities'].setdefault(act_type, {}).setdefault(act_req, [])
+                for single_inst in [x.strip() for x in inst_raw.split(',') if x.strip()]:
+                    if single_inst not in master_schema['activities'][act_type][act_req]:
+                        master_schema['activities'][act_type][act_req].append(single_inst)
+        elif action in ('delete_inst', 'delete_instrument', 'delete_tool'):
+            act_type = (request.form.get('activity') or request.form.get('activity_type') or request.form.get('task_category') or request.form.get('category') or '').strip()
+            act_req = (request.form.get('action_req') or request.form.get('action_required') or request.form.get('action_name') or request.form.get('sub_activity') or '').strip()
+            inst_val = (request.form.get('instrument') or request.form.get('inst') or request.form.get('inst_name') or '').strip()
+            if act_type in master_schema['activities'] and act_req in master_schema['activities'][act_type]:
+                if inst_val in master_schema['activities'][act_type][act_req]:
+                    master_schema['activities'][act_type][act_req].remove(inst_val)
         config.schema_data = json.dumps(master_schema)
         db.session.commit()
         flash('System Configuration Updated!', 'success')
@@ -2125,7 +2206,7 @@ def new_task():
             flash('New task opened successfully!', 'success')
             return redirect(url_for('admin_dashboard') if session.get('dashboard_view') == 'admin' else url_for('dashboard'))
 
-        macro_scopes_list, omni_cards = get_merged_macro_scopes_and_cards(file_tree)
+        macro_scopes_list, omni_cards = get_merged_macro_scopes_and_cards(file_tree, master_schema.get('activities', {}))
         scope_label_by_code = {s["work_scope"]: s["label"] for s in macro_scopes_list}
 
         user_tasks = SurveyTask.query.filter(
@@ -2242,7 +2323,7 @@ def new_task():
                                users=User.query.filter_by(is_approved=True, is_active=True).order_by(User.name.asc()).all(),
                                req_dict_json=json.dumps(req_dict), 
                                macro_scopes_json=json.dumps(macro_scopes_list),
-                               core_tasks_json=json.dumps(LEAN_CORE_TASKS),
+                               core_tasks_json=json.dumps(get_merged_core_tasks(master_schema.get('activities', {}))),
                                omni_cards_json=json.dumps(omni_cards),
                                quick_chips_json=json.dumps(get_active_quick_chips(current_user.name)), is_admin=is_user_admin(current_user),
                                presets_json=json.dumps(presets_dict),
@@ -2300,7 +2381,7 @@ def edit_task(task_id):
         file_tree = master_schema.get("file_tree", {})
         req_dict = master_schema.get("requestors", {})
         activities_data = master_schema.get("activities", {})
-        macro_scopes_list, omni_cards = get_merged_macro_scopes_and_cards(file_tree)
+        macro_scopes_list, omni_cards = get_merged_macro_scopes_and_cards(file_tree, master_schema.get('activities', {}))
 
         task_dict = {
             'command_verb': task.command_verb or "PERFORM",
@@ -2318,7 +2399,7 @@ def edit_task(task_id):
                                schema_json=json.dumps(file_tree), 
                                activities_json=json.dumps(activities_data),
                                macro_scopes_json=json.dumps(macro_scopes_list),
-                               core_tasks_json=json.dumps(LEAN_CORE_TASKS),
+                               core_tasks_json=json.dumps(get_merged_core_tasks(master_schema.get('activities', {}))),
                                omni_cards_json=json.dumps(omni_cards),
                                quick_chips_json=json.dumps(get_active_quick_chips(current_user.name)), is_admin=is_user_admin(current_user),
                                task_json=json.dumps(task_dict))
