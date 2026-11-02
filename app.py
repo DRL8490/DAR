@@ -322,7 +322,31 @@ LEAN_CORE_TASKS = [
         "command_verb": "SUBMIT", "default_instrument": "PC",
         "instruments": ["PC", "Teams", "Face to Face", "Excel"]
     }
-]
+,
+    {
+        "id": "CT-15", "label": "Client Rep Witness: 6-Step Mattress / Rock Bag Touchdown & Release (±0.50m CL / <=0.20m Gap)",
+        "action_required": "Check Survey", "task_category": "Bathymetric Survey",
+        "command_verb": "VERIFY", "default_instrument": "USBL",
+        "instruments": ["USBL", "ROV", "PDS", "EIVA NaviPac", "MBES  WS166", "PC"]
+    },
+    {
+        "id": "CT-16", "label": "Client Rep Witness: Vessel DimCon, GNSS/PPP, Gyro/MRU & Dynamic USBL Calibration",
+        "action_required": "System Check", "task_category": "Equipment Configuration",
+        "command_verb": "VERIFY", "default_instrument": "PDS",
+        "instruments": ["PDS", "USBL", "ROV", "Total Station", "GNSS Rover", "EIVA NaviPac", "PC"]
+    },
+    {
+        "id": "CT-17", "label": "Client Rep QA/QC Audit: Daily DOR/DPR Sign-Off, Fix Log Reconciliation & As-Built Review",
+        "action_required": "Check Survey Drw", "task_category": "Survey Data Deliverables",
+        "command_verb": "REVIEW", "default_instrument": "PC",
+        "instruments": ["PC", "PDS", "ROV", "CAD", "Excel"]
+    },
+    {
+        "id": "CT-18", "label": "Client Rep Witness: Pre-Lay Corridor, Cable Crossing DoB & Post-Lay Survey (WROV/MBES/SBP)",
+        "action_required": "Geophysical Check Survey", "task_category": "Geophysical Survey",
+        "command_verb": "VERIFY", "default_instrument": "ROV",
+        "instruments": ["ROV", "USBL", "MBES  WS166", "SBP", "TSS 440", "PanGeo", "eBOSS", "PDS"]
+    }]
 
 # PINNED 1-CLICK QUICK CHIPS (Fallback defaults for brand-new users)
 QUICK_PICK_CHIPS = [
@@ -371,6 +395,10 @@ SHORT_TASK_TAGS = {
     "CT-12": "Charts & Profiles",
     "CT-13": "Software Config/Calib",
     "CT-14": "Report / Tech Review",
+    "CT-15": "Client Rep: Mattress/Rockbag Touchdown",
+    "CT-16": "Client Rep: DimCon & USBL Calib Witness",
+    "CT-17": "Client Rep: DOR/Fix Log & As-Built Audit",
+    "CT-18": "Client Rep: Pre/Post-Lay & DoB Witness",
 }
 
 # Per-User Historical Baseline Seeds from the 1,809-Task Master Register
@@ -416,6 +444,10 @@ USER_HISTORICAL_SEEDS = {
         ("MWS-08", "CT-02", 14, "Tunghsiao Temp Platform Progress Survey"),
     ],
     "daryll": [
+        ("MWS-15", "CT-15", 25, "Client Rep Witness: 6-Step Mattress Touchdown & Release (±0.50m CL / <=0.20m Gap)"),
+        ("MWS-15", "CT-18", 18, "Client Rep Witness: Pre-Lay Corridor, Cable Crossing DoB & Post-Lay MBES/WROV Survey"),
+        ("MWS-15", "CT-17", 15, "Client Rep QA/QC Audit: Daily DOR Sign-Off, Subsea Fix Log & Geodetic Reconciliation"),
+        ("MWS-16", "CT-16", 14, "Client Rep Witness: MMA Prestige DimCon, GNSS/PPP & Dynamic USBL CASIUS/Box-In Calib"),
         ("MWS-10", "CT-06", 16, "Nearshore Dumping Area Dredging Monitoring"),
         ("MWS-05", "CT-01", 14, "AHDD Road Settlement Monitoring"),
         ("MWS-12", "CT-06", 9, "T8 Dredging Monitoring Survey"),
@@ -562,6 +594,10 @@ def get_active_quick_chips(user_name=None, limit=8):
 
 # Pre-seeded Top Historical Omni-Search Pairs from the 1,809-Task Register
 HISTORICAL_OMNI_SEEDS = [
+    ("MWS-15", "CT-15", 45),
+    ("MWS-15", "CT-18", 35),
+    ("MWS-15", "CT-17", 30),
+    ("MWS-16", "CT-16", 28),
     ("MWS-05", "CT-01", 116),
     ("MWS-08", "CT-11", 109),
     ("MWS-05", "CT-11", 101),
