@@ -2966,8 +2966,11 @@ def api_get_quick_picks():
 def inject_wsr_and_quickpicks_context():
     """Automatically provides wsr_state and dynamic log-based quick_picks to all templates including reports.html."""
     from flask import session, request
+    from flask_login import current_user as _fl_user
+    _logged_name = _fl_user.name if getattr(_fl_user, "is_authenticated", False) else None
     current_user = (
         request.args.get("user")
+        or _logged_name
         or session.get("user_name")
         or session.get("username")
         or "Daryll"

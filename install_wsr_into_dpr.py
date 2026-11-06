@@ -44,7 +44,7 @@ def step_2_patch_app_py():
     with open(app_py_path, "r", encoding="utf-8") as f:
         code = f.read()
 
-    if "wsr_bp" in code or "wsr_blueprint" in code:
+    if "register_blueprint(wsr_bp)" in code:
         print("[2/4] app.py already has wsr_bp registered! Skipping.")
         return
 
@@ -81,7 +81,7 @@ def step_3_patch_templates():
 </div>
 """
 
-    for tpl_name in ["reports.html", "admin_dashboard.html", "user_dashboard.html"]:
+    for tpl_name in ["reports.html"]:
         tpl_path = os.path.join(templates_dir, tpl_name)
         if not os.path.exists(tpl_path):
             continue
