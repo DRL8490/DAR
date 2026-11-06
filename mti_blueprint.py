@@ -1,4 +1,4 @@
-﻿import io
+import io
 import json
 import math
 import copy
@@ -10,7 +10,7 @@ from flask_login import login_required, current_user
 mti_bp = Blueprint('mti_bp', __name__, url_prefix='/mti')
 
 DEFAULT_MTI_STATE = {
-    "campaign_target_mattresses": 141,
+    "campaign_target_mattresses": 25,
     "campaign_target_rockbags": 28,
     "cl_tolerance_m": 0.50,
     "gap_tolerance_m": 0.20,
@@ -19,58 +19,58 @@ DEFAULT_MTI_STATE = {
             "id": 1,
             "unit_no": 1,
             "unit_type": "Concrete Mattress",
-            "crossing_id": "Crossing A1",
-            "design_box_id": "MB-001",
-            "physical_tag": "A040-01",
+            "crossing_id": "CR-A1",
+            "design_box_id": "CR-A1_M15",
+            "physical_tag": "#A046",
             "install_date": "2026-11-04",
             "shift": "Abror & Roderick",
-            "design_e": 198450.25,
-            "design_n": 2681120.40,
-            "aslaid_e": 198450.42,
-            "aslaid_n": 2681120.28,
-            "cl_offset_m": 0.21,
+            "design_e": 0.00,
+            "design_n": 0.00,
+            "aslaid_e": 0.00,
+            "aslaid_n": 0.00,
+            "cl_offset_m": 0.12,
             "heading_deg": 284.5,
             "gap_m": 0.00,
             "status": "Completed",
-            "remarks": "Unit #1 6-step WROV/USBL deployment verified on seabed within ±0.50m tolerance."
+            "remarks": "Installed 04-Nov at 16:00 (CR-A1_M15, Tag #A046); 6-step WROV/USBL deployment verified."
         },
         {
             "id": 2,
             "unit_no": 2,
             "unit_type": "Concrete Mattress",
-            "crossing_id": "Crossing A1",
-            "design_box_id": "MB-002",
-            "physical_tag": "A040-02",
+            "crossing_id": "CR-A1",
+            "design_box_id": "CR-A1_M16",
+            "physical_tag": "#A007",
             "install_date": "2026-11-05",
             "shift": "Abror & Roderick",
-            "design_e": 198447.30,
-            "design_n": 2681121.15,
-            "aslaid_e": 198447.12,
-            "aslaid_n": 2681121.31,
-            "cl_offset_m": 0.24,
+            "design_e": 0.00,
+            "design_n": 0.00,
+            "aslaid_e": 0.00,
+            "aslaid_n": 0.00,
+            "cl_offset_m": 0.15,
             "heading_deg": 284.2,
-            "gap_m": 0.14,
+            "gap_m": 0.10,
             "status": "Completed",
-            "remarks": "Unit #2 touchdown & acoustic release witnessed; inter-mattress gap 0.14m (<=0.20m)."
+            "remarks": "Installed 05-Nov at 04:40 (CR-A1_M16, Tag #A007); 2cm North & 10cm South gap; 4-corner fixes completed at 05:00."
         },
         {
             "id": 3,
             "unit_no": 3,
             "unit_type": "Concrete Mattress",
-            "crossing_id": "Crossing A1",
-            "design_box_id": "MB-003",
-            "physical_tag": "A040-03",
+            "crossing_id": "CR-A1",
+            "design_box_id": "CR-A1_M17",
+            "physical_tag": "Pending",
             "install_date": "2026-11-05",
             "shift": "Abror & Roderick",
-            "design_e": 198444.35,
-            "design_n": 2681121.90,
-            "aslaid_e": 198444.50,
-            "aslaid_n": 2681121.82,
-            "cl_offset_m": 0.17,
+            "design_e": 0.00,
+            "design_n": 0.00,
+            "aslaid_e": 0.00,
+            "aslaid_n": 0.00,
+            "cl_offset_m": 0.18,
             "heading_deg": 284.8,
-            "gap_m": 0.16,
+            "gap_m": 0.22,
             "status": "In Progress",
-            "remarks": "Unit #3 lowered to holding depth; WROV alignment & USBL fix verification ongoing."
+            "remarks": "Placed on seabed by 19:00 (center delta 0.18m); pending seating adjustment to close >20cm West edge gap."
         }
     ],
     "time_logs": [
@@ -83,7 +83,7 @@ DEFAULT_MTI_STATE = {
             "hrs_rov_recovery": 3.5,
             "hrs_deck_dp": 6.0,
             "hrs_standby": 4.0,
-            "notes": "Completed Mattress #1 touchdown & release; resolved USBL beacon telemetry check and WROV tether check."
+            "notes": "Completed Mattress #1 (CR-A1_M15, #A046) at 16:00; resolved USBL beacon telemetry and WROV tether check."
         },
         {
             "id": 2,
@@ -94,7 +94,7 @@ DEFAULT_MTI_STATE = {
             "hrs_rov_recovery": 4.5,
             "hrs_deck_dp": 5.5,
             "hrs_standby": 3.0,
-            "notes": "Completed Mattress #2 installation (gap 0.14m); ongoing placement of Mattress #3 following WROV latch recovery."
+            "notes": "Completed Mattress #2 (CR-A1_M16, #A007) at 04:40 (4-corner fix 05:00); Mattress #3 placed at 19:00 (0.18m delta, closing >20cm West gap)."
         }
     ]
 }
@@ -113,6 +113,11 @@ def load_mti_state():
     except Exception:
         schema = {}
     if "mti_state" not in schema or not isinstance(schema["mti_state"], dict):
+        schema["mti_state"] = copy.deepcopy(DEFAULT_MTI_STATE)
+        config.schema_data = json.dumps(schema)
+        db.session.commit()
+    st = schema["mti_state"]
+    if st.get("campaign_target_mattresses") == 141 and any(r.get("design_box_id") == "MB-001" for r in st.get("ledger", [])):
         schema["mti_state"] = copy.deepcopy(DEFAULT_MTI_STATE)
         config.schema_data = json.dumps(schema)
         db.session.commit()
@@ -216,7 +221,13 @@ def mti_dashboard():
                 <div class="progress mt-2" style="height: 7px;">
                     <div class="progress-bar bg-primary" style="width: {{ pct_matt }}%;"></div>
                 </div>
-                <small class="text-muted d-block mt-1">{{ target_matt - completed_matt }} remaining in campaign</small>
+                <div class="d-flex justify-content-between align-items-center mt-1">
+                    <small class="text-muted">{{ target_matt - completed_matt }} remaining</small>
+                    <form action="/mti/update_targets" method="POST" class="d-inline-flex align-items-center gap-1">
+                        <input type="number" name="target_matt" value="{{ target_matt }}" min="1" max="500" class="form-control form-control-sm py-0 px-1 text-center fw-bold" style="width: 58px; height: 22px; font-size: 11px;" title="Target Mattresses">
+                        <button type="submit" class="btn btn-sm btn-outline-primary py-0 px-1" style="font-size: 10px; height: 22px;">Set Target</button>
+                    </form>
+                </div>
             </div>
         </div>
         <div class="col-md-3">
@@ -666,3 +677,14 @@ def export_excel():
         download_name=f"MMA_Prestige_MTI_Ledger_{datetime.utcnow().strftime('%Y%m%d')}.xlsx",
         as_attachment=True
     )
+
+@mti_bp.route('/update_targets', methods=['POST'])
+@login_required
+def update_targets():
+    state = load_mti_state()
+    new_target = request.form.get("target_matt", type=int)
+    if new_target and new_target > 0:
+        state["campaign_target_mattresses"] = new_target
+        save_mti_state(state)
+        flash(f"Updated Mattress Target Array Total to {new_target} units!", "success")
+    return redirect(url_for('mti_bp.mti_dashboard'))
