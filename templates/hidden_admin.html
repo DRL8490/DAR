@@ -389,5 +389,55 @@
         }
     }
 </script>
+
+<script>
+// Auto-restore selected Activity Type & Action Required after form submit reload
+document.addEventListener('DOMContentLoaded', function() {
+    try {
+        document.addEventListener('click', function(e) {
+            const el = e.target.closest('option, li, .list-group-item, div');
+            if (!el) return;
+            const txt = (el.value || el.textContent || '').trim();
+            if (typeof masterSchema !== 'undefined' && masterSchema.activities) {
+                if (masterSchema.activities[txt]) {
+                    localStorage.setItem('cfg_last_act_type', txt);
+                } else {
+                    const lastAct = localStorage.getItem('cfg_last_act_type');
+                    if (lastAct && masterSchema.activities[lastAct] && masterSchema.activities[lastAct][txt]) {
+                        localStorage.setItem('cfg_last_act_req', txt);
+                    }
+                }
+            }
+        });
+
+        setTimeout(function() {
+            const savedAct = localStorage.getItem('cfg_last_act_type');
+            const savedReq = localStorage.getItem('cfg_last_act_req');
+            if (savedAct) {
+                document.querySelectorAll('select, option, li, div').forEach(function(el) {
+                    if (el.tagName === 'SELECT' && [...el.options].some(o => o.value === savedAct)) {
+                        el.value = savedAct;
+                        el.dispatchEvent(new Event('change'));
+                    } else if ((el.tagName === 'OPTION' || el.tagName === 'LI' || el.tagName === 'DIV') && el.children.length === 0 && el.textContent.trim() === savedAct) {
+                        el.click();
+                    }
+                });
+            }
+            setTimeout(function() {
+                if (savedReq) {
+                    document.querySelectorAll('select, option, li, div').forEach(function(el) {
+                        if (el.tagName === 'SELECT' && [...el.options].some(o => o.value === savedReq)) {
+                            el.value = savedReq;
+                            el.dispatchEvent(new Event('change'));
+                        } else if ((el.tagName === 'OPTION' || el.tagName === 'LI' || el.tagName === 'DIV') && el.children.length === 0 && el.textContent.trim() === savedReq) {
+                            el.click();
+                        }
+                    });
+                }
+            }, 100);
+        }, 60);
+    } catch (err) {}
+});
+</script>
 </body>
 </html>
