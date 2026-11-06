@@ -3051,5 +3051,13 @@ def inject_wsr_and_quickpicks_context():
 # --- END AUTO-PATCH: DYNAMIC LOG QUICK-PICKS + ADMIN WSR (DARYLL & ABROR) ---
 
 
+
+# --- MTI MATTRESS INSTALLATION MODULE BLUEPRINT ---
+try:
+    from mti_blueprint import mti_bp
+    app.register_blueprint(mti_bp)
+except Exception as _mti_err:
+    print(f"MTI Blueprint Notice: {_mti_err}")
+
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
