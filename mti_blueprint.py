@@ -233,7 +233,8 @@ def add_fix():
         be, bn = (pts[0][0] + pts[1][0]) / 2.0, (pts[0][1] + pts[1][1]) / 2.0
         fe, fn = (pts[2][0] + pts[3][0]) / 2.0, (pts[2][1] + pts[3][1]) / 2.0
         hdg = round((math.degrees(math.atan2(fe - be, fn - bn)) + 360.0) % 360.0, 3)
-        if hdg < 180.0: hdg = round(hdg + 180.0, 3)
+        if hdg < 180.0:
+            hdg = round(hdg + 180.0, 3)
         corners = {f"c{i+1}_e": round(pts[i][0], 3) for i in range(4)}
         corners.update({f"c{i+1}_n": round(pts[i][1], 3) for i in range(4)})
         corners.update({f"c{i+1}_z": round(pts[i][2], 3) for i in range(4)})
@@ -241,7 +242,9 @@ def add_fix():
         as_e = request.form.get("aslaid_e", type=float) or qaqc_e
         as_n = request.form.get("aslaid_n", type=float) or qaqc_n
         as_z = request.form.get("aslaid_z", type=float) or 0.0
-        hdg = round(request.form.get("heading_deg", type=float) or qaqc_brg, 3)
+        hdg = round(request.form.get("heading_deg", type=float) or qaqc_brg or 195.854, 3)
+        if hdg < 180.0:
+            hdg = round(hdg + 180.0, 3)
         corners = compute_4_corners(as_e, as_n, hdg, 6.0, 3.0)
 
     cl_off = round(math.hypot(as_e - des_e, as_n - des_n), 2) if (as_e and des_e) else (request.form.get("cl_offset_m", type=float) or 0.0)
@@ -268,12 +271,10 @@ def add_fix():
         max_gap = round(max(gap1, gap2), 2)
         gap_labels = f"G1:{gap1:.2f}m | G2:{gap2:.2f}m"
 
-    evt_t = (request.form.get("event_type") or "Pole down").strip()
-    usbl_s = (request.form.get("usbl_sensor") or "").strip() if evt_t in ("ROV & Vessel Ops", "Calib, Setup & TBT", "Survey Issue Reporting", "Survey Issue") else ""
     env_w = (request.form.get("env_wind") or "").strip()
     env_c = (request.form.get("env_current") or "").strip()
     env_s = (request.form.get("env_swell") or "").strip()
-    env_tag = " | ".join([f"{k}:{v}" for k, v in [("USBL", usbl_s), ("Wind", env_w), ("Curr", env_c)] if v])
+    env_tag = " | ".join([f"{k}:{v}" for k, v in [("Wind", env_w), ("Curr", env_c)] if v])
 
     dt_str = (request.form.get("install_date") or datetime.utcnow().strftime('%Y-%m-%d %H:%M')).strip()
     xing_id = (request.form.get("crossing_id") or "CR-A1_L1").strip()
@@ -340,6 +341,8 @@ def add_input_log():
     log_id = request.form.get("log_id", type=int)
     existing = next((x for x in input_logs if int(x.get("id", 0)) == log_id), None) if log_id else None
 
+    evt_t = (request.form.get("event_type") or "Pole down").strip()
+    usbl_s = (request.form.get("usbl_sensor") or "").strip() if evt_t in ("ROV & Vessel Ops", "Calib, Setup & TBT", "Survey Issue Reporting", "Survey Issue") else ""
     env_w = (request.form.get("env_wind") or "").strip()
     env_c = (request.form.get("env_current") or "").strip()
     env_s = (request.form.get("env_swell") or "").strip()
@@ -350,12 +353,13 @@ def add_input_log():
 
     entry = {
         "id": existing["id"] if existing else (max([int(x.get("id", 0)) for x in input_logs] + [0]) + 1),
-        "event_type": (request.form.get("event_type") or "Pole down").strip(),
+        "event_type": evt_t,
         "timestamp": (request.form.get("timestamp") or datetime.utcnow().strftime('%Y-%m-%d %H:%M')).strip(),
         "surveyor": (request.form.get("surveyor") or getattr(current_user, "name", "Surveyor")).strip(),
         "ref_id": (request.form.get("ref_id") or "").strip(),
         "val1": (request.form.get("val1") or "").strip(),
         "val2": (request.form.get("val2") or "").strip(),
+        "usbl_sensor": usbl_s,
         "env_wind": env_w, "env_current": env_c, "env_swell": env_s,
         "remarks": rem
     }
