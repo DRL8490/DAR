@@ -33,7 +33,7 @@ MATTRESS_B64 = (
 )
 
 MATTRESS_CATALOG = [
-    {"layer": r[0], "name": r[1], "design_e": r[2], "design_n": r[3], "bearing": r[4], "length": 6.0, "width": 3.0}
+    {"layer": r[0], "name": r[1], "design_e": r[2], "design_n": r[3], "bearing": round((r[4] + 180.0) % 360.0, 3), "length": 6.0, "width": 3.0}
     for r in json.loads(zlib.decompress(base64.b64decode(MATTRESS_B64)).decode("utf-8"))
 ]
 
@@ -60,30 +60,30 @@ DEFAULT_MTI_STATE = {
             "crossing_id": "CR-A1_L1", "design_box_id": "CR-A1_M15", "physical_tag": "#A046",
             "install_date": "2026-11-04 16:00", "shift": "Abror (Day) / Roderick (Night)",
             "design_e": 194541.443, "design_n": 2702613.394, "aslaid_e": 194541.520, "aslaid_n": 2702613.300,
-            "cl_offset_m": 0.12, "heading_deg": 15.854, "gap1_m": 0.00, "gap2_m": 0.00, "gap_m": 0.00,
+            "cl_offset_m": 0.12, "heading_deg": 195.854, "gap1_m": 0.00, "gap2_m": 0.00, "gap_m": 0.00,
             "status": "Completed",
             "remarks": "First mattress in array (04-Nov 16:00, CR-A1_M15, Tag #A046); Center & Bearing verified.",
-            **compute_4_corners(194541.520, 2702613.300, 15.854)
+            **compute_4_corners(194541.520, 2702613.300, 195.854)
         },
         {
             "id": 2, "unit_no": 2, "is_first_in_array": False, "unit_type": "Concrete Mattress",
             "crossing_id": "CR-A1_L1", "design_box_id": "CR-A1_M16", "physical_tag": "#A007",
             "install_date": "2026-11-05 04:40", "shift": "Abror (Day) / Roderick (Night)",
             "design_e": 194544.329, "design_n": 2702612.575, "aslaid_e": 194544.450, "aslaid_n": 2702612.485,
-            "cl_offset_m": 0.15, "heading_deg": 15.854, "gap1_m": 0.02, "gap2_m": 0.10, "gap_m": 0.10,
+            "cl_offset_m": 0.15, "heading_deg": 195.854, "gap1_m": 0.02, "gap2_m": 0.10, "gap_m": 0.10,
             "status": "Completed",
             "remarks": "Installed 05-Nov 04:40 (CR-A1_M16, Tag #A007); Gap 1 (N) = 0.02m, Gap 2 (S) = 0.10m; 4 corners calculated.",
-            **compute_4_corners(194544.450, 2702612.485, 15.854)
+            **compute_4_corners(194544.450, 2702612.485, 195.854)
         },
         {
             "id": 3, "unit_no": 3, "is_first_in_array": False, "unit_type": "Concrete Mattress",
             "crossing_id": "CR-A1_L1", "design_box_id": "CR-A1_M17", "physical_tag": "Pending",
             "install_date": "2026-11-05 19:00", "shift": "Abror (Day) / Roderick (Night)",
             "design_e": 194547.215, "design_n": 2702611.755, "aslaid_e": 194547.360, "aslaid_n": 2702611.650,
-            "cl_offset_m": 0.18, "heading_deg": 15.854, "gap1_m": 0.12, "gap2_m": 0.22, "gap_m": 0.22,
+            "cl_offset_m": 0.18, "heading_deg": 195.854, "gap1_m": 0.12, "gap2_m": 0.22, "gap_m": 0.22,
             "status": "In Progress",
             "remarks": "Placed on seabed by 19:00 (center delta 0.18m); pending WROV seating adjustment to close >0.20m West edge gap.",
-            **compute_4_corners(194547.360, 2702611.650, 15.854)
+            **compute_4_corners(194547.360, 2702611.650, 195.854)
         }
     ],
     "input_logs": [
@@ -99,7 +99,7 @@ DEFAULT_MTI_STATE = {
         },
         {
             "id": 3, "event_type": "Mattress fix", "timestamp": "2026-11-04 16:00", "surveyor": "Abror",
-            "ref_id": "CR-A1_M15 (#A046)", "val1": "E:194541.52, N:2702613.30", "val2": "Brg:15.9 deg | 1st Unit",
+            "ref_id": "CR-A1_M15 (#A046)", "val1": "E:194541.52, N:2702613.30", "val2": "Brg:195.9 deg | 1st Unit",
             "remarks": "Touchdown fix verified on seabed (CL Offset 0.12m)."
         },
         {
@@ -135,6 +135,10 @@ def load_mti_state():
     if "input_logs" not in st:
         st["input_logs"] = copy.deepcopy(DEFAULT_MTI_STATE["input_logs"])
         changed = True
+    for r in st.get("ledger", []):
+        if float(r.get("heading_deg", 0)) < 180.0:
+            r["heading_deg"] = round(float(r.get("heading_deg", 15.854)) + 180.0, 3)
+            changed = True
     if changed:
         config.schema_data = json.dumps(schema)
         db.session.commit()
@@ -229,6 +233,7 @@ def add_fix():
         fe, fn = (pts[0][0] + pts[1][0]) / 2.0, (pts[0][1] + pts[1][1]) / 2.0
         be, bn = (pts[2][0] + pts[3][0]) / 2.0, (pts[2][1] + pts[3][1]) / 2.0
         hdg = round((math.degrees(math.atan2(fe - be, fn - bn)) + 360.0) % 360.0, 3)
+        if hdg < 180.0: hdg = round(hdg + 180.0, 3)
         corners = {f"c{i+1}_e": round(pts[i][0], 3) for i in range(4)}
         corners.update({f"c{i+1}_n": round(pts[i][1], 3) for i in range(4)})
         corners.update({f"c{i+1}_z": round(pts[i][2], 3) for i in range(4)})
