@@ -404,7 +404,7 @@ document.addEventListener('DOMContentLoaded', function(){
                                 </div>
                                 <div class="col-md-3">
                                     <label class="form-label small fw-bold mb-1">Surveyor</label>
-                                    <input type="text" name="surveyor" id="evtSurveyor" value="Abror / Roderick" class="form-control form-control-sm" required>
+                                    <input type="text" name="surveyor" id="evtSurveyor" value="{{ current_user.name }}" class="form-control form-control-sm" required>
                                 </div>
                             </div>
                             <div class="row g-2 mb-2">
@@ -483,12 +483,7 @@ document.addEventListener('DOMContentLoaded', function(){
     const catalogByName = {};
 
     const EVENT_CONFIGS = {
-        "Pole down": {
-            lblRef: "Location / Crossing ID", defRef: "CR-A1_L1",
-            lbl1: "Pole Lock & Pin Status *", ph1: "Down & Locked in Working Position",
-            lbl2: "USBL & ADCP Telemetry Check", ph2: "Ranger 2 HPT & RDI ADCP Online",
-            phRem: "Over-the-side pole deployed prior to subsea operations..."
-        },
+        "Pole down": {lblRef:"Location / Crossing ID",defRef:"CR-A1_L1",lbl1:"USBL & ADCP Telemetry Check *",ph1:"Ranger 2 HPT & RDI ADCP Online",lbl2:"",ph2:"",phRem:"Over-the-side pole deployed prior to subsea operations...",r:"Location / Crossing ID",dr:"CR-A1_L1",l1:"USBL & ADCP Telemetry Check *",p1:"Ranger 2 HPT & RDI ADCP Online",l2:"",p2:"",pr:"Over-the-side pole deployed prior to subsea operations..."},
         "Pole up": {
             lblRef: "Location / Crossing ID", defRef: "CR-A1_L1",
             lbl1: "Pole Stowed Status *", ph1: "Recovered & Secured on Deck Cradle",
@@ -712,7 +707,7 @@ function openQrModal(){
 (function(){
   const ENV_EVENTS = new Set(['Pole down', 'Pole up', 'ROV & Vessel Ops']);
   const V2_CONFIGS = {
-    "Pole down": {lblRef:"Location / Crossing ID",defRef:"CR-A1_L1",lbl1:"Pole Lock & Pin Status *",ph1:"Down & Locked in Working Position",lbl2:"USBL & ADCP Telemetry Check",ph2:"Ranger 2 HPT & RDI ADCP Online",phRem:"Over-the-side pole deployed prior to subsea operations...",r:"Location / Crossing ID",dr:"CR-A1_L1",l1:"Pole Lock & Pin Status *",p1:"Down & Locked in Working Position",l2:"USBL & ADCP Telemetry Check",p2:"Ranger 2 HPT & RDI ADCP Online",pr:"Over-the-side pole deployed prior to subsea operations..."},
+    "Pole down": {lblRef:"Location / Crossing ID",defRef:"CR-A1_L1",lbl1:"USBL & ADCP Telemetry Check *",ph1:"Ranger 2 HPT & RDI ADCP Online",lbl2:"",ph2:"",phRem:"Over-the-side pole deployed prior to subsea operations...",r:"Location / Crossing ID",dr:"CR-A1_L1",l1:"USBL & ADCP Telemetry Check *",p1:"Ranger 2 HPT & RDI ADCP Online",l2:"",p2:"",pr:"Over-the-side pole deployed prior to subsea operations..."},
     "Pole up": {lblRef:"Location / Crossing ID",defRef:"CR-A1_L1",lbl1:"Pole Stowed Status *",ph1:"Recovered & Secured on Deck Cradle",lbl2:"Reason for Recovery",ph2:"Transit / Weather / Maintenance",phRem:"USBL/ADCP pole raised and locked above waterline...",r:"Location / Crossing ID",dr:"CR-A1_L1",l1:"Pole Stowed Status *",p1:"Recovered & Secured on Deck Cradle",l2:"Reason for Recovery",p2:"Transit / Weather / Maintenance",pr:"USBL/ADCP pole raised and locked above waterline..."},
     "Mattress on water": {lblRef:"Xing / Box / Tag ID *",defRef:"CR-A1_M4",lbl1:"Deployment Stage & Tag # *",ph1:"Overboard / Seabed Align / Tagline / Recover to Deck (#A023)",lbl2:"Water Depth / Beacon Status",ph2:"Transponder Ch 1 & 2 Tracking OK",phRem:"Mattress lowered through splash zone; WROV monitoring alignment...",r:"Xing / Box / Tag ID *",dr:"CR-A1_M4",l1:"Deployment Stage & Tag # *",p1:"Overboard / Seabed Align / Tagline / Recover to Deck (#A023)",l2:"Water Depth / Beacon Status",p2:"Transponder Ch 1 & 2 Tracking OK",pr:"Mattress lowered through splash zone; WROV monitoring alignment..."},
     "Frame above water": {lblRef:"Xing / Box / Tag ID *",defRef:"CR-A1_M4",lbl1:"Acoustic Release Status *",ph1:"4-Hook Release Confirmed by WROV",lbl2:"Frame Deck Status",ph2:"Frame Above Water & Landed on Deck",phRem:"Deployment frame recovered cleanly; preparing next mattress...",r:"Xing / Box / Tag ID *",dr:"CR-A1_M4",l1:"Acoustic Release Status *",p1:"4-Hook Release Confirmed by WROV",l2:"Frame Deck Status",p2:"Frame Above Water & Landed on Deck",pr:"Deployment frame recovered cleanly; preparing next mattress..."},
@@ -750,6 +745,23 @@ function openQrModal(){
         if (remRow) remRow.parentNode.insertBefore(div, remRow);
       }
     });
+
+    
+    const LoggedUser = "{{ current_user.name }}";
+    const syncPoleDownAndUser = function(evtType){
+      const isSingle = (evtType === 'Pole down');
+      const dV2 = document.getElementById('evtVal2')?.closest('.col-md-6');
+      const dV1 = document.getElementById('evtVal1')?.closest('.col-md-6, .col-md-12');
+      if (dV2 && dV1) { dV2.style.display = isSingle ? 'none' : ''; dV1.className = isSingle ? 'col-md-12' : 'col-md-6'; }
+      const mV2 = document.getElementById('mEvtVal2')?.closest('.mb-2');
+      if (mV2) mV2.style.display = isSingle ? 'none' : '';
+      const sDesk = document.getElementById('evtSurveyor');
+      if (sDesk && !document.getElementById('evtLogId')?.value) sDesk.value = LoggedUser;
+    };
+    const _oDesk = window.openEventInputBox;
+    if (_oDesk) window.openEventInputBox = function(t){ _oDesk(t); syncPoleDownAndUser(t); };
+    const _oMob = window.openMobEvt;
+    if (_oMob) window.openMobEvt = function(t){ _oMob(t); syncPoleDownAndUser(t); };
 
     const toggleEvtEnv = function(evtType){
       document.querySelectorAll('.env-strip-evt').forEach(el => {
