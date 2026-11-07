@@ -1131,5 +1131,18 @@ function openQrModal(){
   });
 })();
 </script>
+<script id="mtiExcelImportBtn">
+document.addEventListener('DOMContentLoaded', function(){
+  const expLink = document.querySelector('a[href*="export"]');
+  if (expLink && !document.getElementById('mtiImportForm')) {
+    const f = document.createElement('form');
+    f.id = 'mtiImportForm'; f.action = '/mti/import_excel'; f.method = 'POST'; f.enctype = 'multipart/form-data';
+    f.className = 'd-inline-block ms-1';
+    f.innerHTML = '<input type="file" name="excel_file" id="mtiExcelFileInput" accept=".xlsx,.xls" style="display:none;" onchange="this.form.submit()">' +
+      '<button type="button" class="btn btn-sm btn-outline-light fw-bold" onclick="document.getElementById(\'mtiExcelFileInput\').click()"><i class="fas fa-file-upload text-warning me-1"></i>Import Excel</button>';
+    expLink.parentNode.insertBefore(f, expLink.nextSibling);
+  }
+});
+</script>
 </body>
 </html>
