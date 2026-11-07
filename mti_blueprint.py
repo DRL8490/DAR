@@ -271,7 +271,7 @@ def add_fix():
     env_w = (request.form.get("env_wind") or "").strip()
     env_c = (request.form.get("env_current") or "").strip()
     env_s = (request.form.get("env_swell") or "").strip()
-    env_tag = " | ".join([f"{k}:{v}" for k, v in [("Wind", env_w), ("Curr", env_c), ("Swell", env_s)] if v])
+    env_tag = " | ".join([f"{k}:{v}" for k, v in [("Wind", env_w), ("Curr", env_c)] if v])
 
     dt_str = (request.form.get("install_date") or datetime.utcnow().strftime('%Y-%m-%d %H:%M')).strip()
     xing_id = (request.form.get("crossing_id") or "CR-A1_L1").strip()
@@ -341,7 +341,7 @@ def add_input_log():
     env_w = (request.form.get("env_wind") or "").strip()
     env_c = (request.form.get("env_current") or "").strip()
     env_s = (request.form.get("env_swell") or "").strip()
-    env_tag = " | ".join([f"{k}:{v}" for k, v in [("Wind", env_w), ("Curr", env_c), ("Swell", env_s)] if v])
+    env_tag = " | ".join([f"{k}:{v}" for k, v in [("Wind", env_w), ("Curr", env_c)] if v])
     rem = (request.form.get("remarks") or "").strip()
     if env_tag and env_tag not in rem:
         rem = f"{rem} [{env_tag}]".strip()

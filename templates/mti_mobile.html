@@ -251,9 +251,9 @@
             </div>
           </div>
           <div class="row g-2 mb-2">
-            <div class="col-4"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind (e.g. 16kt NE)"></div>
-            <div class="col-4"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Curr (e.g. 0.35m/s)"></div>
-            <div class="col-4"><input type="text" name="env_swell" class="form-control form-control-sm" placeholder="Swell Hs (e.g. 0.7m)"></div>
+            <div class="col-6"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind (e.g. 16kt NE)"></div>
+            <div class="col-6"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Curr (e.g. 0.35m/s)"></div>
+            
           </div>
         </div>
         <div class="row g-2 align-items-end">
@@ -442,7 +442,7 @@ function triggerPhoneShortcut(){
   const V2_CONFIGS = {
     "Pole down": {lblRef:"Location / Crossing ID",defRef:"CR-A1_L1",lbl1:"USBL & ADCP Telemetry Check *",ph1:"Ranger 2 HPT & RDI ADCP Online",lbl2:"",ph2:"",phRem:"Over-the-side pole deployed prior to subsea operations...",r:"Location / Crossing ID",dr:"CR-A1_L1",l1:"USBL & ADCP Telemetry Check *",p1:"Ranger 2 HPT & RDI ADCP Online",l2:"",p2:"",pr:"Over-the-side pole deployed prior to subsea operations..."},
     "Pole up": {lblRef:"Location / Crossing ID",defRef:"CR-A1_L1",lbl1:"Pole Stowed Status *",ph1:"Recovered & Secured on Deck Cradle",lbl2:"Reason for Recovery",ph2:"Transit / Weather / Maintenance",phRem:"USBL/ADCP pole raised and locked above waterline...",r:"Location / Crossing ID",dr:"CR-A1_L1",l1:"Pole Stowed Status *",p1:"Recovered & Secured on Deck Cradle",l2:"Reason for Recovery",p2:"Transit / Weather / Maintenance",pr:"USBL/ADCP pole raised and locked above waterline..."},
-    "Mattress on water": {lblRef:"Xing / Box / Tag ID *",defRef:"CR-A1_M4",lbl1:"Deployment Stage & Tag # *",ph1:"Overboard / Seabed Align / Tagline / Recover to Deck (#A023)",lbl2:"Water Depth / Beacon Status",ph2:"Transponder Ch 1 & 2 Tracking OK",phRem:"Mattress lowered through splash zone; WROV monitoring alignment...",r:"Xing / Box / Tag ID *",dr:"CR-A1_M4",l1:"Deployment Stage & Tag # *",p1:"Overboard / Seabed Align / Tagline / Recover to Deck (#A023)",l2:"Water Depth / Beacon Status",p2:"Transponder Ch 1 & 2 Tracking OK",pr:"Mattress lowered through splash zone; WROV monitoring alignment..."},
+    "Mattress on water": {lblRef:"Xing / Box / Tag ID *",defRef:"CR-A1_M4",lbl1:"Deployment Stage & Tag # *",ph1:"Overboard / Seabed Align / Tagline / Attempted Mattress Placement (#A023)",lbl2:"Water Depth / Beacon Status",ph2:"Transponder Ch 1 & 2 Tracking OK",phRem:"Mattress lowered through splash zone; WROV monitoring alignment...",r:"Xing / Box / Tag ID *",dr:"CR-A1_M4",l1:"Deployment Stage & Tag # *",p1:"Overboard / Seabed Align / Tagline / Attempted Mattress Placement (#A023)",l2:"Water Depth / Beacon Status",p2:"Transponder Ch 1 & 2 Tracking OK",pr:"Mattress lowered through splash zone; WROV monitoring alignment..."},
     "Frame above water": {lblRef:"Xing / Box / Tag ID *",defRef:"CR-A1_M4",lbl1:"Acoustic Release Status *",ph1:"4-Hook Release Confirmed by WROV",lbl2:"Frame Deck Status",ph2:"Frame Above Water & Landed on Deck",phRem:"Deployment frame recovered cleanly; preparing next mattress...",r:"Xing / Box / Tag ID *",dr:"CR-A1_M4",l1:"Acoustic Release Status *",p1:"4-Hook Release Confirmed by WROV",l2:"Frame Deck Status",p2:"Frame Above Water & Landed on Deck",pr:"Deployment frame recovered cleanly; preparing next mattress..."},
     "ROV & Vessel Ops": {lblRef:"Vessel / ROV / Crossing ID *",defRef:"MMA Prestige / WROV",lbl1:"Operation Type (ROV Launch / On Deck / Maint / DP / Echo 4) *",ph1:"e.g., ROV Off Deck / Echo 4 Arrival / 100m DP Move",lbl2:"Position / Heading / Dive Status",ph2:"e.g., Lat/Long, Heading 38.9 deg, or ROV Dive #",phRem:"ROV deployment/maintenance or vessel DP/Echo 4 movement...",r:"Vessel / ROV / Crossing ID *",dr:"MMA Prestige / WROV",l1:"Operation Type (ROV Launch / On Deck / Maint / DP / Echo 4) *",p1:"e.g., ROV Off Deck / Echo 4 Arrival / 100m DP Move",l2:"Position / Heading / Dive Status",p2:"e.g., Lat/Long, Heading 38.9 deg, or ROV Dive #",pr:"ROV deployment/maintenance or vessel DP/Echo 4 movement..."},
     "Calib, Setup & TBT": {lblRef:"System / Location *",defRef:"USBL / Helmsman PC / Mess Room",lbl1:"Activity (USBL/Tripod Calib / Helmsman PC / TBT / Standby) *",ph1:"e.g., USBL Tripod Check / Crane Helmsman Wi-Fi / Daily TBT",lbl2:"Result / Standby Status",ph2:"e.g., Report Submitted / Weather Standby Active",phRem:"Calibration, crane-cabin Helmsman display setup, TBT, or standby...",r:"System / Location *",dr:"USBL / Helmsman PC / Mess Room",l1:"Activity (USBL/Tripod Calib / Helmsman PC / TBT / Standby) *",p1:"e.g., USBL Tripod Check / Crane Helmsman Wi-Fi / Daily TBT",l2:"Result / Standby Status",p2:"e.g., Report Submitted / Weather Standby Active",pr:"Calibration, crane-cabin Helmsman display setup, TBT, or standby..."},
@@ -470,10 +470,10 @@ function triggerPhoneShortcut(){
         const div = document.createElement('div');
         div.className = 'row g-2 mb-2 p-2 rounded border border-info env-strip-evt';
         div.style.background = 'rgba(14,165,233,0.08)';
-        div.innerHTML = '<div class="col-12 small fw-bold text-info mb-0"><i class="fas fa-wind me-1"></i>Environmental Inputs (Wind, Current & Swell)</div>' +
-          '<div class="col-4"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind (e.g. 18kt NE)"></div>' +
-          '<div class="col-4"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Curr (e.g. 0.4m/s)"></div>' +
-          '<div class="col-4"><input type="text" name="env_swell" class="form-control form-control-sm" placeholder="Swell Hs (e.g. 0.8m)"></div>';
+        div.innerHTML = '<div class="col-12 small fw-bold text-info mb-0"><i class="fas fa-wind me-1"></i>Environmental Inputs (Wind & Current)</div>' +
+          '<div class="col-6"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind (e.g. 18kt NE)"></div>' +
+          '<div class="col-6"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Curr (e.g. 0.4m/s)"></div>' +
+          '';
         const remRow = form.querySelector('[name="remarks"]').closest('.row, .mb-3');
         if (remRow) remRow.parentNode.insertBefore(div, remRow);
       }
@@ -537,9 +537,9 @@ function triggerPhoneShortcut(){
           <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C4</span><input type="number" step="0.001" name="c4_e" class="form-control px-1 rc" placeholder="E4"><input type="number" step="0.001" name="c4_n" class="form-control px-1 rc" placeholder="N4"><input type="number" step="0.01" name="c4_z" class="form-control px-1 rc" placeholder="Z4"></div></div>
         </div>
         <div class="row g-2">
-          <div class="col-4"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind (e.g. 16kt NE)"></div>
-          <div class="col-4"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Current (e.g. 0.35m/s)"></div>
-          <div class="col-4"><input type="text" name="env_swell" class="form-control form-control-sm" placeholder="Swell Hs (e.g. 0.7m)"></div>
+          <div class="col-6"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind (e.g. 16kt NE)"></div>
+          <div class="col-6"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Current (e.g. 0.35m/s)"></div>
+          
         </div>
         <input type="hidden" name="aslaid_z" class="aslaid-z" value="0.00">`;
       const submitBtn = f.querySelector('button[type="submit"]');
