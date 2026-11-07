@@ -3071,7 +3071,21 @@ def inject_inactivity_refresh(response):
         try:
             html_text = response.get_data(as_text=True)
             if '</body>' in html_text and 'id="renderIdleRefresh"' not in html_text:
-                idle_js = '''<script id="renderIdleRefresh">
+                idle_js = '''<style id="mtiHdrForceDark">
+  th#mtiColHdr, .table thead th#mtiColHdr, thead tr th#mtiColHdr {
+    background: #2c3034 !important;
+    background-color: #2c3034 !important;
+    color: #ffffff !important;
+    box-shadow: none !important;
+    --bs-table-bg: #2c3034 !important;
+    --bs-table-accent-bg: #2c3034 !important;
+    --bs-table-bg-type: #2c3034 !important;
+    --bs-table-bg-state: #2c3034 !important;
+    white-space: nowrap !important;
+    vertical-align: middle !important;
+  }
+</style>
+<script id="renderIdleRefresh">
 (function(){
   var idleLimit = 12 * 60 * 1000, lastAct = Date.now();
   ['mousemove','mousedown','keydown','touchstart','scroll'].forEach(function(ev){
@@ -3081,25 +3095,23 @@ def inject_inactivity_refresh(response):
     fetch('/ping', {cache:'no-store'}).catch(function(){});
     if (Date.now() - lastAct >= idleLimit) { window.location.reload(); }
   }, 60000);
-
-
-
-
-
-  if (document.body.innerText.indexOf('User Management & Access Control') !== -1 || window.location.pathname.indexOf('user') !== -1) {
+  if (document.body.innerText.indexOf('User Management') !== -1 || window.location.pathname.indexOf('user') !== -1) {
     fetch('/mti/user_access_list').then(r=>r.json()).then(data=>{
       if (!data.users || !data.users.length) return;
       var tbl = document.querySelector('table');
       if (!tbl || document.getElementById('mtiColHdr')) return;
-      var hdrRow = tbl.querySelector('thead tr');
+      var hdrRow = tbl.querySelector('thead tr') || tbl.querySelector('tr');
       if (hdrRow && hdrRow.children.length >= 4) {
         var refTh = hdrRow.children[3];
-        var th = refTh.cloneNode(false);
+        var th = refTh.cloneNode(true);
         th.id = 'mtiColHdr';
-        th.innerText = 'MTI Access';
-        th.style.setProperty('background', '#2b3035', 'important');
-        th.style.setProperty('background-color', '#2b3035', 'important');
+        th.innerHTML = '<span style="color:#ffffff !important;font-weight:700;">MTI Access</span>';
+        th.style.setProperty('background', '#2c3034', 'important');
+        th.style.setProperty('background-color', '#2c3034', 'important');
         th.style.setProperty('color', '#ffffff', 'important');
+        th.style.setProperty('box-shadow', 'none', 'important');
+        th.style.setProperty('--bs-table-bg', '#2c3034', 'important');
+        th.style.setProperty('--bs-table-accent-bg', '#2c3034', 'important');
         th.style.setProperty('white-space', 'nowrap', 'important');
         th.style.setProperty('vertical-align', 'middle', 'important');
         hdrRow.insertBefore(th, hdrRow.lastElementChild);
@@ -3131,7 +3143,6 @@ def inject_inactivity_refresh(response):
       });
     };
   }
-
 })();
 </script></body>'''
                 response.set_data(html_text.replace('</body>', idle_js, 1))

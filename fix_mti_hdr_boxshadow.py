@@ -1,43 +1,46 @@
 ﻿import os, re, ast, subprocess
 
-# 1. Remove hardcoded Super-Admin status for Abror (Mohamad Hediarto) and Mok (Mok Heng) across app.py & templates/
-files = ["app.py"] + ([os.path.join("templates", f) for f in os.listdir("templates") if f.endswith(".html")] if os.path.exists("templates") else [])
-for path in files:
-    if not os.path.exists(path): continue
-    with open(path, "r", encoding="utf-8-sig") as f: txt = f.read().lstrip("\ufeff")
-    orig = txt
-    out_lines = []
-    for line in txt.splitlines():
-        low = line.lower()
-        if "roderick" not in low and "assigned_to" not in low:
-            line = re.sub(r"mohamad\.hediarto@nmdc-group\.com|mok\.heng@nmdc-group\.com", "daryll.enano@nmdc-group.com", line, flags=re.I)
-            line = re.sub(r"(['\"])(?:mohamad\s+hediarto|mok\s+heng|mohamad\.hediarto|mok\.heng)\1", r"\1Daryll Enano\1", line, flags=re.I)
-            if any(k in low for k in ("daryll", "drl", "super", "admin", "vip", "protected", "initial", "email", "name")):
-                line = re.sub(r"(['\"])(?:ABR|MOK)\1", r"\1DRL\1", line)
-                line = re.sub(r"(['\"])(?:mohamad|hediarto|abror|mok)\1", r"\1daryll\1", line, flags=re.I)
-        out_lines.append(line)
-    txt = "\n".join(out_lines)
-    if txt != orig:
-        if path.endswith(".py"): ast.parse(txt)
-        with open(path, "w", encoding="utf-8") as f: f.write(txt)
-        print(f"1. Removed hardcoded Super-Admin for Abror & Mok in {path}!")
-
-# 2. Force #2b3035 dark background on #mtiColHdr (never read rgb(255,255,255) from cs.backgroundColor)
-FIXED_USERS_JS = """
-  if (document.body.innerText.indexOf('User Management & Access Control') !== -1 || window.location.pathname.indexOf('user') !== -1) {
+NEW_IDLE_SCRIPT = """<style id="mtiHdrForceDark">
+  th#mtiColHdr, .table thead th#mtiColHdr, thead tr th#mtiColHdr {
+    background: #2c3034 !important;
+    background-color: #2c3034 !important;
+    color: #ffffff !important;
+    box-shadow: none !important;
+    --bs-table-bg: #2c3034 !important;
+    --bs-table-accent-bg: #2c3034 !important;
+    --bs-table-bg-type: #2c3034 !important;
+    --bs-table-bg-state: #2c3034 !important;
+    white-space: nowrap !important;
+    vertical-align: middle !important;
+  }
+</style>
+<script id="renderIdleRefresh">
+(function(){
+  var idleLimit = 12 * 60 * 1000, lastAct = Date.now();
+  ['mousemove','mousedown','keydown','touchstart','scroll'].forEach(function(ev){
+    document.addEventListener(ev, function(){ lastAct = Date.now(); }, {passive:true});
+  });
+  setInterval(function(){
+    fetch('/ping', {cache:'no-store'}).catch(function(){});
+    if (Date.now() - lastAct >= idleLimit) { window.location.reload(); }
+  }, 60000);
+  if (document.body.innerText.indexOf('User Management') !== -1 || window.location.pathname.indexOf('user') !== -1) {
     fetch('/mti/user_access_list').then(r=>r.json()).then(data=>{
       if (!data.users || !data.users.length) return;
       var tbl = document.querySelector('table');
       if (!tbl || document.getElementById('mtiColHdr')) return;
-      var hdrRow = tbl.querySelector('thead tr');
+      var hdrRow = tbl.querySelector('thead tr') || tbl.querySelector('tr');
       if (hdrRow && hdrRow.children.length >= 4) {
         var refTh = hdrRow.children[3];
-        var th = refTh.cloneNode(false);
+        var th = refTh.cloneNode(true);
         th.id = 'mtiColHdr';
-        th.innerText = 'MTI Access';
-        th.style.setProperty('background', '#2b3035', 'important');
-        th.style.setProperty('background-color', '#2b3035', 'important');
+        th.innerHTML = '<span style="color:#ffffff !important;font-weight:700;">MTI Access</span>';
+        th.style.setProperty('background', '#2c3034', 'important');
+        th.style.setProperty('background-color', '#2c3034', 'important');
         th.style.setProperty('color', '#ffffff', 'important');
+        th.style.setProperty('box-shadow', 'none', 'important');
+        th.style.setProperty('--bs-table-bg', '#2c3034', 'important');
+        th.style.setProperty('--bs-table-accent-bg', '#2c3034', 'important');
         th.style.setProperty('white-space', 'nowrap', 'important');
         th.style.setProperty('vertical-align', 'middle', 'important');
         hdrRow.insertBefore(th, hdrRow.lastElementChild);
@@ -69,20 +72,20 @@ FIXED_USERS_JS = """
       });
     };
   }
-"""
+})();
+</script></body>"""
 
 with open("app.py", "r", encoding="utf-8-sig") as f:
     ac = f.read().lstrip("\ufeff")
 
-s_marker = "  if (document.body.innerText.indexOf('User Management & Access Control')"
-e_marker = "</script></body>"
-if s_marker in ac and e_marker in ac:
-    s_idx = ac.find(s_marker)
-    e_idx = ac.find(e_marker, s_idx)
-    ac = ac[:s_idx] + FIXED_USERS_JS + "\n})();\n" + ac[e_idx:]
+pat = r'(?:<style id="mtiHdrForceDark">.*?</style>\s*)?<script id="renderIdleRefresh">.*?</script>\s*</body>'
+if re.search(pat, ac, flags=re.S):
+    ac = re.sub(pat, NEW_IDLE_SCRIPT, ac, count=1, flags=re.S)
     ast.parse(ac)
     with open("app.py", "w", encoding="utf-8") as f:
         f.write(ac)
-    print("2. Forced #2b3035 dark background on #mtiColHdr in app.py!")
+    print("SUCCESS: Replaced renderIdleRefresh block with box-shadow:none and --bs-table-bg:#2c3034!")
+else:
+    print("WARNING: renderIdleRefresh pattern not found in app.py!")
 
-subprocess.run(["py", "sync.py", "fix: remove hardcoded Super-Admin for Abror/Mok and force #2b3035 dark header on MTI Access"], check=False)
+subprocess.run(["py", "sync.py", "fix: clear Bootstrap inset box-shadow and --bs-table-bg on MTI Access header cell"], check=False)
