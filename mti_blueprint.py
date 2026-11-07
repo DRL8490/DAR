@@ -462,7 +462,7 @@ def user_access_list():
     if not is_user_admin(current_user):
         return {"users": []}
     allowed = get_mti_allowed_uids()
-    return {"users": [{"id": u.id, "name": u.name, "username": u.username, "is_admin": is_user_admin(u), "mti": (u.id in allowed or is_user_admin(u))} for u in User.query.order_by(User.id).all()]}
+    return {"users": [{"id": u.id, "name": u.name, "email": getattr(u, "email", getattr(u, "username", "")), "is_admin": is_user_admin(u), "mti": (u.id in allowed)} for u in User.query.order_by(User.id).all()]}
 
 
 @mti_bp.route('/mobile', methods=['GET'])
