@@ -3084,6 +3084,7 @@ def inject_inactivity_refresh(response):
 
 
 
+
   if (document.body.innerText.indexOf('User Management & Access Control') !== -1 || window.location.pathname.indexOf('user') !== -1) {
     fetch('/mti/user_access_list').then(r=>r.json()).then(data=>{
       if (!data.users || !data.users.length) return;
@@ -3092,26 +3093,31 @@ def inject_inactivity_refresh(response):
       var hdrRow = tbl.querySelector('thead tr');
       if (hdrRow && hdrRow.children.length >= 4) {
         var refTh = hdrRow.children[3];
+        var cs = window.getComputedStyle(refTh);
+        var bg = (cs.backgroundColor && cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && cs.backgroundColor !== 'transparent') ? cs.backgroundColor : '#343a40';
         var th = document.createElement('th');
         th.id = 'mtiColHdr'; th.className = refTh.className;
-        th.style.cssText = window.getComputedStyle(refTh).cssText;
-        th.style.backgroundColor = 'transparent'; th.style.color = '#ffffff';
         th.innerText = 'MTI Access';
+        th.style.cssText = 'background-color:' + bg + ' !important;color:#ffffff !important;padding:' + cs.padding + ';font-size:' + cs.fontSize + ';font-weight:' + cs.fontWeight + ';vertical-align:middle;white-space:nowrap;border:none;';
         hdrRow.insertBefore(th, hdrRow.lastElementChild);
+        Array.from(hdrRow.children).forEach(function(h){ h.style.whiteSpace = 'nowrap'; });
       }
       var pillStyle = function(ok){
-        return 'display:inline-block;padding:3px 10px;border-radius:12px;font-size:11.5px;font-weight:700;' + (ok ? 'background:#dcfce7;color:#166534;' : 'background:#f1f5f9;color:#64748b;');
+        return 'display:inline-block;padding:3px 10px;border-radius:12px;font-size:11.5px;font-weight:700;white-space:nowrap;' + (ok ? 'background:#dcfce7;color:#166534;' : 'background:#f1f5f9;color:#64748b;');
       };
       tbl.querySelectorAll('tbody tr').forEach(function(tr){
         var rowTxt = tr.innerText.toLowerCase();
         var u = data.users.find(x => (x.email && rowTxt.indexOf(x.email.toLowerCase()) !== -1) || (x.name && rowTxt.indexOf(x.name.toLowerCase()) !== -1));
         var td = document.createElement('td');
-        td.style.verticalAlign = 'middle';
+        td.style.cssText = 'vertical-align:middle;white-space:nowrap;';
         if (u) {
           var chk = u.mti ? 'checked' : '';
-          td.innerHTML = '<label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;margin:0;"><input type="checkbox" style="width:17px;height:17px;cursor:pointer;accent-color:#0d6efd;" '+chk+' onchange="window.toggleMtiUser('+u.id+', this.checked)"><span id="mtiLbl_'+u.id+'" style="'+pillStyle(u.mti)+'">'+(u.mti?'Allowed':'No Access')+'</span></label>';
+          td.innerHTML = '<label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;margin:0;white-space:nowrap;"><input type="checkbox" style="width:17px;height:17px;cursor:pointer;accent-color:#0d6efd;" '+chk+' onchange="window.toggleMtiUser('+u.id+', this.checked)"><span id="mtiLbl_'+u.id+'" style="'+pillStyle(u.mti)+'">'+(u.mti?'Allowed':'No Access')+'</span></label>';
         }
         tr.insertBefore(td, tr.lastElementChild);
+        Array.from(tr.children).forEach(function(cell, idx){
+          if (idx > 0) cell.style.whiteSpace = 'nowrap';
+        });
       });
       window.mtiPillStyle = pillStyle;
     }).catch(function(e){ console.error(e); });
