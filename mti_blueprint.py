@@ -472,3 +472,27 @@ def mti_mobile():
     input_logs = sorted(state.get("input_logs", []), key=lambda x: str(x.get("timestamp", "")), reverse=True)
     completed_matt = sum(1 for r in ledger if r.get("status") == "Completed" and r.get("unit_type", "Concrete Mattress") == "Concrete Mattress")
     return render_template('mti_mobile.html', ledger=ledger, input_logs=input_logs, completed_matt=completed_matt, target_matt=int(state.get("campaign_target_mattresses", 139)), catalog_json=json.dumps(MATTRESS_CATALOG))
+
+
+# --- MOBILE HOME SCREEN SHORTCUT (PWA MANIFEST, SERVICE WORKER & IOS WEBCLIP) ---
+@mti_bp.route('/manifest.json')
+def mti_manifest():
+    from flask import Response
+    icon_svg = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' rx='24' fill='%230b2e4c'/%3E%3Crect x='25' y='25' width='70' height='70' rx='8' fill='%230284c7' stroke='%237dd3fc' stroke-width='6'/%3E%3Ctext x='60' y='68' font-size='26' font-weight='bold' fill='white' text-anchor='middle' font-family='sans-serif'%3EMTI%3C/text%3E%3C/svg%3E"
+    manifest = {
+        "name": "MMA Prestige MTI Survey Input",
+        "short_name": "MTI Input",
+        "start_url": "/mti/mobile",
+        "scope": "/mti/",
+        "display": "standalone",
+        "background_color": "#0f172a",
+        "theme_color": "#0b2e4c",
+        "icons": [{"src": icon_svg, "sizes": "192x192 512x512", "type": "image/svg+xml", "purpose": "any maskable"}]
+    }
+    return Response(json.dumps(manifest), mimetype='application/manifest+json')
+
+@mti_bp.route('/sw.js')
+def mti_sw():
+    from flask import Response
+    js = "self.addEventListener('install', e => self.skipWaiting()); self.addEventListener('fetch', e => {});"
+    return Response(js, mimetype='application/javascript')

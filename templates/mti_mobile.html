@@ -14,11 +14,19 @@
   .m-card { background:#1e293b; border:1px solid #334155; border-radius:12px; padding:14px; margin-bottom:14px; }
   .form-control, .form-select { font-size:15px; min-height:42px; }
   .gap-inp { width:86px; min-height:34px !important; font-size:13px !important; text-align:center; font-weight:800; }
-</style></head><body>
+</style><link rel="manifest" href="/mti/manifest.json">
+<meta name="theme-color" content="#0b2e4c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MTI Input">
+</head><body>
 <div class="m-hdr d-flex justify-content-between align-items-center">
   <div><div style="font-size:10px;color:#7dd3fc;font-weight:800;">MMA PRESTIGE - MOBILE SURVEY</div>
   <h5 class="fw-bold mb-0">MTI Mobile Input ({{ completed_matt }}/{{ target_matt }})</h5></div>
-  <a href="/mti" class="btn btn-sm btn-outline-info fw-bold">Desktop View</a>
+  <div class="d-flex gap-1">
+    <button type="button" id="btnPwaInstall" class="btn btn-sm btn-warning fw-bold text-dark" onclick="triggerPhoneShortcut()">+ Phone Shortcut</button>
+    <a href="/mti" class="btn btn-sm btn-outline-info fw-bold">Desktop</a>
+  </div>
 </div>
 <div class="container-fluid px-3 mt-3" style="max-width:540px;">
   {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}{% for cat, msg in messages %}
@@ -107,4 +115,15 @@ function rotMobSvg(){ const b=parseFloat(document.getElementById('mHdg').value)|
 function calcMobOff(){ const de=parseFloat(document.getElementById('mDesE').value), dn=parseFloat(document.getElementById('mDesN').value), ae=parseFloat(document.getElementById('mAsE').value), an=parseFloat(document.getElementById('mAsN').value); if(!isNaN(de)&&!isNaN(dn)&&!isNaN(ae)&&!isNaN(an)) document.getElementById('mClOff').value=Math.hypot(ae-de,an-dn).toFixed(2); }
 function syncMobGaps(){ const vals=['mgNW','mgNE','mgSW','mgSE'].map(id=>parseFloat(document.getElementById(id).value)).filter(v=>!isNaN(v)); document.getElementById('mGap1').value=(vals[0]??0).toFixed(2); document.getElementById('mGap2').value=(vals[1]??vals[0]??0).toFixed(2); }
 function toggleMobGaps(){ const isF=document.getElementById('mChkFirst').checked||parseInt(document.getElementById('mUnitNo').value)==1; document.getElementById('mGapWrap').style.opacity=isF?'0.35':'1'; }
+let deferredPrompt = null;
+if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/mti/sw.js').catch(()=>{}); }
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredPrompt = e; });
+function triggerPhoneShortcut(){
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(() => { deferredPrompt = null; });
+  } else {
+    alert('To add the MTI Input icon to your Phone Home Screen:\n\n• iPhone/iPad (Safari): Tap the Share icon at the bottom of the screen, then tap "Add to Home Screen".\n\n• Android (Chrome): Tap the 3-dot menu (⋮) at the top right, then tap "Add to Home screen" or "Install app".');
+  }
+}
 </script></body></html>
