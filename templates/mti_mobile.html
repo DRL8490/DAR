@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>MTI Mobile Survey Input</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+<style>
+  body { background:#0f172a; color:#f8fafc; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; padding-bottom:40px; }
+  .m-hdr { background:linear-gradient(90deg,#0b2e4c,#0f4c75); padding:12px 16px; border-bottom:2px solid #38bdf8; position:sticky; top:0; z-index:100; }
+  .tap-btn { width:100%; min-height:60px; border-radius:12px; font-weight:800; font-size:13px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; border:2px solid #334155; background:#1e293b; color:#f8fafc; }
+  .tap-btn:active { background:#0284c7; border-color:#7dd3fc; transform:scale(0.98); }
+  .tap-btn.btn-fix { border-color:#16a34a; background:#064e3b; }
+  .tap-btn.btn-issue { border-color:#dc2626; background:#450a0a; }
+  .m-card { background:#1e293b; border:1px solid #334155; border-radius:12px; padding:14px; margin-bottom:14px; }
+  .form-control, .form-select { font-size:15px; min-height:42px; }
+  .gap-inp { width:86px; min-height:34px !important; font-size:13px !important; text-align:center; font-weight:800; }
+</style></head><body>
+<div class="m-hdr d-flex justify-content-between align-items-center">
+  <div><div style="font-size:10px;color:#7dd3fc;font-weight:800;">MMA PRESTIGE - MOBILE SURVEY</div>
+  <h5 class="fw-bold mb-0">MTI Mobile Input ({{ completed_matt }}/{{ target_matt }})</h5></div>
+  <a href="/mti" class="btn btn-sm btn-outline-info fw-bold">Desktop View</a>
+</div>
+<div class="container-fluid px-3 mt-3" style="max-width:540px;">
+  {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}{% for cat, msg in messages %}
+    <div class="alert alert-{{ 'danger' if cat=='error' else 'success' }} py-2 fw-bold small">{{ msg }}</div>
+  {% endfor %}{% endif %}{% endwith %}
+  <div class="row g-2 mb-3">
+    <div class="col-6"><button type="button" class="tap-btn" onclick="openMobEvt('Pole down')"><i class="fas fa-arrow-down text-info fs-5"></i>Pole down</button></div>
+    <div class="col-6"><button type="button" class="tap-btn" onclick="openMobEvt('Pole up')"><i class="fas fa-arrow-up text-info fs-5"></i>Pole up</button></div>
+    <div class="col-6"><button type="button" class="tap-btn" onclick="openMobEvt('Mattress on water')"><i class="fas fa-water text-primary fs-5"></i>Mattress on water</button></div>
+    <div class="col-6"><button type="button" class="tap-btn btn-fix" onclick="openMobFix()"><i class="fas fa-crosshairs text-success fs-5"></i>Mattress fix</button></div>
+    <div class="col-6"><button type="button" class="tap-btn" onclick="openMobEvt('Frame above water')"><i class="fas fa-anchor text-light fs-5"></i>Frame above water</button></div>
+    <div class="col-6"><button type="button" class="tap-btn" onclick="openMobEvt('ADCP input')"><i class="fas fa-tachometer-alt text-info fs-5"></i>ADCP input</button></div>
+    <div class="col-6"><button type="button" class="tap-btn" onclick="openMobEvt('Wind Input')"><i class="fas fa-wind text-warning fs-5"></i>Wind Input</button></div>
+    <div class="col-6"><button type="button" class="tap-btn btn-issue" onclick="openMobEvt('Survey Issue Reporting')"><i class="fas fa-exclamation-triangle text-danger fs-5"></i>Survey Issue</button></div>
+  </div>
+  <div id="mobEvtCard" class="m-card border-info" style="display:none;">
+    <form action="/mti/add_input_log" method="POST"><input type="hidden" name="event_type" id="mEvtType" value="Pole down">
+      <div class="d-flex justify-content-between align-items-center mb-2"><h6 class="fw-bold text-info mb-0" id="mEvtTitle">Log Event</h6><button type="button" class="btn-close btn-close-white" onclick="document.getElementById('mobEvtCard').style.display='none'"></button></div>
+      <div class="row g-2 mb-2"><div class="col-7"><label class="small fw-bold">Date/Time</label><input type="text" name="timestamp" id="mEvtTs" class="form-control" required></div><div class="col-5"><label class="small fw-bold">Surveyor</label><input type="text" name="surveyor" value="{{ current_user.name }}" class="form-control" required></div></div>
+      <div class="mb-2"><label class="small fw-bold">Xing / Box / ID</label><input type="text" name="ref_id" id="mEvtRef" value="CR-A1_L1" class="form-control"></div>
+      <div class="mb-2"><label class="small fw-bold text-info">Reading / Status 1 *</label><input type="text" name="val1" class="form-control" required></div>
+      <div class="mb-2"><label class="small fw-bold text-info">Reading / Status 2</label><input type="text" name="val2" class="form-control"></div>
+      <div class="mb-3"><label class="small fw-bold">Remarks *</label><input type="text" name="remarks" class="form-control" required></div>
+      <button type="submit" class="btn btn-info fw-bold w-100 py-2">Save Event Log</button>
+    </form>
+  </div>
+  <div id="mobFixCard" class="m-card border-success" style="display:none;">
+    <form action="/mti/add_fix" method="POST">
+      <div class="d-flex justify-content-between align-items-center mb-2"><h6 class="fw-bold text-success mb-0">Mattress Fix (139 CAD Units)</h6><button type="button" class="btn-close btn-close-white" onclick="document.getElementById('mobFixCard').style.display='none'"></button></div>
+      <div class="mb-2"><label class="small fw-bold text-success">Select Design Mattress (1 of 139):</label><select id="mCatalogSel" class="form-select border-success fw-bold" onchange="onMobSelectMatt()"><option value="">-- Choose Design Mattress (139) --</option></select></div>
+      <div class="row g-2 mb-2 align-items-center"><div class="col-3"><label class="small fw-bold">Unit #</label><input type="number" name="unit_no" id="mUnitNo" value="{{ ledger|length + 1 }}" class="form-control fw-bold" oninput="toggleMobGaps()" required></div><div class="col-5"><label class="small fw-bold">Date/Time</label><input type="text" name="install_date" id="mFixTs" class="form-control" required></div><div class="col-4 pt-3"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="mChkFirst" name="is_first_in_array" value="true" onchange="toggleMobGaps()"><label class="form-check-label small fw-bold" for="mChkFirst">1st Unit</label></div></div></div>
+      <div class="row g-2 mb-2"><div class="col-4"><label class="small fw-bold">Xing</label><input type="text" name="crossing_id" id="mXing" value="CR-A1_L1" class="form-control" required></div><div class="col-4"><label class="small fw-bold">Box ID</label><input type="text" name="design_box_id" id="mBox" value="CR-A1_M{{ ledger|length + 1 }}" class="form-control" required></div><div class="col-4"><label class="small fw-bold">Tag ID *</label><input type="text" name="physical_tag" placeholder="#A046" class="form-control fw-bold" required></div></div>
+      <input type="hidden" name="design_e" id="mDesE" value="194541.443"><input type="hidden" name="design_n" id="mDesN" value="2702613.394">
+      <div class="row g-2 mb-2"><div class="col-6"><label class="small fw-bold text-info">As-laid Center E *</label><input type="number" step="0.001" name="aslaid_e" id="mAsE" class="form-control border-info fw-bold" oninput="calcMobOff()" required></div><div class="col-6"><label class="small fw-bold text-info">As-laid Center N *</label><input type="number" step="0.001" name="aslaid_n" id="mAsN" class="form-control border-info fw-bold" oninput="calcMobOff()" required></div></div>
+      <div class="row g-2 mb-3"><div class="col-6"><label class="small fw-bold text-info">As-Laid Bearing (&deg;) *</label><input type="number" step="0.001" name="heading_deg" id="mHdg" value="15.854" class="form-control border-info fw-bold" oninput="rotMobSvg()" required></div><div class="col-6"><label class="small fw-bold">CL Offset (m)</label><input type="number" step="0.01" name="cl_offset_m" id="mClOff" class="form-control fw-bold" placeholder="Auto" required></div></div>
+      <div id="mGapWrap" class="p-2 mb-3 rounded text-center" style="background:#0f172a;border:1.5px solid #475569;">
+        <div class="d-flex justify-content-between align-items-center mb-1 px-1"><span class="badge bg-info text-dark">N &uarr; NORTH UP (CORNER GAPS)</span><span class="badge bg-secondary" id="mBrgBadge">Brg: 15.9&deg;</span></div>
+        <div class="d-flex justify-content-between px-2 mb-1"><input type="number" step="0.01" id="mgNW" class="form-control gap-inp" placeholder="NW (m)" oninput="syncMobGaps()"><input type="number" step="0.01" id="mgNE" class="form-control gap-inp" placeholder="NE (m)" oninput="syncMobGaps()"></div>
+        <svg width="120" height="72" viewBox="0 0 110 68" style="background:#1e293b;border-radius:6px;border:1px solid #475569;"><line x1="55" y1="0" x2="55" y2="68" stroke="#64748b" stroke-dasharray="2,2"/><line x1="0" y1="34" x2="110" y2="34" stroke="#64748b" stroke-dasharray="2,2"/><g id="mSvgRot" transform="rotate(15.854 55 34)"><rect x="44" y="12" width="22" height="44" fill="#38bdf8" fill-opacity="0.3" stroke="#38bdf8" stroke-width="2"/><line x1="55" y1="12" x2="55" y2="20" stroke="#f87171" stroke-width="2.2"/><circle cx="44" cy="12" r="2.5" fill="#facc15"/><circle cx="66" cy="12" r="2.5" fill="#facc15"/><circle cx="44" cy="56" r="2.5" fill="#facc15"/><circle cx="66" cy="56" r="2.5" fill="#facc15"/></g></svg>
+        <div class="d-flex justify-content-between px-2 mt-1"><input type="number" step="0.01" id="mgSW" class="form-control gap-inp" placeholder="SW (m)" oninput="syncMobGaps()"><input type="number" step="0.01" id="mgSE" class="form-control gap-inp" placeholder="SE (m)" oninput="syncMobGaps()"></div>
+        <input type="hidden" name="gap1_m" id="mGap1" value="0.00"><input type="hidden" name="gap2_m" id="mGap2" value="0.00">
+      </div>
+      <div class="row g-2 mb-3"><div class="col-5"><label class="small fw-bold">Status</label><select name="status" class="form-select fw-bold"><option value="Completed">Completed</option><option value="In Progress">In Progress</option></select></div><div class="col-7"><label class="small fw-bold">Remarks *</label><input type="text" name="remarks" placeholder="Touchdown notes..." class="form-control" required></div></div>
+      <button type="submit" class="btn btn-success fw-bold w-100 py-2">Save Mattress Fix</button>
+    </form>
+  </div>
+  <div class="m-card"><h6 class="fw-bold text-warning mb-2"><i class="fas fa-history me-1"></i> Recent Survey Inputs ({{ input_logs|length }})</h6>
+    {% for il in input_logs[:8] %}<div class="p-2 mb-2 rounded" style="background:#0f172a;border-left:4px solid #38bdf8;"><div class="d-flex justify-content-between small"><span class="badge bg-primary">{{ il.event_type }}</span><span class="text-secondary">{{ il.timestamp }} - {{ il.surveyor }}</span></div><div class="fw-bold small mt-1">{{ il.ref_id }} - {{ il.val1 }} {% if il.val2 %}| {{ il.val2 }}{% endif %}</div><div class="small text-secondary">{{ il.remarks }}</div></div>{% endfor %}
+  </div>
+</div>
+<script>
+const CATALOG = {{ catalog_json | default('[]') | safe }}, catMap = {};
+document.addEventListener('DOMContentLoaded', () => {
+  const sel = document.getElementById('mCatalogSel');
+  CATALOG.forEach(it => { catMap[it.name] = it; sel.appendChild(new Option(`${it.name} (${it.layer}) - Brg:${it.bearing.toFixed(1)} deg`, it.name)); });
+});
+function nowStr(){ const d=new Date(), p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+function openMobEvt(t){ document.getElementById('mobFixCard').style.display='none'; const c=document.getElementById('mobEvtCard'); c.style.display='block'; document.getElementById('mEvtType').value=t; document.getElementById('mEvtTitle').innerText='Log: '+t; document.getElementById('mEvtTs').value=nowStr(); c.scrollIntoView({behavior:'smooth'}); }
+function openMobFix(){ document.getElementById('mobEvtCard').style.display='none'; const c=document.getElementById('mobFixCard'); c.style.display='block'; document.getElementById('mFixTs').value=nowStr(); c.scrollIntoView({behavior:'smooth'}); }
+function onMobSelectMatt(){ const it=catMap[document.getElementById('mCatalogSel').value]; if(!it) return; document.getElementById('mXing').value=it.layer; document.getElementById('mBox').value=it.name; document.getElementById('mDesE').value=it.design_e.toFixed(3); document.getElementById('mDesN').value=it.design_n.toFixed(3); document.getElementById('mHdg').value=it.bearing.toFixed(3); calcMobOff(); rotMobSvg(); }
+function rotMobSvg(){ const b=parseFloat(document.getElementById('mHdg').value)||0; document.getElementById('mSvgRot').setAttribute('transform',`rotate(${b} 55 34)`); document.getElementById('mBrgBadge').innerHTML=`Brg: ${b.toFixed(1)}&deg;`; }
+function calcMobOff(){ const de=parseFloat(document.getElementById('mDesE').value), dn=parseFloat(document.getElementById('mDesN').value), ae=parseFloat(document.getElementById('mAsE').value), an=parseFloat(document.getElementById('mAsN').value); if(!isNaN(de)&&!isNaN(dn)&&!isNaN(ae)&&!isNaN(an)) document.getElementById('mClOff').value=Math.hypot(ae-de,an-dn).toFixed(2); }
+function syncMobGaps(){ const vals=['mgNW','mgNE','mgSW','mgSE'].map(id=>parseFloat(document.getElementById(id).value)).filter(v=>!isNaN(v)); document.getElementById('mGap1').value=(vals[0]??0).toFixed(2); document.getElementById('mGap2').value=(vals[1]??vals[0]??0).toFixed(2); }
+function toggleMobGaps(){ const isF=document.getElementById('mChkFirst').checked||parseInt(document.getElementById('mUnitNo').value)==1; document.getElementById('mGapWrap').style.opacity=isF?'0.35':'1'; }
+</script></body></html>

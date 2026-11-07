@@ -276,7 +276,7 @@ def add_fix():
 
     save_mti_state(state)
     flash(f"Saved Unit #{unit_no} ({box_id} / {tag_id}) to Ledger & Input Log!", "success")
-    return redirect(url_for('mti_bp.mti_dashboard'))
+    return redirect(url_for('mti_bp.mti_mobile') if '/mobile' in (request.referrer or '') else url_for('mti_bp.mti_dashboard'))
 
 @mti_bp.route('/delete_fix/<int:fix_id>', methods=['POST'])
 @login_required
@@ -285,7 +285,7 @@ def delete_fix(fix_id):
     state["ledger"] = [r for r in state.get("ledger", []) if int(r.get("id", 0)) != fix_id]
     save_mti_state(state)
     flash("Removed entry from MTI Ledger.", "success")
-    return redirect(url_for('mti_bp.mti_dashboard'))
+    return redirect(url_for('mti_bp.mti_mobile') if '/mobile' in (request.referrer or '') else url_for('mti_bp.mti_dashboard'))
 
 @mti_bp.route('/add_input_log', methods=['POST'])
 @login_required
@@ -311,7 +311,7 @@ def add_input_log():
     state["input_logs"] = input_logs
     save_mti_state(state)
     flash(f"Logged '{entry['event_type']}' at {entry['timestamp']}!", "success")
-    return redirect(url_for('mti_bp.mti_dashboard'))
+    return redirect(url_for('mti_bp.mti_mobile') if '/mobile' in (request.referrer or '') else url_for('mti_bp.mti_dashboard'))
 
 @mti_bp.route('/delete_input_log/<int:log_id>', methods=['POST'])
 @login_required
@@ -320,7 +320,7 @@ def delete_input_log(log_id):
     state["input_logs"] = [x for x in state.get("input_logs", []) if int(x.get("id", 0)) != log_id]
     save_mti_state(state)
     flash("Removed event from Survey Input Log.", "success")
-    return redirect(url_for('mti_bp.mti_dashboard'))
+    return redirect(url_for('mti_bp.mti_mobile') if '/mobile' in (request.referrer or '') else url_for('mti_bp.mti_dashboard'))
 
 @mti_bp.route('/update_targets', methods=['POST'])
 @login_required
@@ -331,7 +331,7 @@ def update_targets():
         state["campaign_target_mattresses"] = new_target
         save_mti_state(state)
         flash(f"Updated Mattress Target Total to {new_target} units!", "success")
-    return redirect(url_for('mti_bp.mti_dashboard'))
+    return redirect(url_for('mti_bp.mti_mobile') if '/mobile' in (request.referrer or '') else url_for('mti_bp.mti_dashboard'))
 
 @mti_bp.route('/sync_to_dpr', methods=['POST'])
 @login_required
@@ -346,7 +346,7 @@ def sync_to_dpr():
 
     if not day_fixes and not day_events:
         flash(f"No MTI fixes or input events found on {sync_date_str} to sync.", "error")
-        return redirect(url_for('mti_bp.mti_dashboard'))
+        return redirect(url_for('mti_bp.mti_mobile') if '/mobile' in (request.referrer or '') else url_for('mti_bp.mti_dashboard'))
 
     comp_units = [f"#{r['unit_no']} ({r['design_box_id']}/{r['physical_tag']}, dCL={r['cl_offset_m']}m)" for r in day_fixes if r.get("status") == "Completed"]
     prog_units = [f"#{r['unit_no']} ({r['design_box_id']})" for r in day_fixes if r.get("status") == "In Progress"]
@@ -394,7 +394,7 @@ def sync_to_dpr():
         db.session.add(new_t)
     db.session.commit()
     flash(f"Synced {sync_date_str} MTI fixes & event inputs into the DPR & KPI Master Register!", "success")
-    return redirect(url_for('mti_bp.mti_dashboard'))
+    return redirect(url_for('mti_bp.mti_mobile') if '/mobile' in (request.referrer or '') else url_for('mti_bp.mti_dashboard'))
 
 @mti_bp.route('/export_excel', methods=['GET'])
 @login_required
@@ -463,3 +463,14 @@ def user_access_list():
         return {"users": []}
     allowed = get_mti_allowed_uids()
     return {"users": [{"id": u.id, "name": u.name, "username": u.username, "is_admin": is_user_admin(u), "mti": (u.id in allowed or is_user_admin(u))} for u in User.query.order_by(User.id).all()]}
+
+
+@mti_bp.route('/mobile', methods=['GET'])
+@login_required
+def mti_mobile():
+    from flask import render_template
+    state = load_mti_state()
+    ledger = sorted(state.get("ledger", []), key=lambda x: int(x.get("unit_no", 999)))
+    input_logs = sorted(state.get("input_logs", []), key=lambda x: str(x.get("timestamp", "")), reverse=True)
+    completed_matt = sum(1 for r in ledger if r.get("status") == "Completed" and r.get("unit_type", "Concrete Mattress") == "Concrete Mattress")
+    return render_template('mti_mobile.html', ledger=ledger, input_logs=input_logs, completed_matt=completed_matt, target_matt=int(state.get("campaign_target_mattresses", 139)), catalog_json=json.dumps(MATTRESS_CATALOG))
