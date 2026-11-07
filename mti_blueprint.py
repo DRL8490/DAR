@@ -209,49 +209,89 @@ def add_fix():
     is_first = (request.form.get("is_first_in_array") == "true") or (unit_no == 1)
     des_e = request.form.get("design_e", type=float) or 0.0
     des_n = request.form.get("design_n", type=float) or 0.0
-    as_e = request.form.get("aslaid_e", type=float) or 0.0
-    as_n = request.form.get("aslaid_n", type=float) or 0.0
-    hdg = round(request.form.get("heading_deg", type=float) or 0.0, 3)
-    cl_off = request.form.get("cl_offset_m", type=float)
-    if cl_off is None:
-        cl_off = round(math.hypot(as_e - des_e, as_n - des_n), 2)
+    qaqc_e = request.form.get("qaqc_e", type=float) or 0.0
+    qaqc_n = request.form.get("qaqc_n", type=float) or 0.0
+    qaqc_brg = request.form.get("qaqc_brg", type=float) or 0.0
+    usbl_sensor = (request.form.get("usbl_sensor") or "Pole USBL").strip()
 
+    pts = []
+    for i in (1, 2, 3, 4):
+        ce = request.form.get(f"c{i}_e", type=float)
+        cn = request.form.get(f"c{i}_n", type=float)
+        cz = request.form.get(f"c{i}_z", type=float)
+        if ce and cn:
+            pts.append((ce, cn, cz or 0.0))
+
+    if len(pts) == 4:
+        as_e = round(sum(p[0] for p in pts) / 4.0, 3)
+        as_n = round(sum(p[1] for p in pts) / 4.0, 3)
+        as_z = round(sum(p[2] for p in pts) / 4.0, 3)
+        fe, fn = (pts[0][0] + pts[1][0]) / 2.0, (pts[0][1] + pts[1][1]) / 2.0
+        be, bn = (pts[2][0] + pts[3][0]) / 2.0, (pts[2][1] + pts[3][1]) / 2.0
+        hdg = round((math.degrees(math.atan2(fe - be, fn - bn)) + 360.0) % 360.0, 3)
+        corners = {f"c{i+1}_e": round(pts[i][0], 3) for i in range(4)}
+        corners.update({f"c{i+1}_n": round(pts[i][1], 3) for i in range(4)})
+        corners.update({f"c{i+1}_z": round(pts[i][2], 3) for i in range(4)})
+    else:
+        as_e = request.form.get("aslaid_e", type=float) or qaqc_e
+        as_n = request.form.get("aslaid_n", type=float) or qaqc_n
+        as_z = request.form.get("aslaid_z", type=float) or 0.0
+        hdg = round(request.form.get("heading_deg", type=float) or qaqc_brg, 3)
+        corners = compute_4_corners(as_e, as_n, hdg, 6.0, 3.0)
+
+    cl_off = round(math.hypot(as_e - des_e, as_n - des_n), 2) if (as_e and des_e) else (request.form.get("cl_offset_m", type=float) or 0.0)
+
+    gnw, gne, gsw, gse = [request.form.get(k, "").strip() for k in ("gap_nw", "gap_ne", "gap_sw", "gap_se")]
+    g_parts, g_vals = [], []
+    if not is_first:
+        for lbl, val in [("NW", gnw), ("NE", gne), ("SW", gsw), ("SE", gse)]:
+            if val != "":
+                try:
+                    fv = round(float(val), 2)
+                    g_parts.append(f"{lbl}:{fv:.2f}m")
+                    g_vals.append(fv)
+                except Exception:
+                    pass
     if is_first:
-        gap1, gap2, max_gap = 0.0, 0.0, 0.0
+        gap_labels, gap1, gap2, max_gap = "1st Unit (N/A)", 0.0, 0.0, 0.0
+    elif g_vals:
+        gap_labels = " | ".join(g_parts)
+        gap1, gap2, max_gap = g_vals[0], (g_vals[1] if len(g_vals) > 1 else g_vals[0]), max(g_vals)
     else:
         gap1 = round(request.form.get("gap1_m", type=float) or 0.0, 2)
         gap2 = round(request.form.get("gap2_m", type=float) or 0.0, 2)
         max_gap = round(max(gap1, gap2), 2)
+        gap_labels = f"G1:{gap1:.2f}m | G2:{gap2:.2f}m"
 
-    corners = compute_4_corners(as_e, as_n, hdg, 6.0, 3.0)
+    env_w = (request.form.get("env_wind") or "").strip()
+    env_c = (request.form.get("env_current") or "").strip()
+    env_s = (request.form.get("env_swell") or "").strip()
+    env_tag = " | ".join([f"{k}:{v}" for k, v in [("Wind", env_w), ("Curr", env_c), ("Swell", env_s)] if v])
+
     dt_str = (request.form.get("install_date") or datetime.utcnow().strftime('%Y-%m-%d %H:%M')).strip()
     xing_id = (request.form.get("crossing_id") or "CR-A1_L1").strip()
     box_id = (request.form.get("design_box_id") or f"CR-A1_M{unit_no}").strip()
     tag_id = (request.form.get("physical_tag") or "").strip()
     rem_str = (request.form.get("remarks") or "").strip()
+    if usbl_sensor and f"[{usbl_sensor}]" not in rem_str:
+        rem_str = f"[{usbl_sensor}] {rem_str}".strip()
+    if env_tag and env_tag not in rem_str:
+        rem_str = f"{rem_str} [{env_tag}]".strip()
 
     existing = next((r for r in ledger if int(r.get("unit_no", 0)) == unit_no), None)
     entry = {
         "id": existing["id"] if existing else (max([int(r.get("id", 0)) for r in ledger] + [0]) + 1),
-        "unit_no": unit_no,
-        "is_first_in_array": is_first,
-        "unit_type": request.form.get("unit_type", "Concrete Mattress"),
-        "crossing_id": xing_id,
-        "design_box_id": box_id,
-        "physical_tag": tag_id,
-        "install_date": dt_str,
-        "shift": "Abror & Roderick",
-        "design_e": round(des_e, 3),
-        "design_n": round(des_n, 3),
-        "aslaid_e": round(as_e, 3),
-        "aslaid_n": round(as_n, 3),
-        "cl_offset_m": round(cl_off, 2),
-        "heading_deg": hdg,
-        "gap1_m": gap1,
-        "gap2_m": gap2,
-        "gap_m": max_gap,
-        "status": request.form.get("status", "Completed"),
-        "remarks": rem_str,
+        "unit_no": unit_no, "is_first_in_array": is_first, "unit_type": "Concrete Mattress",
+        "crossing_id": xing_id, "design_box_id": box_id, "physical_tag": tag_id,
+        "install_date": dt_str, "usbl_sensor": usbl_sensor,
+        "design_e": round(des_e, 3), "design_n": round(des_n, 3),
+        "qaqc_e": round(qaqc_e or as_e, 3), "qaqc_n": round(qaqc_n or as_n, 3), "qaqc_brg": round(qaqc_brg or hdg, 3),
+        "aslaid_e": round(as_e, 3), "aslaid_n": round(as_n, 3), "aslaid_z": round(as_z, 3),
+        "cl_offset_m": round(cl_off, 2), "heading_deg": hdg,
+        "gap_nw": gnw, "gap_ne": gne, "gap_sw": gsw, "gap_se": gse,
+        "gap_labels": gap_labels, "gap1_m": gap1, "gap2_m": gap2, "gap_m": max_gap,
+        "env_wind": env_w, "env_current": env_c, "env_swell": env_s,
+        "status": request.form.get("status", "Completed"), "remarks": rem_str,
         **corners
     }
     if existing:
@@ -260,22 +300,20 @@ def add_fix():
     state["ledger"] = ledger
 
     input_logs = state.get("input_logs", [])
-    gap_summary = "1st Unit" if is_first else f"G1:{gap1:.2f}m, G2:{gap2:.2f}m"
     if not existing:
         input_logs.append({
             "id": max([int(x.get("id", 0)) for x in input_logs] + [0]) + 1,
-            "event_type": "Mattress fix",
-            "timestamp": dt_str,
+            "event_type": "Mattress fix", "timestamp": dt_str,
             "surveyor": getattr(current_user, "name", "Surveyor"),
-            "ref_id": f"{box_id} ({tag_id})",
-            "val1": f"E:{as_e:.2f}, N:{as_n:.2f} (dCL:{cl_off:.2f}m)",
-            "val2": f"Brg:{hdg:.1f} deg | {gap_summary}",
+            "ref_id": f"{box_id} ({tag_id}) [{usbl_sensor}]",
+            "val1": f"Act E:{as_e:.2f}, N:{as_n:.2f}, Z:{as_z:.2f} (dCL:{cl_off:.2f}m)",
+            "val2": f"Brg:{hdg:.1f} deg | {gap_labels}",
             "remarks": rem_str
         })
         state["input_logs"] = input_logs
 
     save_mti_state(state)
-    flash(f"Saved Unit #{unit_no} ({box_id} / {tag_id}) to Ledger & Input Log!", "success")
+    flash(f"Saved Unit #{unit_no} ({box_id} / {tag_id}) via {usbl_sensor}!", "success")
     return redirect(url_for('mti_bp.mti_mobile') if '/mobile' in (request.referrer or '') else url_for('mti_bp.mti_dashboard'))
 
 @mti_bp.route('/delete_fix/<int:fix_id>', methods=['POST'])
@@ -295,6 +333,14 @@ def add_input_log():
     log_id = request.form.get("log_id", type=int)
     existing = next((x for x in input_logs if int(x.get("id", 0)) == log_id), None) if log_id else None
 
+    env_w = (request.form.get("env_wind") or "").strip()
+    env_c = (request.form.get("env_current") or "").strip()
+    env_s = (request.form.get("env_swell") or "").strip()
+    env_tag = " | ".join([f"{k}:{v}" for k, v in [("Wind", env_w), ("Curr", env_c), ("Swell", env_s)] if v])
+    rem = (request.form.get("remarks") or "").strip()
+    if env_tag and env_tag not in rem:
+        rem = f"{rem} [{env_tag}]".strip()
+
     entry = {
         "id": existing["id"] if existing else (max([int(x.get("id", 0)) for x in input_logs] + [0]) + 1),
         "event_type": (request.form.get("event_type") or "Pole down").strip(),
@@ -303,7 +349,8 @@ def add_input_log():
         "ref_id": (request.form.get("ref_id") or "").strip(),
         "val1": (request.form.get("val1") or "").strip(),
         "val2": (request.form.get("val2") or "").strip(),
-        "remarks": (request.form.get("remarks") or "").strip()
+        "env_wind": env_w, "env_current": env_c, "env_swell": env_s,
+        "remarks": rem
     }
     if existing:
         input_logs.remove(existing)

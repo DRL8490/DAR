@@ -126,4 +126,143 @@ function triggerPhoneShortcut(){
     alert('To add the MTI Input icon to your Phone Home Screen:\n\n• iPhone/iPad (Safari): Tap the Share icon at the bottom of the screen, then tap "Add to Home Screen".\n\n• Android (Chrome): Tap the 3-dot menu (⋮) at the top right, then tap "Add to Home screen" or "Install app".');
   }
 }
-</script></body></html>
+</script><script id="mtiV2Upgrade">
+(function(){
+  const ENV_EVENTS = new Set(['Pole down', 'Pole up', 'ROV & Vessel Ops']);
+  const V2_CONFIGS = {
+    "Pole down": {lblRef:"Location / Crossing ID",defRef:"CR-A1_L1",lbl1:"Pole Lock & Pin Status *",ph1:"Down & Locked in Working Position",lbl2:"USBL & ADCP Telemetry Check",ph2:"Ranger 2 HPT & RDI ADCP Online",phRem:"Over-the-side pole deployed prior to subsea operations...",r:"Location / Crossing ID",dr:"CR-A1_L1",l1:"Pole Lock & Pin Status *",p1:"Down & Locked in Working Position",l2:"USBL & ADCP Telemetry Check",p2:"Ranger 2 HPT & RDI ADCP Online",pr:"Over-the-side pole deployed prior to subsea operations..."},
+    "Pole up": {lblRef:"Location / Crossing ID",defRef:"CR-A1_L1",lbl1:"Pole Stowed Status *",ph1:"Recovered & Secured on Deck Cradle",lbl2:"Reason for Recovery",ph2:"Transit / Weather / Maintenance",phRem:"USBL/ADCP pole raised and locked above waterline...",r:"Location / Crossing ID",dr:"CR-A1_L1",l1:"Pole Stowed Status *",p1:"Recovered & Secured on Deck Cradle",l2:"Reason for Recovery",p2:"Transit / Weather / Maintenance",pr:"USBL/ADCP pole raised and locked above waterline..."},
+    "Mattress on water": {lblRef:"Xing / Box / Tag ID *",defRef:"CR-A1_M4",lbl1:"Deployment Stage & Tag # *",ph1:"Overboard / Seabed Align / Tagline / Recover to Deck (#A023)",lbl2:"Water Depth / Beacon Status",ph2:"Transponder Ch 1 & 2 Tracking OK",phRem:"Mattress lowered through splash zone; WROV monitoring alignment...",r:"Xing / Box / Tag ID *",dr:"CR-A1_M4",l1:"Deployment Stage & Tag # *",p1:"Overboard / Seabed Align / Tagline / Recover to Deck (#A023)",l2:"Water Depth / Beacon Status",p2:"Transponder Ch 1 & 2 Tracking OK",pr:"Mattress lowered through splash zone; WROV monitoring alignment..."},
+    "Frame above water": {lblRef:"Xing / Box / Tag ID *",defRef:"CR-A1_M4",lbl1:"Acoustic Release Status *",ph1:"4-Hook Release Confirmed by WROV",lbl2:"Frame Deck Status",ph2:"Frame Above Water & Landed on Deck",phRem:"Deployment frame recovered cleanly; preparing next mattress...",r:"Xing / Box / Tag ID *",dr:"CR-A1_M4",l1:"Acoustic Release Status *",p1:"4-Hook Release Confirmed by WROV",l2:"Frame Deck Status",p2:"Frame Above Water & Landed on Deck",pr:"Deployment frame recovered cleanly; preparing next mattress..."},
+    "ROV & Vessel Ops": {lblRef:"Vessel / ROV / Crossing ID *",defRef:"MMA Prestige / WROV",lbl1:"Operation Type (ROV Launch / On Deck / Maint / DP / Echo 4) *",ph1:"e.g., ROV Off Deck / Echo 4 Arrival / 100m DP Move",lbl2:"Position / Heading / Dive Status",ph2:"e.g., Lat/Long, Heading 38.9 deg, or ROV Dive #",phRem:"ROV deployment/maintenance or vessel DP/Echo 4 movement...",r:"Vessel / ROV / Crossing ID *",dr:"MMA Prestige / WROV",l1:"Operation Type (ROV Launch / On Deck / Maint / DP / Echo 4) *",p1:"e.g., ROV Off Deck / Echo 4 Arrival / 100m DP Move",l2:"Position / Heading / Dive Status",p2:"e.g., Lat/Long, Heading 38.9 deg, or ROV Dive #",pr:"ROV deployment/maintenance or vessel DP/Echo 4 movement..."},
+    "Calib, Setup & TBT": {lblRef:"System / Location *",defRef:"USBL / Helmsman PC / Mess Room",lbl1:"Activity (USBL/Tripod Calib / Helmsman PC / TBT / Standby) *",ph1:"e.g., USBL Tripod Check / Crane Helmsman Wi-Fi / Daily TBT",lbl2:"Result / Standby Status",ph2:"e.g., Report Submitted / Weather Standby Active",phRem:"Calibration, crane-cabin Helmsman display setup, TBT, or standby...",r:"System / Location *",dr:"USBL / Helmsman PC / Mess Room",l1:"Activity (USBL/Tripod Calib / Helmsman PC / TBT / Standby) *",p1:"e.g., USBL Tripod Check / Crane Helmsman Wi-Fi / Daily TBT",l2:"Result / Standby Status",p2:"e.g., Report Submitted / Weather Standby Active",pr:"Calibration, crane-cabin Helmsman display setup, TBT, or standby..."},
+    "Survey Issue Reporting": {lblRef:"System & Active USBL Handoff *",defRef:"Pole USBL -> Switched to Vessel USBL",lbl1:"Issue / Beacon Dropout / Entanglement *",ph1:"e.g., Pole USBL beacon dropout / ROV umbilical / Fallen tripod",lbl2:"USBL Switch / Downtime Impact",ph2:"e.g., Switched to Vessel USBL for positioning (25m downtime)",phRem:"Root cause, USBL sensor switch, and corrective action taken...",r:"System & Active USBL Handoff *",dr:"Pole USBL -> Switched to Vessel USBL",l1:"Issue / Beacon Dropout / Entanglement *",p1:"e.g., Pole USBL beacon dropout / ROV umbilical / Fallen tripod",l2:"USBL Switch / Downtime Impact",p2:"e.g., Switched to Vessel USBL for positioning (25m downtime)",pr:"Root cause, USBL sensor switch, and corrective action taken..."}
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){
+    if (typeof EVENT_CONFIGS !== 'undefined') Object.assign(EVENT_CONFIGS, V2_CONFIGS);
+
+    document.querySelectorAll('button').forEach(function(btn){
+      const txt = btn.innerText.trim();
+      if (txt.indexOf('ADCP input') !== -1) {
+        btn.innerHTML = btn.classList.contains('tap-btn') ? '<i class="fas fa-ship text-info fs-5"></i>ROV & Vessel Ops' : '<i class="fas fa-ship text-info"></i> ROV & Vessel Ops';
+        btn.setAttribute('onclick', btn.classList.contains('tap-btn') ? "openMobEvt('ROV & Vessel Ops')" : "openEventInputBox('ROV & Vessel Ops')");
+      } else if (txt.indexOf('Wind Input') !== -1) {
+        btn.innerHTML = btn.classList.contains('tap-btn') ? '<i class="fas fa-tools text-warning fs-5"></i>Calib, Setup & TBT' : '<i class="fas fa-tools text-warning"></i> Calib, Setup & TBT';
+        btn.setAttribute('onclick', btn.classList.contains('tap-btn') ? "openMobEvt('Calib, Setup & TBT')" : "openEventInputBox('Calib, Setup & TBT')");
+      }
+    });
+
+    ['eventInputForm', 'mobEvtCard'].forEach(function(id){
+      const c = document.getElementById(id);
+      const form = c ? (c.tagName === 'FORM' ? c : c.querySelector('form')) : null;
+      if (form && !form.querySelector('.env-strip-evt')) {
+        const div = document.createElement('div');
+        div.className = 'row g-2 mb-2 p-2 rounded border border-info env-strip-evt';
+        div.style.background = 'rgba(14,165,233,0.08)';
+        div.innerHTML = '<div class="col-12 small fw-bold text-info mb-0"><i class="fas fa-wind me-1"></i>Environmental Inputs (Wind, Current & Swell)</div>' +
+          '<div class="col-4"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind (e.g. 18kt NE)"></div>' +
+          '<div class="col-4"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Curr (e.g. 0.4m/s)"></div>' +
+          '<div class="col-4"><input type="text" name="env_swell" class="form-control form-control-sm" placeholder="Swell Hs (e.g. 0.8m)"></div>';
+        const remRow = form.querySelector('[name="remarks"]').closest('.row, .mb-3');
+        if (remRow) remRow.parentNode.insertBefore(div, remRow);
+      }
+    });
+
+    const toggleEvtEnv = function(evtType){
+      document.querySelectorAll('.env-strip-evt').forEach(el => {
+        el.style.display = ENV_EVENTS.has(evtType) ? 'flex' : 'none';
+      });
+    };
+    const origDeskEvt = window.openEventInputBox;
+    if (origDeskEvt) window.openEventInputBox = function(t){ origDeskEvt(t); toggleEvtEnv(t); };
+    const origMobEvt = window.openMobEvt;
+    if (origMobEvt) window.openMobEvt = function(t){ origMobEvt(t); toggleEvtEnv(t); };
+
+    document.querySelectorAll('form[action="/mti/add_fix"]').forEach(function(f){
+      if (f.querySelector('.rov-corners-box')) return;
+      const box = document.createElement('div');
+      box.className = 'p-2 my-2 rounded border border-primary rov-corners-box';
+      box.style.background = 'rgba(2,132,199,0.06)';
+      box.innerHTML = `
+        <div class="row g-2 mb-2 align-items-end">
+          <div class="col-md-3 col-6"><label class="small fw-bold text-primary">Active USBL Used *</label>
+            <select name="usbl_sensor" class="form-select form-select-sm border-primary fw-bold">
+              <option value="Pole USBL">Pole USBL (Primary)</option>
+              <option value="Vessel USBL">Vessel USBL</option>
+              <option value="Vessel Nav + Pole Fix">Vessel Nav + Pole Final Fix</option>
+            </select>
+          </div>
+          <div class="col-md-3 col-6"><label class="small fw-bold">1. QA/QC Center E</label><input type="number" step="0.001" name="qaqc_e" class="form-control form-control-sm qaqc-e" placeholder="Pre-Rel E"></div>
+          <div class="col-md-3 col-6"><label class="small fw-bold">1. QA/QC Center N</label><input type="number" step="0.001" name="qaqc_n" class="form-control form-control-sm qaqc-n" placeholder="Pre-Rel N"></div>
+          <div class="col-md-3 col-6"><label class="small fw-bold">1. QA/QC Brg (&deg;)</label>
+            <div class="input-group input-group-sm">
+              <input type="number" step="0.001" name="qaqc_brg" class="form-control form-control-sm qaqc-brg" value="15.854">
+              <button type="button" class="btn btn-outline-primary fw-bold" title="Seed 4 ROV Corners from QA/QC" onclick="window.seedRovCorners(this.closest('form'))">Seed 4C</button>
+            </div>
+          </div>
+        </div>
+        <div class="small fw-bold text-success mb-1"><i class="fas fa-vector-square me-1"></i>2. ROV 4-Corners Input (E, N, Z) &rarr; Auto-Calculates Actual Mattress Center &amp; Bearing</div>
+        <div class="row g-1 mb-2">
+          <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C1</span><input type="number" step="0.001" name="c1_e" class="form-control px-1 rc" placeholder="E1"><input type="number" step="0.001" name="c1_n" class="form-control px-1 rc" placeholder="N1"><input type="number" step="0.01" name="c1_z" class="form-control px-1 rc" placeholder="Z1"></div></div>
+          <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C2</span><input type="number" step="0.001" name="c2_e" class="form-control px-1 rc" placeholder="E2"><input type="number" step="0.001" name="c2_n" class="form-control px-1 rc" placeholder="N2"><input type="number" step="0.01" name="c2_z" class="form-control px-1 rc" placeholder="Z2"></div></div>
+          <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C3</span><input type="number" step="0.001" name="c3_e" class="form-control px-1 rc" placeholder="E3"><input type="number" step="0.001" name="c3_n" class="form-control px-1 rc" placeholder="N3"><input type="number" step="0.01" name="c3_z" class="form-control px-1 rc" placeholder="Z3"></div></div>
+          <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C4</span><input type="number" step="0.001" name="c4_e" class="form-control px-1 rc" placeholder="E4"><input type="number" step="0.001" name="c4_n" class="form-control px-1 rc" placeholder="N4"><input type="number" step="0.01" name="c4_z" class="form-control px-1 rc" placeholder="Z4"></div></div>
+        </div>
+        <div class="row g-2">
+          <div class="col-4"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind (e.g. 16kt NE)"></div>
+          <div class="col-4"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Current (e.g. 0.35m/s)"></div>
+          <div class="col-4"><input type="text" name="env_swell" class="form-control form-control-sm" placeholder="Swell Hs (e.g. 0.7m)"></div>
+        </div>
+        <input type="hidden" name="aslaid_z" class="aslaid-z" value="0.00">`;
+      const submitBtn = f.querySelector('button[type="submit"]');
+      const targetRow = submitBtn ? submitBtn.closest('.row, button') : f.lastElementChild;
+      f.insertBefore(box, targetRow);
+
+      [['gNW','mgNW','gap_nw'],['gNE','mgNE','gap_ne'],['gSW','mgSW','gap_sw'],['gSE','mgSE','gap_se']].forEach(pair => {
+        const el = f.querySelector('#'+pair[0]) || f.querySelector('#'+pair[1]);
+        if (el) el.setAttribute('name', pair[2]);
+      });
+      f.querySelectorAll('.rc').forEach(inp => inp.addEventListener('input', () => window.calcFromRovCorners(f)));
+    });
+  });
+
+  window.seedRovCorners = function(f){
+    const ce = parseFloat(f.querySelector('.qaqc-e')?.value || f.querySelector('[name="design_e"]')?.value) || 0;
+    const cn = parseFloat(f.querySelector('.qaqc-n')?.value || f.querySelector('[name="design_n"]')?.value) || 0;
+    const brg = parseFloat(f.querySelector('.qaqc-brg')?.value || f.querySelector('[name="heading_deg"]')?.value) || 0;
+    if (!ce || !cn) return;
+    const rad = brg * Math.PI / 180.0, sb = Math.sin(rad), cb = Math.cos(rad);
+    [[1,-1],[1,1],[-1,1],[-1,-1]].forEach((s, idx) => {
+      const i = idx + 1;
+      f.querySelector(`[name="c${i}_e"]`).value = (ce + s[0]*3.0*sb + s[1]*1.5*cb).toFixed(3);
+      f.querySelector(`[name="c${i}_n"]`).value = (cn + s[0]*3.0*cb - s[1]*1.5*sb).toFixed(3);
+      if (!f.querySelector(`[name="c${i}_z"]`).value) f.querySelector(`[name="c${i}_z"]`).value = '-18.20';
+    });
+    window.calcFromRovCorners(f);
+  };
+
+  window.calcFromRovCorners = function(f){
+    const pts = [1,2,3,4].map(i => [
+      parseFloat(f.querySelector(`[name="c${i}_e"]`)?.value),
+      parseFloat(f.querySelector(`[name="c${i}_n"]`)?.value),
+      parseFloat(f.querySelector(`[name="c${i}_z"]`)?.value || '0')
+    ]);
+    if (pts.every(p => !isNaN(p[0]) && !isNaN(p[1]))) {
+      const ae = (pts[0][0]+pts[1][0]+pts[2][0]+pts[3][0])/4.0;
+      const an = (pts[0][1]+pts[1][1]+pts[2][1]+pts[3][1])/4.0;
+      const az = (pts[0][2]+pts[1][2]+pts[2][2]+pts[3][2])/4.0;
+      const fe = (pts[0][0]+pts[1][0])/2.0, fn = (pts[0][1]+pts[1][1])/2.0;
+      const be = (pts[2][0]+pts[3][0])/2.0, bn = (pts[2][1]+pts[3][1])/2.0;
+      const brg = ((Math.atan2(fe - be, fn - bn) * 180.0 / Math.PI) + 360.0) % 360.0;
+      const inpE = f.querySelector('[name="aslaid_e"]'), inpN = f.querySelector('[name="aslaid_n"]'), inpH = f.querySelector('[name="heading_deg"]');
+      if (inpE) { inpE.value = ae.toFixed(3); inpE.dispatchEvent(new Event('input', {bubbles:true})); }
+      if (inpN) { inpN.value = an.toFixed(3); inpN.dispatchEvent(new Event('input', {bubbles:true})); }
+      if (inpH) { inpH.value = brg.toFixed(3); inpH.dispatchEvent(new Event('input', {bubbles:true})); }
+      const inpZ = f.querySelector('.aslaid-z');
+      if (inpZ) inpZ.value = az.toFixed(2);
+    }
+  };
+})();
+</script>
+</body></html>
