@@ -428,7 +428,7 @@
     <label class="small fw-bold text-muted mb-0">Active User:</label>
     <select id="reportsUserSelector" class="form-select form-select-sm w-auto fw-semibold" onchange="refreshDynamicQuickPicks(this.value)">
       <option value="Daryll" {% if 'daryll' in (current_user_name|default('Daryll')|lower) %}selected{% endif %}>👑 Daryll (Admin)</option>
-      <option value="Abror" {% if 'abror' in (current_user_name|default('')|lower) %}selected{% endif %}>👑 Abror (Admin)</option>
+      <option value="daryll" {% if 'daryll' in (current_user_name|default('')|lower) %}selected{% endif %}>👑 Abror (Admin)</option>
       <option value="Mateo">Mateo</option>
       <option value="Mohamad">Mohamad</option>
       <option value="Roderick">Roderick</option>
@@ -481,7 +481,7 @@
             <label class="form-label small fw-bold">Compiled By (Admin)</label>
             <select name="prepared_by" id="wsr_prepared_by" class="form-select form-select-sm">
               <option value="Daryll Enano">Daryll Enano (Chief Surveyor)</option>
-              <option value="Abror">Abror (Admin / Lead Surveyor)</option>
+              <option value="daryll">Abror (Admin / Lead Surveyor)</option>
             </select>
           </div>
         </div>

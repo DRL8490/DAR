@@ -65,7 +65,7 @@
                 {% endif %}
             </td>
             <td style="text-align: right;">
-                {% if u.email not in ['daryll.enano@nmdc-group.com', 'mohamad.hediarto@nmdc-group.com', 'mok.heng@nmdc-group.com'] %}
+                {% if u.email not in ['daryll.enano@nmdc-group.com', 'daryll.enano@nmdc-group.com', 'daryll.enano@nmdc-group.com'] %}
                     
                     <form action="/toggle_active/{{ u.id }}" method="POST" style="display:inline; margin-right: 5px;">
                         {% if u.is_active != False %}

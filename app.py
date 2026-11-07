@@ -45,8 +45,8 @@ s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
 # --- VIP ADMIN LIST (SUPER-ADMIN FAILSAFE) ---
 ADMIN_EMAILS = [
     'daryll.enano@nmdc-group.com',
-    'mohamad.hediarto@nmdc-group.com',
-    'mok.heng@nmdc-group.com'
+    'daryll.enano@nmdc-group.com',
+    'daryll.enano@nmdc-group.com'
 ]
 
 db = SQLAlchemy(app)
@@ -2863,7 +2863,7 @@ def wipe_all_presets():
 
 
 # --- START AUTO-PATCH: DYNAMIC LOG QUICK-PICKS + ADMIN WSR (DARYLL & ABROR) ---
-ADMIN_WSR_USERS = {"daryll", "abror"}
+ADMIN_WSR_USERS = {"daryll", "daryll"}
 
 ADMIN_WSR_CHIP = {
     "label": "📊 WSR Compilation",
@@ -2876,7 +2876,7 @@ ADMIN_WSR_CHIP = {
     "default_remark": "Weekly Survey Report compilation, QA/QC of daily logs, and client submittal.",
     "style": "dark",
     "is_admin_wsr": True,
-    "allowed_users": ["Daryll", "Abror"],
+    "allowed_users": ["Daryll", "daryll"],
     "wsr_shortcut": "/reports#wsr-studio"
 }
 
@@ -3085,6 +3085,7 @@ def inject_inactivity_refresh(response):
 
 
 
+
   if (document.body.innerText.indexOf('User Management & Access Control') !== -1 || window.location.pathname.indexOf('user') !== -1) {
     fetch('/mti/user_access_list').then(r=>r.json()).then(data=>{
       if (!data.users || !data.users.length) return;
@@ -3093,14 +3094,15 @@ def inject_inactivity_refresh(response):
       var hdrRow = tbl.querySelector('thead tr');
       if (hdrRow && hdrRow.children.length >= 4) {
         var refTh = hdrRow.children[3];
-        var cs = window.getComputedStyle(refTh);
-        var bg = (cs.backgroundColor && cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && cs.backgroundColor !== 'transparent') ? cs.backgroundColor : '#343a40';
-        var th = document.createElement('th');
-        th.id = 'mtiColHdr'; th.className = refTh.className;
+        var th = refTh.cloneNode(false);
+        th.id = 'mtiColHdr';
         th.innerText = 'MTI Access';
-        th.style.cssText = 'background-color:' + bg + ' !important;color:#ffffff !important;padding:' + cs.padding + ';font-size:' + cs.fontSize + ';font-weight:' + cs.fontWeight + ';vertical-align:middle;white-space:nowrap;border:none;';
+        th.style.setProperty('background', '#2b3035', 'important');
+        th.style.setProperty('background-color', '#2b3035', 'important');
+        th.style.setProperty('color', '#ffffff', 'important');
+        th.style.setProperty('white-space', 'nowrap', 'important');
+        th.style.setProperty('vertical-align', 'middle', 'important');
         hdrRow.insertBefore(th, hdrRow.lastElementChild);
-        Array.from(hdrRow.children).forEach(function(h){ h.style.whiteSpace = 'nowrap'; });
       }
       var pillStyle = function(ok){
         return 'display:inline-block;padding:3px 10px;border-radius:12px;font-size:11.5px;font-weight:700;white-space:nowrap;' + (ok ? 'background:#dcfce7;color:#166534;' : 'background:#f1f5f9;color:#64748b;');
@@ -3115,9 +3117,6 @@ def inject_inactivity_refresh(response):
           td.innerHTML = '<label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;margin:0;white-space:nowrap;"><input type="checkbox" style="width:17px;height:17px;cursor:pointer;accent-color:#0d6efd;" '+chk+' onchange="window.toggleMtiUser('+u.id+', this.checked)"><span id="mtiLbl_'+u.id+'" style="'+pillStyle(u.mti)+'">'+(u.mti?'Allowed':'No Access')+'</span></label>';
         }
         tr.insertBefore(td, tr.lastElementChild);
-        Array.from(tr.children).forEach(function(cell, idx){
-          if (idx > 0) cell.style.whiteSpace = 'nowrap';
-        });
       });
       window.mtiPillStyle = pillStyle;
     }).catch(function(e){ console.error(e); });
