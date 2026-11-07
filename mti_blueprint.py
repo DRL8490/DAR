@@ -216,7 +216,7 @@ def add_fix():
     qaqc_e = request.form.get("qaqc_e", type=float) or 0.0
     qaqc_n = request.form.get("qaqc_n", type=float) or 0.0
     qaqc_brg = request.form.get("qaqc_brg", type=float) or 0.0
-    usbl_sensor = (request.form.get("usbl_sensor") or "Pole USBL").strip()
+    usbl_sensor = (request.form.get("usbl_sensor") or "Survey Pole USBL").strip()
 
     pts = []
     for i in (1, 2, 3, 4):
@@ -268,10 +268,11 @@ def add_fix():
         max_gap = round(max(gap1, gap2), 2)
         gap_labels = f"G1:{gap1:.2f}m | G2:{gap2:.2f}m"
 
+    usbl_s = (request.form.get("usbl_sensor") or "Survey Pole USBL").strip()
     env_w = (request.form.get("env_wind") or "").strip()
     env_c = (request.form.get("env_current") or "").strip()
     env_s = (request.form.get("env_swell") or "").strip()
-    env_tag = " | ".join([f"{k}:{v}" for k, v in [("Wind", env_w), ("Curr", env_c)] if v])
+    env_tag = " | ".join([f"{k}:{v}" for k, v in [("USBL", usbl_s), ("Wind", env_w), ("Curr", env_c)] if v])
 
     dt_str = (request.form.get("install_date") or datetime.utcnow().strftime('%Y-%m-%d %H:%M')).strip()
     xing_id = (request.form.get("crossing_id") or "CR-A1_L1").strip()
@@ -341,7 +342,7 @@ def add_input_log():
     env_w = (request.form.get("env_wind") or "").strip()
     env_c = (request.form.get("env_current") or "").strip()
     env_s = (request.form.get("env_swell") or "").strip()
-    env_tag = " | ".join([f"{k}:{v}" for k, v in [("Wind", env_w), ("Curr", env_c)] if v])
+    env_tag = " | ".join([f"{k}:{v}" for k, v in [("USBL", usbl_s), ("Wind", env_w), ("Curr", env_c)] if v])
     rem = (request.form.get("remarks") or "").strip()
     if env_tag and env_tag not in rem:
         rem = f"{rem} [{env_tag}]".strip()
