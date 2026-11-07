@@ -1,0 +1,22 @@
+# Virtual Environments (Machine-Specific - NEVER commit)
+.venv/
+venv/
+env/
+ENV/
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local Databases & Environment Secrets
+*.db
+*.sqlite3
+.env
+.env.local
+
+# OS & Editor Temp Files
+.DS_Store
+Thumbs.db
+*.bak
+*~
