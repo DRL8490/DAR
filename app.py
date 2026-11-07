@@ -3059,5 +3059,34 @@ try:
 except Exception as _mti_err:
     print(f"MTI Blueprint Notice: {_mti_err}")
 
+
+# --- 12-MINUTE INACTIVITY AUTO-REFRESH & RENDER KEEP-ALIVE ---
+@app.route('/ping', methods=['GET'])
+def render_keepalive_ping():
+    return "OK", 200
+
+@app.after_request
+def inject_inactivity_refresh(response):
+    if response.content_type and 'text/html' in response.content_type and response.status_code == 200:
+        try:
+            html_text = response.get_data(as_text=True)
+            if '</body>' in html_text and 'id="renderIdleRefresh"' not in html_text:
+                idle_js = '''<script id="renderIdleRefresh">
+(function(){
+  var idleLimit = 12 * 60 * 1000, lastAct = Date.now();
+  ['mousemove','mousedown','keydown','touchstart','scroll'].forEach(function(ev){
+    document.addEventListener(ev, function(){ lastAct = Date.now(); }, {passive:true});
+  });
+  setInterval(function(){
+    fetch('/ping', {cache:'no-store'}).catch(function(){});
+    if (Date.now() - lastAct >= idleLimit) { window.location.reload(); }
+  }, 60000);
+})();
+</script></body>'''
+                response.set_data(html_text.replace('</body>', idle_js, 1))
+        except Exception:
+            pass
+    return response
+
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
