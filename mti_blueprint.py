@@ -137,7 +137,7 @@ def load_mti_state():
         changed = True
     for r in st.get("ledger", []):
         if float(r.get("heading_deg", 0)) < 180.0:
-            r["heading_deg"] = round(float(r.get("heading_deg", 15.854)) + 180.0, 3)
+            r["heading_deg"] = round(float(r.get("heading_deg", 195.854)) + 180.0, 3)
             changed = True
     if changed:
         config.schema_data = json.dumps(schema)
@@ -268,7 +268,8 @@ def add_fix():
         max_gap = round(max(gap1, gap2), 2)
         gap_labels = f"G1:{gap1:.2f}m | G2:{gap2:.2f}m"
 
-    usbl_s = (request.form.get("usbl_sensor") or "Survey Pole").strip()
+    evt_t = (request.form.get("event_type") or "Pole down").strip()
+    usbl_s = (request.form.get("usbl_sensor") or "").strip() if evt_t in ("ROV & Vessel Ops", "Calib, Setup & TBT", "Survey Issue Reporting", "Survey Issue") else ""
     env_w = (request.form.get("env_wind") or "").strip()
     env_c = (request.form.get("env_current") or "").strip()
     env_s = (request.form.get("env_swell") or "").strip()

@@ -632,47 +632,81 @@ document.addEventListener('DOMContentLoaded', function(){
 });
 </script>
 <script id="mtiActiveUsblUpgrade">
-document.addEventListener('DOMContentLoaded', function(){
-  // 1. Inject Radio Buttons (Survey Pole OR Vessel) into Event Input Boxes (Desktop & Mobile)
-  ['eventInputForm', 'mobEvtCard'].forEach(function(id){
-    const c = document.getElementById(id);
-    const form = c ? (c.tagName === 'FORM' ? c : c.querySelector('form')) : null;
-    if (form && !form.querySelector('.evt-usbl-selector')) {
-      const bar = document.createElement('div');
-      bar.className = 'p-2 mb-2 rounded border border-primary evt-usbl-selector';
-      bar.style.background = 'rgba(13,110,253,0.07)';
-      bar.innerHTML = '<div class="d-flex flex-wrap justify-content-between align-items-center gap-2">' +
-        '<span class="small fw-bold text-primary"><i class="fas fa-satellite-dish me-1"></i>Active USBL:</span>' +
-        '<div class="d-flex align-items-center gap-3">' +
-          '<label class="form-check-label small fw-bold d-inline-flex align-items-center gap-1" style="cursor:pointer;">' +
-            '<input type="radio" class="form-check-input m-0" name="usbl_sensor" value="Survey Pole" checked> Survey Pole' +
-          '</label>' +
-          '<label class="form-check-label small fw-bold d-inline-flex align-items-center gap-1" style="cursor:pointer;">' +
-            '<input type="radio" class="form-check-input m-0" name="usbl_sensor" value="Vessel"> Vessel' +
-          '</label>' +
-        '</div></div>';
-      const firstRow = form.querySelector('.row');
-      if (firstRow) firstRow.parentNode.insertBefore(bar, firstRow.nextSibling);
-    }
-  });
+(function(){
+  const USBL_ALLOWED_EVENTS = new Set(['ROV & Vessel Ops', 'Calib, Setup & TBT', 'Survey Issue Reporting', 'Survey Issue']);
 
-  // 2. Ensure Mattress Fix Form uses Radio Buttons (Survey Pole OR Vessel)
-  document.querySelectorAll('form[action*="add_fix"]').forEach(function(f){
-    const existingSel = f.querySelector('select[name="usbl_sensor"]');
-    if (existingSel) {
-      const col = existingSel.closest('.col-md-3, .col-md-4, .col-6, .col-12') || existingSel.parentNode;
-      col.className = 'col-md-3 col-6';
-      col.innerHTML = `<label class="form-label small fw-bold text-primary mb-1">Active USBL *</label>
-        <div class="d-flex align-items-center gap-3 p-1 px-2 border border-primary rounded bg-light" style="min-height:31px;">
-          <label class="form-check-label small fw-bold d-inline-flex align-items-center gap-1" style="cursor:pointer;">
-            <input type="radio" class="form-check-input m-0" name="usbl_sensor" value="Survey Pole" checked> Survey Pole
-          </label>
-          <label class="form-check-label small fw-bold d-inline-flex align-items-center gap-1" style="cursor:pointer;">
-            <input type="radio" class="form-check-input m-0" name="usbl_sensor" value="Vessel"> Vessel
-          </label>
-        </div>`;
+  window.toggleEvtUsblBar = function(evtType){
+    const show = USBL_ALLOWED_EVENTS.has((evtType || '').trim());
+    document.querySelectorAll('.evt-usbl-selector').forEach(function(bar){
+      bar.style.display = show ? 'block' : 'none';
+      bar.querySelectorAll('input[name="usbl_sensor"]').forEach(function(inp){
+        inp.disabled = !show;
+      });
+    });
+  };
+
+  document.addEventListener('DOMContentLoaded', function(){
+    ['eventInputForm', 'mobEvtCard'].forEach(function(id){
+      const c = document.getElementById(id);
+      const form = c ? (c.tagName === 'FORM' ? c : c.querySelector('form')) : null;
+      if (form) {
+        let bar = form.querySelector('.evt-usbl-selector');
+        if (!bar) {
+          bar = document.createElement('div');
+          bar.className = 'p-2 mb-2 rounded border border-primary evt-usbl-selector';
+          bar.style.background = 'rgba(13,110,253,0.07)';
+          const firstRow = form.querySelector('.row');
+          if (firstRow) firstRow.parentNode.insertBefore(bar, firstRow.nextSibling);
+        }
+        bar.style.display = 'none';
+        bar.innerHTML = '<div class="d-flex flex-wrap justify-content-between align-items-center gap-2">' +
+          '<span class="small fw-bold text-primary"><i class="fas fa-satellite-dish me-1"></i>Active USBL:</span>' +
+          '<div class="d-flex align-items-center gap-3">' +
+            '<label class="form-check-label small fw-bold d-inline-flex align-items-center gap-1" style="cursor:pointer;">' +
+              '<input type="radio" class="form-check-input m-0" name="usbl_sensor" value="Survey Pole" checked disabled> Survey Pole' +
+            '</label>' +
+            '<label class="form-check-label small fw-bold d-inline-flex align-items-center gap-1" style="cursor:pointer;">' +
+              '<input type="radio" class="form-check-input m-0" name="usbl_sensor" value="Vessel" disabled> Vessel' +
+            '</label>' +
+          '</div></div>';
+      }
+    });
+
+    const origDesk = window.openEventInputBox;
+    if (origDesk && !origDesk._usblWrapped) {
+      window.openEventInputBox = function(t){ origDesk(t); window.toggleEvtUsblBar(t); };
+      window.openEventInputBox._usblWrapped = true;
     }
+    const origMob = window.openMobEvt;
+    if (origMob && !origMob._usblWrapped) {
+      window.openMobEvt = function(t){ origMob(t); window.toggleEvtUsblBar(t); };
+      window.openMobEvt._usblWrapped = true;
+    }
+
+    const curEvt = document.getElementById('evtTypeInput')?.value || document.getElementById('mEvtType')?.value || 'Pole down';
+    window.toggleEvtUsblBar(curEvt);
+
+    document.querySelectorAll('form[action*="add_fix"]').forEach(function(f){
+      const existingCtrl = f.querySelector('select[name="usbl_sensor"], .usbl-pill, input[type="hidden"][name="usbl_sensor"]');
+      if (existingCtrl) {
+        const col = existingCtrl.closest('.col-md-3, .col-md-4, .col-6, .col-12') || existingCtrl.parentNode;
+        col.className = 'col-md-3 col-6';
+        col.innerHTML = `<label class="form-label small fw-bold text-primary mb-1">Active USBL *</label>
+          <div class="d-flex align-items-center gap-3 p-1 px-2 border border-primary rounded bg-light" style="min-height:31px;">
+            <label class="form-check-label small fw-bold d-inline-flex align-items-center gap-1" style="cursor:pointer;">
+              <input type="radio" class="form-check-input m-0" name="usbl_sensor" value="Survey Pole" checked> Survey Pole
+            </label>
+            <label class="form-check-label small fw-bold d-inline-flex align-items-center gap-1" style="cursor:pointer;">
+              <input type="radio" class="form-check-input m-0" name="usbl_sensor" value="Vessel"> Vessel
+            </label>
+          </div>`;
+        f.querySelectorAll('#inpQaqcE, #inpQaqcN, #inpQaqcBrg').forEach(inp => {
+          const p = inp.closest('.col-md-2, .col-md-3');
+          if (p) p.className = 'col-md-3 col-6';
+        });
+      }
+    });
   });
-});
+})();
 </script>
 </body></html>
