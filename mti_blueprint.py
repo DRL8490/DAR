@@ -230,8 +230,8 @@ def add_fix():
         as_e = round(sum(p[0] for p in pts) / 4.0, 3)
         as_n = round(sum(p[1] for p in pts) / 4.0, 3)
         as_z = round(sum(p[2] for p in pts) / 4.0, 3)
-        fe, fn = (pts[0][0] + pts[1][0]) / 2.0, (pts[0][1] + pts[1][1]) / 2.0
-        be, bn = (pts[2][0] + pts[3][0]) / 2.0, (pts[2][1] + pts[3][1]) / 2.0
+        be, bn = (pts[0][0] + pts[1][0]) / 2.0, (pts[0][1] + pts[1][1]) / 2.0
+        fe, fn = (pts[2][0] + pts[3][0]) / 2.0, (pts[2][1] + pts[3][1]) / 2.0
         hdg = round((math.degrees(math.atan2(fe - be, fn - bn)) + 360.0) % 360.0, 3)
         if hdg < 180.0: hdg = round(hdg + 180.0, 3)
         corners = {f"c{i+1}_e": round(pts[i][0], 3) for i in range(4)}
