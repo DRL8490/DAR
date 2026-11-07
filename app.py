@@ -3081,6 +3081,34 @@ def inject_inactivity_refresh(response):
     fetch('/ping', {cache:'no-store'}).catch(function(){});
     if (Date.now() - lastAct >= idleLimit) { window.location.reload(); }
   }, 60000);
+
+  if (window.location.pathname.indexOf('user') !== -1 || document.title.toLowerCase().indexOf('user') !== -1) {
+    fetch('/mti/user_access_list').then(r=>r.json()).then(data=>{
+      if (!data.users || !data.users.length || document.getElementById('mtiUserAccessCard')) return;
+      var box = document.createElement('div');
+      box.id = 'mtiUserAccessCard';
+      box.className = 'card shadow-sm border-primary mb-3 mx-auto';
+      box.style.maxWidth = '1140px';
+      var html = '<div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2"><strong>MTI Module Access Permissions (Tick Box per User)</strong><span class="badge bg-info text-dark" id="mtiSaveBadge">Auto-Saves on Tick</span></div><div class="card-body py-2"><div class="row g-2">';
+      data.users.forEach(function(u){
+        var chk = u.mti ? 'checked' : '';
+        var dis = u.is_admin ? 'disabled title="Admin always has access"' : '';
+        html += '<div class="col-md-4 col-sm-6"><label class="d-flex align-items-center gap-2 p-2 border rounded bg-light" style="cursor:pointer;"><input type="checkbox" class="form-check-input m-0" '+chk+' '+dis+' onchange="window.toggleMtiUser('+u.id+', this.checked)"> <span class="fw-bold small">'+u.name+'</span> <small class="text-muted">('+u.username+')</small></label></div>';
+      });
+      html += '</div></div>';
+      box.innerHTML = html;
+      var container = document.querySelector('.container, .container-fluid') || document.body;
+      container.insertBefore(box, container.children[1] || container.firstChild);
+    }).catch(function(){});
+    window.toggleMtiUser = function(uid, allow){
+      var fd = new FormData(); fd.append('user_id', uid); fd.append('allow', allow ? 'true' : 'false');
+      fetch('/mti/toggle_user_access', {method:'POST', body:fd}).then(r=>r.json()).then(res=>{
+        var b = document.getElementById('mtiSaveBadge');
+        if (b && res.ok) { b.className = 'badge bg-success'; b.innerText = 'Saved!'; setTimeout(()=>{ b.className='badge bg-info text-dark'; b.innerText='Auto-Saves on Tick'; }, 1500); }
+      });
+    };
+  }
+
 })();
 </script></body>'''
                 response.set_data(html_text.replace('</body>', idle_js, 1))

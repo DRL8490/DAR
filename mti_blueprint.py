@@ -412,3 +412,54 @@ def export_excel():
         download_name=f"MMA_Prestige_MTI_Ledger_{datetime.utcnow().strftime('%Y%m%d')}.xlsx",
         as_attachment=True
     )
+
+
+# --- STEP 2: MTI MODULE USER ACCESS CONTROL ---
+def get_mti_allowed_uids():
+    from app import AppConfig, User, db, is_user_admin
+    cfg = AppConfig.query.first()
+    schema = json.loads(cfg.schema_data) if (cfg and cfg.schema_data) else {}
+    if "mti_allowed_uids" not in schema:
+        default_uids = [u.id for u in User.query.all() if is_user_admin(u) or any(k in (u.name or '').lower() for k in ('abror', 'roderick', 'daryll'))]
+        schema["mti_allowed_uids"] = default_uids
+        if cfg:
+            cfg.schema_data = json.dumps(schema)
+            db.session.commit()
+    return set(int(x) for x in schema.get("mti_allowed_uids", []))
+
+@mti_bp.before_request
+def enforce_mti_access():
+    from app import is_user_admin
+    if not current_user.is_authenticated:
+        return redirect(url_for('login'))
+    if is_user_admin(current_user):
+        return None
+    if int(current_user.id) not in get_mti_allowed_uids():
+        flash("Access Denied: Your account is not enabled for the MTI Module.", "error")
+        return redirect(url_for('dashboard'))
+
+@mti_bp.route('/toggle_user_access', methods=['POST'])
+@login_required
+def toggle_user_access():
+    from app import AppConfig, db, is_user_admin
+    if not is_user_admin(current_user):
+        return {"ok": False}, 403
+    uid = request.form.get("user_id", type=int)
+    allow = request.form.get("allow") == "true"
+    cfg = AppConfig.query.first()
+    schema = json.loads(cfg.schema_data) if (cfg and cfg.schema_data) else {}
+    allowed = set(int(x) for x in schema.get("mti_allowed_uids", get_mti_allowed_uids()))
+    allowed.add(uid) if allow else allowed.discard(uid)
+    schema["mti_allowed_uids"] = sorted(list(allowed))
+    cfg.schema_data = json.dumps(schema)
+    db.session.commit()
+    return {"ok": True, "user_id": uid, "allowed": allow}
+
+@mti_bp.route('/user_access_list', methods=['GET'])
+@login_required
+def user_access_list():
+    from app import User, is_user_admin
+    if not is_user_admin(current_user):
+        return {"users": []}
+    allowed = get_mti_allowed_uids()
+    return {"users": [{"id": u.id, "name": u.name, "username": u.username, "is_admin": is_user_admin(u), "mti": (u.id in allowed or is_user_admin(u))} for u in User.query.order_by(User.id).all()]}
