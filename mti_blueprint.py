@@ -432,8 +432,6 @@ def enforce_mti_access():
     from app import is_user_admin
     if not current_user.is_authenticated:
         return redirect(url_for('login'))
-    if is_user_admin(current_user):
-        return None
     if int(current_user.id) not in get_mti_allowed_uids():
         flash("Access Denied: Your account is not enabled for the MTI Module.", "error")
         return redirect(url_for('dashboard'))
