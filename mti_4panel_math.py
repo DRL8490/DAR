@@ -1,4 +1,4 @@
-﻿import os, re, math, json
+import os, re, math, json
 from datetime import datetime
 import numpy as np
 
@@ -78,7 +78,7 @@ def get_or_build_seabed_xyz(workspace_dir, crossing_id, boxes_dict, ref_depth_m=
     es = [b["design_e"] for b in boxes_dict.values()] if boxes_dict else [194541.4]
     ns = [b["design_n"] for b in boxes_dict.values()] if boxes_dict else [2702613.4]
     e_min, e_max, n_min, n_max = min(es) - 25.0, max(es) + 25.0, min(ns) - 25.0, max(ns) + 25.0
-    ee, nn = np.meshgrid(np.arange(e_min, e_max + 1.0, 1.0), np.arange(n_min, n_max + 1.0, 1.0))
+    ee, nn = np.meshgrid(np.arange(e_min, e_max + 2.5, 2.5), np.arange(n_min, n_max + 2.5, 2.5))
     zz = float(ref_depth_m) - 0.006 * (ee - np.mean(ee)) + 0.005 * (nn - np.mean(nn)) + 0.025 * np.sin((ee - e_min) * 0.35) * np.cos((nn - n_min) * 0.35)
     return np.column_stack([ee.ravel(), nn.ravel(), zz.ravel()])
 

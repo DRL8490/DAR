@@ -1,0 +1,52 @@
+﻿<script id="mti4PanelStudioUpgrade">
+document.addEventListener('DOMContentLoaded', function() {
+  const expBtn = document.querySelector('a[href*="export"]');
+  if (expBtn && !document.getElementById('btnTop4PanelWin')) {
+    const a = document.createElement('a');
+    a.id = 'btnTop4PanelWin';
+    a.href = '/mti/studio';
+    a.target = '_blank';
+    a.className = 'btn btn-sm btn-info text-dark fw-bold ms-1';
+    a.innerHTML = '&#128202; 4-Panel Studio (New Window)';
+    expBtn.parentNode.insertBefore(a, expBtn.nextSibling);
+  }
+
+  const fixForm = document.getElementById('mattressFixForm') || document.querySelector('form[action*="add_fix"]');
+  if (fixForm && !document.getElementById('btnPreview4Panel')) {
+    const saveBtn = fixForm.querySelector('button[type="submit"]');
+    if (saveBtn) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.id = 'btnPreview4Panel';
+      b.className = 'btn btn-sm btn-info text-dark fw-bold ms-2';
+      b.innerHTML = '&#128202; Open 4-Panel Studio (New Window)';
+      b.onclick = function() {
+        const fd = new FormData(fixForm), qs = new URLSearchParams();
+        fd.forEach(function(v, k) { if (v !== null && String(v).trim() !== '') qs.set(k, String(v).trim()); });
+        window.open('/mti/studio?' + qs.toString(), '_blank');
+      };
+      saveBtn.parentNode.insertBefore(b, saveBtn.nextSibling);
+    }
+  }
+
+  let rowIdx = 0;
+  document.querySelectorAll('table tbody tr').forEach(function(tr) {
+    const actEl = tr.querySelector('button[onclick*="Fix"], a[href*="delete_fix"]');
+    if (!actEl || tr.querySelector('.btn-4panel-ledger')) return;
+    rowIdx += 1;
+    const rowTxt = tr.innerText || tr.textContent || '';
+    const mBox = rowTxt.match(/CR-[A-Z0-9_-]+_M[0-9]+/i);
+    const boxId = mBox ? mBox[0] : '';
+    const delLink = tr.querySelector('a[href*="delete_fix/"]');
+    const mId = delLink ? (delLink.getAttribute('href') || '').match(/delete_fix\/([0-9]+)/) : null;
+    const uno = mId ? mId[1] : String(rowIdx);
+
+    const a = document.createElement('a');
+    a.href = '/mti/studio?box_id=' + encodeURIComponent(boxId) + '&unit_no=' + encodeURIComponent(uno);
+    a.target = '_blank';
+    a.className = 'btn btn-xs btn-sm btn-info text-dark fw-bold me-1 btn-4panel-ledger';
+    a.title = 'Open ' + (boxId || ('Unit #' + uno)) + ' in 4-Panel Studio (New Window)';
+    a.innerHTML = '&#128202; 4-Panel';
+    actEl.parentNode.insertBefore(a, actEl);
+  });
+});
+</script>

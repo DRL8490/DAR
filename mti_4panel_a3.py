@@ -1,4 +1,4 @@
-﻿import os, io, math
+import os, io, math
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -11,7 +11,7 @@ def plot_seabed_layer(ax, seabed_xyz, x_lim, y_lim, is_zoomed=False, show_contou
     if seabed_xyz is None or len(seabed_xyz) < 4:
         return
     sb = np.asarray(seabed_xyz, dtype=float)
-    nx, ny = (36, 48) if is_zoomed else (45, 65)
+    nx, ny = (26, 34) if is_zoomed else (30, 42)
     gx, gy = np.meshgrid(np.linspace(x_lim[0], x_lim[1], nx), np.linspace(y_lim[0], y_lim[1], ny))
     q_xy = np.column_stack([gx.ravel(), gy.ravel()])
     gz = idw_interpolate(sb[:, :2], sb[:, 2], q_xy).reshape(gx.shape)
@@ -20,7 +20,7 @@ def plot_seabed_layer(ax, seabed_xyz, x_lim, y_lim, is_zoomed=False, show_contou
         c_step = max(float(contour_interval or 0.05), 0.01)
         z_lo, z_hi = float(np.min(gz)) - c_step, float(np.max(gz)) + c_step
         levels = np.arange(math.floor(z_lo / c_step) * c_step, z_hi + c_step, c_step)
-        if len(levels) >= 2:
+        if 2 <= len(levels) <= 60:
             ax.contour(gx, gy, gz, levels=levels, colors="#94a3b8", linewidths=0.45, linestyles="dashed", alpha=0.65, zorder=1)
 
     if show_soundings:
@@ -36,8 +36,7 @@ def plot_seabed_layer(ax, seabed_xyz, x_lim, y_lim, is_zoomed=False, show_contou
                     continue
                 if fy < 0.18 and (fx < 0.44 or fx > 0.62):
                     continue
-                sx_list.append(sx)
-                sy_list.append(sy)
+                sx_list.append(sx); sy_list.append(sy)
         if sx_list:
             pts_s = np.column_stack([sx_list, sy_list])
             zs_s = idw_interpolate(sb[:, :2], sb[:, 2], pts_s)
@@ -50,17 +49,14 @@ def plot_seabed_layer(ax, seabed_xyz, x_lim, y_lim, is_zoomed=False, show_contou
 def generate_a3_4panel_chart(
     boxes_dict, metrics, cleaned_xyz, x_local, y_local, z_vals, seabed_local_xyz, seabed_full_xyz,
     workspace_dir="workspace", include_history=False, ledger_list=None, scale_p1=250, scale_p2=75,
-    show_contours=True, contour_interval=0.05, show_soundings=True, spot_spacing=2.0
+    show_contours=True, contour_interval=0.05, show_soundings=True, spot_spacing=2.0, save_pdf=True
 ):
     os.makedirs(workspace_dir, exist_ok=True)
     W_MM, H_MM = 420.0, 297.0
-    fig = plt.figure(figsize=(W_MM / 25.4, H_MM / 25.4), dpi=150, facecolor="white")
+    fig = plt.figure(figsize=(W_MM / 25.4, H_MM / 25.4), dpi=125, facecolor="white")
 
     ax_bg = fig.add_axes([0, 0, 1, 1], frameon=False)
-    ax_bg.set_xlim(0, W_MM)
-    ax_bg.set_ylim(0, H_MM)
-    ax_bg.set_xticks([])
-    ax_bg.set_yticks([])
+    ax_bg.set_xlim(0, W_MM); ax_bg.set_ylim(0, H_MM); ax_bg.set_xticks([]); ax_bg.set_yticks([])
 
     ax_bg.add_patch(mpatches.Rectangle((14, 14), 392, 269, fill=False, edgecolor="#0f172a", linewidth=1.6))
     ax_bg.add_patch(mpatches.Rectangle((14, 270), 392, 13, facecolor="#0f172a", edgecolor="#0f172a"))
@@ -91,12 +87,10 @@ def generate_a3_4panel_chart(
     des_e, des_n = metrics["design_e"], metrics["design_n"]
     hist_map = {str(r.get("design_box_id")): r for r in (ledger_list or []) if r.get("design_box_id")} if include_history else {}
 
-    # PANEL 1: FULL CROSSING ARRAY (x=35..137, y=56..240 mm)
     ax1 = fig.add_axes([35.0 / W_MM, 56.0 / H_MM, 102.0 / W_MM, 184.0 / H_MM])
     hw1, hh1 = (102.0 / 1000.0) * float(scale_p1) / 2.0, (184.0 / 1000.0) * float(scale_p1) / 2.0
     e_lim1, n_lim1 = (des_e - hw1, des_e + hw1), (des_n - hh1, des_n + hh1)
-    ax1.set_xlim(*e_lim1)
-    ax1.set_ylim(*n_lim1)
+    ax1.set_xlim(*e_lim1); ax1.set_ylim(*n_lim1)
     plot_seabed_layer(ax1, seabed_full_xyz, e_lim1, n_lim1, False, show_contours, contour_interval, show_soundings, spot_spacing)
 
     nne_id = (metrics.get("neighbors") or {}).get("NNE")
@@ -124,25 +118,18 @@ def generate_a3_4panel_chart(
     ax1.plot([sb1_x, sb1_x + 5.0], [sb1_y, sb1_y], color="#0f172a", linewidth=2.0, zorder=9)
     ax1.text(sb1_x + 2.5, sb1_y + 0.3, "0 - 5 m", fontsize=5.6, fontweight="bold", ha="center", zorder=9)
     ax1.set_title(f"PANEL 1: CROSSING ARRAY ({metrics['crossing_id']}) | 1:{scale_p1} @ A3", fontsize=7.6, fontweight="bold", pad=4)
-    ax1.set_xlabel("Easting E (m, TWD97)", fontsize=6.6, fontweight="bold")
-    ax1.set_ylabel("Northing N (m, TWD97)", fontsize=6.6, fontweight="bold")
-    ax1.tick_params(labelsize=5.8)
-    ax1.ticklabel_format(useOffset=False, style="plain")
-    ax1.grid(True, linestyle=":", linewidth=0.4, color="#cbd5e1")
+    ax1.set_xlabel("Easting E (m, TWD97)", fontsize=6.6, fontweight="bold"); ax1.set_ylabel("Northing N (m, TWD97)", fontsize=6.6, fontweight="bold")
+    ax1.tick_params(labelsize=5.8); ax1.ticklabel_format(useOffset=False, style="plain"); ax1.grid(True, linestyle=":", linewidth=0.4, color="#cbd5e1")
 
-    # PANEL 2: ZOOMED PLAN VIEW (x=161..275, y=46..250 mm, cbar at x=278 mm)
     ax2 = fig.add_axes([161.0 / W_MM, 46.0 / H_MM, 114.0 / W_MM, 204.0 / H_MM])
     hw2, hh2 = (114.0 / 1000.0) * float(scale_p2) / 2.0, (204.0 / 1000.0) * float(scale_p2) / 2.0
-    ax2.set_xlim(-hw2, hw2)
-    ax2.set_ylim(-hh2, hh2)
+    ax2.set_xlim(-hw2, hw2); ax2.set_ylim(-hh2, hh2)
     plot_seabed_layer(ax2, seabed_local_xyz, (-hw2, hw2), (-hh2, hh2), True, show_contours, contour_interval, show_soundings, spot_spacing)
 
     ax2.add_patch(mpatches.Rectangle((-1.5, -3.0), 3.0, 6.0, fill=False, edgecolor="#dc2626", linewidth=1.8, zorder=5, label="Design Box (3.0x6.0m)"))
     sc2 = ax2.scatter(x_local, y_local, c=z_vals, cmap="turbo", s=16, alpha=0.9, zorder=6)
     cax2 = fig.add_axes([278.0 / W_MM, 46.0 / H_MM, 3.2 / W_MM, 204.0 / H_MM])
-    cb2 = fig.colorbar(sc2, cax=cax2)
-    cb2.set_label("Depth Z (m, TWVD2001)", fontsize=6.4, fontweight="bold")
-    cb2.ax.tick_params(labelsize=5.6)
+    cb2 = fig.colorbar(sc2, cax=cax2); cb2.set_label("Depth Z (m, TWVD2001)", fontsize=6.4, fontweight="bold"); cb2.ax.tick_params(labelsize=5.6)
 
     c_loc = np.asarray(metrics["corners_local"], dtype=float)
     ax2.add_patch(mpatches.Polygon(c_loc, closed=True, fill=False, edgecolor="#16a34a", linewidth=1.6, linestyle="--", zorder=7, label="ROV 4-Corner Polygon"))
@@ -178,12 +165,9 @@ def generate_a3_4panel_chart(
     ax2.text(sb2_x + 1.0, sb2_y + 0.1, "0 - 2 m", fontsize=5.5, fontweight="bold", ha="center", zorder=9)
     ax2.legend(loc="lower left", fontsize=5.2, framealpha=0.92)
     ax2.set_title(f"PANEL 2: LOCAL PLAN VIEW ({loc_id} / {mat_id}) | 1:{scale_p2} @ A3", fontsize=7.6, fontweight="bold", pad=4)
-    ax2.set_xlabel("Cross-Track X_local (m, WNW -1.5m to ESE +1.5m)", fontsize=6.6, fontweight="bold")
-    ax2.set_ylabel("Along-Track Y_local (m, SSW -3.0m to NNE +3.0m)", fontsize=6.6, fontweight="bold")
-    ax2.tick_params(labelsize=5.8)
-    ax2.grid(True, linestyle=":", linewidth=0.45, color="#cbd5e1")
+    ax2.set_xlabel("Cross-Track X_local (m, WNW -1.5m to ESE +1.5m)", fontsize=6.6, fontweight="bold"); ax2.set_ylabel("Along-Track Y_local (m, SSW -3.0m to NNE +3.0m)", fontsize=6.6, fontweight="bold")
+    ax2.tick_params(labelsize=5.8); ax2.grid(True, linestyle=":", linewidth=0.45, color="#cbd5e1")
 
-    # PANEL 3 (y=162..250 mm) & PANEL 4 (y=46..132 mm)
     z_mean = float(np.mean(z_vals))
     for ax_p, coord_arr, lim_x, edge_v, ttl, x_lbl in [
         (fig.add_axes([315.0 / W_MM, 162.0 / H_MM, 83.0 / W_MM, 88.0 / H_MM]), y_local, (-3.5, 3.5), 3.0, "PANEL 3: LONGITUDINAL (SSW -> NNE)" + chr(10) + "H 1:75 | V 1:15 @ A3", "Along-Track Y_local (m)"),
@@ -192,24 +176,23 @@ def generate_a3_4panel_chart(
         ax_p.scatter(coord_arr, np.abs(z_vals), c=z_vals, cmap="turbo", s=10, alpha=0.85, label="Mattress Surface")
         xs_l = np.linspace(lim_x[0], lim_x[1], 40)
         ax_p.plot(xs_l, np.abs(z_mean - 0.28 + 0.005 * xs_l), "--", color="#64748b", lw=1.2, label="Seabed Baseline")
-        ax_p.axvline(-edge_v, color="#dc2626", ls="--", lw=1.2, label=f"Design (+/-{edge_v:.1f}m)")
-        ax_p.axvline(edge_v, color="#dc2626", ls="--", lw=1.2)
-        ax_p.set_xlim(*lim_x)
-        ax_p.set_ylim(abs(z_mean) + 0.65, abs(z_mean) - 0.65)
-        ax_p.set_title(ttl, fontsize=7.0, fontweight="bold", pad=3)
-        ax_p.set_xlabel(x_lbl, fontsize=6.3, fontweight="bold")
-        ax_p.set_ylabel("Depth Z (m, Inv)", fontsize=6.3, fontweight="bold")
-        ax_p.tick_params(labelsize=5.6)
-        ax_p.grid(True, linestyle=":", lw=0.45, color="#cbd5e1")
-        ax_p.legend(loc="lower right", fontsize=5.0, framealpha=0.9)
+        ax_p.axvline(-edge_v, color="#dc2626", ls="--", lw=1.2, label=f"Design (+/-{edge_v:.1f}m)"); ax_p.axvline(edge_v, color="#dc2626", ls="--", lw=1.2)
+        ax_p.set_xlim(*lim_x); ax_p.set_ylim(abs(z_mean) + 0.65, abs(z_mean) - 0.65)
+        ax_p.set_title(ttl, fontsize=7.0, fontweight="bold", pad=3); ax_p.set_xlabel(x_lbl, fontsize=6.3, fontweight="bold"); ax_p.set_ylabel("Depth Z (m, Inv)", fontsize=6.3, fontweight="bold")
+        ax_p.tick_params(labelsize=5.6); ax_p.grid(True, linestyle=":", lw=0.45, color="#cbd5e1"); ax_p.legend(loc="lower right", fontsize=5.0, framealpha=0.9)
 
-    buf_png, buf_pdf = io.BytesIO(), io.BytesIO()
-    fig.savefig(buf_png, format="png", dpi=150)
-    fig.savefig(buf_pdf, format="pdf", dpi=150)
+    buf_png = io.BytesIO()
+    fig.savefig(buf_png, format="png", dpi=125)
+    png_bytes = buf_png.getvalue()
+    pdf_bytes = b""
+    if save_pdf:
+        buf_pdf = io.BytesIO()
+        fig.savefig(buf_pdf, format="pdf", dpi=150)
+        pdf_bytes = buf_pdf.getvalue()
     plt.close(fig)
-    png_bytes, pdf_bytes = buf_png.getvalue(), buf_pdf.getvalue()
 
     for fn in ("latest_A3_4Panel_Chart", metrics["base_filename"]):
         open(os.path.join(workspace_dir, fn + ".png"), "wb").write(png_bytes)
-        open(os.path.join(workspace_dir, fn + ".pdf"), "wb").write(pdf_bytes)
+        if pdf_bytes:
+            open(os.path.join(workspace_dir, fn + ".pdf"), "wb").write(pdf_bytes)
     return png_bytes, pdf_bytes
