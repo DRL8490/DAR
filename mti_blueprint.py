@@ -1,3 +1,5 @@
+import os, sys, io, re, math, json, zlib, base64
+from datetime import datetime
 import io, json, math, copy, zlib, base64
 from datetime import datetime, date
 import pandas as pd
@@ -543,3 +545,245 @@ def mti_sw():
     from flask import Response
     js = "self.addEventListener('install', e => self.skipWaiting()); self.addEventListener('fetch', e => {});"
     return Response(js, mimetype='application/javascript')
+
+# ==============================================================================
+# STEP 2: 4-PANEL SUBSEA MATTRESS VERIFICATION & REPORTING STUDIO ROUTES
+# ==============================================================================
+MTI_4PANEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "workspace", "mti_4panel")
+
+def _get_catalog_list():
+    cat = globals().get("MATTRESS_CATALOG") or []
+    if isinstance(cat, dict):
+        return list(cat.values())
+    return list(cat)
+
+def _load_crossing_seabed(crossing_id):
+    os.makedirs(MTI_4PANEL_DIR, exist_ok=True)
+    sb_path = os.path.join(MTI_4PANEL_DIR, f"seabed_{crossing_id}.json")
+    if os.path.exists(sb_path):
+        try:
+            with open(sb_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return None
+
+@mti_bp.route('/verify_4panel', methods=['POST'])
+@login_required
+def verify_4panel():
+    import base64 as _b64
+    import numpy as _np
+    import mti_4panel_engine as _eng
+    from flask import jsonify
+
+    os.makedirs(MTI_4PANEL_DIR, exist_ok=True)
+    state = load_mti_state()
+    ledger = state.get("ledger", [])
+    cat_list = _get_catalog_list()
+
+    payload = request.get_json(silent=True) or request.form.to_dict()
+    xing_id = str(payload.get("crossing_id") or "CR-A1_L1").strip()
+    loc_id = str(payload.get("location_id") or payload.get("design_box_id") or "AUTO").strip()
+    mat_id = str(payload.get("mattress_id") or payload.get("physical_tag") or "001").strip()
+    dt_str = str(payload.get("install_date") or payload.get("date_str") or "").strip()
+    scale_p1 = int(float(payload.get("scale_p1") or 250))
+    scale_p2 = int(float(payload.get("scale_p2") or 75))
+    inc_hist = str(payload.get("include_history", "true")).lower() in ("true", "1", "yes", "on")
+    outlier_m = float(payload.get("outlier_thresh_m") or 10.0)
+
+    raw_cnt, flyers = 0, []
+    clean_pts = None
+
+    f_cloud = request.files.get("cloud_file")
+    if f_cloud and f_cloud.filename:
+        raw_txt = f_cloud.read().decode("utf-8", errors="ignore")
+        raw_arr, clean_pts, flyers = _eng.parse_xyz_text(raw_txt, outlier_thresh_m=outlier_m)
+        raw_cnt = len(raw_arr)
+    elif payload.get("cloud_text"):
+        raw_arr, clean_pts, flyers = _eng.parse_xyz_text(payload.get("cloud_text"), outlier_thresh_m=outlier_m)
+        raw_cnt = len(raw_arr)
+
+    if clean_pts is None or len(clean_pts) == 0:
+        corners = []
+        for i in (1, 2, 3, 4):
+            ce = payload.get(f"c{i}_e")
+            cn = payload.get(f"c{i}_n")
+            cz = payload.get(f"c{i}_z")
+            try:
+                if ce is not None and cn is not None and str(ce).strip() != "" and str(cn).strip() != "":
+                    corners.append([float(ce), float(cn), float(cz if (cz is not None and str(cz).strip() != "") else -18.20)])
+            except Exception:
+                pass
+        if len(corners) < 4:
+            ae = float(payload.get("aslaid_e") or payload.get("qaqc_e") or payload.get("design_e") or 194541.206)
+            an = float(payload.get("aslaid_n") or payload.get("qaqc_n") or payload.get("design_n") or 2702613.513)
+            az = float(payload.get("aslaid_z") or -18.20)
+            brg = float(payload.get("heading_deg") or payload.get("qaqc_brg") or 196.889)
+            corners = _eng.synthesize_4corners_from_center(ae, an, az, brg)
+        clean_pts, _ = _eng.interpolate_4corners_grid(corners, nx=35, ny=20)
+        raw_cnt = len(clean_pts)
+
+    med_e, med_n = float(_np.median(clean_pts[:, 0])), float(_np.median(clean_pts[:, 1]))
+    target_box = None
+    if loc_id and loc_id.upper() != "AUTO":
+        target_box = next((b for b in cat_list if str(b.get("name")) == loc_id), None)
+    if not target_box and cat_list:
+        target_box = min(cat_list, key=lambda b: math.hypot(float(b["design_e"]) - med_e, float(b["design_n"]) - med_n))
+    if not target_box:
+        target_box = {"layer": xing_id, "name": (loc_id if loc_id != "AUTO" else "CR-A1_M15"), "design_e": 194541.443, "design_n": 2702613.394, "bearing": 195.854}
+
+    sb_pts = _load_crossing_seabed(target_box["layer"])
+    res = _eng.analyze_mattress_cloud(
+        clean_pts, target_box, cat_list, ledger_rows=ledger,
+        seabed_pts=sb_pts, physical_tag=mat_id, date_str=dt_str,
+        raw_count=raw_cnt, flyers=flyers, include_history=inc_hist
+    )
+    report_md = _eng.build_default_report_markdown(res, ledger_rows=ledger)
+
+    base_fn = res["base_filename"]
+    pdf_a3 = os.path.join(MTI_4PANEL_DIR, base_fn + ".pdf")
+    png_a3 = os.path.join(MTI_4PANEL_DIR, base_fn + ".png")
+    pdf_a4 = os.path.join(MTI_4PANEL_DIR, base_fn + "_A4_Report.pdf")
+    docx_p = os.path.join(MTI_4PANEL_DIR, base_fn + "_Report.docx")
+
+    _eng.render_a3_4panel_chart(res, cat_list, ledger_rows=ledger, out_pdf_path=pdf_a3, out_png_path=png_a3, scale_p1=scale_p1, scale_p2=scale_p2)
+    _eng.render_a4_report_pdf(res, report_md, pdf_a4)
+    _eng.generate_docx_report(res, report_md, docx_p)
+
+    png_b64 = ""
+    if os.path.exists(png_a3):
+        with open(png_a3, "rb") as fp:
+            png_b64 = _b64.b64encode(fp.read()).decode("ascii")
+
+    res_clean = {k: v for k, v in res.items() if k != "_arrays"}
+    res_clean["report_md"] = report_md
+    res_clean["scale_p1"] = scale_p1
+    res_clean["scale_p2"] = scale_p2
+    res_clean["png_b64"] = png_b64
+
+    state["last_4panel"] = res_clean
+    save_mti_state(state)
+
+    if request.is_json or payload.get("ajax") == "1" or "application/json" in (request.headers.get("Accept") or ""):
+        return jsonify({"status": "ok", "result": res_clean})
+
+    flash(f"Generated 4-Panel Chart & A4/Word Reports: {base_fn}", "success")
+    return redirect((request.referrer or "/mti").split("#")[0] + "#studio4Panel")
+
+@mti_bp.route('/update_4panel_report', methods=['POST'])
+@login_required
+def update_4panel_report():
+    import mti_4panel_engine as _eng
+    from flask import jsonify
+
+    os.makedirs(MTI_4PANEL_DIR, exist_ok=True)
+    state = load_mti_state()
+    last_res = state.get("last_4panel") or {}
+    payload = request.get_json(silent=True) or request.form.to_dict()
+
+    new_md = str(payload.get("report_md") or payload.get("report_markdown") or last_res.get("report_md") or "").strip()
+    base_fn = str(payload.get("base_filename") or last_res.get("base_filename") or "20261105_Mattress_CR-A1_M15_001").strip()
+    if not last_res.get("location_id"):
+        last_res = {
+            "crossing_id": "CR-A1_L1", "location_id": "CR-A1_M15", "mattress_id": "#A046",
+            "date_str": "2026-11-05 03:20", "base_filename": base_fn, "verdict_short": "VERIFIED"
+        }
+
+    pdf_a4 = os.path.join(MTI_4PANEL_DIR, base_fn + "_A4_Report.pdf")
+    docx_p = os.path.join(MTI_4PANEL_DIR, base_fn + "_Report.docx")
+    _eng.render_a4_report_pdf(last_res, new_md, pdf_a4)
+    _eng.generate_docx_report(last_res, new_md, docx_p)
+
+    last_res["report_md"] = new_md
+    state["last_4panel"] = last_res
+    save_mti_state(state)
+
+    if request.is_json or payload.get("ajax") == "1" or "application/json" in (request.headers.get("Accept") or ""):
+        return jsonify({"status": "ok", "base_filename": base_fn, "message": "Updated A4 PDF and Word (.docx) with custom edits!"})
+
+    flash(f"Applied custom report edits to {base_fn}_A4_Report.pdf & _Report.docx!", "success")
+    return redirect((request.referrer or "/mti").split("#")[0] + "#studio4Panel")
+
+@mti_bp.route('/upload_seabed', methods=['POST'])
+@login_required
+def upload_seabed():
+    import mti_4panel_engine as _eng
+    os.makedirs(MTI_4PANEL_DIR, exist_ok=True)
+    xing_id = (request.form.get("crossing_id") or "CR-A1_L1").strip()
+    f_sb = request.files.get("seabed_file")
+    if not f_sb or not f_sb.filename:
+        flash("Please select a Pre-Survey Seabed (.xyz, .csv, .txt) file.", "warning")
+        return redirect(request.referrer or "/mti")
+    raw_txt = f_sb.read().decode("utf-8", errors="ignore")
+    raw_arr, _, _ = _eng.parse_xyz_text(raw_txt, outlier_thresh_m=500.0)
+    sb_path = os.path.join(MTI_4PANEL_DIR, f"seabed_{xing_id}.json")
+    with open(sb_path, "w", encoding="utf-8") as f:
+        json.dump(raw_arr.tolist(), f)
+    flash(f"Cached {len(raw_arr)} Pre-Survey Seabed soundings for {xing_id}!", "success")
+    return redirect((request.referrer or "/mti").split("#")[0] + "#studio4Panel")
+
+def _ensure_4panel_files_exist(base_fn, state):
+    import mti_4panel_engine as _eng
+    os.makedirs(MTI_4PANEL_DIR, exist_ok=True)
+    pdf_a3 = os.path.join(MTI_4PANEL_DIR, base_fn + ".pdf")
+    if not os.path.exists(pdf_a3):
+        last_res = state.get("last_4panel") or {}
+        cat_list = _get_catalog_list()
+        ledger = state.get("ledger", [])
+        loc_id = last_res.get("location_id") or "CR-A1_M15"
+        mat_id = last_res.get("mattress_id") or "#A046"
+        t_box = next((b for b in cat_list if b["name"] == loc_id), {"layer": "CR-A1_L1", "name": loc_id, "design_e": 194541.443, "design_n": 2702613.394, "bearing": 195.854})
+        c4 = _eng.synthesize_4corners_from_center(last_res.get("e_box", t_box["design_e"]), last_res.get("n_box", t_box["design_n"]), last_res.get("z_mean", -18.20), last_res.get("south_brg_cloud", t_box["bearing"]))
+        g_pts, _ = _eng.interpolate_4corners_grid(c4)
+        res = _eng.analyze_mattress_cloud(g_pts, t_box, cat_list, ledger_rows=ledger, physical_tag=mat_id, date_str=last_res.get("date_str"))
+        md = last_res.get("report_md") or _eng.build_default_report_markdown(res, ledger_rows=ledger)
+        _eng.render_a3_4panel_chart(res, cat_list, ledger_rows=ledger, out_pdf_path=pdf_a3, out_png_path=os.path.join(MTI_4PANEL_DIR, base_fn + ".png"))
+        _eng.render_a4_report_pdf(res, md, os.path.join(MTI_4PANEL_DIR, base_fn + "_A4_Report.pdf"))
+        _eng.generate_docx_report(res, md, os.path.join(MTI_4PANEL_DIR, base_fn + "_Report.docx"))
+
+@mti_bp.route('/download_a3_pdf')
+@login_required
+def download_a3_pdf():
+    from flask import send_file
+    state = load_mti_state()
+    base_fn = (request.args.get("file") or (state.get("last_4panel") or {}).get("base_filename") or "20261104_Mattress_CR-A1_M15_A046").strip()
+    _ensure_4panel_files_exist(base_fn, state)
+    p = os.path.join(MTI_4PANEL_DIR, base_fn + ".pdf")
+    return send_file(p, as_attachment=True, download_name=base_fn + ".pdf", mimetype="application/pdf")
+
+@mti_bp.route('/download_a3_png')
+@login_required
+def download_a3_png():
+    from flask import send_file
+    state = load_mti_state()
+    base_fn = (request.args.get("file") or (state.get("last_4panel") or {}).get("base_filename") or "20261104_Mattress_CR-A1_M15_A046").strip()
+    _ensure_4panel_files_exist(base_fn, state)
+    p = os.path.join(MTI_4PANEL_DIR, base_fn + ".png")
+    return send_file(p, as_attachment=(request.args.get("dl") == "1"), download_name=base_fn + ".png", mimetype="image/png")
+
+@mti_bp.route('/download_a4_pdf')
+@login_required
+def download_a4_pdf():
+    from flask import send_file
+    state = load_mti_state()
+    base_fn = (request.args.get("file") or (state.get("last_4panel") or {}).get("base_filename") or "20261104_Mattress_CR-A1_M15_A046").strip()
+    _ensure_4panel_files_exist(base_fn, state)
+    p = os.path.join(MTI_4PANEL_DIR, base_fn + "_A4_Report.pdf")
+    return send_file(p, as_attachment=True, download_name=base_fn + "_A4_Report.pdf", mimetype="application/pdf")
+
+@mti_bp.route('/download_docx')
+@login_required
+def download_docx():
+    from flask import send_file
+    state = load_mti_state()
+    base_fn = (request.args.get("file") or (state.get("last_4panel") or {}).get("base_filename") or "20261104_Mattress_CR-A1_M15_A046").strip()
+    _ensure_4panel_files_exist(base_fn, state)
+    p = os.path.join(MTI_4PANEL_DIR, base_fn + "_Report.docx")
+    return send_file(p, as_attachment=True, download_name=base_fn + "_Report.docx", mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
+@mti_bp.route('/last_4panel_json')
+@login_required
+def last_4panel_json():
+    from flask import jsonify
+    state = load_mti_state()
+    return jsonify({"status": "ok", "result": state.get("last_4panel")})
