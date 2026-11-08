@@ -169,7 +169,7 @@
       </div>
       <div class="col-md-2 col-4">
         <label class="form-label small fw-bold mb-1">Design Brg (&deg;)</label>
-        <input type="number" step="0.001" name="design_brg" id="inpDesBrg" class="form-control form-control-sm bg-light" value="15.854" oninput="recalcAllMattress()">
+        <input type="number" step="0.001" name="design_brg" id="inpDesBrg" class="form-control form-control-sm bg-light" value="195.854" oninput="recalcAllMattress()">
       </div>
     </div>
   </div>
@@ -182,12 +182,15 @@
     </div>
     <div class="row g-2 align-items-end">
       <div class="col-md-3 col-6">
-        <label class="form-label small fw-bold text-primary mb-1">Active USBL Used *</label>
-        <select name="usbl_sensor" id="inpUsblSensor" class="form-select form-select-sm border-primary fw-bold">
-          <option value="Pole USBL">Pole USBL (Primary)</option>
-          <option value="Vessel USBL">Vessel USBL</option>
-          <option value="Vessel Nav + Pole Fix">Vessel Nav + Pole Final Fix</option>
-        </select>
+        <label class="form-label small fw-bold text-primary mb-1">Active USBL *</label>
+        <div class="d-flex align-items-center gap-3 p-1 px-2 border border-primary rounded bg-light" style="min-height:31px;">
+          <label class="form-check-label small fw-bold d-inline-flex align-items-center gap-1" style="cursor:pointer;">
+            <input type="radio" class="form-check-input m-0" name="usbl_sensor" value="Survey Pole" checked> Survey Pole
+          </label>
+          <label class="form-check-label small fw-bold d-inline-flex align-items-center gap-1" style="cursor:pointer;">
+            <input type="radio" class="form-check-input m-0" name="usbl_sensor" value="Vessel"> Vessel
+          </label>
+        </div>
       </div>
       <div class="col-md-3 col-6">
         <label class="form-label small fw-bold text-primary mb-1">QA/QC Center E *</label>
@@ -199,7 +202,7 @@
       </div>
       <div class="col-md-3 col-6">
         <label class="form-label small fw-bold text-primary mb-1">QA/QC Bearing (&deg;) *</label>
-        <input type="number" step="0.001" name="qaqc_brg" id="inpQaqcBrg" class="form-control form-control-sm border-primary fw-bold" value="15.854" oninput="recalcAllMattress()" required>
+        <input type="number" step="0.001" name="qaqc_brg" id="inpQaqcBrg" class="form-control form-control-sm border-primary fw-bold" value="195.854" oninput="recalcAllMattress()" required>
       </div>
     </div>
   </div>
@@ -209,7 +212,7 @@
     <div class="small fw-bold text-uppercase text-success mb-1" style="font-size:10.5px;">Line 4 : As-Laid ROV Coordinates Input = E, N, Z of 4-Corners of Mattress</div>
     <div class="row g-2">
       <div class="col-md-3 col-6">
-        <label class="small fw-bold text-dark mb-1">Corner 1 (C1: E, N, Z)</label>
+        <label class="small fw-bold text-dark mb-1">Corner 1 (C1 - NW: E, N, Z)</label>
         <div class="input-group input-group-sm">
           <input type="number" step="0.001" name="c1_e" id="c1_e" class="form-control px-1 border-success" placeholder="E1" oninput="recalcAllMattress()">
           <input type="number" step="0.001" name="c1_n" id="c1_n" class="form-control px-1 border-success" placeholder="N1" oninput="recalcAllMattress()">
@@ -217,7 +220,7 @@
         </div>
       </div>
       <div class="col-md-3 col-6">
-        <label class="small fw-bold text-dark mb-1">Corner 2 (C2: E, N, Z)</label>
+        <label class="small fw-bold text-dark mb-1">Corner 2 (C2 - NE: E, N, Z)</label>
         <div class="input-group input-group-sm">
           <input type="number" step="0.001" name="c2_e" id="c2_e" class="form-control px-1 border-success" placeholder="E2" oninput="recalcAllMattress()">
           <input type="number" step="0.001" name="c2_n" id="c2_n" class="form-control px-1 border-success" placeholder="N2" oninput="recalcAllMattress()">
@@ -225,7 +228,7 @@
         </div>
       </div>
       <div class="col-md-3 col-6">
-        <label class="small fw-bold text-dark mb-1">Corner 3 (C3: E, N, Z)</label>
+        <label class="small fw-bold text-dark mb-1">Corner 3 (C3 - SE: E, N, Z)</label>
         <div class="input-group input-group-sm">
           <input type="number" step="0.001" name="c3_e" id="c3_e" class="form-control px-1 border-success" placeholder="E3" oninput="recalcAllMattress()">
           <input type="number" step="0.001" name="c3_n" id="c3_n" class="form-control px-1 border-success" placeholder="N3" oninput="recalcAllMattress()">
@@ -233,7 +236,7 @@
         </div>
       </div>
       <div class="col-md-3 col-6">
-        <label class="small fw-bold text-dark mb-1">Corner 4 (C4: E, N, Z)</label>
+        <label class="small fw-bold text-dark mb-1">Corner 4 (C4 - SW: E, N, Z)</label>
         <div class="input-group input-group-sm">
           <input type="number" step="0.001" name="c4_e" id="c4_e" class="form-control px-1 border-success" placeholder="E4" oninput="recalcAllMattress()">
           <input type="number" step="0.001" name="c4_n" id="c4_n" class="form-control px-1 border-success" placeholder="N4" oninput="recalcAllMattress()">
@@ -249,26 +252,30 @@
       <div class="p-2 border border-secondary rounded bg-white text-center text-dark h-100">
         <div class="d-flex justify-content-between align-items-center mb-1">
           <span class="badge bg-dark text-info" style="font-size:9.5px;">BOX 1 : N &uarr; NORTH UP GAPS</span>
-          <span class="badge bg-light text-dark border" id="lblSvgBrg" style="font-size:9.5px;">Brg: 15.9&deg;</span>
+          <span class="badge bg-light text-dark border" id="lblSvgBrg" style="font-size:9.5px;">Brg: 195.9&deg;</span>
         </div>
         <div class="d-flex justify-content-between px-1 mb-1">
-          <input type="number" step="0.01" name="gap_nw" id="gNW" class="form-control form-control-sm text-center fw-bold" style="width:82px;height:24px;font-size:11px;" placeholder="NW (m)" oninput="syncDirGaps()">
-          <input type="number" step="0.01" name="gap_ne" id="gNE" class="form-control form-control-sm text-center fw-bold" style="width:82px;height:24px;font-size:11px;" placeholder="NE (m)" oninput="syncDirGaps()">
+          <input type="number" step="0.01" name="gap_nw" id="gNW" class="form-control form-control-sm text-center fw-bold" style="width:82px;height:24px;font-size:11px;" placeholder="C1 / NW (m)" style="width:92px;height:24px;font-size:11px;" oninput="syncDirGaps()">
+          <input type="number" step="0.01" name="gap_ne" id="gNE" class="form-control form-control-sm text-center fw-bold" style="width:82px;height:24px;font-size:11px;" placeholder="C2 / NE (m)" style="width:92px;height:24px;font-size:11px;" oninput="syncDirGaps()">
         </div>
         <div class="my-1">
-          <svg width="110" height="68" viewBox="0 0 110 68" style="background:#e2e8f0;border-radius:6px;border:1px solid #cbd5e1;">
-            <line x1="55" y1="0" x2="55" y2="68" stroke="#94a3b8" stroke-dasharray="2,2"/><line x1="0" y1="34" x2="110" y2="34" stroke="#94a3b8" stroke-dasharray="2,2"/>
-            <g id="svgMattRot" transform="rotate(15.854 55 34)">
-              <rect x="44" y="12" width="22" height="44" fill="#0284c7" fill-opacity="0.3" stroke="#0369a1" stroke-width="1.8"/>
-              <line x1="55" y1="12" x2="55" y2="20" stroke="#dc2626" stroke-width="2"/>
-              <circle cx="44" cy="12" r="2.3" fill="#0f172a"/><circle cx="66" cy="12" r="2.3" fill="#0f172a"/>
-              <circle cx="44" cy="56" r="2.3" fill="#0f172a"/><circle cx="66" cy="56" r="2.3" fill="#0f172a"/>
+          <svg width="140" height="84" viewBox="0 0 140 84" style="background:#e2e8f0;border-radius:6px;border:1px solid #cbd5e1;">
+            <line x1="70" y1="0" x2="70" y2="84" stroke="#94a3b8" stroke-dasharray="2,2"/><line x1="0" y1="42" x2="140" y2="42" stroke="#94a3b8" stroke-dasharray="2,2"/>
+            <g id="svgMattRot" transform="rotate(15.854 70 42)">
+              <rect x="58" y="18" width="24" height="48" fill="#0284c7" fill-opacity="0.28" stroke="#0369a1" stroke-width="1.8"/>
+              <line x1="70" y1="54" x2="70" y2="66" stroke="#dc2626" stroke-width="2.2"/>
+              <circle cx="58" cy="18" r="2.8" fill="#16a34a"/><circle cx="82" cy="18" r="2.8" fill="#16a34a"/>
+              <circle cx="82" cy="66" r="2.8" fill="#16a34a"/><circle cx="58" cy="66" r="2.8" fill="#16a34a"/>
+              <text id="svgTxtC1" x="47" y="16" font-size="9.5" font-weight="800" fill="#0f172a" text-anchor="middle" transform="rotate(-15.854 47 13)">C1</text>
+              <text id="svgTxtC2" x="93" y="16" font-size="9.5" font-weight="800" fill="#0f172a" text-anchor="middle" transform="rotate(-15.854 93 13)">C2</text>
+              <text id="svgTxtC3" x="93" y="72" font-size="9.5" font-weight="800" fill="#0f172a" text-anchor="middle" transform="rotate(-15.854 93 69)">C3</text>
+              <text id="svgTxtC4" x="47" y="72" font-size="9.5" font-weight="800" fill="#0f172a" text-anchor="middle" transform="rotate(-15.854 47 69)">C4</text>
             </g>
           </svg>
         </div>
         <div class="d-flex justify-content-between px-1 mt-1">
-          <input type="number" step="0.01" name="gap_sw" id="gSW" class="form-control form-control-sm text-center fw-bold" style="width:82px;height:24px;font-size:11px;" placeholder="SW (m)" oninput="syncDirGaps()">
-          <input type="number" step="0.01" name="gap_se" id="gSE" class="form-control form-control-sm text-center fw-bold" style="width:82px;height:24px;font-size:11px;" placeholder="SE (m)" oninput="syncDirGaps()">
+          <input type="number" step="0.01" name="gap_sw" id="gSW" class="form-control form-control-sm text-center fw-bold" style="width:82px;height:24px;font-size:11px;" placeholder="C4 / SW (m)" style="width:92px;height:24px;font-size:11px;" oninput="syncDirGaps()">
+          <input type="number" step="0.01" name="gap_se" id="gSE" class="form-control form-control-sm text-center fw-bold" style="width:82px;height:24px;font-size:11px;" placeholder="C3 / SE (m)" style="width:92px;height:24px;font-size:11px;" oninput="syncDirGaps()">
         </div>
         <input type="hidden" name="gap1_m" id="inpGap1" value="0.00"><input type="hidden" name="gap2_m" id="inpGap2" value="0.00">
       </div>
@@ -294,7 +301,7 @@
             </div>
             <div class="col-2">
               <label class="small fw-bold mb-1">Actual Brg (&deg;)</label>
-              <input type="number" step="0.001" name="heading_deg" id="inpHeadingDeg" class="form-control form-control-sm bg-light fw-bold" value="15.854" readonly required>
+              <input type="number" step="0.001" name="heading_deg" id="inpHeadingDeg" class="form-control form-control-sm bg-light fw-bold" value="195.854" readonly required>
             </div>
             <div class="col-2">
               <label class="small fw-bold mb-1">CL Off (m)</label>
@@ -302,9 +309,9 @@
             </div>
           </div>
           <div class="row g-2 mb-2">
-            <div class="col-4"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind (e.g. 16kt NE)"></div>
-            <div class="col-4"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Curr (e.g. 0.35m/s)"></div>
-            <div class="col-4"><input type="text" name="env_swell" class="form-control form-control-sm" placeholder="Swell Hs (e.g. 0.7m)"></div>
+            <div class="col-6"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind (e.g. 16kt NE)"></div>
+            <div class="col-6"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Curr (e.g. 0.35m/s)"></div>
+            
           </div>
         </div>
         <div class="row g-2 align-items-end">
@@ -371,7 +378,7 @@ function seedCornersFromQaqc(){
   const cn = parseFloat(document.getElementById('inpQaqcN')?.value || document.getElementById('inpDesN')?.value) || 0;
   const brg = parseFloat(document.getElementById('inpQaqcBrg')?.value || document.getElementById('inpDesBrg')?.value) || 0;
   if (!ce || !cn) return;
-  const rad = brg * Math.PI / 180.0, sb = Math.sin(rad), cb = Math.cos(rad);
+  const rad = ((brg - 180.0) * Math.PI / 180.0), sb = Math.sin(rad), cb = Math.cos(rad);
   [[1,-1],[1,1],[-1,1],[-1,-1]].forEach((s, idx) => {
     const i = idx + 1;
     document.getElementById(`c${i}_e`).value = (ce + s[0]*3.0*sb + s[1]*1.5*cb).toFixed(3);
@@ -394,14 +401,14 @@ function recalcAllMattress(){
     ae = (pts[0][0]+pts[1][0]+pts[2][0]+pts[3][0])/4.0;
     an = (pts[0][1]+pts[1][1]+pts[2][1]+pts[3][1])/4.0;
     az = (pts[0][2]+pts[1][2]+pts[2][2]+pts[3][2])/4.0;
-    const fe = (pts[0][0]+pts[1][0])/2.0, fn = (pts[0][1]+pts[1][1])/2.0;
-    const be = (pts[2][0]+pts[3][0])/2.0, bn = (pts[2][1]+pts[3][1])/2.0;
-    brg = ((Math.atan2(fe - be, fn - bn) * 180.0 / Math.PI) + 360.0) % 360.0;
+    const be = (pts[0][0]+pts[1][0])/2.0, bn = (pts[0][1]+pts[1][1])/2.0;
+    const fe = (pts[2][0]+pts[3][0])/2.0, fn = (pts[2][1]+pts[3][1])/2.0;
+    brg = ((Math.atan2(fe - be, fn - bn) * 180.0 / Math.PI) + 360.0) % 360.0; if (brg < 180.0) brg += 180.0;
     if (badge) { badge.className = 'badge bg-success'; badge.innerText = 'Calculated from 4 ROV Corners'; }
   } else {
     ae = parseFloat(document.getElementById('inpQaqcE')?.value);
     an = parseFloat(document.getElementById('inpQaqcN')?.value);
-    brg = parseFloat(document.getElementById('inpQaqcBrg')?.value || document.getElementById('inpDesBrg')?.value || '15.854');
+    brg = parseFloat(document.getElementById('inpQaqcBrg')?.value || document.getElementById('inpDesBrg')?.value || '195.854');
     if (badge) { badge.className = 'badge bg-secondary'; badge.innerText = 'Enter 4 ROV Corners (Previewing QA/QC)'; }
   }
   if (!isNaN(ae)) document.getElementById('inpAsE').value = ae.toFixed(3);
@@ -410,7 +417,12 @@ function recalcAllMattress(){
   if (!isNaN(brg)) {
     document.getElementById('inpHeadingDeg').value = brg.toFixed(3);
     const g = document.getElementById('svgMattRot');
-    if (g) g.setAttribute('transform', `rotate(${brg} 55 34)`);
+    const rot = ((brg - 180.0) + 360.0) % 360.0;
+    if (g) g.setAttribute('transform', `rotate(${rot} 70 42)`);
+    [['svgTxtC1',47,13],['svgTxtC2',93,13],['svgTxtC3',93,69],['svgTxtC4',47,69]].forEach(c => {
+      const el = document.getElementById(c[0]);
+      if (el) el.setAttribute('transform', `rotate(${-rot} ${c[1]} ${c[2]})`);
+    });
     const lbl = document.getElementById('lblSvgBrg');
     if (lbl) lbl.innerHTML = `Brg: ${brg.toFixed(1)}&deg;`;
   }
@@ -891,7 +903,7 @@ function openQrModal(){
   const V2_CONFIGS = {
     "Pole down": {lblRef:"Location / Crossing ID",defRef:"CR-A1_L1",lbl1:"USBL & ADCP Telemetry Check *",ph1:"Ranger 2 HPT & RDI ADCP Online",lbl2:"",ph2:"",phRem:"Over-the-side pole deployed prior to subsea operations...",r:"Location / Crossing ID",dr:"CR-A1_L1",l1:"USBL & ADCP Telemetry Check *",p1:"Ranger 2 HPT & RDI ADCP Online",l2:"",p2:"",pr:"Over-the-side pole deployed prior to subsea operations..."},
     "Pole up": {lblRef:"Location / Crossing ID",defRef:"CR-A1_L1",lbl1:"Pole Stowed Status *",ph1:"Recovered & Secured on Deck Cradle",lbl2:"Reason for Recovery",ph2:"Transit / Weather / Maintenance",phRem:"USBL/ADCP pole raised and locked above waterline...",r:"Location / Crossing ID",dr:"CR-A1_L1",l1:"Pole Stowed Status *",p1:"Recovered & Secured on Deck Cradle",l2:"Reason for Recovery",p2:"Transit / Weather / Maintenance",pr:"USBL/ADCP pole raised and locked above waterline..."},
-    "Mattress on water": {lblRef:"Xing / Box / Tag ID *",defRef:"CR-A1_M4",lbl1:"Deployment Stage & Tag # *",ph1:"Overboard / Seabed Align / Tagline / Recover to Deck (#A023)",lbl2:"Water Depth / Beacon Status",ph2:"Transponder Ch 1 & 2 Tracking OK",phRem:"Mattress lowered through splash zone; WROV monitoring alignment...",r:"Xing / Box / Tag ID *",dr:"CR-A1_M4",l1:"Deployment Stage & Tag # *",p1:"Overboard / Seabed Align / Tagline / Recover to Deck (#A023)",l2:"Water Depth / Beacon Status",p2:"Transponder Ch 1 & 2 Tracking OK",pr:"Mattress lowered through splash zone; WROV monitoring alignment..."},
+    "Mattress on water": {lblRef:"Xing / Box / Tag ID *",defRef:"CR-A1_M4",lbl1:"Deployment Stage & Tag # *",ph1:"Overboard / Seabed Align / Tagline / Attempted Mattress Placement (#A023)",lbl2:"Water Depth / Beacon Status",ph2:"Transponder Ch 1 & 2 Tracking OK",phRem:"Mattress lowered through splash zone; WROV monitoring alignment...",r:"Xing / Box / Tag ID *",dr:"CR-A1_M4",l1:"Deployment Stage & Tag # *",p1:"Overboard / Seabed Align / Tagline / Attempted Mattress Placement (#A023)",l2:"Water Depth / Beacon Status",p2:"Transponder Ch 1 & 2 Tracking OK",pr:"Mattress lowered through splash zone; WROV monitoring alignment..."},
     "Frame above water": {lblRef:"Xing / Box / Tag ID *",defRef:"CR-A1_M4",lbl1:"Acoustic Release Status *",ph1:"4-Hook Release Confirmed by WROV",lbl2:"Frame Deck Status",ph2:"Frame Above Water & Landed on Deck",phRem:"Deployment frame recovered cleanly; preparing next mattress...",r:"Xing / Box / Tag ID *",dr:"CR-A1_M4",l1:"Acoustic Release Status *",p1:"4-Hook Release Confirmed by WROV",l2:"Frame Deck Status",p2:"Frame Above Water & Landed on Deck",pr:"Deployment frame recovered cleanly; preparing next mattress..."},
     "ROV & Vessel Ops": {lblRef:"Vessel / ROV / Crossing ID *",defRef:"MMA Prestige / WROV",lbl1:"Operation Type (ROV Launch / On Deck / Maint / DP / Echo 4) *",ph1:"e.g., ROV Off Deck / Echo 4 Arrival / 100m DP Move",lbl2:"Position / Heading / Dive Status",ph2:"e.g., Lat/Long, Heading 38.9 deg, or ROV Dive #",phRem:"ROV deployment/maintenance or vessel DP/Echo 4 movement...",r:"Vessel / ROV / Crossing ID *",dr:"MMA Prestige / WROV",l1:"Operation Type (ROV Launch / On Deck / Maint / DP / Echo 4) *",p1:"e.g., ROV Off Deck / Echo 4 Arrival / 100m DP Move",l2:"Position / Heading / Dive Status",p2:"e.g., Lat/Long, Heading 38.9 deg, or ROV Dive #",pr:"ROV deployment/maintenance or vessel DP/Echo 4 movement..."},
     "Calib, Setup & TBT": {lblRef:"System / Location *",defRef:"USBL / Helmsman PC / Mess Room",lbl1:"Activity (USBL/Tripod Calib / Helmsman PC / TBT / Standby) *",ph1:"e.g., USBL Tripod Check / Crane Helmsman Wi-Fi / Daily TBT",lbl2:"Result / Standby Status",ph2:"e.g., Report Submitted / Weather Standby Active",phRem:"Calibration, crane-cabin Helmsman display setup, TBT, or standby...",r:"System / Location *",dr:"USBL / Helmsman PC / Mess Room",l1:"Activity (USBL/Tripod Calib / Helmsman PC / TBT / Standby) *",p1:"e.g., USBL Tripod Check / Crane Helmsman Wi-Fi / Daily TBT",l2:"Result / Standby Status",p2:"e.g., Report Submitted / Weather Standby Active",pr:"Calibration, crane-cabin Helmsman display setup, TBT, or standby..."},
@@ -919,10 +931,10 @@ function openQrModal(){
         const div = document.createElement('div');
         div.className = 'row g-2 mb-2 p-2 rounded border border-info env-strip-evt';
         div.style.background = 'rgba(14,165,233,0.08)';
-        div.innerHTML = '<div class="col-12 small fw-bold text-info mb-0"><i class="fas fa-wind me-1"></i>Environmental Inputs (Wind, Current & Swell)</div>' +
-          '<div class="col-4"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind (e.g. 18kt NE)"></div>' +
-          '<div class="col-4"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Curr (e.g. 0.4m/s)"></div>' +
-          '<div class="col-4"><input type="text" name="env_swell" class="form-control form-control-sm" placeholder="Swell Hs (e.g. 0.8m)"></div>';
+        div.innerHTML = '<div class="col-12 small fw-bold text-info mb-0"><i class="fas fa-wind me-1"></i>Environmental Inputs (Wind & Current)</div>' +
+          '<div class="col-6"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind (e.g. 18kt NE)"></div>' +
+          '<div class="col-6"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Curr (e.g. 0.4m/s)"></div>' +
+          '';
         const remRow = form.querySelector('[name="remarks"]').closest('.row, .mb-3');
         if (remRow) remRow.parentNode.insertBefore(div, remRow);
       }
@@ -964,7 +976,7 @@ function openQrModal(){
         <div class="row g-2 mb-2 align-items-end">
           <div class="col-md-3 col-6"><label class="small fw-bold text-primary">Active USBL Used *</label>
             <select name="usbl_sensor" class="form-select form-select-sm border-primary fw-bold">
-              <option value="Pole USBL">Pole USBL (Primary)</option>
+              <option value="Survey Pole USBL">Survey Pole USBL (Primary)</option>
               <option value="Vessel USBL">Vessel USBL</option>
               <option value="Vessel Nav + Pole Fix">Vessel Nav + Pole Final Fix</option>
             </select>
@@ -973,7 +985,7 @@ function openQrModal(){
           <div class="col-md-3 col-6"><label class="small fw-bold">1. QA/QC Center N</label><input type="number" step="0.001" name="qaqc_n" class="form-control form-control-sm qaqc-n" placeholder="Pre-Rel N"></div>
           <div class="col-md-3 col-6"><label class="small fw-bold">1. QA/QC Brg (&deg;)</label>
             <div class="input-group input-group-sm">
-              <input type="number" step="0.001" name="qaqc_brg" class="form-control form-control-sm qaqc-brg" value="15.854">
+              <input type="number" step="0.001" name="qaqc_brg" class="form-control form-control-sm qaqc-brg" value="195.854">
               <button type="button" class="btn btn-outline-primary fw-bold" title="Seed 4 ROV Corners from QA/QC" onclick="window.seedRovCorners(this.closest('form'))">Seed 4C</button>
             </div>
           </div>
@@ -986,9 +998,9 @@ function openQrModal(){
           <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C4</span><input type="number" step="0.001" name="c4_e" class="form-control px-1 rc" placeholder="E4"><input type="number" step="0.001" name="c4_n" class="form-control px-1 rc" placeholder="N4"><input type="number" step="0.01" name="c4_z" class="form-control px-1 rc" placeholder="Z4"></div></div>
         </div>
         <div class="row g-2">
-          <div class="col-4"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind (e.g. 16kt NE)"></div>
-          <div class="col-4"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Current (e.g. 0.35m/s)"></div>
-          <div class="col-4"><input type="text" name="env_swell" class="form-control form-control-sm" placeholder="Swell Hs (e.g. 0.7m)"></div>
+          <div class="col-6"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind (e.g. 16kt NE)"></div>
+          <div class="col-6"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Current (e.g. 0.35m/s)"></div>
+          
         </div>
         <input type="hidden" name="aslaid_z" class="aslaid-z" value="0.00">`;
       const submitBtn = f.querySelector('button[type="submit"]');
@@ -1008,7 +1020,7 @@ function openQrModal(){
     const cn = parseFloat(f.querySelector('.qaqc-n')?.value || f.querySelector('[name="design_n"]')?.value) || 0;
     const brg = parseFloat(f.querySelector('.qaqc-brg')?.value || f.querySelector('[name="heading_deg"]')?.value) || 0;
     if (!ce || !cn) return;
-    const rad = brg * Math.PI / 180.0, sb = Math.sin(rad), cb = Math.cos(rad);
+    const rad = ((brg - 180.0) * Math.PI / 180.0), sb = Math.sin(rad), cb = Math.cos(rad);
     [[1,-1],[1,1],[-1,1],[-1,-1]].forEach((s, idx) => {
       const i = idx + 1;
       f.querySelector(`[name="c${i}_e"]`).value = (ce + s[0]*3.0*sb + s[1]*1.5*cb).toFixed(3);
@@ -1030,7 +1042,7 @@ function openQrModal(){
       const az = (pts[0][2]+pts[1][2]+pts[2][2]+pts[3][2])/4.0;
       const fe = (pts[0][0]+pts[1][0])/2.0, fn = (pts[0][1]+pts[1][1])/2.0;
       const be = (pts[2][0]+pts[3][0])/2.0, bn = (pts[2][1]+pts[3][1])/2.0;
-      const brg = ((Math.atan2(fe - be, fn - bn) * 180.0 / Math.PI) + 360.0) % 360.0;
+      const brg = ((Math.atan2(fe - be, fn - bn) * 180.0 / Math.PI) + 360.0) % 360.0; if (brg < 180.0) brg += 180.0;
       const inpE = f.querySelector('[name="aslaid_e"]'), inpN = f.querySelector('[name="aslaid_n"]'), inpH = f.querySelector('[name="heading_deg"]');
       if (inpE) { inpE.value = ae.toFixed(3); inpE.dispatchEvent(new Event('input', {bubbles:true})); }
       if (inpN) { inpN.value = an.toFixed(3); inpN.dispatchEvent(new Event('input', {bubbles:true})); }
@@ -1041,340 +1053,82 @@ function openQrModal(){
   };
 })();
 </script>
-<!-- STEP 3: 4-PANEL SUBSEA MATTRESS VERIFICATION & REPORTING STUDIO -->
-<script id="mti4PanelStudioUpgrade">
+<script id="mtiActiveUsblUpgrade">
 (function(){
-  function inject4PanelStudio(){
-    if (document.getElementById('studio4Panel')) return;
+  const USBL_ALLOWED_EVENTS = new Set(['ROV & Vessel Ops', 'Calib, Setup & TBT', 'Survey Issue Reporting', 'Survey Issue']);
 
-    const studioWrapper = document.createElement('div');
-    studioWrapper.id = 'studio4Panel';
-    studioWrapper.className = 'card shadow-sm border-primary mb-4 mt-3';
-    studioWrapper.innerHTML = `
-      <div class="card-header bg-dark text-white d-flex flex-wrap justify-content-between align-items-center py-2 px-3">
-        <div>
-          <span class="fw-bold text-info"><i class="fas fa-drafting-compass me-2"></i>4-Panel Subsea Mattress Verification &amp; Submittal Studio</span>
-          <span class="badge bg-primary ms-2">ISO A3 Chart + ISO A4 PDF + Word (.docx)</span>
-        </div>
-        <div class="d-flex flex-wrap gap-1 mt-1 mt-md-0" id="studio4PanelDlBar">
-          <a id="btnDlA3Pdf" href="/mti/download_a3_pdf" class="btn btn-xs btn-sm btn-danger fw-bold"><i class="fas fa-file-pdf me-1"></i>A3 4-Panel PDF</a>
-          <a id="btnDlA3Png" href="/mti/download_a3_png?dl=1" class="btn btn-xs btn-sm btn-info text-dark fw-bold"><i class="fas fa-image me-1"></i>A3 PNG</a>
-          <a id="btnDlA4Pdf" href="/mti/download_a4_pdf" class="btn btn-xs btn-sm btn-warning text-dark fw-bold"><i class="fas fa-file-alt me-1"></i>A4 Report PDF</a>
-          <a id="btnDlDocx" href="/mti/download_docx" class="btn btn-xs btn-sm btn-primary fw-bold"><i class="fas fa-file-word me-1"></i>Word (.docx)</a>
-        </div>
-      </div>
-      <div class="card-body p-3 bg-light">
-        <form id="form4PanelVerify" onsubmit="return window.run4PanelVerify(event)" enctype="multipart/form-data">
-          <input type="hidden" name="ajax" value="1">
-          <div class="row g-2 align-items-end mb-2">
-            <div class="col-md-2 col-6">
-              <label class="form-label small fw-bold mb-1">Crossing Array ID</label>
-              <input type="text" class="form-control form-control-sm fw-bold" name="crossing_id" id="fpCrossingId" value="CR-A1_L1">
-            </div>
-            <div class="col-md-2 col-6">
-              <label class="form-label small fw-bold mb-1">Mattress Location ID</label>
-              <input type="text" class="form-control form-control-sm fw-bold text-primary" name="location_id" id="fpLocationId" value="CR-A1_M15" placeholder="AUTO or CR-A1_M15">
-            </div>
-            <div class="col-md-2 col-6">
-              <label class="form-label small fw-bold mb-1">Mattress Tag ID *</label>
-              <input type="text" class="form-control form-control-sm fw-bold text-success" name="mattress_id" id="fpMattressId" value="#A046" placeholder="001 or #A046">
-            </div>
-            <div class="col-md-2 col-6">
-              <label class="form-label small fw-bold mb-1">Survey Date/Time</label>
-              <input type="text" class="form-control form-control-sm" name="install_date" id="fpDateStr" value="2026-11-04 14:34">
-            </div>
-            <div class="col-md-1 col-4">
-              <label class="form-label small fw-bold mb-1">P1 Scale</label>
-              <select class="form-select form-select-sm" name="scale_p1" id="fpScaleP1">
-                <option value="200">1:200</option>
-                <option value="250" selected>1:250</option>
-                <option value="300">1:300</option>
-                <option value="400">1:400</option>
-              </select>
-            </div>
-            <div class="col-md-1 col-4">
-              <label class="form-label small fw-bold mb-1">P2 Scale</label>
-              <select class="form-select form-select-sm" name="scale_p2" id="fpScaleP2">
-                <option value="50">1:50</option>
-                <option value="75" selected>1:75</option>
-                <option value="100">1:100</option>
-              </select>
-            </div>
-            <div class="col-md-2 col-4">
-              <div class="form-check form-switch mb-1">
-                <input class="form-check-input" type="checkbox" id="fpIncHist" name="include_history" value="true" checked>
-                <label class="form-check-label small fw-bold" for="fpIncHist">Historical Data</label>
-              </div>
-              <button type="submit" id="btnRun4Panel" class="btn btn-sm btn-success w-100 fw-bold"><i class="fas fa-sync-alt me-1"></i>Generate 4-Panel</button>
-            </div>
-          </div>
+  window.toggleEvtUsblBar = function(evtType){
+    const show = USBL_ALLOWED_EVENTS.has((evtType || '').trim());
+    document.querySelectorAll('.evt-usbl-selector').forEach(function(bar){
+      bar.style.display = show ? 'block' : 'none';
+      bar.querySelectorAll('input[name="usbl_sensor"]').forEach(function(inp){
+        inp.disabled = !show;
+      });
+    });
+  };
 
-          <div class="p-2 rounded border bg-white mb-2">
-            <div class="d-flex flex-wrap justify-content-between align-items-center mb-1">
-              <span class="small fw-bold text-secondary"><i class="fas fa-layer-group me-1"></i>Input Coordinates (4 ROV Corners E, N, Z) OR Upload MBES Point Cloud (.xyz / .csv / .txt):</span>
-              <div class="d-flex gap-2 align-items-center">
-                <label class="small fw-bold text-primary mb-0">MBES Cloud File:</label>
-                <input type="file" class="form-control form-control-sm" style="max-width:210px;" name="cloud_file" id="fpCloudFile" accept=".xyz,.txt,.csv">
-              </div>
-            </div>
-            <div class="row g-1">
-              <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold">C1 (NW)</span><input type="number" step="any" class="form-control" name="c1_e" id="fpC1E" value="194540.642" placeholder="E"><input type="number" step="any" class="form-control" name="c1_n" id="fpC1N" value="2702616.819" placeholder="N"><input type="number" step="any" class="form-control" name="c1_z" id="fpC1Z" value="-18.20" placeholder="Z"></div></div>
-              <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold">C2 (NE)</span><input type="number" step="any" class="form-control" name="c2_e" id="fpC2E" value="194543.513" placeholder="E"><input type="number" step="any" class="form-control" name="c2_n" id="fpC2N" value="2702615.948" placeholder="N"><input type="number" step="any" class="form-control" name="c2_z" id="fpC2Z" value="-18.20" placeholder="Z"></div></div>
-              <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold">C3 (SE)</span><input type="number" step="any" class="form-control" name="c3_e" id="fpC3E" value="194541.770" placeholder="E"><input type="number" step="any" class="form-control" name="c3_n" id="fpC3N" value="2702610.207" placeholder="N"><input type="number" step="any" class="form-control" name="c3_z" id="fpC3Z" value="-18.20" placeholder="Z"></div></div>
-              <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold">C4 (SW)</span><input type="number" step="any" class="form-control" name="c4_e" id="fpC4E" value="194538.899" placeholder="E"><input type="number" step="any" class="form-control" name="c4_n" id="fpC4N" value="2702611.078" placeholder="N"><input type="number" step="any" class="form-control" name="c4_z" id="fpC4Z" value="-18.20" placeholder="Z"></div></div>
-            </div>
-          </div>
-        </form>
+  document.addEventListener('DOMContentLoaded', function(){
+    ['eventInputForm', 'mobEvtCard'].forEach(function(id){
+      const c = document.getElementById(id);
+      const form = c ? (c.tagName === 'FORM' ? c : c.querySelector('form')) : null;
+      if (form) {
+        let bar = form.querySelector('.evt-usbl-selector');
+        if (!bar) {
+          bar = document.createElement('div');
+          bar.className = 'p-2 mb-2 rounded border border-primary evt-usbl-selector';
+          bar.style.background = 'rgba(13,110,253,0.07)';
+          const firstRow = form.querySelector('.row');
+          if (firstRow) firstRow.parentNode.insertBefore(bar, firstRow.nextSibling);
+        }
+        bar.style.display = 'none';
+        bar.innerHTML = '<div class="d-flex flex-wrap justify-content-between align-items-center gap-2">' +
+          '<span class="small fw-bold text-primary"><i class="fas fa-satellite-dish me-1"></i>Active USBL:</span>' +
+          '<div class="d-flex align-items-center gap-3">' +
+            '<label class="form-check-label small fw-bold d-inline-flex align-items-center gap-1" style="cursor:pointer;">' +
+              '<input type="radio" class="form-check-input m-0" name="usbl_sensor" value="Survey Pole" checked disabled> Survey Pole' +
+            '</label>' +
+            '<label class="form-check-label small fw-bold d-inline-flex align-items-center gap-1" style="cursor:pointer;">' +
+              '<input type="radio" class="form-check-input m-0" name="usbl_sensor" value="Vessel" disabled> Vessel' +
+            '</label>' +
+          '</div></div>';
+      }
+    });
 
-        <div id="fpKpiStrip" class="row g-2 mb-2">
-          <div class="col-md-3 col-6"><div class="p-2 border rounded bg-white"><div class="text-muted" style="font-size:11px;">DELIVERABLE BASE FILENAME</div><div id="fpKpiFile" class="fw-bold small text-primary text-truncate">20261104_Mattress_CR-A1_M15_A046</div></div></div>
-          <div class="col-md-2 col-6"><div class="p-2 border rounded bg-white"><div class="text-muted" style="font-size:11px;">RADIAL BOX OFFSET</div><div id="fpKpiOffset" class="fw-bold small text-success">0.265 m (dAl +0.05, dCr -0.26)</div></div></div>
-          <div class="col-md-2 col-6"><div class="p-2 border rounded bg-white"><div class="text-muted" style="font-size:11px;">SOUTH BRG / DELTA</div><div id="fpKpiBrg" class="fw-bold small">196.889 deg (dAz +1.04 deg)</div></div></div>
-          <div class="col-md-2 col-6"><div class="p-2 border rounded bg-white"><div class="text-muted" style="font-size:11px;">CLOUD MRR / IN-BOX %</div><div id="fpKpiMrr" class="fw-bold small">6.00x3.00 m | 85.6%</div></div></div>
-          <div class="col-md-3 col-12"><div class="p-2 border rounded bg-white"><div class="text-muted" style="font-size:11px;">CRANE NUDGE TO DESIGN</div><div id="fpKpiNudge" class="fw-bold small text-dark">Move 0.27 m toward ESE (116.7 deg)</div></div></div>
-        </div>
+    const origDesk = window.openEventInputBox;
+    if (origDesk && !origDesk._usblWrapped) {
+      window.openEventInputBox = function(t){ origDesk(t); window.toggleEvtUsblBar(t); };
+      window.openEventInputBox._usblWrapped = true;
+    }
+    const origMob = window.openMobEvt;
+    if (origMob && !origMob._usblWrapped) {
+      window.openMobEvt = function(t){ origMob(t); window.toggleEvtUsblBar(t); };
+      window.openMobEvt._usblWrapped = true;
+    }
 
-        <div class="row g-3">
-          <div class="col-lg-7">
-            <div class="border rounded bg-white p-2 h-100">
-              <div class="d-flex justify-content-between align-items-center mb-1">
-                <span class="small fw-bold text-dark"><i class="fas fa-map me-1 text-danger"></i>ISO A3 4-Panel Verification Chart Preview (Fixed Scale)</span>
-                <span id="fpVerdictBadge" class="badge bg-success">READY</span>
-              </div>
-              <div class="text-center bg-dark rounded p-1" style="min-height:320px;display:flex;align-items:center;justify-content:center;">
-                <img id="fpChartImg" src="/mti/download_a3_png?t=init" class="img-fluid rounded" style="max-height:520px;background:#fff;" alt="ISO A3 4-Panel Chart Preview">
-              </div>
-            </div>
-          </div>
-          <div class="col-lg-5">
-            <div class="border rounded bg-white p-2 h-100 d-flex flex-column">
-              <div class="d-flex flex-wrap justify-content-between align-items-center mb-1 gap-1">
-                <span class="small fw-bold text-dark"><i class="fas fa-edit me-1 text-primary"></i>Editable ISO A4 &amp; Word (.docx) Report Studio</span>
-                <div class="btn-group btn-group-sm">
-                  <button type="button" class="btn btn-outline-secondary active" id="btnModeVisual" onclick="window.switchFpEditMode('visual')">Visual Edit</button>
-                  <button type="button" class="btn btn-outline-secondary" id="btnModeMd" onclick="window.switchFpEditMode('md')">Markdown Source</button>
-                </div>
-              </div>
-              <div id="fpVisualEditor" contenteditable="true" class="form-control small flex-grow-1 mb-2" style="height:360px;overflow-y:auto;font-family:system-ui,sans-serif;line-height:1.45;background:#fcfcfd;"></div>
-              <textarea id="fpMdEditor" class="form-control form-control-sm font-monospace flex-grow-1 mb-2" style="height:360px;display:none;"></textarea>
-              <div class="d-flex justify-content-between align-items-center gap-2">
-                <button type="button" class="btn btn-sm btn-primary fw-bold flex-grow-1" onclick="window.save4PanelReportEdits()"><i class="fas fa-save me-1"></i>Apply Edits to A4 PDF &amp; Word (.docx)</button>
-                <span id="fpSaveStatus" class="small fw-bold text-success"></span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-
-    const mainContainer = document.querySelector('.container-fluid, .container') || document.body;
-    mainContainer.appendChild(studioWrapper);
+    const curEvt = document.getElementById('evtTypeInput')?.value || document.getElementById('mEvtType')?.value || 'Pole down';
+    window.toggleEvtUsblBar(curEvt);
 
     document.querySelectorAll('form[action*="add_fix"]').forEach(function(f){
-      if (!f.querySelector('#btnSendTo4Panel')) {
-        const submitBtn = f.querySelector('button[type="submit"]');
-        if (submitBtn) {
-          const btn4p = document.createElement('button');
-          btn4p.type = 'button';
-          btn4p.id = 'btnSendTo4Panel';
-          btn4p.className = 'btn btn-sm btn-info text-dark fw-bold ms-2';
-          btn4p.innerHTML = '<i class="fas fa-drafting-compass me-1"></i>Send 4 Corners to 4-Panel Studio';
-          btn4p.onclick = function(){ window.sendFixFormTo4Panel(f); };
-          submitBtn.parentNode.insertBefore(btn4p, submitBtn.nextSibling);
-        }
+      const existingCtrl = f.querySelector('select[name="usbl_sensor"], .usbl-pill, input[type="hidden"][name="usbl_sensor"]');
+      if (existingCtrl) {
+        const col = existingCtrl.closest('.col-md-3, .col-md-4, .col-6, .col-12') || existingCtrl.parentNode;
+        col.className = 'col-md-3 col-6';
+        col.innerHTML = `<label class="form-label small fw-bold text-primary mb-1">Active USBL *</label>
+          <div class="d-flex align-items-center gap-3 p-1 px-2 border border-primary rounded bg-light" style="min-height:31px;">
+            <label class="form-check-label small fw-bold d-inline-flex align-items-center gap-1" style="cursor:pointer;">
+              <input type="radio" class="form-check-input m-0" name="usbl_sensor" value="Survey Pole" checked> Survey Pole
+            </label>
+            <label class="form-check-label small fw-bold d-inline-flex align-items-center gap-1" style="cursor:pointer;">
+              <input type="radio" class="form-check-input m-0" name="usbl_sensor" value="Vessel"> Vessel
+            </label>
+          </div>`;
+        f.querySelectorAll('#inpQaqcE, #inpQaqcN, #inpQaqcBrg').forEach(inp => {
+          const p = inp.closest('.col-md-2, .col-md-3');
+          if (p) p.className = 'col-md-3 col-6';
+        });
       }
     });
-
-    window.decorateLedgerWith4PanelBtns();
-
-    fetch('/mti/last_4panel_json').then(r => r.json()).then(data => {
-      if (data && data.result && data.result.base_filename) {
-        window.apply4PanelResultToUI(data.result);
-      }
-    }).catch(function(){});
-  }
-
-  function mdToSimpleHtml(md){
-    return String(md || '').split('\n').map(function(line){
-      const l = line.trim();
-      if (!l) return '<div style="height:6px;"></div>';
-      if (l.startsWith('# ')) return '<h6 class="fw-bold text-dark border-bottom pb-1 mb-1">' + l.slice(2) + '</h6>';
-      if (l.startsWith('## ')) return '<div class="fw-bold text-primary bg-light px-2 py-1 mt-2 mb-1 rounded">' + l.slice(3) + '</div>';
-      if (l.startsWith('|')) {
-        if (l.indexOf(':---') !== -1) return '';
-        return '<div class="font-monospace" style="font-size:11px;white-space:pre-wrap;border-bottom:1px solid #eee;">' + l + '</div>';
-      }
-      return '<div>' + l.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') + '</div>';
-    }).join('');
-  }
-
-  function htmlToSimpleMd(el){
-    const lines = [];
-    el.childNodes.forEach(function(node){
-      const txt = (node.innerText || node.textContent || '').trim();
-      if (!txt) { lines.push(''); return; }
-      if (node.tagName === 'H6') lines.push('# ' + txt);
-      else if (node.className && String(node.className).indexOf('text-primary') !== -1) lines.push('## ' + txt);
-      else lines.push(txt);
-    });
-    return lines.join('\n');
-  }
-
-  window.switchFpEditMode = function(mode){
-    const vis = document.getElementById('fpVisualEditor');
-    const md = document.getElementById('fpMdEditor');
-    const bVis = document.getElementById('btnModeVisual');
-    const bMd = document.getElementById('btnModeMd');
-    if (mode === 'md') {
-      md.value = htmlToSimpleMd(vis) || md.value;
-      vis.style.display = 'none';
-      md.style.display = 'block';
-      bVis.classList.remove('active');
-      bMd.classList.add('active');
-    } else {
-      vis.innerHTML = mdToSimpleHtml(md.value);
-      md.style.display = 'none';
-      vis.style.display = 'block';
-      bMd.classList.remove('active');
-      bVis.classList.add('active');
-    }
-  };
-
-  window.apply4PanelResultToUI = function(r){
-    if (!r) return;
-    const fn = r.base_filename || '20261104_Mattress_CR-A1_M15_A046';
-    document.getElementById('fpCrossingId').value = r.crossing_id || 'CR-A1_L1';
-    document.getElementById('fpLocationId').value = r.location_id || 'CR-A1_M15';
-    document.getElementById('fpMattressId').value = r.mattress_id || '#A046';
-    document.getElementById('fpDateStr').value = r.date_str || '';
-    document.getElementById('fpKpiFile').textContent = fn;
-    document.getElementById('fpKpiOffset').textContent = (r.radial_box || 0).toFixed(3) + ' m (dAl ' + (r.d_along_box >= 0 ? '+' : '') + (r.d_along_box || 0).toFixed(2) + ', dCr ' + (r.d_cross_box >= 0 ? '+' : '') + (r.d_cross_box || 0).toFixed(2) + ')';
-    document.getElementById('fpKpiBrg').textContent = (r.south_brg_cloud || 0).toFixed(3) + ' deg (dAz ' + (r.d_az >= 0 ? '+' : '') + (r.d_az || 0).toFixed(2) + ' deg)';
-    document.getElementById('fpKpiMrr').textContent = (r.cloud_l || 6).toFixed(2) + 'x' + (r.cloud_w || 3).toFixed(2) + ' m | ' + (r.pct_inside || 0).toFixed(1) + '%';
-    document.getElementById('fpKpiNudge').textContent = 'Move ' + (r.nudge_dist || 0).toFixed(2) + ' m toward ' + (r.nudge_dir || 'TARGET') + ' (' + (r.nudge_az || 0).toFixed(1) + ' deg)';
-
-    const badge = document.getElementById('fpVerdictBadge');
-    badge.textContent = r.verdict_short || 'VERIFIED';
-    badge.className = 'badge ' + ((r.verdict_short || '').indexOf('PASS') !== -1 ? 'bg-success' : 'bg-warning text-dark');
-
-    document.getElementById('btnDlA3Pdf').href = '/mti/download_a3_pdf?file=' + encodeURIComponent(fn);
-    document.getElementById('btnDlA3Png').href = '/mti/download_a3_png?dl=1&file=' + encodeURIComponent(fn);
-    document.getElementById('btnDlA4Pdf').href = '/mti/download_a4_pdf?file=' + encodeURIComponent(fn);
-    document.getElementById('btnDlDocx').href = '/mti/download_docx?file=' + encodeURIComponent(fn);
-
-    const img = document.getElementById('fpChartImg');
-    if (r.png_b64) {
-      img.src = 'data:image/png;base64,' + r.png_b64;
-    } else {
-      img.src = '/mti/download_a3_png?file=' + encodeURIComponent(fn) + '&t=' + Date.now();
-    }
-
-    if (r.report_md) {
-      document.getElementById('fpMdEditor').value = r.report_md;
-      document.getElementById('fpVisualEditor').innerHTML = mdToSimpleHtml(r.report_md);
-    }
-  };
-
-  window.run4PanelVerify = function(ev){
-    if (ev) ev.preventDefault();
-    const form = document.getElementById('form4PanelVerify');
-    const btn = document.getElementById('btnRun4Panel');
-    const fd = new FormData(form);
-    fd.set('include_history', document.getElementById('fpIncHist').checked ? 'true' : 'false');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Rendering...';
-    fetch('/mti/verify_4panel', { method: 'POST', body: fd, headers: {'Accept': 'application/json'} })
-      .then(r => r.json())
-      .then(data => {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Generate 4-Panel';
-        if (data && data.result) {
-          window.apply4PanelResultToUI(data.result);
-        }
-      })
-      .catch(err => {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Generate 4-Panel';
-        alert('Verification error: ' + err);
-      });
-    return false;
-  };
-
-  window.save4PanelReportEdits = function(){
-    const vis = document.getElementById('fpVisualEditor');
-    const md = document.getElementById('fpMdEditor');
-    const isMdMode = md.style.display !== 'none';
-    const finalMd = isMdMode ? md.value : htmlToSimpleMd(vis);
-    md.value = finalMd;
-    const baseFn = document.getElementById('fpKpiFile').textContent.trim();
-    const st = document.getElementById('fpSaveStatus');
-    st.textContent = 'Saving...';
-    fetch('/mti/update_4panel_report', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
-      body: JSON.stringify({ base_filename: baseFn, report_md: finalMd, ajax: '1' })
-    }).then(r => r.json()).then(data => {
-      st.textContent = 'Saved A4 PDF & Word!';
-      setTimeout(function(){ st.textContent = ''; }, 3000);
-    }).catch(function(){ st.textContent = 'Error saving'; });
-  };
-
-  window.sendFixFormTo4Panel = function(f){
-    const getVal = name => (f.querySelector('[name="' + name + '"]') || {}).value || '';
-    document.getElementById('fpCrossingId').value = getVal('crossing_id') || 'CR-A1_L1';
-    document.getElementById('fpLocationId').value = getVal('design_box_id') || 'CR-A1_M15';
-    document.getElementById('fpMattressId').value = getVal('physical_tag') || '001';
-    document.getElementById('fpDateStr').value = getVal('install_date') || '';
-    for (let i = 1; i <= 4; i++) {
-      if (getVal('c'+i+'_e')) document.getElementById('fpC'+i+'E').value = getVal('c'+i+'_e');
-      if (getVal('c'+i+'_n')) document.getElementById('fpC'+i+'N').value = getVal('c'+i+'_n');
-      if (getVal('c'+i+'_z')) document.getElementById('fpC'+i+'Z').value = getVal('c'+i+'_z');
-    }
-    document.getElementById('studio4Panel').scrollIntoView({behavior: 'smooth'});
-    window.run4PanelVerify();
-  };
-
-  window.openLedgerRowIn4Panel = function(rowObj){
-    if (!rowObj) return;
-    document.getElementById('fpCrossingId').value = rowObj.crossing_id || 'CR-A1_L1';
-    document.getElementById('fpLocationId').value = rowObj.design_box_id || 'CR-A1_M15';
-    document.getElementById('fpMattressId').value = rowObj.physical_tag || '001';
-    document.getElementById('fpDateStr').value = rowObj.install_date || '';
-    for (let i = 1; i <= 4; i++) {
-      if (rowObj['c'+i+'_e']) document.getElementById('fpC'+i+'E').value = rowObj['c'+i+'_e'];
-      if (rowObj['c'+i+'_n']) document.getElementById('fpC'+i+'N').value = rowObj['c'+i+'_n'];
-      if (rowObj['c'+i+'_z']) document.getElementById('fpC'+i+'Z').value = rowObj['c'+i+'_z'];
-    }
-    document.getElementById('studio4Panel').scrollIntoView({behavior: 'smooth'});
-    window.run4PanelVerify();
-  };
-
-  window.decorateLedgerWith4PanelBtns = function(){
-    document.querySelectorAll('button[onclick*="editFix"], button[onclick*="loadFixForEdit"]').forEach(function(btn){
-      if (btn.parentNode.querySelector('.btn-4panel-row')) return;
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'btn btn-xs btn-sm btn-outline-info fw-bold ms-1 btn-4panel-row';
-      b.title = 'Generate 4-Panel Chart & Report';
-      b.innerHTML = '<i class="fas fa-chart-area"></i> 4-Panel';
-      b.onclick = function(e){
-        e.stopPropagation();
-        const oc = btn.getAttribute('onclick') || '';
-        const m = oc.match(/\{.*\}/);
-        if (m) {
-          try { window.openLedgerRowIn4Panel(JSON.parse(m[0])); return; } catch(err){}
-        }
-        btn.click();
-        setTimeout(function(){
-          const f = document.querySelector('form[action*="add_fix"]');
-          if (f) window.sendFixFormTo4Panel(f);
-        }, 150);
-      };
-      btn.parentNode.insertBefore(b, btn);
-    });
-  };
-
-  document.addEventListener('DOMContentLoaded', inject4PanelStudio);
+  });
 })();
 </script>
 </body>

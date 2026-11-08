@@ -1,0 +1,38 @@
+name: iPhone Agentic Hot-Patch Runner
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'hotpatch.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  run-patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Execute hotpatch.py and push changes to Render
+        run: |
+          if grep -q "^# IDLE_STATE" hotpatch.py; then
+            echo "hotpatch.py is in IDLE_STATE. Nothing to run."
+            exit 0
+          fi
+          git config user.name "DRL8490 Mobile Agent"
+          git config user.email "daryll.enano@nmdc-group.com"
+          python3 hotpatch.py
+          printf "# IDLE_STATE - Paste next Python patch script here in the GitHub iOS app and tap Commit!\n" > hotpatch.py
+          git add -A
+          git diff --staged --quiet || git commit -m "feat(mobile-agent): execute hotpatch.py and update codebase"
+          git push origin HEAD:main

@@ -35,7 +35,7 @@ MATTRESS_B64 = (
 )
 
 MATTRESS_CATALOG = [
-    {"layer": r[0], "name": r[1], "design_e": r[2], "design_n": r[3], "bearing": r[4], "length": 6.0, "width": 3.0}
+    {"layer": r[0], "name": r[1], "design_e": r[2], "design_n": r[3], "bearing": round((r[4] + 180.0) % 360.0, 3), "length": 6.0, "width": 3.0}
     for r in json.loads(zlib.decompress(base64.b64decode(MATTRESS_B64)).decode("utf-8"))
 ]
 
@@ -62,30 +62,30 @@ DEFAULT_MTI_STATE = {
             "crossing_id": "CR-A1_L1", "design_box_id": "CR-A1_M15", "physical_tag": "#A046",
             "install_date": "2026-11-04 16:00", "shift": "Abror (Day) / Roderick (Night)",
             "design_e": 194541.443, "design_n": 2702613.394, "aslaid_e": 194541.520, "aslaid_n": 2702613.300,
-            "cl_offset_m": 0.12, "heading_deg": 15.854, "gap1_m": 0.00, "gap2_m": 0.00, "gap_m": 0.00,
+            "cl_offset_m": 0.12, "heading_deg": 195.854, "gap1_m": 0.00, "gap2_m": 0.00, "gap_m": 0.00,
             "status": "Completed",
             "remarks": "First mattress in array (04-Nov 16:00, CR-A1_M15, Tag #A046); Center & Bearing verified.",
-            **compute_4_corners(194541.520, 2702613.300, 15.854)
+            **compute_4_corners(194541.520, 2702613.300, 195.854)
         },
         {
             "id": 2, "unit_no": 2, "is_first_in_array": False, "unit_type": "Concrete Mattress",
             "crossing_id": "CR-A1_L1", "design_box_id": "CR-A1_M16", "physical_tag": "#A007",
             "install_date": "2026-11-05 04:40", "shift": "Abror (Day) / Roderick (Night)",
             "design_e": 194544.329, "design_n": 2702612.575, "aslaid_e": 194544.450, "aslaid_n": 2702612.485,
-            "cl_offset_m": 0.15, "heading_deg": 15.854, "gap1_m": 0.02, "gap2_m": 0.10, "gap_m": 0.10,
+            "cl_offset_m": 0.15, "heading_deg": 195.854, "gap1_m": 0.02, "gap2_m": 0.10, "gap_m": 0.10,
             "status": "Completed",
             "remarks": "Installed 05-Nov 04:40 (CR-A1_M16, Tag #A007); Gap 1 (N) = 0.02m, Gap 2 (S) = 0.10m; 4 corners calculated.",
-            **compute_4_corners(194544.450, 2702612.485, 15.854)
+            **compute_4_corners(194544.450, 2702612.485, 195.854)
         },
         {
             "id": 3, "unit_no": 3, "is_first_in_array": False, "unit_type": "Concrete Mattress",
             "crossing_id": "CR-A1_L1", "design_box_id": "CR-A1_M17", "physical_tag": "Pending",
             "install_date": "2026-11-05 19:00", "shift": "Abror (Day) / Roderick (Night)",
             "design_e": 194547.215, "design_n": 2702611.755, "aslaid_e": 194547.360, "aslaid_n": 2702611.650,
-            "cl_offset_m": 0.18, "heading_deg": 15.854, "gap1_m": 0.12, "gap2_m": 0.22, "gap_m": 0.22,
+            "cl_offset_m": 0.18, "heading_deg": 195.854, "gap1_m": 0.12, "gap2_m": 0.22, "gap_m": 0.22,
             "status": "In Progress",
             "remarks": "Placed on seabed by 19:00 (center delta 0.18m); pending WROV seating adjustment to close >0.20m West edge gap.",
-            **compute_4_corners(194547.360, 2702611.650, 15.854)
+            **compute_4_corners(194547.360, 2702611.650, 195.854)
         }
     ],
     "input_logs": [
@@ -101,7 +101,7 @@ DEFAULT_MTI_STATE = {
         },
         {
             "id": 3, "event_type": "Mattress fix", "timestamp": "2026-11-04 16:00", "surveyor": "Abror",
-            "ref_id": "CR-A1_M15 (#A046)", "val1": "E:194541.52, N:2702613.30", "val2": "Brg:15.9 deg | 1st Unit",
+            "ref_id": "CR-A1_M15 (#A046)", "val1": "E:194541.52, N:2702613.30", "val2": "Brg:195.9 deg | 1st Unit",
             "remarks": "Touchdown fix verified on seabed (CL Offset 0.12m)."
         },
         {
@@ -137,6 +137,10 @@ def load_mti_state():
     if "input_logs" not in st:
         st["input_logs"] = copy.deepcopy(DEFAULT_MTI_STATE["input_logs"])
         changed = True
+    for r in st.get("ledger", []):
+        if float(r.get("heading_deg", 0)) < 180.0:
+            r["heading_deg"] = round(float(r.get("heading_deg", 195.854)) + 180.0, 3)
+            changed = True
     if changed:
         config.schema_data = json.dumps(schema)
         db.session.commit()
@@ -214,7 +218,7 @@ def add_fix():
     qaqc_e = request.form.get("qaqc_e", type=float) or 0.0
     qaqc_n = request.form.get("qaqc_n", type=float) or 0.0
     qaqc_brg = request.form.get("qaqc_brg", type=float) or 0.0
-    usbl_sensor = (request.form.get("usbl_sensor") or "Pole USBL").strip()
+    usbl_sensor = (request.form.get("usbl_sensor") or "Survey Pole").strip()
 
     pts = []
     for i in (1, 2, 3, 4):
@@ -228,9 +232,11 @@ def add_fix():
         as_e = round(sum(p[0] for p in pts) / 4.0, 3)
         as_n = round(sum(p[1] for p in pts) / 4.0, 3)
         as_z = round(sum(p[2] for p in pts) / 4.0, 3)
-        fe, fn = (pts[0][0] + pts[1][0]) / 2.0, (pts[0][1] + pts[1][1]) / 2.0
-        be, bn = (pts[2][0] + pts[3][0]) / 2.0, (pts[2][1] + pts[3][1]) / 2.0
+        be, bn = (pts[0][0] + pts[1][0]) / 2.0, (pts[0][1] + pts[1][1]) / 2.0
+        fe, fn = (pts[2][0] + pts[3][0]) / 2.0, (pts[2][1] + pts[3][1]) / 2.0
         hdg = round((math.degrees(math.atan2(fe - be, fn - bn)) + 360.0) % 360.0, 3)
+        if hdg < 180.0:
+            hdg = round(hdg + 180.0, 3)
         corners = {f"c{i+1}_e": round(pts[i][0], 3) for i in range(4)}
         corners.update({f"c{i+1}_n": round(pts[i][1], 3) for i in range(4)})
         corners.update({f"c{i+1}_z": round(pts[i][2], 3) for i in range(4)})
@@ -238,7 +244,9 @@ def add_fix():
         as_e = request.form.get("aslaid_e", type=float) or qaqc_e
         as_n = request.form.get("aslaid_n", type=float) or qaqc_n
         as_z = request.form.get("aslaid_z", type=float) or 0.0
-        hdg = round(request.form.get("heading_deg", type=float) or qaqc_brg, 3)
+        hdg = round(request.form.get("heading_deg", type=float) or qaqc_brg or 195.854, 3)
+        if hdg < 180.0:
+            hdg = round(hdg + 180.0, 3)
         corners = compute_4_corners(as_e, as_n, hdg, 6.0, 3.0)
 
     cl_off = round(math.hypot(as_e - des_e, as_n - des_n), 2) if (as_e and des_e) else (request.form.get("cl_offset_m", type=float) or 0.0)
@@ -268,7 +276,7 @@ def add_fix():
     env_w = (request.form.get("env_wind") or "").strip()
     env_c = (request.form.get("env_current") or "").strip()
     env_s = (request.form.get("env_swell") or "").strip()
-    env_tag = " | ".join([f"{k}:{v}" for k, v in [("Wind", env_w), ("Curr", env_c), ("Swell", env_s)] if v])
+    env_tag = " | ".join([f"{k}:{v}" for k, v in [("Wind", env_w), ("Curr", env_c)] if v])
 
     dt_str = (request.form.get("install_date") or datetime.utcnow().strftime('%Y-%m-%d %H:%M')).strip()
     xing_id = (request.form.get("crossing_id") or "CR-A1_L1").strip()
@@ -335,22 +343,25 @@ def add_input_log():
     log_id = request.form.get("log_id", type=int)
     existing = next((x for x in input_logs if int(x.get("id", 0)) == log_id), None) if log_id else None
 
+    evt_t = (request.form.get("event_type") or "Pole down").strip()
+    usbl_s = (request.form.get("usbl_sensor") or "").strip() if evt_t in ("ROV & Vessel Ops", "Calib, Setup & TBT", "Survey Issue Reporting", "Survey Issue") else ""
     env_w = (request.form.get("env_wind") or "").strip()
     env_c = (request.form.get("env_current") or "").strip()
     env_s = (request.form.get("env_swell") or "").strip()
-    env_tag = " | ".join([f"{k}:{v}" for k, v in [("Wind", env_w), ("Curr", env_c), ("Swell", env_s)] if v])
+    env_tag = " | ".join([f"{k}:{v}" for k, v in [("USBL", usbl_s), ("Wind", env_w), ("Curr", env_c)] if v])
     rem = (request.form.get("remarks") or "").strip()
     if env_tag and env_tag not in rem:
         rem = f"{rem} [{env_tag}]".strip()
 
     entry = {
         "id": existing["id"] if existing else (max([int(x.get("id", 0)) for x in input_logs] + [0]) + 1),
-        "event_type": (request.form.get("event_type") or "Pole down").strip(),
+        "event_type": evt_t,
         "timestamp": (request.form.get("timestamp") or datetime.utcnow().strftime('%Y-%m-%d %H:%M')).strip(),
         "surveyor": (request.form.get("surveyor") or getattr(current_user, "name", "Surveyor")).strip(),
         "ref_id": (request.form.get("ref_id") or "").strip(),
         "val1": (request.form.get("val1") or "").strip(),
         "val2": (request.form.get("val2") or "").strip(),
+        "usbl_sensor": usbl_s,
         "env_wind": env_w, "env_current": env_c, "env_swell": env_s,
         "remarks": rem
     }
@@ -546,244 +557,201 @@ def mti_sw():
     js = "self.addEventListener('install', e => self.skipWaiting()); self.addEventListener('fetch', e => {});"
     return Response(js, mimetype='application/javascript')
 
-# ==============================================================================
-# STEP 2: 4-PANEL SUBSEA MATTRESS VERIFICATION & REPORTING STUDIO ROUTES
-# ==============================================================================
-MTI_4PANEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "workspace", "mti_4panel")
 
-def _get_catalog_list():
-    cat = globals().get("MATTRESS_CATALOG") or []
-    if isinstance(cat, dict):
-        return list(cat.values())
-    return list(cat)
+# --- PURE ASCII PRELOADED DPR DATASET (30 OCT - 07 NOV 2026) & SAFE STORAGE ---
+PRELOADED_MTI_LEDGER = [
+    {
+        "id": 1, "unit_no": 1, "is_first_in_array": True, "unit_type": "Concrete Mattress",
+        "crossing_id": "CR-A1_L1", "design_box_id": "CR-A1_M15", "physical_tag": "#A046",
+        "install_date": "2026-11-04 14:34", "usbl_sensor": "Survey Pole",
+        "design_e": 194541.443, "design_n": 2702613.394, "design_brg": 195.861,
+        "qaqc_e": 194541.206, "qaqc_n": 2702613.513, "qaqc_brg": 196.889,
+        "aslaid_e": 194541.206, "aslaid_n": 2702613.513, "aslaid_z": -18.20,
+        "cl_offset_m": 0.265, "heading_deg": 196.889, "brg_diff_deg": -1.028,
+        "c1_e": 194540.642, "c1_n": 2702616.819, "c1_z": -18.20,
+        "c2_e": 194543.513, "c2_n": 2702615.948, "c2_z": -18.20,
+        "c3_e": 194541.770, "c3_n": 2702610.207, "c3_z": -18.20,
+        "c4_e": 194538.899, "c4_n": 2702611.078, "c4_z": -18.20,
+        "gap_nw": "", "gap_ne": "", "gap_sw": "", "gap_se": "",
+        "gap_labels": "1st Unit (N/A)", "gap1_m": 0.0, "gap2_m": 0.0, "gap_m": 0.0,
+        "env_wind": "", "env_current": "",
+        "status": "Completed",
+        "remarks": "[Survey Pole] Mattress installed completed (CR-A1_M15) #A046 (14:34 - 16:00:20); dCL=0.265m, dBrg=-1.028 deg"
+    },
+    {
+        "id": 2, "unit_no": 2, "is_first_in_array": False, "unit_type": "Concrete Mattress",
+        "crossing_id": "CR-A1_L1", "design_box_id": "CR-A1_M16", "physical_tag": "#A007",
+        "install_date": "2026-11-05 04:20", "usbl_sensor": "Survey Pole",
+        "design_e": 194544.329, "design_n": 2702612.575, "design_brg": 195.852,
+        "qaqc_e": 194544.356, "qaqc_n": 2702612.753, "qaqc_brg": 198.397,
+        "aslaid_e": 194544.356, "aslaid_n": 2702612.753, "aslaid_z": -18.35,
+        "cl_offset_m": 0.180, "heading_deg": 198.397, "brg_diff_deg": -2.545,
+        "c1_e": 194543.879, "c1_n": 2702616.073, "c1_z": -18.35,
+        "c2_e": 194546.726, "c2_n": 2702615.126, "c2_z": -18.35,
+        "c3_e": 194544.833, "c3_n": 2702609.433, "c3_z": -18.35,
+        "c4_e": 194541.986, "c4_n": 2702610.380, "c4_z": -18.35,
+        "gap_nw": "0.02", "gap_ne": "", "gap_sw": "0.10", "gap_se": "",
+        "gap_labels": "NW:0.02m | SW:0.10m", "gap1_m": 0.02, "gap2_m": 0.10, "gap_m": 0.10,
+        "env_wind": "", "env_current": "",
+        "status": "Completed",
+        "remarks": "[Survey Pole] Mattress installed completed (CR-A1_M16) #A007 (04:20 - 04:40); Gap between Mat is 2cm North and 10cm South; ROV 4-corner fix completed at 05:00"
+    }
+]
 
-def _load_crossing_seabed(crossing_id):
-    os.makedirs(MTI_4PANEL_DIR, exist_ok=True)
-    sb_path = os.path.join(MTI_4PANEL_DIR, f"seabed_{crossing_id}.json")
-    if os.path.exists(sb_path):
+_RAW_DPR_TUPLES = [
+    ("2026-10-30 08:15", "08:15 - 15:15", "Calib, Setup & TBT", "Abror", "MMA Prestige / Quayside", "Survey Pole", "Install the survey equipment and integration", ""),
+    ("2026-10-30 15:15", "15:15 - 19:30", "Calib, Setup & TBT", "Abror", "MMA Prestige / Quayside", "Survey Pole", "Perform Dimcon", ""),
+    ("2026-10-30 19:30", "19:30 - 20:00", "Calib, Setup & TBT", "Roderick", "MMA Prestige / Quayside", "Survey Pole", "Create SD3 as new control point for calibration", ""),
+    ("2026-10-31 07:00", "07:00 - 07:44", "Calib, Setup & TBT", "Abror", "MMA Prestige / Quayside", "Survey Pole", "Prepare for calibration", ""),
+    ("2026-10-31 07:44", "07:44 - 15:30", "Calib, Setup & TBT", "Abror", "MMA Prestige / Quayside", "Survey Pole", "Starting heading alignment, GPS Verification and pitch roll calibration", "Completed calibration at 15:30"),
+    ("2026-10-31 15:30", "15:30 - 18:30", "Calib, Setup & TBT", "Abror", "MMA Prestige / Quayside", "Survey Pole", "Wet test equipment", "Completed wet test equipment at 18:30"),
+    ("2026-10-31 18:30", "18:30 - 22:00", "Calib, Setup & TBT", "Abror", "MMA Prestige / Quayside", "Survey Pole", "Continue system integration", ""),
+    ("2026-11-01 05:00", "05:00 - 08:00", "Calib, Setup & TBT", "Roderick", "MMA Prestige / Quayside", "Survey Pole", "Continue node offset check", ""),
+    ("2026-11-01 09:00", "09:00 - 11:40", "ROV & Vessel Ops", "Abror", "MMA Prestige / CR-A1", "Survey Pole", "Vessel cast off to site calibration", ""),
+    ("2026-11-01 11:40", "11:40 - 12:15", "Pole down", "Abror", "MMA Prestige / CR-A1", "", "Arrive site and perform DP trial, Deploy SVP and pole", ""),
+    ("2026-11-01 12:15", "12:15 - 12:28", "ROV & Vessel Ops", "Abror", "MMA Prestige / CR-A1", "Survey Pole", "Prepare to launch ROV for recovering the beacon", ""),
+    ("2026-11-01 12:28", "12:28 - 13:40", "ROV & Vessel Ops", "Abror", "MMA Prestige / CR-A1", "Survey Pole", "ROV off deck", ""),
+    ("2026-11-01 13:40", "13:40 - 14:31", "ROV & Vessel Ops", "Abror", "MMA Prestige / CR-A1", "Survey Pole", "ROV on deck", ""),
+    ("2026-11-01 14:31", "14:31 - 08:15 (+1d)", "Calib, Setup & TBT", "Abror", "MMA Prestige / CR-A1", "Survey Pole", "Starting USBL calibration and processing", "Calibration vessel and survey pole USBL"),
+    ("2026-11-02 08:15", "08:15 - 09:00", "Survey Issue Reporting", "Abror", "MMA Prestige / Mess Room", "Survey Pole", "Meeting with client for the status of USBL calibration results due to accuracy issue", ""),
+    ("2026-11-02 09:00", "09:00 - 13:00", "Calib, Setup & TBT", "Abror", "MMA Prestige / CR-A1", "Survey Pole", "Re-perform USBL calibration", "Completed USBL calibration at 13:00"),
+    ("2026-11-02 13:00", "13:00 - 13:11", "ROV & Vessel Ops", "Abror", "MMA Prestige / CR-A1", "Survey Pole", "Prepare to launch ROV for recovering the beacon", ""),
+    ("2026-11-02 13:11", "13:11 - 13:50", "ROV & Vessel Ops", "Abror", "MMA Prestige / CR-A1", "Survey Pole", "ROV off deck", ""),
+    ("2026-11-02 13:50", "13:50 - 13:55", "Survey Issue Reporting", "Abror", "MMA Prestige / CR-A1", "Survey Pole", "ROV on deck due umbilical entangled to cage wire", ""),
+    ("2026-11-02 13:55", "13:55 - 16:30", "ROV & Vessel Ops", "Abror", "MMA Prestige / CR-A1", "Survey Pole", "Aborted to re-launch ROV due to weather", ""),
+    ("2026-11-02 16:30", "16:30 - 18:00", "Pole up", "Abror", "MMA Prestige / CR-A1", "", "Survey pole recovered", ""),
+    ("2026-11-02 18:00", "18:00 - 23:30", "Calib, Setup & TBT", "Abror", "Crane Cabin / Helmsman PC", "Survey Pole", "Preparing data for helmsman, waypoint and background", ""),
+    ("2026-11-02 23:30", "23:30 - 24:00", "Survey Issue Reporting", "Roderick", "MMA Prestige / CR-A1", "Survey Pole", "Standby weather and troubleshoot USBL Accuracy ongoing", ""),
+    ("2026-11-03 00:00", "00:00 - 07:00", "Calib, Setup & TBT", "Roderick", "Crane Cabin / Helmsman PC", "Survey Pole", "Continue preparing data for helmsman, waypoint and background", ""),
+    ("2026-11-03 08:25", "08:25 - 09:30", "Calib, Setup & TBT", "Abror", "MMA Prestige / Mess Room", "Survey Pole", "NMDC induction and toolbox talk in mess room", ""),
+    ("2026-11-03 09:30", "09:30 - 10:00", "Calib, Setup & TBT", "Abror", "MMA Prestige / Mess Room", "Survey Pole", "Daily project meeting", ""),
+    ("2026-11-03 15:16", "15:16 - 16:00", "Calib, Setup & TBT", "Abror", "MMA Prestige / CR-A1", "Survey Pole", "USBL Calibration report completed and submitted to Seatrench Field Engineer", ""),
+    ("2026-11-03 16:00", "16:00 - 24:00", "Calib, Setup & TBT", "Abror", "Crane Cabin / Helmsman PC", "Survey Pole", "Continue preparing data for helmsman, waypoint and background", ""),
+    ("2026-11-04 07:48", "07:48 - 08:19", "ROV & Vessel Ops", "Abror", "Echo 4 / CR-A1", "Survey Pole", "Echo 4 arrived on the Location", ""),
+    ("2026-11-04 08:19", "08:19 - 08:25", "ROV & Vessel Ops", "Abror", "Echo 4 / CR-A1", "Survey Pole", "Moved 100 meters to create Echo 4 space, Echo 4 entering beacon location", ""),
+    ("2026-11-04 08:25", "08:25 - 10:15", "ROV & Vessel Ops", "Abror", "Echo 4 / CR-A1", "Survey Pole", "Echo 4 start survey", ""),
+    ("2026-11-04 10:15", "10:15 - 10:20", "Mattress on water", "Abror", "CR-A1_M15 (#A046)", "", "Started lifting the Mattress and put on the water", ""),
+    ("2026-11-04 10:20", "10:20 - 13:25", "Mattress on water", "Abror", "CR-A1_M15 (#A046)", "", "Mattress on the seabed and start positioning", ""),
+    ("2026-11-04 13:25", "13:25 - 14:34", "Mattress on water", "Abror", "CR-A1_M15 (#A046)", "", "Installation mattress on process, adjust heading and stabilize signal", ""),
+    ("2026-11-04 14:34", "14:34 - 16:00:20", "Mattress fix", "Abror", "CR-A1_M15 (#A046)", "Survey Pole", "Act E:194541.206, N:2702613.513, Z:-18.20 (dCL:0.265m)", "Brg:196.889 deg | 1st Unit (N/A) | Mattress installed completed (CR-A1_M15) #A046"),
+    ("2026-11-04 16:55", "16:55 - 17:00", "Mattress on water", "Abror", "CR-A1_M16 (#A007)", "", "Started lifting the Mattress and put on the water", ""),
+    ("2026-11-04 17:00", "17:00 - 19:30", "Mattress on water", "Abror", "CR-A1_M16 (#A007)", "", "Started align the mattress to the position and ongoing installation", ""),
+    ("2026-11-04 19:30", "19:30 - 20:45", "ROV & Vessel Ops", "Roderick", "CR-A1_M16 (#A007)", "Survey Pole", "ROV stuck inside the lifting frame", ""),
+    ("2026-11-04 20:45", "20:45 - 21:55", "ROV & Vessel Ops", "Roderick", "CR-A1_M16 (#A007)", "Survey Pole", "ROV recovered and lifted up on deck", ""),
+    ("2026-11-04 21:55", "21:55 - 24:00", "Survey Issue Reporting", "Roderick", "CR-A1_M16 (#A007)", "Survey Pole", "Repair ROV propeller damage", ""),
+    ("2026-11-05 00:00", "00:00 - 00:15", "ROV & Vessel Ops", "Roderick", "CR-A1_M16 (#A007)", "Survey Pole", "ROV repaired and deployed into the water", ""),
+    ("2026-11-05 00:15", "00:15 - 01:40", "Mattress on water", "Roderick", "CR-A1_M16 (#A007)", "", "Mattress deployed in the water to resume placing", ""),
+    ("2026-11-05 01:40", "01:40 - 01:50", "Mattress on water", "Roderick", "CR-A1_M16 (#A007)", "", "Mattress on the seabed and start alignment", ""),
+    ("2026-11-05 01:50", "01:50 - 02:20", "Survey Issue Reporting", "Roderick", "CR-A1_M16 (#A007)", "Survey Pole", "Beacon Signal lost and intermittent signal return", "01:50-02:00 & 02:05-02:19 signal lost; restored at 02:20"),
+    ("2026-11-05 02:20", "02:20 - 04:20", "Mattress on water", "Roderick", "CR-A1_M16 (#A007)", "", "Continue repositioning of the mattress", ""),
+    ("2026-11-05 04:20", "04:20 - 04:40", "Mattress fix", "Roderick", "CR-A1_M16 (#A007)", "Survey Pole", "Act E:194544.356, N:2702612.753, Z:-18.35 (dCL:0.180m)", "Brg:198.397 deg | Gap between Mat is 2cm North and 10cm South (CR-A1_M16 #A007)"),
+    ("2026-11-05 04:40", "04:40 - 04:45", "Frame above water", "Roderick", "CR-A1_M16 (#A007)", "", "Frame safe release", ""),
+    ("2026-11-05 04:45", "04:45 - 05:00", "ROV & Vessel Ops", "Roderick", "CR-A1_M16 (#A007)", "Survey Pole", "ROV final take and complete the four corner position of the mattress", ""),
+    ("2026-11-05 05:00", "05:00 - 07:00", "ROV & Vessel Ops", "Roderick", "CR-A1_M16 (#A007)", "Survey Pole", "ROV recovered from water and placed on deck for maintenance", ""),
+    ("2026-11-05 07:00", "07:00 - 07:05", "ROV & Vessel Ops", "Abror", "MMA Prestige / CR-A1", "Survey Pole", "Start deploying ROV into the water to continue mattress installation", ""),
+    ("2026-11-05 07:05", "07:05 - 09:25", "Mattress on water", "Abror", "CR-A1_M17 (#A023)", "", "Connect mattress frame to crane and deploy into water (CR-A1_M17) #A023", ""),
+    ("2026-11-05 09:25", "09:25 - 09:35", "Survey Issue Reporting", "Abror", "CR-A1_M17 (#A023)", "Survey Pole", "Restart USBL System signal beacon lost while mattress installation in process", "Assisted by ROV with gap reference"),
+    ("2026-11-05 09:35", "09:35 - 10:47", "Mattress on water", "Abror", "CR-A1_M17 (#A023)", "", "USBL system back to normal, continue placing mattress with ROV and Sonar", ""),
+    ("2026-11-05 10:47", "10:47 - 10:57", "Survey Issue Reporting", "Abror", "CR-A1_M17 (#A023)", "Survey Pole", "Restart USBL System signal beacon lost while mattress installation in process", ""),
+    ("2026-11-05 10:57", "10:57 - 11:30", "Mattress on water", "Abror", "CR-A1_M17 (#A023)", "", "USBL system back to normal, continue placing mattress with ROV and Sonar", ""),
+    ("2026-11-05 11:30", "11:30 - 13:00", "Survey Issue Reporting", "Abror", "CR-A1_M17 (#A023)", "Survey Pole", "Restart USBL System signal beacon lost; troubleshoot cable and connector of Survey Pole USBL", "Survey pole USBL off, signal result still same"),
+    ("2026-11-05 12:15", "12:15 - 12:20", "Calib, Setup & TBT", "Abror", "CR-A1_M17 (#A023)", "Vessel", "Switch to Vessel USBL for navigation system", "For mattress positioning only; final position to be taken with Survey Pole USBL; Vessel USBL good and stable"),
+    ("2026-11-05 12:20", "12:20 - 15:00", "Mattress on water", "Abror", "CR-A1_M17 (#A023)", "", "Continue repositioning of the mattress", "ROV struggling to adjust mattress heading as per design"),
+    ("2026-11-05 15:00", "15:00 - 15:15", "Frame above water", "Abror", "CR-A1_M17 (#A023)", "", "Lift up frame on deck to install tagline to assist heading adjustment", ""),
+    ("2026-11-05 15:15", "15:15 - 15:30", "Mattress on water", "Abror", "CR-A1_M17 (#A023)", "", "Lower back the frame into the water after tagline installed", ""),
+    ("2026-11-05 15:30", "15:30 - 15:40", "ROV & Vessel Ops", "Abror", "CR-A1_M17 (#A023)", "Vessel", "Vessel adjust heading as survey guidance in navigation system", ""),
+    ("2026-11-05 15:40", "15:40 - 16:00", "Mattress on water", "Abror", "CR-A1_M17 (#A023)", "", "Continue repositioning of the mattress with tagline", ""),
+    ("2026-11-05 16:00", "16:00 - 18:00", "Mattress on water", "Abror", "CR-A1_M17 (#A023)", "", "Attempted Mattress Placement (#A023) with ROV on seabed", "Seabed not flat; East side matched but West side gap > 20 cm on ROV video; center within tolerance 0.18 m vs design"),
+    ("2026-11-05 18:36", "18:36 - 19:10", "Mattress on water", "Abror", "CR-A1_M17 (#A023)", "", "Continue repositioning of the mattress with ROV and tagline to close gap", ""),
+    ("2026-11-05 19:15", "19:15 - 19:20", "Frame above water", "Roderick", "CR-A1_M17 (#A023)", "", "ROV and mattress removed from water and placed back on main deck", ""),
+    ("2026-11-05 19:25", "19:25 - 07:51 (+1d)", "Pole up", "Roderick", "MMA Prestige / CR-A1", "", "Survey pole secured and retrieved from water; operations on weather standby", "Lat 24d25m44.20s Long 120d27m10.72s, Heading=38.87 deg"),
+    ("2026-11-06 07:51", "07:51 - 08:30", "Calib, Setup & TBT", "Abror", "Crane Cabin / Helmsman PC", "Survey Pole", "Preparation for installing remote Helmsman PC in crane cabin", ""),
+    ("2026-11-06 09:30", "09:30 - 10:45", "ROV & Vessel Ops", "Abror", "Calibration Tripod", "Survey Pole", "Daily project meeting & Vessel moving into tripod position", ""),
+    ("2026-11-06 10:45", "10:45 - 10:54", "Calib, Setup & TBT", "Abror", "Calibration Tripod", "Survey Pole", "Beacon tripod sending signal to USBL", ""),
+    ("2026-11-06 10:54", "10:54 - 11:03", "ROV & Vessel Ops", "Abror", "Calibration Tripod", "Survey Pole", "ROV off deck and in the surface", ""),
+    ("2026-11-06 11:03", "11:03 - 11:14", "Survey Issue Reporting", "Abror", "Calibration Tripod", "Survey Pole", "Tripod beacon found fallen on seabed", "Found calibration beacon tripod fallen and not standing in proper position (affected calibration result)"),
+    ("2026-11-06 11:14", "11:14 - 11:20", "ROV & Vessel Ops", "Abror", "Calibration Tripod", "Survey Pole", "ROV recovered on deck", ""),
+    ("2026-11-06 11:20", "11:20 - 15:00", "Calib, Setup & TBT", "Abror", "Crane Cabin / Helmsman PC", "Survey Pole", "Install Monitor control unit in crane cabin with wireless Wi-Fi connection", ""),
+    ("2026-11-06 15:00", "15:00 - 19:00", "Calib, Setup & TBT", "Abror", "MMA Prestige / CR-A1", "Survey Pole", "Process current speed data as per recorded data", ""),
+    ("2026-11-06 19:00", "19:00 - 20:00", "Survey Issue Reporting", "Roderick", "MMA Prestige / CR-A1", "Survey Pole", "Continue to troubleshoot USBL issue with string and signal", ""),
+    ("2026-11-06 21:00", "21:00 - 07:00 (+1d)", "Calib, Setup & TBT", "Roderick", "MMA Prestige / CR-A1", "Survey Pole", "Operations remain on standby due to deteriorating weather conditions", "Lat 24d25m44.20s Long 120d27m10.72s, Heading=38.87 deg"),
+    ("2026-11-07 09:00", "09:00 - 12:00", "Survey Issue Reporting", "Abror", "MMA Prestige / CR-A1", "Survey Pole", "Continue troubleshooting instability of USBL string", "Created new job in Mini-Ranger software and checked current setup wiring"),
+    ("2026-11-07 12:00", "12:00 - 12:50", "Calib, Setup & TBT", "Abror", "MMA Prestige / CR-A1", "Survey Pole", "Make additional offset on WROV for new node to take fix coordinate reference", ""),
+    ("2026-11-07 12:50", "12:50 - 13:30", "Pole down", "Abror", "MMA Prestige / CR-A1", "", "Lower survey pole to test system ADCP, USBL and MRU", ""),
+    ("2026-11-07 13:30", "13:30 - 15:20", "Calib, Setup & TBT", "Abror", "Crane Cabin / Helmsman PC", "Survey Pole", "Deploy 1 and 2 beacons with crane assist to 20 m water depth to test USBL ping stability", "13:40-14:00 (1 beacon at 20m); 14:20-15:20 (2 beacons deployed simultaneously at 20m)"),
+    ("2026-11-07 15:20", "15:20 - 15:50", "Survey Issue Reporting", "Abror", "MMA Prestige / CR-A1", "Survey Pole", "Lift up beacon on deck, testing complete - Survey Pole USBL data loss persists", "Result signal on Survey USBL still same; longer stay in water causes more data loss"),
+    ("2026-11-07 15:50", "15:50 - 18:51", "Calib, Setup & TBT", "Abror", "MMA Prestige / CR-A1", "Survey Pole", "Record sea current and continue troubleshooting", ""),
+    ("2026-11-07 18:51", "18:51 - 19:00", "ROV & Vessel Ops", "Abror", "Calibration Tripod", "Survey Pole", "Prepare ROV to install tripod beacon on the seabed for next installation", "")
+]
+
+PRELOADED_MTI_LOGS = []
+for _idx, (_ts, _win, _evt, _surv, _ref, _usbl, _act, _rem) in enumerate(_RAW_DPR_TUPLES, 1):
+    _frem = f"{_act} - {_rem} ({_win})" if _rem else f"{_act} ({_win})"
+    if _usbl:
+        _frem += f" [USBL:{_usbl}]"
+    PRELOADED_MTI_LOGS.append({
+        "id": _idx, "event_type": _evt, "timestamp": _ts, "surveyor": _surv, "ref_id": _ref,
+        "val1": _act, "val2": (_rem if _evt == "Mattress fix" else f"Window: {_win}"),
+        "usbl_sensor": _usbl, "env_wind": "", "env_current": "", "remarks": _frem
+    })
+
+_BASE_LOAD_MTI = load_mti_state
+
+def save_mti_state(state):
+    raw = json.dumps(state, ensure_ascii=False)
+    try:
+        from app import db
+        from sqlalchemy import text
+        db.session.execute(text("CREATE TABLE IF NOT EXISTS mti_state_store (k VARCHAR(64) PRIMARY KEY, v TEXT)"))
+        row = db.session.execute(text("SELECT k FROM mti_state_store WHERE k = 'mti_state_v1'")).fetchone()
+        if row:
+            db.session.execute(text("UPDATE mti_state_store SET v = :val WHERE k = 'mti_state_v1'"), {"val": raw})
+        else:
+            db.session.execute(text("INSERT INTO mti_state_store (k, v) VALUES ('mti_state_v1', :val)"), {"val": raw})
+        db.session.commit()
+    except Exception:
         try:
-            with open(sb_path, "r", encoding="utf-8") as f:
-                return json.load(f)
+            from app import db
+            db.session.rollback()
         except Exception:
             pass
-    return None
+    try:
+        sf = globals().get("MTI_STATE_FILE") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "mti_state.json")
+        with open(sf, "w", encoding="utf-8") as f:
+            f.write(raw)
+    except Exception:
+        pass
 
-@mti_bp.route('/verify_4panel', methods=['POST'])
-@login_required
-def verify_4panel():
-    import base64 as _b64
-    import numpy as _np
-    import mti_4panel_engine as _eng
-    from flask import jsonify
-
-    os.makedirs(MTI_4PANEL_DIR, exist_ok=True)
-    state = load_mti_state()
-    ledger = state.get("ledger", [])
-    cat_list = _get_catalog_list()
-
-    payload = request.get_json(silent=True) or request.form.to_dict()
-    xing_id = str(payload.get("crossing_id") or "CR-A1_L1").strip()
-    loc_id = str(payload.get("location_id") or payload.get("design_box_id") or "AUTO").strip()
-    mat_id = str(payload.get("mattress_id") or payload.get("physical_tag") or "001").strip()
-    dt_str = str(payload.get("install_date") or payload.get("date_str") or "").strip()
-    scale_p1 = int(float(payload.get("scale_p1") or 250))
-    scale_p2 = int(float(payload.get("scale_p2") or 75))
-    inc_hist = str(payload.get("include_history", "true")).lower() in ("true", "1", "yes", "on")
-    outlier_m = float(payload.get("outlier_thresh_m") or 10.0)
-
-    raw_cnt, flyers = 0, []
-    clean_pts = None
-
-    f_cloud = request.files.get("cloud_file")
-    if f_cloud and f_cloud.filename:
-        raw_txt = f_cloud.read().decode("utf-8", errors="ignore")
-        raw_arr, clean_pts, flyers = _eng.parse_xyz_text(raw_txt, outlier_thresh_m=outlier_m)
-        raw_cnt = len(raw_arr)
-    elif payload.get("cloud_text"):
-        raw_arr, clean_pts, flyers = _eng.parse_xyz_text(payload.get("cloud_text"), outlier_thresh_m=outlier_m)
-        raw_cnt = len(raw_arr)
-
-    if clean_pts is None or len(clean_pts) == 0:
-        corners = []
-        for i in (1, 2, 3, 4):
-            ce = payload.get(f"c{i}_e")
-            cn = payload.get(f"c{i}_n")
-            cz = payload.get(f"c{i}_z")
+def load_mti_state():
+    st = None
+    try:
+        from app import db
+        from sqlalchemy import text
+        db.session.execute(text("CREATE TABLE IF NOT EXISTS mti_state_store (k VARCHAR(64) PRIMARY KEY, v TEXT)"))
+        row = db.session.execute(text("SELECT v FROM mti_state_store WHERE k = 'mti_state_v1'")).fetchone()
+        if row and row[0]:
+            st = json.loads(row[0])
+    except Exception:
+        try:
+            from app import db
+            db.session.rollback()
+        except Exception:
+            pass
+    if not st:
+        try:
+            st = _BASE_LOAD_MTI()
+        except Exception:
             try:
-                if ce is not None and cn is not None and str(ce).strip() != "" and str(cn).strip() != "":
-                    corners.append([float(ce), float(cn), float(cz if (cz is not None and str(cz).strip() != "") else -18.20)])
+                from app import db
+                db.session.rollback()
             except Exception:
                 pass
-        if len(corners) < 4:
-            ae = float(payload.get("aslaid_e") or payload.get("qaqc_e") or payload.get("design_e") or 194541.206)
-            an = float(payload.get("aslaid_n") or payload.get("qaqc_n") or payload.get("design_n") or 2702613.513)
-            az = float(payload.get("aslaid_z") or -18.20)
-            brg = float(payload.get("heading_deg") or payload.get("qaqc_brg") or 196.889)
-            corners = _eng.synthesize_4corners_from_center(ae, an, az, brg)
-        clean_pts, _ = _eng.interpolate_4corners_grid(corners, nx=35, ny=20)
-        raw_cnt = len(clean_pts)
-
-    med_e, med_n = float(_np.median(clean_pts[:, 0])), float(_np.median(clean_pts[:, 1]))
-    target_box = None
-    if loc_id and loc_id.upper() != "AUTO":
-        target_box = next((b for b in cat_list if str(b.get("name")) == loc_id), None)
-    if not target_box and cat_list:
-        target_box = min(cat_list, key=lambda b: math.hypot(float(b["design_e"]) - med_e, float(b["design_n"]) - med_n))
-    if not target_box:
-        target_box = {"layer": xing_id, "name": (loc_id if loc_id != "AUTO" else "CR-A1_M15"), "design_e": 194541.443, "design_n": 2702613.394, "bearing": 195.854}
-
-    sb_pts = _load_crossing_seabed(target_box["layer"])
-    res = _eng.analyze_mattress_cloud(
-        clean_pts, target_box, cat_list, ledger_rows=ledger,
-        seabed_pts=sb_pts, physical_tag=mat_id, date_str=dt_str,
-        raw_count=raw_cnt, flyers=flyers, include_history=inc_hist
-    )
-    report_md = _eng.build_default_report_markdown(res, ledger_rows=ledger)
-
-    base_fn = res["base_filename"]
-    pdf_a3 = os.path.join(MTI_4PANEL_DIR, base_fn + ".pdf")
-    png_a3 = os.path.join(MTI_4PANEL_DIR, base_fn + ".png")
-    pdf_a4 = os.path.join(MTI_4PANEL_DIR, base_fn + "_A4_Report.pdf")
-    docx_p = os.path.join(MTI_4PANEL_DIR, base_fn + "_Report.docx")
-
-    _eng.render_a3_4panel_chart(res, cat_list, ledger_rows=ledger, out_pdf_path=pdf_a3, out_png_path=png_a3, scale_p1=scale_p1, scale_p2=scale_p2)
-    _eng.render_a4_report_pdf(res, report_md, pdf_a4)
-    _eng.generate_docx_report(res, report_md, docx_p)
-
-    png_b64 = ""
-    if os.path.exists(png_a3):
-        with open(png_a3, "rb") as fp:
-            png_b64 = _b64.b64encode(fp.read()).decode("ascii")
-
-    res_clean = {k: v for k, v in res.items() if k != "_arrays"}
-    res_clean["report_md"] = report_md
-    res_clean["scale_p1"] = scale_p1
-    res_clean["scale_p2"] = scale_p2
-    res_clean["png_b64"] = png_b64
-
-    state["last_4panel"] = res_clean
-    save_mti_state(state)
-
-    if request.is_json or payload.get("ajax") == "1" or "application/json" in (request.headers.get("Accept") or ""):
-        return jsonify({"status": "ok", "result": res_clean})
-
-    flash(f"Generated 4-Panel Chart & A4/Word Reports: {base_fn}", "success")
-    return redirect((request.referrer or "/mti").split("#")[0] + "#studio4Panel")
-
-@mti_bp.route('/update_4panel_report', methods=['POST'])
-@login_required
-def update_4panel_report():
-    import mti_4panel_engine as _eng
-    from flask import jsonify
-
-    os.makedirs(MTI_4PANEL_DIR, exist_ok=True)
-    state = load_mti_state()
-    last_res = state.get("last_4panel") or {}
-    payload = request.get_json(silent=True) or request.form.to_dict()
-
-    new_md = str(payload.get("report_md") or payload.get("report_markdown") or last_res.get("report_md") or "").strip()
-    base_fn = str(payload.get("base_filename") or last_res.get("base_filename") or "20261105_Mattress_CR-A1_M15_001").strip()
-    if not last_res.get("location_id"):
-        last_res = {
-            "crossing_id": "CR-A1_L1", "location_id": "CR-A1_M15", "mattress_id": "#A046",
-            "date_str": "2026-11-05 03:20", "base_filename": base_fn, "verdict_short": "VERIFIED"
-        }
-
-    pdf_a4 = os.path.join(MTI_4PANEL_DIR, base_fn + "_A4_Report.pdf")
-    docx_p = os.path.join(MTI_4PANEL_DIR, base_fn + "_Report.docx")
-    _eng.render_a4_report_pdf(last_res, new_md, pdf_a4)
-    _eng.generate_docx_report(last_res, new_md, docx_p)
-
-    last_res["report_md"] = new_md
-    state["last_4panel"] = last_res
-    save_mti_state(state)
-
-    if request.is_json or payload.get("ajax") == "1" or "application/json" in (request.headers.get("Accept") or ""):
-        return jsonify({"status": "ok", "base_filename": base_fn, "message": "Updated A4 PDF and Word (.docx) with custom edits!"})
-
-    flash(f"Applied custom report edits to {base_fn}_A4_Report.pdf & _Report.docx!", "success")
-    return redirect((request.referrer or "/mti").split("#")[0] + "#studio4Panel")
-
-@mti_bp.route('/upload_seabed', methods=['POST'])
-@login_required
-def upload_seabed():
-    import mti_4panel_engine as _eng
-    os.makedirs(MTI_4PANEL_DIR, exist_ok=True)
-    xing_id = (request.form.get("crossing_id") or "CR-A1_L1").strip()
-    f_sb = request.files.get("seabed_file")
-    if not f_sb or not f_sb.filename:
-        flash("Please select a Pre-Survey Seabed (.xyz, .csv, .txt) file.", "warning")
-        return redirect(request.referrer or "/mti")
-    raw_txt = f_sb.read().decode("utf-8", errors="ignore")
-    raw_arr, _, _ = _eng.parse_xyz_text(raw_txt, outlier_thresh_m=500.0)
-    sb_path = os.path.join(MTI_4PANEL_DIR, f"seabed_{xing_id}.json")
-    with open(sb_path, "w", encoding="utf-8") as f:
-        json.dump(raw_arr.tolist(), f)
-    flash(f"Cached {len(raw_arr)} Pre-Survey Seabed soundings for {xing_id}!", "success")
-    return redirect((request.referrer or "/mti").split("#")[0] + "#studio4Panel")
-
-def _ensure_4panel_files_exist(base_fn, state):
-    import mti_4panel_engine as _eng
-    os.makedirs(MTI_4PANEL_DIR, exist_ok=True)
-    pdf_a3 = os.path.join(MTI_4PANEL_DIR, base_fn + ".pdf")
-    if not os.path.exists(pdf_a3):
-        last_res = state.get("last_4panel") or {}
-        cat_list = _get_catalog_list()
-        ledger = state.get("ledger", [])
-        loc_id = last_res.get("location_id") or "CR-A1_M15"
-        mat_id = last_res.get("mattress_id") or "#A046"
-        t_box = next((b for b in cat_list if b["name"] == loc_id), {"layer": "CR-A1_L1", "name": loc_id, "design_e": 194541.443, "design_n": 2702613.394, "bearing": 195.854})
-        c4 = _eng.synthesize_4corners_from_center(last_res.get("e_box", t_box["design_e"]), last_res.get("n_box", t_box["design_n"]), last_res.get("z_mean", -18.20), last_res.get("south_brg_cloud", t_box["bearing"]))
-        g_pts, _ = _eng.interpolate_4corners_grid(c4)
-        res = _eng.analyze_mattress_cloud(g_pts, t_box, cat_list, ledger_rows=ledger, physical_tag=mat_id, date_str=last_res.get("date_str"))
-        md = last_res.get("report_md") or _eng.build_default_report_markdown(res, ledger_rows=ledger)
-        _eng.render_a3_4panel_chart(res, cat_list, ledger_rows=ledger, out_pdf_path=pdf_a3, out_png_path=os.path.join(MTI_4PANEL_DIR, base_fn + ".png"))
-        _eng.render_a4_report_pdf(res, md, os.path.join(MTI_4PANEL_DIR, base_fn + "_A4_Report.pdf"))
-        _eng.generate_docx_report(res, md, os.path.join(MTI_4PANEL_DIR, base_fn + "_Report.docx"))
-
-@mti_bp.route('/download_a3_pdf')
-@login_required
-def download_a3_pdf():
-    from flask import send_file
-    state = load_mti_state()
-    base_fn = (request.args.get("file") or (state.get("last_4panel") or {}).get("base_filename") or "20261104_Mattress_CR-A1_M15_A046").strip()
-    _ensure_4panel_files_exist(base_fn, state)
-    p = os.path.join(MTI_4PANEL_DIR, base_fn + ".pdf")
-    return send_file(p, as_attachment=True, download_name=base_fn + ".pdf", mimetype="application/pdf")
-
-@mti_bp.route('/download_a3_png')
-@login_required
-def download_a3_png():
-    from flask import send_file
-    state = load_mti_state()
-    base_fn = (request.args.get("file") or (state.get("last_4panel") or {}).get("base_filename") or "20261104_Mattress_CR-A1_M15_A046").strip()
-    _ensure_4panel_files_exist(base_fn, state)
-    p = os.path.join(MTI_4PANEL_DIR, base_fn + ".png")
-    return send_file(p, as_attachment=(request.args.get("dl") == "1"), download_name=base_fn + ".png", mimetype="image/png")
-
-@mti_bp.route('/download_a4_pdf')
-@login_required
-def download_a4_pdf():
-    from flask import send_file
-    state = load_mti_state()
-    base_fn = (request.args.get("file") or (state.get("last_4panel") or {}).get("base_filename") or "20261104_Mattress_CR-A1_M15_A046").strip()
-    _ensure_4panel_files_exist(base_fn, state)
-    p = os.path.join(MTI_4PANEL_DIR, base_fn + "_A4_Report.pdf")
-    return send_file(p, as_attachment=True, download_name=base_fn + "_A4_Report.pdf", mimetype="application/pdf")
-
-@mti_bp.route('/download_docx')
-@login_required
-def download_docx():
-    from flask import send_file
-    state = load_mti_state()
-    base_fn = (request.args.get("file") or (state.get("last_4panel") or {}).get("base_filename") or "20261104_Mattress_CR-A1_M15_A046").strip()
-    _ensure_4panel_files_exist(base_fn, state)
-    p = os.path.join(MTI_4PANEL_DIR, base_fn + "_Report.docx")
-    return send_file(p, as_attachment=True, download_name=base_fn + "_Report.docx", mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-
-@mti_bp.route('/last_4panel_json')
-@login_required
-def last_4panel_json():
-    from flask import jsonify
-    state = load_mti_state()
-    return jsonify({"status": "ok", "result": state.get("last_4panel")})
+            st = {}
+    if not isinstance(st, dict):
+        st = {}
+    if not st.get("dpr_20261107_clean_v7"):
+        st["ledger"] = [dict(x) for x in PRELOADED_MTI_LEDGER]
+        st["input_logs"] = [dict(x) for x in PRELOADED_MTI_LOGS]
+        st["dpr_20261107_clean_v7"] = True
+        save_mti_state(st)
+    return st
