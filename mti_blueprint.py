@@ -755,3 +755,90 @@ def load_mti_state():
         st["dpr_20261107_clean_v7"] = True
         save_mti_state(st)
     return st
+
+# --- STEP 4: 4-PANEL SUBSEA MATTRESS VERIFICATION & REPORTING STUDIO ROUTES ---
+import os, re, base64
+import numpy as np
+from flask import jsonify, send_file
+from mti_4panel_math import run_rov_4panel_verification
+from mti_4panel_a3 import generate_a3_4panel_chart
+from mti_4panel_reports import build_structured_report_markdown, generate_a4_report_pdf, generate_editable_docx
+
+MTI_WS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "workspace")
+_as_bool = lambda v, d=True: d if v is None else str(v).strip().lower() in ("1", "true", "yes", "on")
+
+@mti_bp.route('/verify_4panel', methods=['POST'])
+@login_required
+def verify_4panel():
+    os.makedirs(MTI_WS_DIR, exist_ok=True)
+    st = load_mti_state()
+    ledger = st.get("ledger", [])
+    cat_list = list(MATTRESS_CATALOG.values()) if isinstance(MATTRESS_CATALOG, dict) else list(MATTRESS_CATALOG)
+    req = request.get_json(silent=True) or request.form.to_dict()
+    uno = str(req.get("unit_no") or "").strip()
+    fix_data = dict(next((r for r in ledger if str(r.get("unit_no")) == uno), {})) if uno else {}
+    fix_data.update({k: v for k, v in req.items() if v is not None and str(v).strip() != ""})
+    sc_p1, sc_p2 = int(float(req.get("scale_p1") or 250)), int(float(req.get("scale_p2") or 75))
+    inc_hist = _as_bool(req.get("include_history"), False)
+    sh_cont, sh_snd = _as_bool(req.get("show_contours"), True), _as_bool(req.get("show_soundings"), True)
+    c_int, s_spc = float(req.get("contour_interval") or 0.05), float(req.get("spot_spacing") or 2.0)
+
+    b_dict, metrics, c_xyz, xl, yl, zv, sb_loc, sb_full = run_rov_4panel_verification(fix_data, cat_list, MTI_WS_DIR)
+    png_b, _ = generate_a3_4panel_chart(b_dict, metrics, c_xyz, xl, yl, zv, sb_loc, sb_full, MTI_WS_DIR, inc_hist, ledger, sc_p1, sc_p2, sh_cont, c_int, sh_snd, s_spc)
+    rep_md = build_structured_report_markdown(metrics, inc_hist, ledger, sc_p1, sc_p2)
+    generate_a4_report_pdf(metrics, MTI_WS_DIR, rep_md)
+    generate_editable_docx(metrics, rep_md, MTI_WS_DIR)
+    st["last_4panel"] = {"metrics": metrics, "report_md": rep_md}
+    save_mti_state(st)
+    return jsonify({"status": "ok", "image_b64": base64.b64encode(png_b).decode("ascii"), "report_md": rep_md, "metrics": metrics})
+
+@mti_bp.route('/update_4panel_report', methods=['POST'])
+@login_required
+def update_4panel_report():
+    os.makedirs(MTI_WS_DIR, exist_ok=True)
+    st = load_mti_state()
+    last = st.get("last_4panel") or {}
+    req = request.get_json(silent=True) or request.form.to_dict()
+    rep_md = str(req.get("report_md") or last.get("report_md") or "").strip()
+    metrics = last.get("metrics") or {"location_id": "CR-A1_M15", "mattress_id": "#A046", "base_filename": "20261104_Mattress_CR-A1_M15_A046"}
+    generate_a4_report_pdf(metrics, MTI_WS_DIR, rep_md)
+    generate_editable_docx(metrics, rep_md, MTI_WS_DIR)
+    st["last_4panel"] = {"metrics": metrics, "report_md": rep_md}
+    save_mti_state(st)
+    return jsonify({"status": "ok", "base_filename": metrics.get("base_filename")})
+
+@mti_bp.route('/upload_seabed', methods=['POST'])
+@login_required
+def upload_seabed():
+    os.makedirs(MTI_WS_DIR, exist_ok=True)
+    xing_id = re.sub(r"[^A-Za-z0-9_-]", "_", str(request.form.get("crossing_id") or "CR-A1_L1").strip())
+    f = request.files.get("seabed_file")
+    pts = []
+    for ln in (f.read().decode("utf-8", errors="ignore").splitlines() if f else []):
+        ps = [p for p in re.split(r"[\s,;]+", ln.strip()) if p]
+        if len(ps) >= 3 and ps[0][0] not in ("#", "/", "E", "e", "X", "x"):
+            try: pts.append([float(ps[0]), float(ps[1]), -abs(float(ps[2])) if float(ps[2]) > 0 else float(ps[2])])
+            except Exception: pass
+    if pts: np.save(os.path.join(MTI_WS_DIR, f"{xing_id}_seabed.npy"), np.array(pts, dtype=float))
+    return jsonify({"status": "ok", "crossing_id": xing_id, "points": len(pts)})
+
+def _dl_4panel_file(latest_fn, suffix, mime):
+    base = (((load_mti_state().get("last_4panel") or {}).get("metrics") or {}).get("base_filename")) or "20261104_Mattress_CR-A1_M15_A046"
+    p = os.path.join(MTI_WS_DIR, base + suffix)
+    return send_file(p if os.path.exists(p) else os.path.join(MTI_WS_DIR, latest_fn), as_attachment=True, download_name=base + suffix, mimetype=mime)
+
+@mti_bp.route('/download_a3_pdf')
+@login_required
+def download_a3_pdf(): return _dl_4panel_file("latest_A3_4Panel_Chart.pdf", ".pdf", "application/pdf")
+
+@mti_bp.route('/download_a3_png')
+@login_required
+def download_a3_png(): return _dl_4panel_file("latest_A3_4Panel_Chart.png", ".png", "image/png")
+
+@mti_bp.route('/download_a4_pdf')
+@login_required
+def download_a4_pdf(): return _dl_4panel_file("latest_A4_Verification_Report.pdf", "_A4_Report.pdf", "application/pdf")
+
+@mti_bp.route('/download_docx')
+@login_required
+def download_docx(): return _dl_4panel_file("latest_Verification_Report.docx", "_Report.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
