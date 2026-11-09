@@ -819,17 +819,50 @@ def _purge_cached_pdfs():
 
 def _get_current_user_display_name():
     try:
-        from flask import session
-        from flask_login import current_user
-        if current_user and getattr(current_user, "is_authenticated", False):
-            for attr in ("full_name", "display_name", "real_name", "name", "surveyor_name", "username", "email"):
-                val = getattr(current_user, attr, None)
-                if val and str(val).strip():
-                    return str(val).strip()
-        for k in ("full_name", "display_name", "user_name", "name", "surveyor_name", "username"):
+        from flask import session, g, request
+        try:
+            from flask_login import current_user
+            if current_user and getattr(current_user, "is_authenticated", False):
+                for attr in ("full_name", "display_name", "real_name", "name", "surveyor_name", "username", "user", "email"):
+                    val = getattr(current_user, attr, None)
+                    if val and str(val).strip() and str(val).strip().lower() != "duty surveyor":
+                        return str(val).strip()
+                u_dict = getattr(current_user, "__dict__", {}) or {}
+                for k, val in u_dict.items():
+                    if any(w in k.lower() for w in ("name", "user", "surveyor")) and isinstance(val, str) and val.strip():
+                        return val.strip()
+        except Exception:
+            pass
+        for g_attr in ("user", "current_user", "username", "user_name", "surveyor"):
+            g_val = getattr(g, g_attr, None)
+            if isinstance(g_val, str) and g_val.strip():
+                return g_val.strip()
+            elif hasattr(g_val, "username") or hasattr(g_val, "name"):
+                v = getattr(g_val, "full_name", None) or getattr(g_val, "name", None) or getattr(g_val, "username", None)
+                if v and str(v).strip():
+                    return str(v).strip()
+        for k in ("full_name", "display_name", "real_name", "user_name", "username", "name", "surveyor_name", "surveyor", "user", "logged_in_user", "operator"):
             val = session.get(k)
-            if val and str(val).strip():
-                return str(val).strip()
+            if isinstance(val, dict):
+                for sk in ("full_name", "display_name", "name", "username", "user"):
+                    if val.get(sk) and str(val.get(sk)).strip():
+                        return str(val.get(sk)).strip()
+            elif val and isinstance(val, str) and val.strip() and val.strip().lower() != "duty surveyor":
+                return val.strip()
+        for k, val in dict(session).items():
+            kl = str(k).lower()
+            if any(w in kl for w in ("user", "name", "surv")) and isinstance(val, str) and 2 <= len(val.strip()) <= 50:
+                if not val.strip().isdigit() and val.strip().lower() != "duty surveyor":
+                    return val.strip()
+        st = load_mti_state()
+        for log_list_key in ("logs", "events", "event_log", "survey_logs"):
+            logs = st.get(log_list_key) or []
+            for lg in logs:
+                if isinstance(lg, dict):
+                    for lk in ("surveyor", "surveyor_name", "user", "username", "author", "logged_by"):
+                        lv = lg.get(lk)
+                        if lv and str(lv).strip() and str(lv).strip().lower() != "duty surveyor":
+                            return str(lv).strip()
     except Exception:
         pass
     return "Duty Surveyor"
@@ -855,8 +888,45 @@ def _resolve_fix_data(req, ledger):
             fix_data[k] = v
     if box_q and "design_box_id" not in fix_data:
         fix_data["design_box_id"] = box_q
-    fix_data["surveyor_name"] = str(req.get("surveyor_name") or _get_current_user_display_name()).strip()
+        req_surv = str(req.get("surveyor_name") or "").strip()
+    saved_surv = str(fix_data.get("surveyor_name") or fix_data.get("surveyor") or "").strip()
+    cur_u = _get_current_user_display_name()
+    if req_surv and req_surv.lower() != "duty surveyor":
+        fix_data["surveyor_name"] = req_surv
+    elif saved_surv and saved_surv.lower() != "duty surveyor":
+        fix_data["surveyor_name"] = saved_surv
+    else:
+        fix_data["surveyor_name"] = cur_u
     return fix_data
+
+@mti_bp.route('/whoami')
+@login_required
+def mti_whoami():
+    return jsonify({"status": "ok", "user_name": _get_current_user_display_name()})
+
+@mti_bp.after_request
+def _mti_ensure_surveyor_saved(response):
+    try:
+        if request.method == 'POST' and any(p in request.path for p in ('add_fix', 'save_fix', 'edit_fix', 'update_fix')):
+            s_name = str(request.form.get('surveyor_name') or _get_current_user_display_name()).strip()
+            box_id = str(request.form.get('design_box_id') or request.form.get('box_id') or '').strip()
+            if s_name:
+                st = load_mti_state()
+                ledger = st.get('ledger') or []
+                changed = False
+                for r in ledger:
+                    if box_id and str(r.get('design_box_id', '')).upper() == box_id.upper():
+                        r['surveyor_name'] = s_name
+                        r['surveyor'] = s_name
+                        changed = True
+                    elif not r.get('surveyor_name') or str(r.get('surveyor_name')).strip().lower() == 'duty surveyor':
+                        r['surveyor_name'] = s_name
+                        changed = True
+                if changed:
+                    save_mti_state(st)
+    except Exception:
+        pass
+    return response
 
 @mti_bp.route('/verify_4panel', methods=['POST'])
 @login_required
@@ -1788,7 +1858,7 @@ def mti_4panel_studio_window():
     init_box = fd.get("design_box_id") or "CR-A1_M15"
     init_tag = fd.get("physical_tag") or "#A046"
     init_date = fd.get("install_date") or "2026-11-04 14:34"
-    init_surveyor = _get_current_user_display_name()
+    init_surveyor = str(req.get("surveyor_name") or _get_current_user_display_name()).strip()
     return render_template_string(STUDIO_HTML_TEMPLATE, ledger=ledger, ledger_json=json.dumps(ledger), init_box=init_box, init_tag=init_tag, init_date=init_date, init_surveyor=init_surveyor)
 
 @mti_bp.route('/setup')

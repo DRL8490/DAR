@@ -211,35 +211,35 @@
     <div class="small fw-bold text-uppercase text-success mb-1" style="font-size:10.5px;">Line 4 : As-Laid ROV Coordinates Input = E, N, Z of 4-Corners of Mattress</div>
     <div class="row g-2">
       <div class="col-md-3 col-6">
-        <label class="small fw-bold text-dark mb-1">Corner 1 (C1 - NW: E, N, Z)</label>
+        <label class="small fw-bold text-dark mb-1">Corner 1 (C1 - NW: E, N)</label>
         <div class="input-group input-group-sm">
           <input type="number" step="0.001" name="c1_e" id="c1_e" class="form-control px-1 border-success" placeholder="E1" oninput="recalcAllMattress()">
           <input type="number" step="0.001" name="c1_n" id="c1_n" class="form-control px-1 border-success" placeholder="N1" oninput="recalcAllMattress()">
-          <input type="number" step="0.01" name="c1_z" id="c1_z" class="form-control px-1 border-success" placeholder="Z1" oninput="recalcAllMattress()">
+          <input type="hidden" step="0.01" name="c1_z" id="c1_z" class="form-control px-1 border-success" placeholder="Z1" oninput="recalcAllMattress()" style="display:none;">
         </div>
       </div>
       <div class="col-md-3 col-6">
-        <label class="small fw-bold text-dark mb-1">Corner 2 (C2 - NE: E, N, Z)</label>
+        <label class="small fw-bold text-dark mb-1">Corner 2 (C2 - NE: E, N)</label>
         <div class="input-group input-group-sm">
           <input type="number" step="0.001" name="c2_e" id="c2_e" class="form-control px-1 border-success" placeholder="E2" oninput="recalcAllMattress()">
           <input type="number" step="0.001" name="c2_n" id="c2_n" class="form-control px-1 border-success" placeholder="N2" oninput="recalcAllMattress()">
-          <input type="number" step="0.01" name="c2_z" id="c2_z" class="form-control px-1 border-success" placeholder="Z2" oninput="recalcAllMattress()">
+          <input type="hidden" step="0.01" name="c2_z" id="c2_z" class="form-control px-1 border-success" placeholder="Z2" oninput="recalcAllMattress()" style="display:none;">
         </div>
       </div>
       <div class="col-md-3 col-6">
-        <label class="small fw-bold text-dark mb-1">Corner 3 (C3 - SE: E, N, Z)</label>
+        <label class="small fw-bold text-dark mb-1">Corner 3 (C3 - SE: E, N)</label>
         <div class="input-group input-group-sm">
           <input type="number" step="0.001" name="c3_e" id="c3_e" class="form-control px-1 border-success" placeholder="E3" oninput="recalcAllMattress()">
           <input type="number" step="0.001" name="c3_n" id="c3_n" class="form-control px-1 border-success" placeholder="N3" oninput="recalcAllMattress()">
-          <input type="number" step="0.01" name="c3_z" id="c3_z" class="form-control px-1 border-success" placeholder="Z3" oninput="recalcAllMattress()">
+          <input type="hidden" step="0.01" name="c3_z" id="c3_z" class="form-control px-1 border-success" placeholder="Z3" oninput="recalcAllMattress()" style="display:none;">
         </div>
       </div>
       <div class="col-md-3 col-6">
-        <label class="small fw-bold text-dark mb-1">Corner 4 (C4 - SW: E, N, Z)</label>
+        <label class="small fw-bold text-dark mb-1">Corner 4 (C4 - SW: E, N)</label>
         <div class="input-group input-group-sm">
           <input type="number" step="0.001" name="c4_e" id="c4_e" class="form-control px-1 border-success" placeholder="E4" oninput="recalcAllMattress()">
           <input type="number" step="0.001" name="c4_n" id="c4_n" class="form-control px-1 border-success" placeholder="N4" oninput="recalcAllMattress()">
-          <input type="number" step="0.01" name="c4_z" id="c4_z" class="form-control px-1 border-success" placeholder="Z4" oninput="recalcAllMattress()">
+          <input type="hidden" step="0.01" name="c4_z" id="c4_z" class="form-control px-1 border-success" placeholder="Z4" oninput="recalcAllMattress()" style="display:none;">
         </div>
       </div>
     </div>
@@ -991,10 +991,10 @@ function openQrModal(){
         </div>
         <div class="small fw-bold text-success mb-1"><i class="fas fa-vector-square me-1"></i>2. ROV 4-Corners Input (E, N, Z) &rarr; Auto-Calculates Actual Mattress Center &amp; Bearing</div>
         <div class="row g-1 mb-2">
-          <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C1</span><input type="number" step="0.001" name="c1_e" class="form-control px-1 rc" placeholder="E1"><input type="number" step="0.001" name="c1_n" class="form-control px-1 rc" placeholder="N1"><input type="number" step="0.01" name="c1_z" class="form-control px-1 rc" placeholder="Z1"></div></div>
-          <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C2</span><input type="number" step="0.001" name="c2_e" class="form-control px-1 rc" placeholder="E2"><input type="number" step="0.001" name="c2_n" class="form-control px-1 rc" placeholder="N2"><input type="number" step="0.01" name="c2_z" class="form-control px-1 rc" placeholder="Z2"></div></div>
-          <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C3</span><input type="number" step="0.001" name="c3_e" class="form-control px-1 rc" placeholder="E3"><input type="number" step="0.001" name="c3_n" class="form-control px-1 rc" placeholder="N3"><input type="number" step="0.01" name="c3_z" class="form-control px-1 rc" placeholder="Z3"></div></div>
-          <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C4</span><input type="number" step="0.001" name="c4_e" class="form-control px-1 rc" placeholder="E4"><input type="number" step="0.001" name="c4_n" class="form-control px-1 rc" placeholder="N4"><input type="number" step="0.01" name="c4_z" class="form-control px-1 rc" placeholder="Z4"></div></div>
+          <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C1</span><input type="number" step="0.001" name="c1_e" class="form-control px-1 rc" placeholder="E1"><input type="number" step="0.001" name="c1_n" class="form-control px-1 rc" placeholder="N1"><input type="hidden" step="0.01" name="c1_z" class="form-control px-1 rc" placeholder="Z1" style="display:none;"></div></div>
+          <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C2</span><input type="number" step="0.001" name="c2_e" class="form-control px-1 rc" placeholder="E2"><input type="number" step="0.001" name="c2_n" class="form-control px-1 rc" placeholder="N2"><input type="hidden" step="0.01" name="c2_z" class="form-control px-1 rc" placeholder="Z2" style="display:none;"></div></div>
+          <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C3</span><input type="number" step="0.001" name="c3_e" class="form-control px-1 rc" placeholder="E3"><input type="number" step="0.001" name="c3_n" class="form-control px-1 rc" placeholder="N3"><input type="hidden" step="0.01" name="c3_z" class="form-control px-1 rc" placeholder="Z3" style="display:none;"></div></div>
+          <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C4</span><input type="number" step="0.001" name="c4_e" class="form-control px-1 rc" placeholder="E4"><input type="number" step="0.001" name="c4_n" class="form-control px-1 rc" placeholder="N4"><input type="hidden" step="0.01" name="c4_z" class="form-control px-1 rc" placeholder="Z4" style="display:none;"></div></div>
         </div>
         <div class="row g-2">
           <div class="col-6"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind (e.g. 16kt NE)"></div>
@@ -1132,10 +1132,62 @@ function openQrModal(){
 </script>
 
 
+
 <script id="mti4PanelStudioUpgrade">
 (function() {
+  window.MTI_CURRENT_USER_NAME = '';
+
+  function detectCurrentUserFromDom() {
+    const srvInp = document.querySelector('input[name="surveyor"]:not(#inpFormSurveyorName), input[name="user_name"], input[name="operator"], #surveyorNameInput');
+    if (srvInp && srvInp.value && srvInp.value.trim() && srvInp.value.trim().toLowerCase() !== 'duty surveyor') {
+      return srvInp.value.trim();
+    }
+    const navUser = document.querySelector('.navbar-text, .user-badge, #currentUserBadge');
+    if (navUser && navUser.textContent && navUser.textContent.trim().length > 1 && navUser.textContent.trim().length < 40) {
+      const cl = navUser.textContent.replace(/^(user|logged in as|surveyor)\s*:\s*/i, '').trim();
+      if (cl && cl.toLowerCase() !== 'duty surveyor') return cl;
+    }
+    return '';
+  }
+
+  function syncSurveyorInputBox(forceIfDuty) {
+    const inp = document.getElementById('inpFormSurveyorName') || document.querySelector('[name="surveyor_name"]');
+    if (!inp) return;
+    const curVal = (inp.value || '').trim();
+    const bestUser = window.MTI_CURRENT_USER_NAME || detectCurrentUserFromDom();
+    if (bestUser && (!curVal || (forceIfDuty && curVal.toLowerCase() === 'duty surveyor'))) {
+      inp.value = bestUser;
+    }
+  }
+
+  function removeLine4ZInputs() {
+    document.querySelectorAll('div, span, label, h6, small').forEach(function(el) {
+      if (el.children.length === 0 && el.textContent) {
+        if (el.textContent.indexOf('E, N, Z OF 4-CORNERS') !== -1) {
+          el.textContent = el.textContent.replace('E, N, Z OF 4-CORNERS', 'E, N OF 4-CORNERS');
+        } else if (/Corner\s+[1-4]\s*\(C[1-4]\s*-\s*[NESW]{2}:\s*E,\s*N,\s*Z\)/i.test(el.textContent)) {
+          el.textContent = el.textContent.replace(/:\s*E,\s*N,\s*Z\)/i, ': E, N)');
+        }
+      }
+    });
+
+    const zSelectors = [
+      'input[name="c1_z"]', 'input[name="c2_z"]', 'input[name="c3_z"]', 'input[name="c4_z"]',
+      '#c1_z', '#c2_z', '#c3_z', '#c4_z',
+      'input[placeholder="Z1"]', 'input[placeholder="Z2"]', 'input[placeholder="Z3"]', 'input[placeholder="Z4"]'
+    ];
+    document.querySelectorAll(zSelectors.join(',')).forEach(function(zInp) {
+      zInp.type = 'hidden';
+      zInp.style.display = 'none';
+      const prev = zInp.previousElementSibling;
+      if (prev && prev.tagName === 'INPUT') {
+        prev.style.borderTopRightRadius = '0.25rem';
+        prev.style.borderBottomRightRadius = '0.25rem';
+      }
+    });
+  }
+
   function initMti4PanelUpgrades() {
-    // 1. Remove top bar subtitle text ("139 CAD Design Mattresses ... Tolerances: Centerline Offset ... Inter-Mattress Gap ...")
     document.querySelectorAll('p, div, small, span').forEach(function(el) {
       if (el.children.length <= 2) {
         const t = (el.textContent || '').trim();
@@ -1145,12 +1197,8 @@ function openQrModal(){
       }
     });
 
-    const oldBathyBox = document.getElementById('mtiFormBathyBox');
-    if (oldBathyBox) oldBathyBox.remove();
-    const oldBottomCard = document.getElementById('studio4PanelCard');
-    if (oldBottomCard) oldBottomCard.remove();
+    removeLine4ZInputs();
 
-    // 2. Inject "4-Panel Studio" & "Survey Setup (CAD / Design / Bathy)" buttons in the top header bar
     if (!document.getElementById('btnTop4PanelWin')) {
       let anchorBtn = document.querySelector('a[href*="export"], a[href*="report"]');
       if (!anchorBtn) {
@@ -1180,7 +1228,51 @@ function openQrModal(){
       }
     }
 
-    // 3. Inject "4-Panel" button into EVERY row of the Cumulative MTI Fix Ledger table
+    const fixForm = document.getElementById('mattressFixForm') || document.querySelector('form[action*="add_fix"], form[action*="fix"]');
+    if (fixForm) {
+      if (!fixForm.querySelector('[name="surveyor_name"]')) {
+        const dtInp = fixForm.querySelector('[name="install_date"], [name*="date"]');
+        if (dtInp && dtInp.parentNode) {
+          const sDiv = document.createElement('div');
+          sDiv.className = dtInp.parentNode.className || 'col-md-3 col-6';
+          const initUser = window.MTI_CURRENT_USER_NAME || detectCurrentUserFromDom() || '';
+          sDiv.innerHTML = '<label class="form-label small fw-bold text-info">Surveyor Name</label>' +
+            '<input type="text" name="surveyor_name" id="inpFormSurveyorName" class="form-control form-control-sm fw-bold" placeholder="Current User" value="' + initUser.replace(/"/g, '&quot;') + '">';
+          dtInp.parentNode.parentNode.insertBefore(sDiv, dtInp.parentNode.nextSibling);
+        }
+      } else {
+        syncSurveyorInputBox(true);
+      }
+
+      if (!document.getElementById('btnPreview4Panel')) {
+        const saveBtn = fixForm.querySelector('button[type="submit"]');
+        if (saveBtn) {
+          saveBtn.parentNode.classList.add('d-flex', 'flex-wrap', 'gap-1', 'justify-content-end', 'align-items-center');
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.id = 'btnPreview4Panel';
+          b.className = 'btn btn-sm btn-info text-dark fw-bold';
+          b.style.cssText = 'background:#38bdf8;border-color:#0284c7;color:#0f172a;white-space:nowrap;';
+          b.innerHTML = '&#128202; 4-Panel Studio';
+          b.onclick = function() {
+            syncSurveyorInputBox(true);
+            const fd = new FormData(fixForm), qs = new URLSearchParams();
+            fd.forEach(function(v, k) {
+              if (v !== null && String(v).trim() !== '') qs.set(k, String(v).trim());
+            });
+            const sInp = document.getElementById('inpFormSurveyorName');
+            if (sInp && sInp.value.trim()) {
+              qs.set('surveyor_name', sInp.value.trim());
+            } else if (window.MTI_CURRENT_USER_NAME) {
+              qs.set('surveyor_name', window.MTI_CURRENT_USER_NAME);
+            }
+            window.open('/mti/studio?' + qs.toString(), '_blank');
+          };
+          saveBtn.parentNode.insertBefore(b, saveBtn.nextSibling);
+        }
+      }
+    }
+
     let rowCounter = 0;
     document.querySelectorAll('table tbody tr').forEach(function(tr) {
       if (tr.querySelector('.btn-4panel-ledger')) return;
@@ -1201,15 +1293,24 @@ function openQrModal(){
       if (!lastTd) return;
 
       const a = document.createElement('a');
-      a.href = '/mti/studio?crossing_id=' + encodeURIComponent(xingId) +
-               '&box_id=' + encodeURIComponent(boxId) +
-               '&physical_tag=' + encodeURIComponent(tagId) +
-               '&unit_no=' + encodeURIComponent(uno);
-      a.target = '_blank';
+      a.href = '#';
       a.className = 'btn btn-sm btn-info text-dark fw-bold me-1 btn-4panel-ledger';
       a.style.cssText = 'padding:2px 7px;font-size:11.5px;background:#38bdf8;border-color:#0284c7;color:#0f172a;display:inline-flex;align-items:center;gap:3px;';
       a.title = 'Open ' + (boxId || ('Unit #' + uno)) + ' in 4-Panel Studio (New Window)';
       a.innerHTML = '&#128202; 4-Panel';
+      a.onclick = function(ev) {
+        ev.preventDefault();
+        const sInp = document.getElementById('inpFormSurveyorName');
+        const activeSurv = (sInp && sInp.value.trim() && sInp.value.trim().toLowerCase() !== 'duty surveyor')
+          ? sInp.value.trim()
+          : (window.MTI_CURRENT_USER_NAME || detectCurrentUserFromDom() || '');
+        const url = '/mti/studio?crossing_id=' + encodeURIComponent(xingId) +
+                    '&box_id=' + encodeURIComponent(boxId) +
+                    '&physical_tag=' + encodeURIComponent(tagId) +
+                    '&unit_no=' + encodeURIComponent(uno) +
+                    (activeSurv ? ('&surveyor_name=' + encodeURIComponent(activeSurv)) : '');
+        window.open(url, '_blank');
+      };
 
       const firstBtn = lastTd.querySelector('button, a, form');
       if (firstBtn) {
@@ -1217,45 +1318,36 @@ function openQrModal(){
       } else {
         lastTd.appendChild(a);
       }
-    });
 
-    // 4. Inject clean "Open 4-Panel Studio (New Window)" button inside Mattress Fix Form
-    const fixForm = document.getElementById('mattressFixForm') || document.querySelector('form[action*="add_fix"]');
-    if (fixForm && !fixForm.querySelector('[name="surveyor_name"]')) {
-      const dtInp = fixForm.querySelector('[name="install_date"], [name*="date"]');
-      if (dtInp && dtInp.parentNode) {
-        const sDiv = document.createElement('div');
-        sDiv.className = dtInp.parentNode.className || 'col-md-4 col-6';
-        sDiv.innerHTML = '<label class="form-label small fw-bold text-info">Surveyor Name</label><input type="text" name="surveyor_name" id="inpFormSurveyorName" class="form-control form-control-sm fw-bold" placeholder="e.g. Abror / Roderick" value="{{ (current_user.full_name or current_user.display_name or current_user.name or current_user.username) if (current_user is defined and current_user.is_authenticated) else session.get('user_name', session.get('username', 'Duty Surveyor')) }}">';
-        dtInp.parentNode.parentNode.insertBefore(sDiv, dtInp.parentNode.nextSibling);
-      }
-    }
-    if (fixForm && !document.getElementById('btnPreview4Panel')) {
-      const saveBtn = fixForm.querySelector('button[type="submit"]');
-      if (saveBtn) {
-        const b = document.createElement('button');
-        b.type = 'button';
-        b.id = 'btnPreview4Panel';
-        b.className = 'btn btn-sm btn-info text-dark fw-bold ms-2';
-        b.innerHTML = '&#128202; Open 4-Panel Studio (New Window)';
-        b.onclick = function() {
-          const fd = new FormData(fixForm), qs = new URLSearchParams();
-          fd.forEach(function(v, k) {
-            if (v !== null && String(v).trim() !== '') qs.set(k, String(v).trim());
-          });
-          window.open('/mti/studio?' + qs.toString(), '_blank');
-        };
-        saveBtn.parentNode.insertBefore(b, saveBtn.nextSibling);
-      }
-    }
+      lastTd.querySelectorAll('button').forEach(function(editBtn) {
+        editBtn.addEventListener('click', function() {
+          setTimeout(function() {
+            removeLine4ZInputs();
+            syncSurveyorInputBox(true);
+          }, 80);
+        });
+      });
+    });
   }
+
+  fetch('/mti/whoami')
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d && d.user_name && d.user_name.toLowerCase() !== 'duty surveyor') {
+        window.MTI_CURRENT_USER_NAME = d.user_name;
+        syncSurveyorInputBox(true);
+        const topStudio = document.getElementById('btnTop4PanelWin');
+        if (topStudio) topStudio.href = '/mti/studio?surveyor_name=' + encodeURIComponent(d.user_name);
+      }
+    })
+    .catch(function() {});
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initMti4PanelUpgrades);
   } else {
     initMti4PanelUpgrades();
   }
-  setTimeout(initMti4PanelUpgrades, 300);
+  setTimeout(initMti4PanelUpgrades, 250);
 })();
 </script>
 </body>
