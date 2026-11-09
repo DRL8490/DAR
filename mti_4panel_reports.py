@@ -23,7 +23,7 @@ def build_structured_report_markdown(metrics, include_history=False, ledger_list
         f"**Client:** Taiwan Power Company (TPC) | **Contractor:** NMDC Energy | **Vessel:** DP2 MMA Prestige",
         f"**Crossing Array:** {xing_id} | **Location ID:** {loc_id} | **Mattress ID:** {mat_id} | **Active USBL:** {usbl_s}",
         f"**Placement Date & Time:** {metrics.get('install_date','')} | **Surveyor Name:** {metrics.get('surveyor_name','Duty Surveyor')} | **Deliverable:** {metrics.get('base_filename','')}",
-        f"**Chart Scales @ A3:** Panel 1 (1:{scale_p1}) | Panel 2 (1:{scale_p2}) | Panel 3 (1:75/1:15) | Panel 4 (1:50/1:15)",
+        f"**Chart Scales @ A3:** Panel 1 (1:{scale_p1}) | Panel 2 (1:{scale_p2}) | Panel 3 (1:75/1:15) | Panel 4 (1:75/1:15)",
         "",
         "## EXECUTIVE VERDICT",
         f"- **Overall Status:** {metrics.get('verdict', 'VERIFIED')}",

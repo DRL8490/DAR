@@ -113,7 +113,7 @@ def plot_seabed_layer(ax, seabed_xyz, x_lim, y_lim, is_zoomed=False, show_contou
         fmt = "{:.2f}" if is_zoomed else "{:.1f}"
         for px, py, pz in plotted_pts:
             ax.plot(px, py, "+", color="#64748b", markersize=3.2, alpha=0.65, zorder=2, clip_on=True)
-            t = ax.text(px, py, fmt.format(abs(float(pz))), fontsize=5.0 if is_zoomed else 4.7, fontweight="bold", color="#475569", ha="center", va="bottom", alpha=0.8, zorder=2, clip_on=True)
+            t = ax.text(px, py, fmt.format(float(pz)), fontsize=5.0 if is_zoomed else 4.7, fontweight="bold", color="#475569", ha="center", va="bottom", alpha=0.8, zorder=2, clip_on=True)
             t.set_path_effects([patheffects.withStroke(linewidth=1.5, foreground="white")])
 
 def generate_a3_4panel_chart(
@@ -300,22 +300,26 @@ def generate_a3_4panel_chart(
     sb_loc_arr = np.asarray(seabed_local_xyz, dtype=float)
     for ax_p, coord_arr, lim_x, edge_v, is_long, ttl, x_lbl in [
         (fig.add_axes([315.0 / W_MM, 162.0 / H_MM, 83.0 / W_MM, 88.0 / H_MM]), y_local, (-3.5, 3.5), 3.0, True, "PANEL 3: LONGITUDINAL (SSW -> NNE)" + chr(10) + "H 1:75 | V 1:15 @ A3", "Along-Track Y_local (m)"),
-        (fig.add_axes([315.0 / W_MM, 46.0 / H_MM, 83.0 / W_MM, 86.0 / H_MM]), x_local, (-2.2, 2.2), 1.5, False, "PANEL 4: LATERAL (WNW -> ESE)" + chr(10) + "H 1:50 | V 1:15 @ A3", "Cross-Track X_local (m)")
+        (fig.add_axes([315.0 / W_MM, 46.0 / H_MM, 83.0 / W_MM, 88.0 / H_MM]), x_local, (-3.5, 3.5), 1.5, False, "PANEL 4: LATERAL (WNW -> ESE)" + chr(10) + "H 1:75 | V 1:15 @ A3", "Cross-Track X_local (m)")
     ]:
-        ax_p.scatter(coord_arr, np.abs(z_vals), c=z_vals, cmap="turbo", vmin=vmin_c, vmax=vmax_c, s=10, alpha=0.85, label="Mattress Surface")
+        ax_p.scatter(coord_arr, z_vals, c=z_vals, cmap="turbo", vmin=vmin_c, vmax=vmax_c, s=10, alpha=0.85, label="Mattress Surface")
         xs_l = np.linspace(lim_x[0], lim_x[1], 40)
         if bathy_src == "SURVEY_BATHY" and len(sb_loc_arr) >= 1:
             q_prof = np.column_stack([np.zeros_like(xs_l), xs_l]) if is_long else np.column_stack([xs_l, np.zeros_like(xs_l)])
             z_prof = idw_interpolate(sb_loc_arr[:, :2], sb_loc_arr[:, 2], q_prof)
-            ax_p.plot(xs_l, np.abs(z_prof), "--", color="#0284c7", lw=1.35, label="Survey Seabed Profile")
-            z_center = 0.5 * (float(np.mean(np.abs(z_vals))) + float(np.mean(np.abs(z_prof))))
-            half_win = max(0.65, 0.5 * abs(float(np.max(np.abs(z_prof)) - np.min(np.abs(z_vals)))) + 0.35)
-            y_hi, y_lo = z_center + half_win, z_center - half_win
+            ax_p.plot(xs_l, z_prof, "--", color="#0284c7", lw=1.35, label="Survey Seabed Profile")
+            z_center = 0.5 * (float(np.mean(z_vals)) + float(np.mean(z_prof)))
+            half_win = max(0.66, 0.5 * abs(float(np.max(z_prof) - np.min(z_vals))) + 0.35)
         else:
-            y_hi, y_lo = abs(z_mean) + 0.65, abs(z_mean) - 0.65
+            z_center = z_mean
+            half_win = 0.66
+        if z_center <= 0:
+            y_bottom, y_top = z_center - half_win, z_center + half_win
+        else:
+            y_bottom, y_top = z_center + half_win, z_center - half_win
         ax_p.axvline(-edge_v, color="#dc2626", ls="--", lw=1.2, label=f"Design (+/-{edge_v:.1f}m)"); ax_p.axvline(edge_v, color="#dc2626", ls="--", lw=1.2)
-        ax_p.set_xlim(*lim_x); ax_p.set_ylim(y_hi, y_lo)
-        ax_p.set_title(ttl, fontsize=7.0, fontweight="bold", pad=3); ax_p.set_xlabel(x_lbl, fontsize=6.3, fontweight="bold"); ax_p.set_ylabel("Depth Z (m, Inv)", fontsize=6.3, fontweight="bold")
+        ax_p.set_xlim(*lim_x); ax_p.set_ylim(y_bottom, y_top)
+        ax_p.set_title(ttl, fontsize=7.0, fontweight="bold", pad=3); ax_p.set_xlabel(x_lbl, fontsize=6.3, fontweight="bold"); ax_p.set_ylabel("Depth Z (m, TWVD2001)", fontsize=6.3, fontweight="bold")
         ax_p.tick_params(labelsize=5.6); ax_p.grid(True, linestyle=":", lw=0.45, color="#cbd5e1"); ax_p.legend(loc="lower right", fontsize=5.0, framealpha=0.9)
 
     buf_png = io.BytesIO()

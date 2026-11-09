@@ -888,7 +888,7 @@ def _resolve_fix_data(req, ledger):
             fix_data[k] = v
     if box_q and "design_box_id" not in fix_data:
         fix_data["design_box_id"] = box_q
-        req_surv = str(req.get("surveyor_name") or "").strip()
+    req_surv = str(req.get("surveyor_name") or "").strip()
     saved_surv = str(fix_data.get("surveyor_name") or fix_data.get("surveyor") or "").strip()
     cur_u = _get_current_user_display_name()
     if req_surv and req_surv.lower() != "duty surveyor":
@@ -990,10 +990,10 @@ def upload_seabed():
     req_json = request.get_json(silent=True) or {}
     xing_id = re.sub(r"[^A-Za-z0-9_-]", "_", str(request.form.get("crossing_id") or req_json.get("crossing_id") or "CR-A1_L1").strip())
     fname = str(request.form.get("filename") or req_json.get("filename") or "").strip()
+    neg_flag = _as_bool(req_json.get("negate_z") if "negate_z" in req_json else request.form.get("negate_z"), False)
     pts_json = req_json.get("points_array")
     if pts_json and isinstance(pts_json, list) and len(pts_json) > 0:
         pts_arr = np.array(pts_json, dtype=float)[:, :3]
-        pts_arr[:, 2] = np.where((pts_arr[:, 2] > 0) & (pts_arr[:, 2] < 500), -pts_arr[:, 2], pts_arr[:, 2])
     else:
         raw_txt = ""
         f = request.files.get("seabed_file")
@@ -1004,6 +1004,8 @@ def upload_seabed():
             raw_txt = str(request.form.get("bathy_xyz_text") or req_json.get("bathy_xyz_text") or "")
         pts_arr = parse_bathy_xyz_text(raw_txt)
     if len(pts_arr) > 0:
+        if neg_flag:
+            pts_arr[:, 2] = pts_arr[:, 2] * -1.0
         if len(pts_arr) > 2500:
             pts_arr = pts_arr[::max(1, len(pts_arr) // 2500)]
         np.save(os.path.join(MTI_WS_DIR, f"{xing_id}_seabed.npy"), pts_arr)
@@ -1016,12 +1018,40 @@ def upload_seabed():
             "points": int(len(pts_arr)),
             "z_min": z_min,
             "z_max": z_max,
+            "negate_z": bool(neg_flag),
             "pts_compact": np.round(pts_arr[::max(1, len(pts_arr) // 800)], 2).tolist()
         }
         _save_setup_meta(meta)
         _purge_cached_pdfs()
-        return jsonify({"status": "ok", "crossing_id": xing_id, "filename": fname or f"{xing_id}_bathy.xyz", "points": int(len(pts_arr)), "z_min": z_min, "z_max": z_max})
+        return jsonify({"status": "ok", "crossing_id": xing_id, "filename": fname or f"{xing_id}_bathy.xyz", "points": int(len(pts_arr)), "z_min": z_min, "z_max": z_max, "negate_z": bool(neg_flag)})
     return jsonify({"status": "error", "message": "No valid E N Z bathy points found in file."}), 400
+
+@mti_bp.route('/negate_bathy_z', methods=['POST'])
+@login_required
+def negate_bathy_z():
+    os.makedirs(MTI_WS_DIR, exist_ok=True)
+    req = request.get_json(silent=True) or request.form.to_dict()
+    xing_id = re.sub(r"[^A-Za-z0-9_-]", "_", str(req.get("crossing_id") or "CR-A1_L1").strip())
+    neg_flag = _as_bool(req.get("negate_z"), False)
+    meta = _load_setup_meta()
+    b_info = meta.setdefault("bathy", {}).get(xing_id) or {}
+    npy_p = os.path.join(MTI_WS_DIR, f"{xing_id}_seabed.npy")
+    if not os.path.exists(npy_p):
+        return jsonify({"status": "error", "message": f"No bathy file loaded for {xing_id}."}), 400
+    arr = np.load(npy_p).astype(float)
+    arr[:, 2] = arr[:, 2] * -1.0
+    np.save(npy_p, arr)
+    if xing_id == "CR-A1_L1" and os.path.exists(os.path.join(MTI_WS_DIR, "CR-A1_L2_seabed.npy")):
+        np.save(os.path.join(MTI_WS_DIR, "CR-A1_L2_seabed.npy"), arr)
+    z_min, z_max = round(float(np.min(arr[:, 2])), 2), round(float(np.max(arr[:, 2])), 2)
+    b_info["z_min"] = z_min
+    b_info["z_max"] = z_max
+    b_info["negate_z"] = bool(neg_flag)
+    b_info["pts_compact"] = np.round(arr[::max(1, len(arr) // 800)], 2).tolist()
+    meta["bathy"][xing_id] = b_info
+    _save_setup_meta(meta)
+    _purge_cached_pdfs()
+    return jsonify({"status": "ok", "crossing_id": xing_id, "negate_z": bool(neg_flag), "z_min": z_min, "z_max": z_max, "points": int(len(arr))})
 
 @mti_bp.route('/clear_seabed', methods=['POST'])
 @login_required
@@ -1187,6 +1217,7 @@ def mti_setup_status():
             "bathy_loaded": bool(bathy_loaded and b_pts > 0),
             "bathy_filename": b_info.get("filename") or (f"{loc}_bathy.xyz" if bathy_loaded else "No Bathy File"),
             "bathy_points": int(b_pts),
+            "negate_z": bool(b_info.get("negate_z", False)),
             "z_min": z_min,
             "z_max": z_max
         })
@@ -1652,11 +1683,16 @@ window.refreshSetupStatus = function() {
         ? ('<div class="fw-bold text-success text-truncate" style="max-width:190px;" title="' + row.bathy_filename + '"><i class="fas fa-check-circle me-1"></i>' + row.bathy_filename + '</div>' +
            '<small class="text-light">' + row.bathy_points.toLocaleString() + ' pts | Z: ' + row.z_min + 'm to ' + row.z_max + 'm</small>')
         : '<span class="text-secondary"><i class="fas fa-minus-circle me-1"></i>No Bathy file</span>';
+      const negChecked = row.negate_z ? 'checked' : '';
+      const negBoxHtml = '<div class="form-check d-inline-block me-2 align-middle" title="If checked, Z value of the loaded file is multiplied by -1">' +
+        '<input class="form-check-input border-warning" type="checkbox" id="negZ_' + row.location + '" ' + negChecked + ' onchange="window.toggleRowNegateZ(\'' + row.location + '\', this.checked)">' +
+        '<label class="form-check-label small text-warning fw-bold" for="negZ_' + row.location + '">Negate Z (&times;-1)</label></div>';
       return (
         '<tr id="bathyRow_' + row.location + '">' +
         '<td class="fw-bold text-warning font-monospace">' + row.location + '</td>' +
         '<td id="bathyCell_' + row.location + '">' + fileCell + '</td>' +
         '<td class="text-end text-nowrap">' +
+          negBoxHtml +
           '<button type="button" class="btn btn-xs btn-sm btn-success fw-bold py-0 px-2 me-1" onclick="window.triggerRowBathyPicker(\'' + row.location + '\')"><i class="fas fa-upload me-1"></i>Upload</button>' +
           (row.bathy_loaded ? ('<button type="button" class="btn btn-xs btn-sm btn-outline-danger py-0 px-2" onclick="window.clearBathySetup(\'' + row.location + '\')" title="Remove Bathy file"><i class="fas fa-trash"></i></button>') : '') +
         '</td></tr>'
@@ -1721,6 +1757,21 @@ window.clearCadBg = function(loc) {
     });
 };
 
+window.toggleRowNegateZ = function(loc, isChecked) {
+  const cell = document.getElementById('bathyCell_' + loc);
+  if (!cell || cell.innerText.indexOf('No Bathy file') !== -1) return;
+  fetch('/mti/negate_bathy_z', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ crossing_id: loc, negate_z: isChecked })
+  }).then(r => r.json()).then(d => {
+    if (d.status === 'ok') {
+      window.showSetupBanner('&#10004; Negate Z (' + (isChecked ? 'ON' : 'OFF') + '): Multiplied Z by -1 for <strong>' + loc + '</strong> (New Z: ' + d.z_min + 'm to ' + d.z_max + 'm)', 'alert-info');
+      window.refreshSetupStatus();
+    }
+  });
+};
+
 window.triggerRowBathyPicker = function(loc) {
   window._activeUploadLoc = loc;
   const picker = document.getElementById('hiddenBathyFilePicker');
@@ -1748,7 +1799,7 @@ window.parseXyzTextClientSide = function(rawText, xingId) {
     }
     if (Math.abs(e) < 50000 || Math.abs(n) < 50000 || isNaN(z)) continue;
     if (n < e && e > 1000000) { const t = e; e = n; n = t; }
-    if (z > 0 && z < 500) z = -Math.abs(z);
+    // Preserve raw Z sign from file; server applies negate_z if checked
     const pt = [Math.round(e * 1000) / 1000, Math.round(n * 1000) / 1000, Math.round(z * 1000) / 1000];
     allPts.push(pt);
     if (bnd && e >= bnd.eMin && e <= bnd.eMax && n >= bnd.nMin && n <= bnd.nMax) {
@@ -1788,6 +1839,7 @@ window.handleRowBathyUpload = function(inputEl) {
       body: JSON.stringify({
         crossing_id: loc,
         filename: f.name,
+        negate_z: !!(document.getElementById('negZ_' + loc) && document.getElementById('negZ_' + loc).checked),
         points_array: parsed.points
       })
     }).then(r => r.json()).then(d => {

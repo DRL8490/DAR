@@ -41,7 +41,7 @@ def parse_bathy_xyz_text(raw_text, bounds=None, max_pts=4500):
                     e, n = n, e
                 if e < e_lo or e > e_hi or n < n_lo or n > n_hi:
                     continue
-                z = -abs(z) if 0 < abs(z) < 500 else z
+                z = float(z)
                 pts.append([round(e, 3), round(n, 3), round(z, 3)])
             except Exception:
                 pass
@@ -268,7 +268,7 @@ def get_or_build_seabed_xyz(workspace_dir, crossing_id, boxes_dict, ref_depth_m=
                 arr = np.load(npy_p)
                 if arr.ndim == 2 and arr.shape[1] >= 3 and len(arr) >= 1:
                     arr = arr.copy()
-                    arr[:, 2] = np.where((arr[:, 2] > 0) & (arr[:, 2] < 500), -arr[:, 2], arr[:, 2])
+                    # Respect exact Z sign stored in .npy file
                     return arr[:, :3], "SURVEY_BATHY"
             except Exception:
                 pass
@@ -313,8 +313,10 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
     # Concrete Mattress Thickness = 30 cm (0.30 m) above seabed by default
     try:
         mat_thick = float(fix_data.get("mat_thickness_m") if fix_data.get("mat_thickness_m") is not None and str(fix_data.get("mat_thickness_m")).strip() != "" else 0.30)
+        thick_signed = mat_thick if seabed_at_center <= 0 else -mat_thick
     except Exception:
         mat_thick = 0.30
+    thick_signed = mat_thick if seabed_at_center <= 0 else -mat_thick
 
     as_e, as_n = float(fix_data.get("aslaid_e") or fix_data.get("qaqc_e") or des_e), float(fix_data.get("aslaid_n") or fix_data.get("qaqc_n") or des_n)
     raw_z = fix_data.get("aslaid_z")
@@ -324,10 +326,10 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
             as_z = cand_z
             use_seabed_drape = False
         else:
-            as_z = round(seabed_at_center + mat_thick, 3)
+            as_z = round(seabed_at_center + thick_signed, 3)
             use_seabed_drape = True
     else:
-        as_z = round(seabed_at_center + mat_thick, 3)
+        as_z = round(seabed_at_center + thick_signed, 3)
         use_seabed_drape = True
 
     hdg = float(fix_data.get("heading_deg") or fix_data.get("qaqc_brg") or des_brg)
@@ -342,7 +344,7 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
                 if cz is not None and str(cz).strip() != "" and not _is_legacy_placeholder_z(cz) and not use_seabed_drape:
                     zv = -abs(float(cz))
                 elif len(sb_near_global) > 0:
-                    zv = float(idw_interpolate(sb_near_global[:, :2], sb_near_global[:, 2], np.array([[fe_i, fn_i]]))[0]) + mat_thick
+                    zv = float(idw_interpolate(sb_near_global[:, :2], sb_near_global[:, 2], np.array([[fe_i, fn_i]]))[0]) + thick_signed
                 else:
                     zv = as_z
                 c_pts.append([round(fe_i, 3), round(fn_i, 3), round(zv, 3)])
@@ -351,7 +353,7 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
     if len(c_pts) != 4:
         c2d, _, _ = _box_corners_cw(as_e, as_n, (hdg - 180.0) % 360.0, 6.0, 3.0)
         if len(sb_near_global) > 0 and use_seabed_drape:
-            cz_arr = idw_interpolate(sb_near_global[:, :2], sb_near_global[:, 2], c2d) + mat_thick
+            cz_arr = idw_interpolate(sb_near_global[:, :2], sb_near_global[:, 2], c2d) + thick_signed
             c_pts = [[round(float(p[0]), 3), round(float(p[1]), 3), round(float(z_i), 3)] for p, z_i in zip(c2d, cz_arr)]
         else:
             c_pts = [[round(float(p[0]), 3), round(float(p[1]), 3), round(as_z, 3)] for p in c2d]
@@ -366,7 +368,7 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
     uf, vf = ug.ravel(), vg.ravel()
     cleaned_xyz = (np.outer((1 - uf) * (1 - vf), c_arr[3]) + np.outer((1 - uf) * vf, c_arr[0]) + np.outer(uf * vf, c_arr[1]) + np.outer(uf * (1 - vf), c_arr[2]))
     if len(sb_near_global) > 0 and use_seabed_drape:
-        cleaned_xyz[:, 2] = idw_interpolate(sb_near_global[:, :2], sb_near_global[:, 2], cleaned_xyz[:, :2]) + mat_thick
+        cleaned_xyz[:, 2] = idw_interpolate(sb_near_global[:, :2], sb_near_global[:, 2], cleaned_xyz[:, :2]) + thick_signed
         as_z = float(np.mean(cleaned_xyz[:, 2]))
 
     d_en = cleaned_xyz[:, :2] - np.array([des_e, des_n])
