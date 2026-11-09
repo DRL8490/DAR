@@ -1,4 +1,5 @@
 import os, io, re, gc, zipfile
+from datetime import datetime
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -66,7 +67,7 @@ def build_structured_report_markdown(metrics, include_history=False, ledger_list
     return chr(10).join(lines)
 
 def render_a4_landscape_figures(metrics, custom_report_md=None):
-    """Renders ISO A4 Landscape (297 x 210 mm) report page(s) with +2 pt larger fonts and no redundant Chart Scales line."""
+    """Renders Landscape (297 x 210 mm) report page(s) with +2 pt larger fonts, no redundant Chart Scales line, and no 'ISO A4' text."""
     md_text = custom_report_md if custom_report_md else build_structured_report_markdown(metrics)
     filtered_lines = [
         ln for ln in str(md_text).splitlines()
@@ -83,11 +84,11 @@ def render_a4_landscape_figures(metrics, custom_report_md=None):
         ax.set_xlim(0, W_MM); ax.set_ylim(0, H_MM); ax.set_xticks([]); ax.set_yticks([])
         ax.add_patch(mpatches.Rectangle((10, 10), 277, 190, fill=False, edgecolor="#0f172a", linewidth=1.4))
         ax.add_patch(mpatches.Rectangle((10, 186.5), 277, 13.5, facecolor="#0f172a", edgecolor="#0f172a"))
-        ax.text(14, 195.2, f"ISO A4 SUBSEA MATTRESS VERIFICATION REPORT  |  {loc_id} ({mat_id})", color="white", fontsize=10.8, fontweight="bold", va="center")
+        ax.text(14, 195.2, f"SUBSEA MATTRESS VERIFICATION REPORT  |  {loc_id} ({mat_id})", color="white", fontsize=10.8, fontweight="bold", va="center")
         ax.text(14, 189.6, f"File: {metrics.get('base_filename','')}.pdf  |  Active USBL: {metrics.get('usbl_sensor','Survey Pole')}  |  {metrics.get('verdict','')}", color="#38bdf8", fontsize=8.6, fontweight="bold", va="center")
         ax.plot([10, 287], [16.0, 16.0], color="#cbd5e1", linewidth=0.8)
         ax.text(14, 12.2, f"DP2 MMA Prestige | Placement Date/Time: {metrics.get('install_date','')} | Surveyor: {surv_name}", fontsize=8.0, color="#475569", fontweight="bold")
-        ax.text(283, 12.2, f"ISO A4 Landscape | Report Page {page_num}", fontsize=8.0, color="#475569", ha="right")
+        ax.text(283, 12.2, f"Verification Report | Page {page_num}", fontsize=8.0, color="#475569", ha="right")
         return fig, ax
 
     figs = []
@@ -147,6 +148,159 @@ def generate_a4_report_pdf(metrics, workspace_dir="workspace", custom_report_md=
     for fn in ("latest_A4_Verification_Report.pdf", f"{metrics.get('base_filename','Report')}_A4_Report.pdf"):
         open(os.path.join(workspace_dir, fn), "wb").write(pdf_bytes)
     return pdf_bytes
+
+def generate_mti_dpr_pdf(st_data, target_date_str=None, surveyor_name="Duty Surveyor", workspace_dir="workspace"):
+    """Generates a Daily Progress Report (DPR) PDF for MTI Operations covering 00:00 to 23:59 of target_date_str."""
+    os.makedirs(workspace_dir, exist_ok=True)
+    ledger = list((st_data or {}).get("ledger") or [])
+    raw_logs = []
+    for k in ("logs", "events", "event_log", "survey_logs"):
+        if isinstance((st_data or {}).get(k), list) and len(st_data[k]) > 0:
+            raw_logs = list(st_data[k])
+            break
+
+    def _norm_date(s):
+        s = str(s or "").strip()
+        m1 = re.search(r"(\d{4})[-/](\d{2})[-/](\d{2})", s)
+        if m1:
+            return f"{m1.group(1)}-{m1.group(2)}-{m1.group(3)}"
+        m2 = re.search(r"(\d{2})[-/](\d{2})[-/](\d{4})", s)
+        if m2:
+            return f"{m2.group(3)}-{m2.group(2)}-{m2.group(1)}"
+        return ""
+
+    def _extract_time(s):
+        m = re.search(r"(\d{2}:\d{2})", str(s or ""))
+        return m.group(1) if m else "00:00"
+
+    dt_iso = _norm_date(target_date_str)
+    if not dt_iso:
+        all_dates = []
+        for lg in raw_logs:
+            d = _norm_date(lg.get("timestamp") or lg.get("date") or lg.get("time") or lg.get("dt"))
+            if d: all_dates.append(d)
+        for r in ledger:
+            d = _norm_date(r.get("install_date"))
+            if d: all_dates.append(d)
+        dt_iso = max(all_dates) if all_dates else datetime.utcnow().strftime("%Y-%m-%d")
+
+    day_fixes = [r for r in ledger if _norm_date(r.get("install_date")) == dt_iso]
+    day_fixes.sort(key=lambda r: _extract_time(r.get("install_date")))
+
+    day_logs = []
+    for lg in raw_logs:
+        ts_raw = lg.get("timestamp") or lg.get("date") or lg.get("time") or lg.get("dt") or ""
+        if _norm_date(ts_raw) == dt_iso:
+            day_logs.append(lg)
+    day_logs.sort(key=lambda lg: _extract_time(lg.get("timestamp") or lg.get("date") or lg.get("time") or ""))
+
+    W_MM, H_MM = 297.0, 210.0
+
+    def _new_dpr_page(page_num):
+        fig = plt.figure(figsize=(W_MM / 25.4, H_MM / 25.4), dpi=150, facecolor="white")
+        ax = fig.add_axes([0, 0, 1, 1], frameon=False)
+        ax.set_xlim(0, W_MM); ax.set_ylim(0, H_MM); ax.set_xticks([]); ax.set_yticks([])
+        ax.add_patch(mpatches.Rectangle((10, 10), 277, 190, fill=False, edgecolor="#0f172a", linewidth=1.4))
+        ax.add_patch(mpatches.Rectangle((10, 185.5), 277, 14.5, facecolor="#0f172a", edgecolor="#0f172a"))
+        ax.text(14, 194.8, "SUBSEA MATTRESS & ROCK BAG INSTALLATION (MTI) - DAILY PROGRESS REPORT (DPR)", color="white", fontsize=10.5, fontweight="bold", va="center")
+        ax.text(14, 188.8, f"Reporting Period: {dt_iso} (00:00 to 23:59 hrs)  |  Vessel: DP2 MMA Prestige  |  Client: TPC  |  Contractor: NMDC", color="#38bdf8", fontsize=8.4, fontweight="bold", va="center")
+        ax.plot([10, 287], [16.0, 16.0], color="#cbd5e1", linewidth=0.8)
+        ax.text(14, 12.2, f"Tung-Hsiao 2nd Stage Subsea Gas Pipeline Project  |  Duty Surveyor: {surveyor_name}", fontsize=8.0, color="#475569", fontweight="bold")
+        ax.text(283, 12.2, f"MTI DPR ({dt_iso} 00:00-23:59) | Page {page_num}", fontsize=8.0, color="#475569", ha="right")
+        return fig, ax
+
+    figs = []
+    p_no = 1
+    fig, ax = _new_dpr_page(p_no)
+    figs.append(fig)
+    y = 179.5
+
+    ax.add_patch(mpatches.Rectangle((13, y - 1.5), 271, 5.2, facecolor="#e2e8f0", edgecolor="none"))
+    ax.text(15, y + 1.0, f"1. DAILY MTI OPERATIONS SUMMARY ({dt_iso} | 00:00 TO 23:59 HRS)", fontsize=9.4, fontweight="bold", color="#0f172a", va="center")
+    y -= 5.8
+    total_scope = int((st_data or {}).get("target_mattresses") or 139)
+    ax.text(15, y, f"Mattresses Laid on {dt_iso} (00:00-23:59): {len(day_fixes)} unit(s)   |   Cumulative Mattresses Laid: {len(ledger)} / {total_scope} ({len(ledger)*100.0/max(total_scope,1):.1f}%)   |   Events Logged Today: {len(day_logs)}", fontsize=8.8, fontweight="bold", color="#0369a1")
+    y -= 5.5
+
+    ax.add_patch(mpatches.Rectangle((13, y - 1.5), 271, 5.2, facecolor="#e2e8f0", edgecolor="none"))
+    ax.text(15, y + 1.0, f"2. MATTRESSES PLACED ON {dt_iso} (00:00 TO 23:59 HRS)", fontsize=9.4, fontweight="bold", color="#0f172a", va="center")
+    y -= 5.4
+
+    if not day_fixes:
+        ax.text(15, y, f"No mattress fixes recorded between 00:00 and 23:59 on {dt_iso}.", fontsize=8.5, color="#64748b")
+        y -= 5.0
+    else:
+        cols_f = [(15, "Unit #"), (30, "Time"), (50, "Crossing"), (75, "Location ID"), (102, "Tag ID"), (122, "As-Laid E"), (152, "As-Laid N"), (182, "Brg"), (200, "dCL (m)"), (222, "Gaps / Status")]
+        for cx, c_lbl in cols_f:
+            ax.text(cx, y, c_lbl, fontsize=8.0, fontweight="bold", color="#0f172a", family="monospace")
+        y -= 4.0
+        for r in day_fixes:
+            if y < 22.0:
+                p_no += 1; fig, ax = _new_dpr_page(p_no); figs.append(fig); y = 179.5
+            t_hm = _extract_time(r.get("install_date"))
+            row_vals = [
+                (15, f"#{r.get('unit_no','')}"),
+                (30, t_hm),
+                (50, str(r.get("crossing_id") or "")[:10]),
+                (75, str(r.get("design_box_id") or "")[:12]),
+                (102, str(r.get("physical_tag") or "")[:8]),
+                (122, f"{float(r.get('aslaid_e') or 0):.3f}"),
+                (152, f"{float(r.get('aslaid_n') or 0):.3f}"),
+                (182, f"{float(r.get('heading_deg') or 0):.1f}"),
+                (200, f"{float(r.get('cl_offset_m') or 0):.2f}m"),
+                (222, f"{r.get('gap_labels','')} ({r.get('status','Completed')})"[:32])
+            ]
+            for cx, val_s in row_vals:
+                ax.text(cx, y, val_s, fontsize=7.8, color="#1e293b", family="monospace")
+            y -= 4.0
+        y -= 2.0
+
+    if y < 35.0:
+        p_no += 1; fig, ax = _new_dpr_page(p_no); figs.append(fig); y = 179.5
+    ax.add_patch(mpatches.Rectangle((13, y - 1.5), 271, 5.2, facecolor="#e2e8f0", edgecolor="none"))
+    ax.text(15, y + 1.0, f"3. CHRONOLOGICAL ONBOARD SURVEY LOGS ({dt_iso} | 00:00 TO 23:59 HRS)", fontsize=9.4, fontweight="bold", color="#0f172a", va="center")
+    y -= 5.4
+
+    if not day_logs:
+        ax.text(15, y, f"No survey events logged between 00:00 and 23:59 on {dt_iso}.", fontsize=8.5, color="#64748b")
+    else:
+        cols_l = [(15, "Time"), (32, "Category"), (68, "Asset / Area"), (102, "Event Description & Operational Details"), (250, "Surveyor")]
+        for cx, c_lbl in cols_l:
+            ax.text(cx, y, c_lbl, fontsize=8.0, fontweight="bold", color="#0f172a", family="monospace")
+        y -= 4.0
+        for lg in day_logs:
+            if y < 21.0:
+                p_no += 1; fig, ax = _new_dpr_page(p_no); figs.append(fig); y = 179.5
+            ts_s = str(lg.get("timestamp") or lg.get("date") or lg.get("time") or "")
+            t_hm = _extract_time(ts_s)
+            cat_s = str(lg.get("category") or lg.get("type") or lg.get("event_type") or "Ops")[:16]
+            area_s = str(lg.get("crossing_id") or lg.get("location") or lg.get("asset") or lg.get("vessel") or "MMA Prestige")[:15]
+            desc_s = str(lg.get("description") or lg.get("title") or lg.get("remarks") or lg.get("message") or "").strip()
+            sub_s = str(lg.get("details") or lg.get("sub_text") or lg.get("env") or "").strip()
+            full_desc = f"{desc_s} | {sub_s}" if (sub_s and sub_s not in desc_s) else desc_s
+            surv_l = str(lg.get("surveyor") or lg.get("surveyor_name") or lg.get("user") or surveyor_name)[:16]
+
+            ax.text(15, y, t_hm, fontsize=7.8, fontweight="bold", color="#0369a1", family="monospace")
+            ax.text(32, y, cat_s, fontsize=7.8, fontweight="bold", color="#0f172a", family="monospace")
+            ax.text(68, y, area_s, fontsize=7.8, color="#334155", family="monospace")
+            ax.text(102, y, full_desc[:78], fontsize=7.8, color="#1e293b")
+            ax.text(250, y, surv_l, fontsize=7.6, color="#475569", family="monospace")
+            if len(full_desc) > 78:
+                y -= 3.6
+                ax.text(104, y, full_desc[78:156], fontsize=7.6, color="#475569")
+            y -= 4.1
+
+    buf = io.BytesIO()
+    with PdfPages(buf) as pdf_pages:
+        for f in figs:
+            pdf_pages.savefig(f, dpi=150)
+            f.clf(); plt.close(f)
+    plt.close('all'); gc.collect()
+    pdf_bytes = buf.getvalue()
+    fn_out = f"{dt_iso.replace('-','')}_MTI_Daily_Progress_Report.pdf"
+    open(os.path.join(workspace_dir, fn_out), "wb").write(pdf_bytes)
+    open(os.path.join(workspace_dir, "latest_MTI_DPR.pdf"), "wb").write(pdf_bytes)
+    return pdf_bytes, fn_out, dt_iso
 
 def _xml_esc(s):
     return str(s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;").replace("'", "&apos;")

@@ -766,7 +766,7 @@ from mti_4panel_math import (
     load_custom_catalog, build_crossing_boxes_from_catalog
 )
 from mti_4panel_a3 import generate_a3_4panel_chart
-from mti_4panel_reports import build_structured_report_markdown, generate_a4_report_pdf, generate_editable_docx
+from mti_4panel_reports import build_structured_report_markdown, generate_a4_report_pdf, generate_editable_docx, generate_mti_dpr_pdf
 
 MTI_WS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "workspace")
 _as_bool = lambda v, d=True: d if v is None else str(v).strip().lower() in ("1", "true", "yes", "on")
@@ -1256,6 +1256,17 @@ def _dl_4panel_file(kind, suffix, mime):
         generate_editable_docx(metrics, rep_md or build_structured_report_markdown(metrics), MTI_WS_DIR)
     return send_file(p, as_attachment=True, download_name=base + suffix, mimetype=mime)
 
+@mti_bp.route('/create_pdf_dpr')
+@login_required
+def create_pdf_dpr():
+    os.makedirs(MTI_WS_DIR, exist_ok=True)
+    st = load_mti_state()
+    dt_q = str(request.args.get("date") or "").strip()
+    surv_q = str(request.args.get("surveyor_name") or _get_current_user_display_name()).strip()
+    _, fn_out, _ = generate_mti_dpr_pdf(st, target_date_str=dt_q, surveyor_name=surv_q, workspace_dir=MTI_WS_DIR)
+    p = os.path.join(MTI_WS_DIR, fn_out)
+    return send_file(p, as_attachment=True, download_name=fn_out, mimetype="application/pdf")
+
 @mti_bp.route('/download_a3_pdf')
 @login_required
 def download_a3_pdf(): return _dl_4panel_file("a3_pdf", ".pdf", "application/pdf")
@@ -1356,7 +1367,7 @@ STUDIO_HTML_TEMPLATE = r"""<!DOCTYPE html>
     <div class="col-lg-7">
       <div class="studio-card p-2 text-center position-relative" style="min-height:600px;display:flex;align-items:center;justify-content:center;">
         <div id="fpSpinner" class="position-absolute top-50 start-50 translate-middle badge bg-dark border border-info p-3 fs-6" style="display:none;z-index:10;">
-          <i class="fas fa-spinner fa-spin text-info me-2"></i>Rendering ISO A3 4-Panel Chart...
+          <i class="fas fa-spinner fa-spin text-info me-2"></i>Rendering 4-Panel Verification Chart...
         </div>
         <img id="fpPreviewImg" src="" class="img-fluid rounded bg-white" style="max-height:590px;" alt="ISO A3 4-Panel Chart Preview">
       </div>
@@ -1364,7 +1375,7 @@ STUDIO_HTML_TEMPLATE = r"""<!DOCTYPE html>
     <div class="col-lg-5">
       <div class="studio-card p-2 d-flex flex-column h-100">
         <div class="d-flex justify-content-between align-items-center mb-1">
-          <span class="small fw-bold text-info"><i class="fas fa-edit me-1"></i>Editable ISO A4 &amp; Word (.docx) Report Studio</span>
+          <span class="small fw-bold text-info"><i class="fas fa-edit me-1"></i>Editable Verification Report &amp; Word (.docx) Studio</span>
           <div class="btn-group btn-group-sm">
             <button type="button" class="btn btn-outline-info active" id="tabVis" onclick="window.toggleFpTab(false)">Visual Editor</button>
             <button type="button" class="btn btn-outline-info" id="tabMd" onclick="window.toggleFpTab(true)">Markdown Source</button>

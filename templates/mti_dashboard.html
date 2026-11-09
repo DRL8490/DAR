@@ -1133,6 +1133,7 @@ function openQrModal(){
 
 
 
+
 <script id="mti4PanelStudioUpgrade">
 (function() {
   window.MTI_CURRENT_USER_NAME = '';
@@ -1158,6 +1159,14 @@ function openQrModal(){
     if (bestUser && (!curVal || (forceIfDuty && curVal.toLowerCase() === 'duty surveyor'))) {
       inp.value = bestUser;
     }
+  }
+
+  function getSelectedDprDate() {
+    const dtInput = document.querySelector('input[type="date"], input[name*="dpr_date"], input[id*="dprDate"], input[placeholder*="YYYY"]');
+    if (dtInput && dtInput.value && dtInput.value.trim()) {
+      return dtInput.value.trim();
+    }
+    return '';
   }
 
   function removeLine4ZInputs() {
@@ -1187,6 +1196,91 @@ function openQrModal(){
     });
   }
 
+  function customizeTopActionBar() {
+    const oldSetupBtn = document.getElementById('btnTopSurveySetup');
+    if (oldSetupBtn) oldSetupBtn.remove();
+
+    let dprAnchorBtn = null;
+
+    document.querySelectorAll('a.btn, button.btn').forEach(function(btn) {
+      const txt = (btn.textContent || '').replace(/\s+/g, ' ').trim();
+      const href = (btn.getAttribute('href') || '').toLowerCase();
+
+      // 1. Scan QR -> keep only icon, remove text
+      if (txt.indexOf('Scan QR') !== -1) {
+        const icon = btn.querySelector('i, svg');
+        btn.title = 'Scan QR';
+        btn.setAttribute('aria-label', 'Scan QR');
+        if (icon) {
+          icon.className = icon.className.replace(/\bme-\d+\b/g, '').trim();
+          btn.innerHTML = '';
+          btn.appendChild(icon);
+        } else {
+          btn.innerHTML = '<i class="fas fa-qrcode"></i>';
+        }
+        btn.classList.add('px-2');
+      }
+      // 2. Mobile Input Page -> keep only icon, remove text
+      else if (txt.indexOf('Mobile Input Page') !== -1 || href.indexOf('mobile') !== -1) {
+        if (txt.indexOf('Mobile Input') !== -1) {
+          const icon = btn.querySelector('i, svg');
+          btn.title = 'Mobile Input Page';
+          btn.setAttribute('aria-label', 'Mobile Input Page');
+          if (icon) {
+            icon.className = icon.className.replace(/\bme-\d+\b/g, '').trim();
+            btn.innerHTML = '';
+            btn.appendChild(icon);
+          } else {
+            btn.innerHTML = '<i class="fas fa-mobile-alt"></i>';
+          }
+          btn.classList.add('px-2');
+        }
+      }
+      // 3. Change "Export MTI Ledger & Logs (.xlsx)" to "Create PDF MTI DPR"
+      else if (txt.indexOf('Export MTI') !== -1 || href.indexOf('export') !== -1 || btn.id === 'btnCreatePdfMtiDpr') {
+        btn.id = 'btnCreatePdfMtiDpr';
+        btn.title = 'Create Daily Progress Report PDF (00:00 to 23:59 logs)';
+        btn.innerHTML = '<i class="fas fa-file-pdf me-1"></i>Create PDF MTI DPR';
+        btn.onclick = function(ev) {
+          ev.preventDefault();
+          const dtVal = getSelectedDprDate();
+          const survVal = window.MTI_CURRENT_USER_NAME || detectCurrentUserFromDom() || '';
+          const qs = new URLSearchParams();
+          if (dtVal) qs.set('date', dtVal);
+          if (survVal) qs.set('surveyor_name', survVal);
+          window.open('/mti/create_pdf_dpr' + (qs.toString() ? ('?' + qs.toString()) : ''), '_blank');
+        };
+        btn.setAttribute('href', '/mti/create_pdf_dpr');
+        dprAnchorBtn = btn;
+      }
+      // 4. Remove Reports Hub button from MTI top bar
+      else if (txt.indexOf('Reports Hub') !== -1 || href.indexOf('reports_hub') !== -1 || href === '/reports') {
+        btn.remove();
+      }
+      // 5. Remove Survey Setup button from MTI top bar
+      else if (txt.indexOf('Survey Setup') !== -1 && btn.id !== 'btnStudioSurveySetup') {
+        btn.remove();
+      }
+    });
+
+    // 6. Inject or update the "CHART" button right after "Create PDF MTI DPR"
+    let chartBtn = document.getElementById('btnTop4PanelWin');
+    if (!chartBtn && dprAnchorBtn && dprAnchorBtn.parentNode) {
+      chartBtn = document.createElement('a');
+      chartBtn.id = 'btnTop4PanelWin';
+      chartBtn.target = '_blank';
+      chartBtn.className = 'btn btn-sm btn-info text-dark fw-bold';
+      chartBtn.style.cssText = 'background:#38bdf8;border-color:#0284c7;color:#0f172a;';
+      dprAnchorBtn.parentNode.insertBefore(chartBtn, dprAnchorBtn.nextSibling);
+    }
+    if (chartBtn) {
+      chartBtn.innerHTML = '&#128202; CHART';
+      chartBtn.title = 'Open 4-Panel Verification & Submittal Studio';
+      const activeUser = window.MTI_CURRENT_USER_NAME || detectCurrentUserFromDom() || '';
+      chartBtn.href = '/mti/studio' + (activeUser ? ('?surveyor_name=' + encodeURIComponent(activeUser)) : '');
+    }
+  }
+
   function initMti4PanelUpgrades() {
     document.querySelectorAll('p, div, small, span').forEach(function(el) {
       if (el.children.length <= 2) {
@@ -1198,35 +1292,7 @@ function openQrModal(){
     });
 
     removeLine4ZInputs();
-
-    if (!document.getElementById('btnTop4PanelWin')) {
-      let anchorBtn = document.querySelector('a[href*="export"], a[href*="report"]');
-      if (!anchorBtn) {
-        document.querySelectorAll('a.btn, button.btn').forEach(function(b) {
-          const bt = (b.textContent || '').trim();
-          if (bt.indexOf('Export MTI') !== -1 || bt.indexOf('Reports Hub') !== -1) anchorBtn = b;
-        });
-      }
-      if (anchorBtn && anchorBtn.parentNode) {
-        const aStudio = document.createElement('a');
-        aStudio.id = 'btnTop4PanelWin';
-        aStudio.href = '/mti/studio';
-        aStudio.target = '_blank';
-        aStudio.className = 'btn btn-sm btn-info text-dark fw-bold';
-        aStudio.style.cssText = 'background:#38bdf8;border-color:#0284c7;color:#0f172a;';
-        aStudio.innerHTML = '&#128202; 4-Panel Studio';
-        anchorBtn.parentNode.insertBefore(aStudio, anchorBtn.nextSibling);
-
-        const aSetup = document.createElement('a');
-        aSetup.id = 'btnTopSurveySetup';
-        aSetup.href = '/mti/setup';
-        aSetup.target = '_blank';
-        aSetup.className = 'btn btn-sm btn-warning text-dark fw-bold';
-        aSetup.style.cssText = 'background:#facc15;border-color:#eab308;color:#0f172a;';
-        aSetup.innerHTML = '&#9881; Survey Setup (CAD / Design / Bathy)';
-        anchorBtn.parentNode.insertBefore(aSetup, aStudio.nextSibling);
-      }
-    }
+    customizeTopActionBar();
 
     const fixForm = document.getElementById('mattressFixForm') || document.querySelector('form[action*="add_fix"], form[action*="fix"]');
     if (fixForm) {
@@ -1253,7 +1319,7 @@ function openQrModal(){
           b.id = 'btnPreview4Panel';
           b.className = 'btn btn-sm btn-info text-dark fw-bold';
           b.style.cssText = 'background:#38bdf8;border-color:#0284c7;color:#0f172a;white-space:nowrap;';
-          b.innerHTML = '&#128202; 4-Panel Studio';
+          b.innerHTML = '&#128202; CHART';
           b.onclick = function() {
             syncSurveyorInputBox(true);
             const fd = new FormData(fixForm), qs = new URLSearchParams();
@@ -1296,8 +1362,8 @@ function openQrModal(){
       a.href = '#';
       a.className = 'btn btn-sm btn-info text-dark fw-bold me-1 btn-4panel-ledger';
       a.style.cssText = 'padding:2px 7px;font-size:11.5px;background:#38bdf8;border-color:#0284c7;color:#0f172a;display:inline-flex;align-items:center;gap:3px;';
-      a.title = 'Open ' + (boxId || ('Unit #' + uno)) + ' in 4-Panel Studio (New Window)';
-      a.innerHTML = '&#128202; 4-Panel';
+      a.title = 'Open ' + (boxId || ('Unit #' + uno)) + ' in 4-Panel Chart Studio (New Window)';
+      a.innerHTML = '&#128202; CHART';
       a.onclick = function(ev) {
         ev.preventDefault();
         const sInp = document.getElementById('inpFormSurveyorName');
