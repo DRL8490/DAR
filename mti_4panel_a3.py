@@ -1,5 +1,4 @@
-import gc
-import os, io, re, math
+﻿import os, io, re, gc, math
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -22,38 +21,45 @@ def plot_cad_background(ax, cad_polylines, is_local=False, des_e=0.0, des_n=0.0,
             px, py = arr[:, 0], arr[:, 1]
         ax.plot(px, py, color="#64748b", linewidth=0.65, linestyle="-", alpha=0.55, zorder=2)
 
-def plot_seabed_layer(ax, seabed_xyz, x_lim, y_lim, is_zoomed=False, show_contours=True, contour_interval=0.05, show_soundings=True, spot_spacing=2.0, bathy_source="REF_DEPTH"):
-    if seabed_xyz is None or len(seabed_xyz) < 1:
+def plot_seabed_layer(ax, seabed_xyz, x_lim, y_lim, is_zoomed=False, show_contours=True, contour_interval=0.05, show_soundings=True, spot_spacing=2.0, bathy_source="NO_BATHY_UPLOADED"):
+    if seabed_xyz is None or len(seabed_xyz) < 1 or bathy_source != "SURVEY_BATHY":
         return
     sb = np.asarray(seabed_xyz, dtype=float)
-    nx, ny = (26, 34) if is_zoomed else (30, 42)
+    in_view = (sb[:, 0] >= x_lim[0] - 4.0) & (sb[:, 0] <= x_lim[1] + 4.0) & (sb[:, 1] >= y_lim[0] - 4.0) & (sb[:, 1] <= y_lim[1] + 4.0)
+    sb_near = sb[in_view] if np.any(in_view) else sb
+
+    nx, ny = (28, 36) if is_zoomed else (32, 44)
     gx, gy = np.meshgrid(np.linspace(x_lim[0], x_lim[1], nx), np.linspace(y_lim[0], y_lim[1], ny))
     q_xy = np.column_stack([gx.ravel(), gy.ravel()])
-    gz = idw_interpolate(sb[:, :2], sb[:, 2], q_xy).reshape(gx.shape)
+    gz = idw_interpolate(sb_near[:, :2], sb_near[:, 2], q_xy).reshape(gx.shape)
 
-    if show_contours and len(sb) >= 4:
+    if show_contours and len(sb_near) >= 4:
         c_step = max(float(contour_interval or 0.05), 0.01)
         z_lo, z_hi = float(np.min(gz)) - c_step, float(np.max(gz)) + c_step
-        if (z_hi - z_lo) >= c_step * 0.5:
+        if (z_hi - z_lo) >= c_step * 0.25:
             levels = np.arange(math.floor(z_lo / c_step) * c_step, z_hi + c_step, c_step)
-            if 2 <= len(levels) <= 60:
+            if len(levels) > 60:
+                c_step = max(round((z_hi - z_lo) / 30.0, 2), 0.05)
+                levels = np.arange(math.floor(z_lo / c_step) * c_step, z_hi + c_step, c_step)
+            if 2 <= len(levels) <= 65:
                 ax.contour(gx, gy, gz, levels=levels, colors="#94a3b8", linewidths=0.45, linestyles="dashed", alpha=0.65, zorder=1)
 
     if show_soundings:
         sp = max(float(spot_spacing or 2.0), 0.5) if is_zoomed else max(float(spot_spacing or 2.0) * 2.0, 2.0)
         w_span, h_span = max(x_lim[1] - x_lim[0], 1e-3), max(y_lim[1] - y_lim[0], 1e-3)
-        in_view = (sb[:, 0] >= x_lim[0]) & (sb[:, 0] <= x_lim[1]) & (sb[:, 1] >= y_lim[0]) & (sb[:, 1] <= y_lim[1])
-        sb_vis = sb[in_view]
+        vis_mask = (sb[:, 0] >= x_lim[0]) & (sb[:, 0] <= x_lim[1]) & (sb[:, 1] >= y_lim[0]) & (sb[:, 1] <= y_lim[1])
+        sb_vis = sb[vis_mask]
 
         plotted_pts = []
-        if bathy_source == "SURVEY_BATHY" and 1 <= len(sb_vis) <= 120:
-            min_d = sp * 0.70
+        if len(sb_vis) > 0:
+            min_d = sp * 0.82
             for pt in sb_vis:
                 fx, fy = (pt[0] - x_lim[0]) / w_span, (pt[1] - y_lim[0]) / h_span
                 if fx < 0.05 or fx > 0.95 or fy < 0.05 or fy > 0.94 or (fy < 0.18 and (fx < 0.44 or fx > 0.62)):
                     continue
                 if all(math.hypot(pt[0] - p[0], pt[1] - p[1]) >= min_d for p in plotted_pts):
                     plotted_pts.append(pt)
+
         if not plotted_pts:
             xs = np.arange(math.ceil(x_lim[0] / sp) * sp, x_lim[1], sp)
             ys = np.arange(math.ceil(y_lim[0] / sp) * sp, y_lim[1], sp)
@@ -66,7 +72,7 @@ def plot_seabed_layer(ax, seabed_xyz, x_lim, y_lim, is_zoomed=False, show_contou
                     grid_xy.append([sx, sy])
             if grid_xy:
                 g_arr = np.array(grid_xy, dtype=float)
-                g_z = idw_interpolate(sb[:, :2], sb[:, 2], g_arr)
+                g_z = idw_interpolate(sb_near[:, :2], sb_near[:, 2], g_arr)
                 plotted_pts = np.column_stack([g_arr, g_z]).tolist()
 
         fmt = "{:.2f}" if is_zoomed else "{:.1f}"
@@ -94,7 +100,7 @@ def generate_a3_4panel_chart(
     is_first = bool(metrics.get("is_first_in_array")) or (cur_uno == 1) or (str(loc_id).endswith("_M15") and str(mat_id).replace("#", "") == "A046")
     gap_tol = float(metrics.get("gap_tol") or 0.50)
     cl_tol = float(metrics.get("cl_tol") or 0.50)
-    bathy_src = str(metrics.get("bathy_source") or "REF_DEPTH")
+    bathy_src = str(metrics.get("bathy_source") or "NO_BATHY_UPLOADED")
     cad_polys = metrics.get("cad_polylines") or []
 
     verdict_full = str(metrics.get("verdict") or ("VERIFIED - WITHIN DESIGN TOLERANCE" if is_first else "VERIFIED - WITHIN DESIGN & GAP TOLERANCE"))
@@ -245,11 +251,16 @@ def generate_a3_4panel_chart(
     ]:
         ax_p.scatter(coord_arr, np.abs(z_vals), c=z_vals, cmap="turbo", s=10, alpha=0.85, label="Mattress Surface")
         xs_l = np.linspace(lim_x[0], lim_x[1], 40)
-        q_prof = np.column_stack([np.zeros_like(xs_l), xs_l]) if is_long else np.column_stack([xs_l, np.zeros_like(xs_l)])
-        z_prof = idw_interpolate(sb_loc_arr[:, :2], sb_loc_arr[:, 2], q_prof) if len(sb_loc_arr) >= 1 else np.full_like(xs_l, z_mean - 0.25)
-        ax_p.plot(xs_l, np.abs(z_prof), "--", color="#64748b", lw=1.2, label="Seabed Baseline")
+        if bathy_src == "SURVEY_BATHY" and len(sb_loc_arr) >= 1:
+            q_prof = np.column_stack([np.zeros_like(xs_l), xs_l]) if is_long else np.column_stack([xs_l, np.zeros_like(xs_l)])
+            z_prof = idw_interpolate(sb_loc_arr[:, :2], sb_loc_arr[:, 2], q_prof)
+            ax_p.plot(xs_l, np.abs(z_prof), "--", color="#0284c7", lw=1.35, label="Survey Seabed Profile")
+            z_span = np.concatenate([np.abs(z_vals), np.abs(z_prof)])
+            y_hi, y_lo = float(np.max(z_span)) + 0.45, float(np.min(z_span)) - 0.45
+        else:
+            y_hi, y_lo = abs(z_mean) + 0.65, abs(z_mean) - 0.65
         ax_p.axvline(-edge_v, color="#dc2626", ls="--", lw=1.2, label=f"Design (+/-{edge_v:.1f}m)"); ax_p.axvline(edge_v, color="#dc2626", ls="--", lw=1.2)
-        ax_p.set_xlim(*lim_x); ax_p.set_ylim(abs(z_mean) + 0.65, abs(z_mean) - 0.65)
+        ax_p.set_xlim(*lim_x); ax_p.set_ylim(y_hi, y_lo)
         ax_p.set_title(ttl, fontsize=7.0, fontweight="bold", pad=3); ax_p.set_xlabel(x_lbl, fontsize=6.3, fontweight="bold"); ax_p.set_ylabel("Depth Z (m, Inv)", fontsize=6.3, fontweight="bold")
         ax_p.tick_params(labelsize=5.6); ax_p.grid(True, linestyle=":", lw=0.45, color="#cbd5e1"); ax_p.legend(loc="lower right", fontsize=5.0, framealpha=0.9)
 

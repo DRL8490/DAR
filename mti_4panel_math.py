@@ -2,6 +2,8 @@
 from datetime import datetime
 import numpy as np
 
+AREA_LOCATIONS = ["CR-A1_L1", "CR-A1_L2", "CR-A2", "CR-A3", "CR-B1_L1", "CR-B1_L2", "CR-B2", "CR-B3"]
+
 def build_base_filename(location_id, mattress_id, date_str=None):
     dt = re.sub(r"[^0-9]", "", str(date_str or ""))[:8]
     if len(dt) < 8:
@@ -18,7 +20,7 @@ def _box_corners_cw(ce, cn, az_deg, length=6.0, width=3.0):
     pts = [c + sL * (length / 2.0) * ul + sW * (width / 2.0) * us for sL, sW in [(1, -1), (1, 1), (-1, 1), (-1, -1)]]
     return np.array(pts, dtype=float), ul, us
 
-def parse_bathy_xyz_text(raw_text, bounds=None, max_pts=4000):
+def parse_bathy_xyz_text(raw_text, bounds=None, max_pts=4500):
     pts = []
     e_lo, e_hi, n_lo, n_hi = bounds if bounds else (-1e12, 1e12, -1e12, 1e12)
     for ln in str(raw_text or "").splitlines():
@@ -119,15 +121,11 @@ def parse_dxf_background(raw_dxf_text):
                 poly_pts = []
             uval = val.upper()
             if uval == "POLYLINE":
-                cur_ent = "POLYLINE"
-                poly_pts = []
-                is_closed = False
+                cur_ent, poly_pts, is_closed = "POLYLINE", [], False
             elif uval == "VERTEX":
-                cur_ent = "VERTEX"
-                cur_pts = []
+                cur_ent, cur_pts = "VERTEX", []
             else:
-                cur_ent = uval
-                cur_pts = []
+                cur_ent, cur_pts = uval, []
                 if uval != "SEQEND":
                     is_closed = False
             x_tmp, x2_tmp = None, None
@@ -185,10 +183,17 @@ def load_custom_catalog(workspace_dir="workspace"):
     return []
 
 def load_cad_bg_polylines(workspace_dir, crossing_id):
-    p = os.path.join(workspace_dir, f"{crossing_id}_cad_bg.json")
-    if os.path.exists(p):
-        try: return json.loads(open(p, "r", encoding="utf-8").read())
-        except Exception: pass
+    for fn in (f"{crossing_id}_cad_bg.json", f"{crossing_id.split('_')[0]}_L1_cad_bg.json"):
+        p = os.path.join(workspace_dir, fn)
+        if os.path.exists(p):
+            try:
+                data = json.loads(open(p, "r", encoding="utf-8").read())
+                if isinstance(data, dict):
+                    return data.get("polylines") or []
+                if isinstance(data, list):
+                    return data
+            except Exception:
+                pass
     return []
 
 def build_crossing_boxes_from_catalog(catalog_list, crossing_id="CR-A1_L1", target_box_id="CR-A1_M15", workspace_dir="workspace"):
@@ -239,17 +244,25 @@ def build_crossing_boxes_from_catalog(catalog_list, crossing_id="CR-A1_L1", targ
 def idw_interpolate(src_xy, src_z, query_xy, power=2.0):
     src_xy, src_z, query_xy = np.asarray(src_xy, float), np.asarray(src_z, float), np.asarray(query_xy, float)
     if len(src_xy) == 0:
-        return np.full(len(query_xy), -18.45)
-    if len(src_xy) > 600:
-        step = max(1, len(src_xy) // 600)
+        return np.zeros(len(query_xy), dtype=float)
+    if len(src_xy) > 800:
+        step = max(1, len(src_xy) // 800)
         src_xy, src_z = src_xy[::step], src_z[::step]
     dx, dy = query_xy[:, 0:1] - src_xy[:, 0][None, :], query_xy[:, 1:2] - src_xy[:, 1][None, :]
     w = 1.0 / (np.maximum(dx * dx + dy * dy, 1e-8) ** (power / 2.0))
     return (w @ src_z) / np.sum(w, axis=1)
 
-def get_or_build_seabed_xyz(workspace_dir, crossing_id, boxes_dict, ref_depth_m=-18.45):
+def get_or_build_seabed_xyz(workspace_dir, crossing_id, boxes_dict, ref_depth_m=None):
+    """Loads ONLY real uploaded bathy soundings for the location (never invents fallback depths)."""
     os.makedirs(workspace_dir, exist_ok=True)
-    for fn in (f"{crossing_id}_seabed.npy", "GLOBAL_seabed.npy"):
+    base_area = str(crossing_id or "CR-A1_L1").split("_")[0]
+    candidates = [
+        f"{crossing_id}_seabed.npy",
+        f"{base_area}_L1_seabed.npy",
+        f"{base_area}_seabed.npy",
+        "GLOBAL_seabed.npy"
+    ]
+    for fn in candidates:
         npy_p = os.path.join(workspace_dir, fn)
         if os.path.exists(npy_p):
             try:
@@ -260,14 +273,7 @@ def get_or_build_seabed_xyz(workspace_dir, crossing_id, boxes_dict, ref_depth_m=
                     return arr[:, :3], "SURVEY_BATHY"
             except Exception:
                 pass
-    safe_ref = float(ref_depth_m) if abs(float(ref_depth_m)) > 2.0 else -18.45
-    safe_ref = -abs(safe_ref)
-    es = [b["design_e"] for b in boxes_dict.values()] if boxes_dict else [194541.4]
-    ns = [b["design_n"] for b in boxes_dict.values()] if boxes_dict else [2702613.4]
-    e_min, e_max, n_min, n_max = min(es) - 25.0, max(es) + 25.0, min(ns) - 25.0, max(ns) + 25.0
-    ee, nn = np.meshgrid(np.arange(e_min, e_max + 2.0, 2.0), np.arange(n_min, n_max + 2.0, 2.0))
-    zz = np.full_like(ee, safe_ref, dtype=float)
-    return np.column_stack([ee.ravel(), nn.ravel(), zz.ravel()]), "REF_DEPTH"
+    return np.zeros((0, 3), dtype=float), "NO_BATHY_UPLOADED"
 
 def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace", cl_tol=0.50, gap_tol=0.50):
     xing_id = str(fix_data.get("crossing_id") or "CR-A1_L1").strip()
@@ -335,13 +341,16 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
 
     verdict = ("VERIFIED - WITHIN DESIGN TOLERANCE" if is_first else "VERIFIED - WITHIN DESIGN & GAP TOLERANCE") if (cl_off <= float(cl_tol) and (is_first or max_gap <= float(gap_tol))) else "ADVISORY - CHECK OFFSET OR GAP TOLERANCE"
 
-    raw_ref_sb = fix_data.get("seabed_ref_z")
-    ref_sb_z = float(raw_ref_sb) if (raw_ref_sb is not None and str(raw_ref_sb).strip() != "" and abs(float(raw_ref_sb)) > 2.0) else (as_z - 0.25)
-    seabed_full_xyz, bathy_src = get_or_build_seabed_xyz(workspace_dir, xing_id, boxes_dict, ref_depth_m=ref_sb_z)
-    sb_d = seabed_full_xyz[:, :2] - np.array([des_e, des_n])
-    sb_x, sb_y = sb_d @ us, sb_d @ ul
-    m_loc = (np.abs(sb_x) <= 10.0) & (np.abs(sb_y) <= 12.0)
-    seabed_local_xyz = np.column_stack([sb_x[m_loc], sb_y[m_loc], seabed_full_xyz[m_loc, 2]]) if np.any(m_loc) else np.column_stack([sb_x, sb_y, seabed_full_xyz[:, 2]])
+    seabed_full_xyz, bathy_src = get_or_build_seabed_xyz(workspace_dir, xing_id, boxes_dict)
+    if len(seabed_full_xyz) > 0:
+        sb_d = seabed_full_xyz[:, :2] - np.array([des_e, des_n])
+        sb_x, sb_y = sb_d @ us, sb_d @ ul
+        m_loc = (np.abs(sb_x) <= 12.0) & (np.abs(sb_y) <= 14.0)
+        seabed_local_xyz = np.column_stack([sb_x[m_loc], sb_y[m_loc], seabed_full_xyz[m_loc, 2]]) if np.any(m_loc) else np.column_stack([sb_x, sb_y, seabed_full_xyz[:, 2]])
+        b_zmin, b_zmax = round(float(np.min(seabed_full_xyz[:, 2])), 2), round(float(np.max(seabed_full_xyz[:, 2])), 2)
+    else:
+        seabed_local_xyz = np.zeros((0, 3), dtype=float)
+        b_zmin, b_zmax = 0.0, 0.0
 
     cad_polylines = load_cad_bg_polylines(workspace_dir, xing_id)
 
@@ -358,7 +367,7 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
         "is_first_in_array": is_first, "gaps": gaps, "gap_labels": gap_labels,
         "max_gap_m": round(max_gap, 3), "cl_tol": cl_tol, "gap_tol": gap_tol,
         "bathy_source": bathy_src, "bathy_count": int(len(seabed_full_xyz)),
-        "bathy_z_min": round(float(np.min(seabed_full_xyz[:, 2])), 2), "bathy_z_max": round(float(np.max(seabed_full_xyz[:, 2])), 2),
+        "bathy_z_min": b_zmin, "bathy_z_max": b_zmax,
         "cad_polylines": cad_polylines, "cad_poly_count": len(cad_polylines),
         "neighbors": tb["neighbors"], "verdict": verdict,
         "env_wind": str(fix_data.get("env_wind") or ""), "env_current": str(fix_data.get("env_current") or ""), "remarks": str(fix_data.get("remarks") or "")
