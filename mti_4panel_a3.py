@@ -1,4 +1,4 @@
-﻿import os, io, re, gc, math
+import os, io, re, gc, math
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -178,8 +178,10 @@ def generate_a3_4panel_chart(
     plot_seabed_layer(ax2, seabed_local_xyz, (-hw2, hw2), (-hh2, hh2), True, show_contours, contour_interval, show_soundings, spot_spacing, bathy_src)
     plot_cad_background(ax2, cad_polys, is_local=True, des_e=des_e, des_n=des_n, u_short=tb["u_short"], u_long=tb["u_long"])
 
+    z_mean = float(np.mean(z_vals))
+    vmin_c, vmax_c = round(z_mean - 0.50, 2), round(z_mean + 0.50, 2)
     ax2.add_patch(mpatches.Rectangle((-1.5, -3.0), 3.0, 6.0, fill=False, edgecolor="#dc2626", linewidth=1.8, zorder=5, label="Design Box (3.0x6.0m)"))
-    sc2 = ax2.scatter(x_local, y_local, c=z_vals, cmap="turbo", s=16, alpha=0.9, zorder=6)
+    sc2 = ax2.scatter(x_local, y_local, c=z_vals, cmap="turbo", vmin=vmin_c, vmax=vmax_c, s=16, alpha=0.9, zorder=6)
     cax2 = fig.add_axes([278.0 / W_MM, 46.0 / H_MM, 3.2 / W_MM, 204.0 / H_MM])
     cb2 = fig.colorbar(sc2, cax=cax2); cb2.set_label("Depth Z (m, TWVD2001)", fontsize=6.4, fontweight="bold"); cb2.ax.tick_params(labelsize=5.6)
 
@@ -243,20 +245,20 @@ def generate_a3_4panel_chart(
     ax2.set_xlabel("Cross-Track X_local (m, WNW -1.5m to ESE +1.5m)", fontsize=6.6, fontweight="bold"); ax2.set_ylabel("Along-Track Y_local (m, SSW -3.0m to NNE +3.0m)", fontsize=6.6, fontweight="bold")
     ax2.tick_params(labelsize=5.8); ax2.grid(True, linestyle=":", linewidth=0.45, color="#cbd5e1")
 
-    z_mean = float(np.mean(z_vals))
     sb_loc_arr = np.asarray(seabed_local_xyz, dtype=float)
     for ax_p, coord_arr, lim_x, edge_v, is_long, ttl, x_lbl in [
         (fig.add_axes([315.0 / W_MM, 162.0 / H_MM, 83.0 / W_MM, 88.0 / H_MM]), y_local, (-3.5, 3.5), 3.0, True, "PANEL 3: LONGITUDINAL (SSW -> NNE)" + chr(10) + "H 1:75 | V 1:15 @ A3", "Along-Track Y_local (m)"),
         (fig.add_axes([315.0 / W_MM, 46.0 / H_MM, 83.0 / W_MM, 86.0 / H_MM]), x_local, (-2.2, 2.2), 1.5, False, "PANEL 4: LATERAL (WNW -> ESE)" + chr(10) + "H 1:50 | V 1:15 @ A3", "Cross-Track X_local (m)")
     ]:
-        ax_p.scatter(coord_arr, np.abs(z_vals), c=z_vals, cmap="turbo", s=10, alpha=0.85, label="Mattress Surface")
+        ax_p.scatter(coord_arr, np.abs(z_vals), c=z_vals, cmap="turbo", vmin=vmin_c, vmax=vmax_c, s=10, alpha=0.85, label="Mattress Surface")
         xs_l = np.linspace(lim_x[0], lim_x[1], 40)
         if bathy_src == "SURVEY_BATHY" and len(sb_loc_arr) >= 1:
             q_prof = np.column_stack([np.zeros_like(xs_l), xs_l]) if is_long else np.column_stack([xs_l, np.zeros_like(xs_l)])
             z_prof = idw_interpolate(sb_loc_arr[:, :2], sb_loc_arr[:, 2], q_prof)
             ax_p.plot(xs_l, np.abs(z_prof), "--", color="#0284c7", lw=1.35, label="Survey Seabed Profile")
-            z_span = np.concatenate([np.abs(z_vals), np.abs(z_prof)])
-            y_hi, y_lo = float(np.max(z_span)) + 0.45, float(np.min(z_span)) - 0.45
+            z_center = 0.5 * (float(np.mean(np.abs(z_vals))) + float(np.mean(np.abs(z_prof))))
+            half_win = max(0.65, 0.5 * abs(float(np.max(np.abs(z_prof)) - np.min(np.abs(z_vals)))) + 0.35)
+            y_hi, y_lo = z_center + half_win, z_center - half_win
         else:
             y_hi, y_lo = abs(z_mean) + 0.65, abs(z_mean) - 0.65
         ax_p.axvline(-edge_v, color="#dc2626", ls="--", lw=1.2, label=f"Design (+/-{edge_v:.1f}m)"); ax_p.axvline(edge_v, color="#dc2626", ls="--", lw=1.2)

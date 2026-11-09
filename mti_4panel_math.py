@@ -1,4 +1,4 @@
-﻿import os, re, math, json
+import os, re, math, json
 from datetime import datetime
 import numpy as np
 
@@ -253,7 +253,6 @@ def idw_interpolate(src_xy, src_z, query_xy, power=2.0):
     return (w @ src_z) / np.sum(w, axis=1)
 
 def get_or_build_seabed_xyz(workspace_dir, crossing_id, boxes_dict, ref_depth_m=None):
-    """Loads ONLY real uploaded bathy soundings for the location (never invents fallback depths)."""
     os.makedirs(workspace_dir, exist_ok=True)
     base_area = str(crossing_id or "CR-A1_L1").split("_")[0]
     candidates = [
@@ -275,6 +274,13 @@ def get_or_build_seabed_xyz(workspace_dir, crossing_id, boxes_dict, ref_depth_m=
                 pass
     return np.zeros((0, 3), dtype=float), "NO_BATHY_UPLOADED"
 
+def _is_legacy_placeholder_z(val):
+    try:
+        v = -abs(float(val))
+        return abs(v) < 2.0 or abs(v - (-18.20)) < 0.05 or abs(v - (-18.35)) < 0.05 or abs(v - (-18.45)) < 0.05
+    except Exception:
+        return True
+
 def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace", cl_tol=0.50, gap_tol=0.50):
     xing_id = str(fix_data.get("crossing_id") or "CR-A1_L1").strip()
     loc_id = str(fix_data.get("design_box_id") or fix_data.get("location_id") or "CR-A1_M15").strip()
@@ -287,9 +293,42 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
     loc_id, xing_id = tb["id"], tb["layer"]
     des_e, des_n, des_brg, des_az, ul, us = tb["design_e"], tb["design_n"], tb["bearing"], tb["azimuth"], tb["u_long"], tb["u_short"]
 
+    # 1. Load real bathy seabed FIRST so we know the true seabed elevation at the mattress location
+    seabed_full_xyz, bathy_src = get_or_build_seabed_xyz(workspace_dir, xing_id, boxes_dict)
+    if len(seabed_full_xyz) > 0:
+        sb_d = seabed_full_xyz[:, :2] - np.array([des_e, des_n])
+        sb_x, sb_y = sb_d @ us, sb_d @ ul
+        m_loc = (np.abs(sb_x) <= 12.0) & (np.abs(sb_y) <= 14.0)
+        seabed_local_xyz = np.column_stack([sb_x[m_loc], sb_y[m_loc], seabed_full_xyz[m_loc, 2]]) if np.any(m_loc) else np.column_stack([sb_x, sb_y, seabed_full_xyz[:, 2]])
+        b_zmin, b_zmax = round(float(np.min(seabed_full_xyz[:, 2])), 2), round(float(np.max(seabed_full_xyz[:, 2])), 2)
+        sb_near_global = seabed_full_xyz[m_loc] if np.any(m_loc) else seabed_full_xyz
+        seabed_at_center = float(idw_interpolate(sb_near_global[:, :2], sb_near_global[:, 2], np.array([[des_e, des_n]]))[0])
+    else:
+        seabed_local_xyz = np.zeros((0, 3), dtype=float)
+        sb_near_global = np.zeros((0, 3), dtype=float)
+        b_zmin, b_zmax = 0.0, 0.0
+        seabed_at_center = -54.00
+
+    # Concrete Mattress Thickness = 30 cm (0.30 m) above seabed by default
+    try:
+        mat_thick = float(fix_data.get("mat_thickness_m") if fix_data.get("mat_thickness_m") is not None and str(fix_data.get("mat_thickness_m")).strip() != "" else 0.30)
+    except Exception:
+        mat_thick = 0.30
+
     as_e, as_n = float(fix_data.get("aslaid_e") or fix_data.get("qaqc_e") or des_e), float(fix_data.get("aslaid_n") or fix_data.get("qaqc_n") or des_n)
-    raw_z = float(fix_data.get("aslaid_z") or 0.0)
-    as_z = -abs(raw_z) if abs(raw_z) > 2.0 else (-18.20 if unit_no == 1 else -18.35)
+    raw_z = fix_data.get("aslaid_z")
+    if raw_z is not None and str(raw_z).strip() != "" and not _is_legacy_placeholder_z(raw_z):
+        cand_z = -abs(float(raw_z))
+        if len(seabed_full_xyz) == 0 or abs(cand_z - seabed_at_center) <= 5.0:
+            as_z = cand_z
+            use_seabed_drape = False
+        else:
+            as_z = round(seabed_at_center + mat_thick, 3)
+            use_seabed_drape = True
+    else:
+        as_z = round(seabed_at_center + mat_thick, 3)
+        use_seabed_drape = True
+
     hdg = float(fix_data.get("heading_deg") or fix_data.get("qaqc_brg") or des_brg)
     hdg = round((hdg + 180.0) % 360.0, 3) if hdg < 180.0 else hdg
 
@@ -298,13 +337,23 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
         ce, cn, cz = fix_data.get(f"c{i}_e"), fix_data.get(f"c{i}_n"), fix_data.get(f"c{i}_z")
         if ce is not None and cn is not None and str(ce).strip() != "" and str(cn).strip() != "":
             try:
-                zv = -abs(float(cz)) if (cz is not None and str(cz).strip() != "" and abs(float(cz)) > 2.0) else as_z
-                c_pts.append([float(ce), float(cn), zv])
+                fe_i, fn_i = float(ce), float(cn)
+                if cz is not None and str(cz).strip() != "" and not _is_legacy_placeholder_z(cz) and not use_seabed_drape:
+                    zv = -abs(float(cz))
+                elif len(sb_near_global) > 0:
+                    zv = float(idw_interpolate(sb_near_global[:, :2], sb_near_global[:, 2], np.array([[fe_i, fn_i]]))[0]) + mat_thick
+                else:
+                    zv = as_z
+                c_pts.append([round(fe_i, 3), round(fn_i, 3), round(zv, 3)])
             except Exception:
                 pass
     if len(c_pts) != 4:
         c2d, _, _ = _box_corners_cw(as_e, as_n, (hdg - 180.0) % 360.0, 6.0, 3.0)
-        c_pts = [[round(float(p[0]), 3), round(float(p[1]), 3), round(as_z, 3)] for p in c2d]
+        if len(sb_near_global) > 0 and use_seabed_drape:
+            cz_arr = idw_interpolate(sb_near_global[:, :2], sb_near_global[:, 2], c2d) + mat_thick
+            c_pts = [[round(float(p[0]), 3), round(float(p[1]), 3), round(float(z_i), 3)] for p, z_i in zip(c2d, cz_arr)]
+        else:
+            c_pts = [[round(float(p[0]), 3), round(float(p[1]), 3), round(as_z, 3)] for p in c2d]
     c_arr = np.array(c_pts, dtype=float)
     as_e, as_n, as_z = float(np.mean(c_arr[:, 0])), float(np.mean(c_arr[:, 1])), float(np.mean(c_arr[:, 2]))
     be, bn, fe, fn = (c_arr[0, 0] + c_arr[1, 0]) / 2.0, (c_arr[0, 1] + c_arr[1, 1]) / 2.0, (c_arr[2, 0] + c_arr[3, 0]) / 2.0, (c_arr[2, 1] + c_arr[3, 1]) / 2.0
@@ -315,6 +364,10 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
     ug, vg = np.meshgrid(np.linspace(0.0, 1.0, 20), np.linspace(0.0, 1.0, 35))
     uf, vf = ug.ravel(), vg.ravel()
     cleaned_xyz = (np.outer((1 - uf) * (1 - vf), c_arr[3]) + np.outer((1 - uf) * vf, c_arr[0]) + np.outer(uf * vf, c_arr[1]) + np.outer(uf * (1 - vf), c_arr[2]))
+    if len(sb_near_global) > 0 and use_seabed_drape:
+        cleaned_xyz[:, 2] = idw_interpolate(sb_near_global[:, :2], sb_near_global[:, 2], cleaned_xyz[:, :2]) + mat_thick
+        as_z = float(np.mean(cleaned_xyz[:, 2]))
+
     d_en = cleaned_xyz[:, :2] - np.array([des_e, des_n])
     x_local, y_local, z_vals = d_en @ us, d_en @ ul, cleaned_xyz[:, 2]
     c_loc_d = c_arr[:, :2] - np.array([des_e, des_n])
@@ -341,17 +394,6 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
 
     verdict = ("VERIFIED - WITHIN DESIGN TOLERANCE" if is_first else "VERIFIED - WITHIN DESIGN & GAP TOLERANCE") if (cl_off <= float(cl_tol) and (is_first or max_gap <= float(gap_tol))) else "ADVISORY - CHECK OFFSET OR GAP TOLERANCE"
 
-    seabed_full_xyz, bathy_src = get_or_build_seabed_xyz(workspace_dir, xing_id, boxes_dict)
-    if len(seabed_full_xyz) > 0:
-        sb_d = seabed_full_xyz[:, :2] - np.array([des_e, des_n])
-        sb_x, sb_y = sb_d @ us, sb_d @ ul
-        m_loc = (np.abs(sb_x) <= 12.0) & (np.abs(sb_y) <= 14.0)
-        seabed_local_xyz = np.column_stack([sb_x[m_loc], sb_y[m_loc], seabed_full_xyz[m_loc, 2]]) if np.any(m_loc) else np.column_stack([sb_x, sb_y, seabed_full_xyz[:, 2]])
-        b_zmin, b_zmax = round(float(np.min(seabed_full_xyz[:, 2])), 2), round(float(np.max(seabed_full_xyz[:, 2])), 2)
-    else:
-        seabed_local_xyz = np.zeros((0, 3), dtype=float)
-        b_zmin, b_zmax = 0.0, 0.0
-
     cad_polylines = load_cad_bg_polylines(workspace_dir, xing_id)
 
     metrics = {
@@ -359,7 +401,9 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
         "status": str(fix_data.get("status") or "Completed"), "base_filename": build_base_filename(loc_id, mat_id, dt_str),
         "design_e": des_e, "design_n": des_n, "design_brg": des_brg, "design_az": des_az,
         "qaqc_e": float(fix_data.get("qaqc_e") or as_e), "qaqc_n": float(fix_data.get("qaqc_n") or as_n), "qaqc_brg": float(fix_data.get("qaqc_brg") or hdg),
-        "aslaid_e": round(as_e, 3), "aslaid_n": round(as_n, 3), "aslaid_z": round(as_z, 3), "heading_deg": hdg, "act_az": act_az, "brg_diff_deg": d_brg,
+        "aslaid_e": round(as_e, 3), "aslaid_n": round(as_n, 3), "aslaid_z": round(as_z, 2),
+        "seabed_at_center_z": round(seabed_at_center, 2), "mat_thickness_m": round(mat_thick, 2),
+        "heading_deg": hdg, "act_az": act_az, "brg_diff_deg": d_brg,
         "cl_offset_m": round(cl_off, 3), "d_along_m": round(d_along, 3), "d_cross_m": round(d_cross, 3), "pct_inside": round(pct_in, 1),
         "corners_enz": c_arr.tolist(), "corners_local": corners_local.tolist(),
         "edge_nne": round(float(np.max(y_local)) - 3.0, 3), "edge_ssw": round(-3.0 - float(np.min(y_local)), 3),

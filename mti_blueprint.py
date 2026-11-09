@@ -1179,8 +1179,8 @@ STUDIO_HTML_TEMPLATE = r"""<!DOCTYPE html>
 
   <div class="studio-card p-2 mb-2">
     <div class="row g-2 align-items-end">
-      <div class="col-md-3 col-12">
-        <label class="small fw-bold text-info">1-Click Installed Ledger Mattress Switcher</label>
+      <div class="col-md-2 col-12">
+        <label class="small fw-bold text-info">Ledger Switcher</label>
         <select id="ledgerSelect" class="form-select form-select-sm fw-bold bg-dark text-warning border-info" onchange="window.selectLedgerUnit(this.value)">
           {% for r in ledger %}
           <option value="{{ r.design_box_id }}" {% if r.design_box_id == init_box %}selected{% endif %}>
@@ -1196,6 +1196,10 @@ STUDIO_HTML_TEMPLATE = r"""<!DOCTYPE html>
       <div class="col-md-1 col-6">
         <label class="small fw-bold text-light">Mattress ID</label>
         <input type="text" id="inpTagId" class="form-control form-control-sm fw-bold" value="{{ init_tag }}">
+      </div>
+      <div class="col-md-1 col-6">
+        <label class="small fw-bold text-warning" title="Concrete Mattress Thickness (30 cm = 0.30 m)">Thick (m)</label>
+        <input type="number" step="0.01" id="inpMatThick" class="form-control form-control-sm fw-bold bg-dark text-warning border-warning" value="0.30">
       </div>
       <div class="col-md-1 col-6">
         <label class="small fw-bold text-light">P1 Scale</label>
@@ -1269,6 +1273,7 @@ window.runStudioVerify = function(extra) {
   const payload = Object.assign({}, Object.fromEntries(INIT_PARAMS.entries()), extra || {});
   payload.design_box_id = (extra && extra.design_box_id) || document.getElementById('inpBoxId').value.trim();
   payload.physical_tag = document.getElementById('inpTagId').value.trim();
+  if (document.getElementById('inpMatThick')) payload.mat_thickness_m = document.getElementById('inpMatThick').value;
   payload.scale_p1 = document.getElementById('fpScP1').value;
   payload.scale_p2 = document.getElementById('fpScP2').value;
   payload.show_soundings = document.getElementById('fpSnd').checked;
