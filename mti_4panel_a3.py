@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.patches as mpatches
 import matplotlib.patheffects as patheffects
 from mti_4panel_math import idw_interpolate, _box_corners_cw
@@ -119,7 +120,7 @@ def plot_seabed_layer(ax, seabed_xyz, x_lim, y_lim, is_zoomed=False, show_contou
 def generate_a3_4panel_chart(
     boxes_dict, metrics, cleaned_xyz, x_local, y_local, z_vals, seabed_local_xyz, seabed_full_xyz,
     workspace_dir="workspace", include_history=False, ledger_list=None, scale_p1=250, scale_p2=75,
-    show_contours=True, contour_interval=0.05, show_soundings=True, spot_spacing=2.0, save_pdf=True
+    show_contours=True, contour_interval=0.05, show_soundings=True, spot_spacing=2.0, save_pdf=True, custom_report_md=None
 ):
     os.makedirs(workspace_dir, exist_ok=True)
     W_MM, H_MM = 420.0, 297.0
@@ -327,10 +328,19 @@ def generate_a3_4panel_chart(
     png_bytes = buf_png.getvalue()
     pdf_bytes = b""
     if save_pdf:
+        from mti_4panel_reports import render_a4_landscape_figures, build_structured_report_markdown
         buf_pdf = io.BytesIO()
-        fig.savefig(buf_pdf, format="pdf", dpi=150)
+        with PdfPages(buf_pdf) as pdf_pages:
+            pdf_pages.savefig(fig, dpi=150)
+            fig.clf(); plt.close(fig); gc.collect()
+            rep_md_use = custom_report_md or build_structured_report_markdown(metrics, include_history, ledger_list, scale_p1, scale_p2)
+            for f_a4 in render_a4_landscape_figures(metrics, rep_md_use):
+                pdf_pages.savefig(f_a4, dpi=150)
+                f_a4.clf(); plt.close(f_a4)
+        plt.close('all'); gc.collect()
         pdf_bytes = buf_pdf.getvalue()
-    fig.clf(); plt.close(fig); plt.close('all'); gc.collect()
+    else:
+        fig.clf(); plt.close(fig); plt.close('all'); gc.collect()
 
     for fn in ("latest_A3_4Panel_Chart", metrics["base_filename"]):
         open(os.path.join(workspace_dir, fn + ".png"), "wb").write(png_bytes)

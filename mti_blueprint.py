@@ -981,6 +981,7 @@ def update_4panel_report():
     generate_editable_docx(metrics, rep_md, MTI_WS_DIR)
     last["report_md"] = rep_md
     open(os.path.join(MTI_WS_DIR, "last_4panel_cache.json"), "w", encoding="utf-8").write(json.dumps(last, ensure_ascii=False))
+    _purge_cached_pdfs()
     return jsonify({"status": "ok", "base_filename": metrics.get("base_filename")})
 
 @mti_bp.route('/upload_seabed', methods=['POST'])
@@ -1248,7 +1249,7 @@ def _dl_4panel_file(kind, suffix, mime):
         cat_list = list(MATTRESS_CATALOG.values()) if isinstance(MATTRESS_CATALOG, dict) else list(MATTRESS_CATALOG)
         fd = cache.get("fix_data") or (ledger[0] if ledger else {})
         b_dict, metrics, c_xyz, xl, yl, zv, sb_loc, sb_full = run_rov_4panel_verification(fd, cat_list, MTI_WS_DIR)
-        generate_a3_4panel_chart(b_dict, metrics, c_xyz, xl, yl, zv, sb_loc, sb_full, MTI_WS_DIR, cache.get("include_history", True), ledger, cache.get("scale_p1", 250), cache.get("scale_p2", 75), cache.get("show_contours", True), cache.get("contour_interval", 0.05), cache.get("show_soundings", True), cache.get("spot_spacing", 2.0), save_pdf=True)
+        generate_a3_4panel_chart(b_dict, metrics, c_xyz, xl, yl, zv, sb_loc, sb_full, MTI_WS_DIR, cache.get("include_history", True), ledger, cache.get("scale_p1", 250), cache.get("scale_p2", 75), cache.get("show_contours", True), cache.get("contour_interval", 0.05), cache.get("show_soundings", True), cache.get("spot_spacing", 2.0), save_pdf=True, custom_report_md=rep_md or None)
     elif kind == "a4_pdf" and not os.path.exists(p):
         generate_a4_report_pdf(metrics, MTI_WS_DIR, rep_md or None)
     elif kind == "docx" and not os.path.exists(p):
@@ -1295,9 +1296,9 @@ STUDIO_HTML_TEMPLATE = r"""<!DOCTYPE html>
     </div>
     <div class="d-flex flex-wrap gap-1 align-items-center">
       <a href="/mti/setup" target="_blank" class="btn btn-sm btn-outline-info fw-bold me-1"><i class="fas fa-sliders-h me-1"></i>Survey Setup (CAD / Design / Bathy)</a>
-      <a id="dlA3Pdf" href="/mti/download_a3_pdf" class="btn btn-sm btn-danger fw-bold"><i class="fas fa-file-pdf me-1"></i>A3 Chart PDF</a>
+      <a id="dlA3Pdf" href="/mti/download_a3_pdf" class="btn btn-sm btn-danger fw-bold" title="Download 2-Page Landscape Print PDF (Page 1: A3 Chart + Page 2: A4 Report)"><i class="fas fa-print me-1"></i>Print PDF</a>
       <a id="dlA3Png" href="/mti/download_a3_png" class="btn btn-sm btn-info text-dark fw-bold"><i class="fas fa-image me-1"></i>A3 PNG</a>
-      <a id="dlA4Pdf" href="/mti/download_a4_pdf" class="btn btn-sm btn-warning text-dark fw-bold"><i class="fas fa-file-alt me-1"></i>A4 Report PDF</a>
+      <a id="dlA4Pdf" href="/mti/download_a4_pdf" style="display:none;"></a>
       <a id="dlDocx" href="/mti/download_docx" class="btn btn-sm btn-primary fw-bold"><i class="fas fa-file-word me-1"></i>Editable Word (.docx)</a>
       <button type="button" class="btn btn-sm btn-outline-light ms-1" onclick="window.close()">Close</button>
     </div>
@@ -1372,7 +1373,7 @@ STUDIO_HTML_TEMPLATE = r"""<!DOCTYPE html>
         <div id="fpVisBox" contenteditable="true" class="form-control mb-2"></div>
         <textarea id="fpMdBox" class="form-control font-monospace mb-2" style="display:none;"></textarea>
         <div class="d-flex align-items-center gap-2">
-          <button type="button" class="btn btn-sm btn-primary fw-bold flex-grow-1" onclick="window.apply4PanelReportEdits()"><i class="fas fa-save me-1"></i>Apply Edits to A4 PDF &amp; Word (.docx)</button>
+          <button type="button" class="btn btn-sm btn-primary fw-bold flex-grow-1" onclick="window.apply4PanelReportEdits()"><i class="fas fa-save me-1"></i>Apply Edits to Print PDF &amp; Word (.docx)</button>
           <span id="fpEditMsg" class="small fw-bold text-warning"></span>
         </div>
       </div>
@@ -1458,7 +1459,7 @@ window.apply4PanelReportEdits = function() {
   const msg = document.getElementById('fpEditMsg');
   msg.innerText = 'Saving...';
   fetch('/mti/update_4panel_report', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ report_md: txt }) })
-    .then(r => r.json()).then(d => { msg.innerText = 'Saved A4 PDF & Word!'; setTimeout(() => { msg.innerText = ''; }, 2500); });
+    .then(r => r.json()).then(d => { msg.innerText = 'Saved Print PDF & Word!'; setTimeout(() => { msg.innerText = ''; }, 2500); });
 };
 
 document.addEventListener('DOMContentLoaded', function() {
