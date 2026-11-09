@@ -858,6 +858,13 @@ def verify_4panel():
 
     _purge_cached_pdfs()
 
+    if req.get('surveyor_name') or req.get('install_date'):
+        for r in ledger:
+            if str(r.get('design_box_id','')).upper() == str(fix_data.get('design_box_id','')).upper():
+                if req.get('surveyor_name'): r['surveyor_name'] = str(req['surveyor_name']).strip()
+                if req.get('install_date'): r['install_date'] = str(req['install_date']).strip()
+        try: save_mti_state(st)
+        except Exception: pass
     b_dict, metrics, c_xyz, xl, yl, zv, sb_loc, sb_full = run_rov_4panel_verification(fix_data, cat_list, MTI_WS_DIR)
     png_b, _ = generate_a3_4panel_chart(b_dict, metrics, c_xyz, xl, yl, zv, sb_loc, sb_full, MTI_WS_DIR, inc_hist, ledger, sc_p1, sc_p2, sh_cont, c_int, sh_snd, s_spc, save_pdf=False)
     rep_md = build_structured_report_markdown(metrics, inc_hist, ledger, sc_p1, sc_p2)
@@ -1184,41 +1191,47 @@ STUDIO_HTML_TEMPLATE = r"""<!DOCTYPE html>
         <select id="ledgerSelect" class="form-select form-select-sm fw-bold bg-dark text-warning border-info" onchange="window.selectLedgerUnit(this.value)">
           {% for r in ledger %}
           <option value="{{ r.design_box_id }}" {% if r.design_box_id == init_box %}selected{% endif %}>
-            Unit #{{ r.unit_no }}: {{ r.design_box_id }} ({{ r.physical_tag }}) - {{ r.install_date }}
+            #{{ r.unit_no }}: {{ r.design_box_id }} ({{ r.physical_tag }})
           </option>
           {% endfor %}
         </select>
       </div>
-      <div class="col-md-2 col-6">
-        <label class="small fw-bold text-light">Location Box ID</label>
+      <div class="col-md-1 col-6">
+        <label class="small fw-bold text-light">Location ID</label>
         <input type="text" id="inpBoxId" class="form-control form-control-sm fw-bold" value="{{ init_box }}">
       </div>
       <div class="col-md-1 col-6">
         <label class="small fw-bold text-light">Mattress ID</label>
         <input type="text" id="inpTagId" class="form-control form-control-sm fw-bold" value="{{ init_tag }}">
       </div>
-      <div class="col-md-1 col-6">
-        <label class="small fw-bold text-warning" title="Concrete Mattress Thickness (30 cm = 0.30 m)">Thick (m)</label>
-        <input type="number" step="0.01" id="inpMatThick" class="form-control form-control-sm fw-bold bg-dark text-warning border-warning" value="0.30">
+      <div class="col-md-2 col-6">
+        <label class="small fw-bold text-info">Placement Date &amp; Time</label>
+        <input type="text" id="inpInstallDate" class="form-control form-control-sm fw-bold bg-dark text-light border-info" value="{{ init_date }}" placeholder="YYYY-MM-DD HH:MM">
       </div>
-      <div class="col-md-1 col-6">
-        <label class="small fw-bold text-light">P1 Scale</label>
-        <select id="fpScP1" class="form-select form-select-sm"><option value="200">1:200</option><option value="250" selected>1:250</option><option value="300">1:300</option><option value="400">1:400</option></select>
+      <div class="col-md-2 col-6">
+        <label class="small fw-bold text-info">Surveyor Name</label>
+        <input type="text" id="inpSurveyor" class="form-control form-control-sm fw-bold bg-dark text-warning border-info" value="{{ init_surveyor }}" placeholder="e.g. Abror / Roderick">
       </div>
-      <div class="col-md-1 col-6">
-        <label class="small fw-bold text-light">P2 Scale</label>
-        <select id="fpScP2" class="form-select form-select-sm"><option value="50">1:50</option><option value="75" selected>1:75</option><option value="100">1:100</option></select>
+      <div class="col-md-1 col-4">
+        <label class="small fw-bold text-warning" title="Mattress Thickness (m)">Thick(m)</label>
+        <input type="number" step="0.01" id="inpMatThick" class="form-control form-control-sm fw-bold bg-dark text-warning border-secondary" value="0.30">
       </div>
-      <div class="col-md-2 col-12 d-flex flex-column justify-content-center">
-        <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="fpSnd" checked><label class="form-check-label small" for="fpSnd">Spot Soundings</label></div>
-        <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="fpCnt" checked><label class="form-check-label small" for="fpCnt">Contours &amp; History</label></div>
+      <div class="col-md-1 col-4">
+        <label class="small fw-bold text-light">P1 / P2</label>
+        <div class="d-flex gap-1">
+          <select id="fpScP1" class="form-select form-select-sm px-1" title="Panel 1 Scale"><option value="200">200</option><option value="250" selected>250</option><option value="300">300</option><option value="400">400</option></select>
+          <select id="fpScP2" class="form-select form-select-sm px-1" title="Panel 2 Scale"><option value="50">50</option><option value="75" selected>75</option><option value="100">100</option></select>
+        </div>
       </div>
-      <div class="col-md-2 col-12">
-        <button type="button" id="btnRefresh4P" class="btn btn-sm btn-success fw-bold w-100" onclick="window.runStudioVerify()"><i class="fas fa-sync-alt me-1"></i>Render 4-Panel</button>
+      <div class="col-md-1 col-4 d-flex flex-column justify-content-center">
+        <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" id="fpSnd" checked><label class="form-check-label small" for="fpSnd">Snd</label></div>
+        <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" id="fpCnt" checked><label class="form-check-label small" for="fpCnt">Cnt/Hist</label></div>
+      </div>
+      <div class="col-md-1 col-12">
+        <button type="button" id="btnRefresh4P" class="btn btn-sm btn-success fw-bold w-100" onclick="window.runStudioVerify()"><i class="fas fa-sync-alt"></i> Render</button>
       </div>
     </div>
   </div>
-
   <div class="row g-2">
     <div class="col-lg-7">
       <div class="studio-card p-2 text-center position-relative" style="min-height:600px;display:flex;align-items:center;justify-content:center;">
@@ -1257,6 +1270,8 @@ window.selectLedgerUnit = function(boxId) {
   if (row) {
     document.getElementById('inpBoxId').value = row.design_box_id || '';
     document.getElementById('inpTagId').value = row.physical_tag || '';
+    if (document.getElementById('inpInstallDate')) document.getElementById('inpInstallDate').value = row.install_date || '';
+    if (document.getElementById('inpSurveyor')) document.getElementById('inpSurveyor').value = row.surveyor_name || row.surveyor || 'Duty Surveyor';
   }
   window.runStudioVerify({ design_box_id: boxId });
 };
@@ -1273,6 +1288,9 @@ window.runStudioVerify = function(extra) {
   const payload = Object.assign({}, Object.fromEntries(INIT_PARAMS.entries()), extra || {});
   payload.design_box_id = (extra && extra.design_box_id) || document.getElementById('inpBoxId').value.trim();
   payload.physical_tag = document.getElementById('inpTagId').value.trim();
+  if (document.getElementById('inpInstallDate')) payload.install_date = document.getElementById('inpInstallDate').value.trim();
+  if (document.getElementById('inpSurveyor')) payload.surveyor_name = document.getElementById('inpSurveyor').value.trim();
+  if (document.getElementById('inpMatThick')) payload.mat_thickness_m = document.getElementById('inpMatThick').value;
   if (document.getElementById('inpMatThick')) payload.mat_thickness_m = document.getElementById('inpMatThick').value;
   payload.scale_p1 = document.getElementById('fpScP1').value;
   payload.scale_p2 = document.getElementById('fpScP2').value;
@@ -1294,6 +1312,8 @@ window.runStudioVerify = function(extra) {
           document.getElementById('fpActiveFilename').innerText = fn + '.pdf';
           document.getElementById('inpBoxId').value = d.metrics.location_id || '';
           document.getElementById('inpTagId').value = d.metrics.mattress_id || '';
+          if (document.getElementById('inpInstallDate') && d.metrics.install_date) document.getElementById('inpInstallDate').value = d.metrics.install_date;
+          if (document.getElementById('inpSurveyor') && d.metrics.surveyor_name) document.getElementById('inpSurveyor').value = d.metrics.surveyor_name;
           const bBadge = document.getElementById('fpBathyBadge');
           if (d.metrics.bathy_source === 'SURVEY_BATHY') {
             bBadge.innerText = 'BATHY: ' + d.metrics.bathy_count + ' PTS (' + d.metrics.bathy_z_min + 'm to ' + d.metrics.bathy_z_max + 'm)';
@@ -1749,7 +1769,9 @@ def mti_4panel_studio_window():
     fd = _resolve_fix_data(req, ledger)
     init_box = fd.get("design_box_id") or "CR-A1_M15"
     init_tag = fd.get("physical_tag") or "#A046"
-    return render_template_string(STUDIO_HTML_TEMPLATE, ledger=ledger, ledger_json=json.dumps(ledger), init_box=init_box, init_tag=init_tag)
+    init_date = fd.get("install_date") or "2026-11-04 14:34"
+    init_surveyor = fd.get("surveyor_name") or fd.get("surveyor") or "Duty Surveyor"
+    return render_template_string(STUDIO_HTML_TEMPLATE, ledger=ledger, ledger_json=json.dumps(ledger), init_box=init_box, init_tag=init_tag, init_date=init_date, init_surveyor=init_surveyor)
 
 @mti_bp.route('/setup')
 @login_required

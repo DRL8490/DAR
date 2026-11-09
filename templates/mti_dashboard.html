@@ -1221,6 +1221,15 @@ function openQrModal(){
 
     // 4. Inject clean "Open 4-Panel Studio (New Window)" button inside Mattress Fix Form
     const fixForm = document.getElementById('mattressFixForm') || document.querySelector('form[action*="add_fix"]');
+    if (fixForm && !fixForm.querySelector('[name="surveyor_name"]')) {
+      const dtInp = fixForm.querySelector('[name="install_date"], [name*="date"]');
+      if (dtInp && dtInp.parentNode) {
+        const sDiv = document.createElement('div');
+        sDiv.className = dtInp.parentNode.className || 'col-md-4 col-6';
+        sDiv.innerHTML = '<label class="form-label small fw-bold text-info">Surveyor Name</label><input type="text" name="surveyor_name" id="inpFormSurveyorName" class="form-control form-control-sm fw-bold" placeholder="e.g. Abror / Roderick" value="Duty Surveyor">';
+        dtInp.parentNode.parentNode.insertBefore(sDiv, dtInp.parentNode.nextSibling);
+      }
+    }
     if (fixForm && !document.getElementById('btnPreview4Panel')) {
       const saveBtn = fixForm.querySelector('button[type="submit"]');
       if (saveBtn) {

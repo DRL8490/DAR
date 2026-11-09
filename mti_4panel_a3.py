@@ -7,6 +7,39 @@ import matplotlib.patches as mpatches
 import matplotlib.patheffects as patheffects
 from mti_4panel_math import idw_interpolate, _box_corners_cw
 
+def draw_north_arrow(ax, x_lim, y_lim, north_angle_deg=0.0, sub_label="Grid N"):
+    w = float(x_lim[1] - x_lim[0])
+    h = float(y_lim[1] - y_lim[0])
+    cx = float(x_lim[0]) + 0.105 * w
+    cy = float(y_lim[1]) - 0.082 * h
+    r = 0.046 * w
+
+    bg_circle = mpatches.Circle((cx, cy), r * 1.38, facecolor="white", edgecolor="#475569", linewidth=0.8, alpha=0.92, zorder=10)
+    ax.add_patch(bg_circle)
+    inner_ring = mpatches.Circle((cx, cy), r * 1.12, fill=False, edgecolor="#94a3b8", linewidth=0.45, linestyle=":", zorder=10)
+    ax.add_patch(inner_ring)
+
+    rad = math.radians(float(north_angle_deg))
+    ux, uy = math.sin(rad), math.cos(rad)
+    px, py = math.cos(rad), -math.sin(rad)
+
+    tip = (cx + ux * r, cy + uy * r)
+    tail_c = (cx - ux * (r * 0.35), cy - uy * (r * 0.35))
+    left_w = (cx - ux * (r * 0.65) - px * (r * 0.42), cy - uy * (r * 0.65) - py * (r * 0.42))
+    right_w = (cx - ux * (r * 0.65) + px * (r * 0.42), cy - uy * (r * 0.65) + py * (r * 0.42))
+
+    ax.add_patch(mpatches.Polygon([tip, left_w, tail_c], closed=True, facecolor="#0f172a", edgecolor="#0f172a", linewidth=0.7, zorder=11))
+    ax.add_patch(mpatches.Polygon([tip, right_w, tail_c], closed=True, facecolor="white", edgecolor="#0f172a", linewidth=0.7, zorder=11))
+
+    nx_lbl = cx + ux * (r * 1.72)
+    ny_lbl = cy + uy * (r * 1.72)
+    t_n = ax.text(nx_lbl, ny_lbl, "N", fontsize=6.8, fontweight="bold", color="#0f172a", ha="center", va="center", zorder=12)
+    t_n.set_path_effects([patheffects.withStroke(linewidth=1.8, foreground="white")])
+
+    if sub_label:
+        t_sub = ax.text(cx, cy - r * 1.65, sub_label, fontsize=4.6, fontweight="bold", color="#334155", ha="center", va="top", zorder=12)
+        t_sub.set_path_effects([patheffects.withStroke(linewidth=1.5, foreground="white")])
+
 def plot_cad_background(ax, cad_polylines, is_local=False, des_e=0.0, des_n=0.0, u_short=None, u_long=None):
     if not cad_polylines:
         return
@@ -55,7 +88,7 @@ def plot_seabed_layer(ax, seabed_xyz, x_lim, y_lim, is_zoomed=False, show_contou
             min_d = sp * 0.82
             for pt in sb_vis:
                 fx, fy = (pt[0] - x_lim[0]) / w_span, (pt[1] - y_lim[0]) / h_span
-                if fx < 0.05 or fx > 0.95 or fy < 0.05 or fy > 0.94 or (fy < 0.18 and (fx < 0.44 or fx > 0.62)):
+                if fx < 0.05 or fx > 0.95 or fy < 0.05 or fy > 0.94 or (fy < 0.18 and (fx < 0.44 or fx > 0.62)) or (fy > 0.82 and fx < 0.22):
                     continue
                 if all(math.hypot(pt[0] - p[0], pt[1] - p[1]) >= min_d for p in plotted_pts):
                     plotted_pts.append(pt)
@@ -67,7 +100,7 @@ def plot_seabed_layer(ax, seabed_xyz, x_lim, y_lim, is_zoomed=False, show_contou
             for sx in xs:
                 for sy in ys:
                     fx, fy = (sx - x_lim[0]) / w_span, (sy - y_lim[0]) / h_span
-                    if fx < 0.06 or fx > 0.94 or fy < 0.05 or fy > 0.94 or (fy < 0.18 and (fx < 0.44 or fx > 0.62)):
+                    if fx < 0.06 or fx > 0.94 or fy < 0.05 or fy > 0.94 or (fy < 0.18 and (fx < 0.44 or fx > 0.62)) or (fy > 0.82 and fx < 0.22):
                         continue
                     grid_xy.append([sx, sy])
             if grid_xy:
@@ -96,6 +129,7 @@ def generate_a3_4panel_chart(
     ax_bg.add_patch(mpatches.Rectangle((14, 14), 392, 269, fill=False, edgecolor="#0f172a", linewidth=1.6))
     ax_bg.add_patch(mpatches.Rectangle((14, 270), 392, 13, facecolor="#0f172a", edgecolor="#0f172a"))
     loc_id, mat_id, usbl_s = metrics["location_id"], metrics["mattress_id"], metrics.get("usbl_sensor", "Survey Pole")
+    surv_name = str(metrics.get("surveyor_name") or "Duty Surveyor").strip()
     cur_uno = int(float(metrics.get("unit_no") or (1 if str(loc_id).endswith("_M15") else 2)))
     is_first = bool(metrics.get("is_first_in_array")) or (cur_uno == 1) or (str(loc_id).endswith("_M15") and str(mat_id).replace("#", "") == "A046")
     gap_tol = float(metrics.get("gap_tol") or 0.50)
@@ -108,7 +142,7 @@ def generate_a3_4panel_chart(
     ax_bg.text(402, 276.5, f"LOCATION: {loc_id}  |  MATTRESS ID: {mat_id}  |  {verdict_full}", color="#38bdf8", fontsize=7.8, fontweight="bold", va="center", ha="right")
 
     ax_bg.add_patch(mpatches.Rectangle((14, 14), 392, 14, facecolor="#f8fafc", edgecolor="#0f172a", linewidth=1.2))
-    for x_div in (110, 214, 316):
+    for x_div in (110, 214, 312):
         ax_bg.plot([x_div, x_div], [14, 28], color="#0f172a", linewidth=1.0)
 
     ax_bg.text(17, 23.5, "PROJECT: Tung-Hsiao 2nd Stage Subsea Gas Pipeline", fontsize=6.8, fontweight="bold", color="#0f172a")
@@ -120,12 +154,12 @@ def generate_a3_4panel_chart(
     ax_bg.text(113, 15.8, f"dCL OFFSET: {metrics['cl_offset_m']:.3f} m (Tol +/-{cl_tol:.2f}m | dAl {metrics['d_along_m']:+.2f}, dCr {metrics['d_cross_m']:+.2f}m)", fontsize=6.3, fontweight="bold", color="#15803d" if metrics["cl_offset_m"] <= cl_tol else "#b91c1c")
 
     ax_bg.text(217, 23.5, f"SOUTH BRG: Des {metrics['design_brg']:.2f} deg | Act {metrics['heading_deg']:.2f} deg (dBrg {metrics['brg_diff_deg']:+.2f} deg)", fontsize=6.4, fontweight="bold", color="#0f172a")
-    ax_bg.text(217, 19.5, f"CORNER GAPS: {'1st Unit (N/A)' if is_first else metrics['gap_labels'][:38]}", fontsize=6.3, fontweight="bold", color="#0369a1" if not is_first else "#334155")
+    ax_bg.text(217, 19.5, f"CORNER GAPS: {'1st Unit (N/A)' if is_first else metrics['gap_labels'][:36]}", fontsize=6.3, fontweight="bold", color="#0369a1" if not is_first else "#334155")
     ax_bg.text(217, 15.8, f"TOLERANCE: Centerline +/-{cl_tol:.2f} m | Side-to-Side Gap <= {gap_tol:.2f} m", fontsize=6.2, fontweight="bold", color="#15803d")
 
-    ax_bg.text(319, 23.5, f"FILE: {metrics['base_filename']}.pdf", fontsize=6.5, fontweight="bold", color="#0f172a")
-    ax_bg.text(319, 19.5, f"SCALES @ A3: P1 1:{scale_p1} | P2 1:{scale_p2} | P3 1:75/1:15 | P4 1:50/1:15", fontsize=6.1, color="#334155")
-    ax_bg.text(319, 15.8, f"DATE: {metrics['install_date']} | {metrics['status']}", fontsize=6.2, fontweight="bold", color="#15803d")
+    ax_bg.text(314.5, 23.5, f"PLACEMENT DATE/TIME: {metrics['install_date']}", fontsize=6.3, fontweight="bold", color="#0f172a")
+    ax_bg.text(314.5, 19.5, f"SURVEYOR: {surv_name} | STATUS: {metrics['status']}", fontsize=6.2, fontweight="bold", color="#0369a1")
+    ax_bg.text(314.5, 15.8, f"FILE: {metrics['base_filename']}.pdf (P1 1:{scale_p1} | P2 1:{scale_p2})", fontsize=5.9, color="#334155")
 
     des_e, des_n = metrics["design_e"], metrics["design_n"]
     tb = boxes_dict[loc_id]
@@ -137,6 +171,7 @@ def generate_a3_4panel_chart(
             if r_bid and r_bid != loc_id and (r_uno < cur_uno or r_bid == "CR-A1_M15"):
                 hist_map[r_bid] = r
 
+    # PANEL 1: FULL CROSSING ARRAY (with Grid North Arrow)
     ax1 = fig.add_axes([35.0 / W_MM, 56.0 / H_MM, 102.0 / W_MM, 184.0 / H_MM])
     hw1, hh1 = (102.0 / 1000.0) * float(scale_p1) / 2.0, (184.0 / 1000.0) * float(scale_p1) / 2.0
     e_lim1, n_lim1 = (des_e - hw1, des_e + hw1), (des_n - hh1, des_n + hh1)
@@ -164,6 +199,8 @@ def generate_a3_4panel_chart(
         t1 = ax1.text(b["design_e"], b["design_n"], lbl, fontsize=5.1, fontweight="bold", color="#0f172a", ha="center", va="center", rotation=b["azimuth"] - 90.0, zorder=6)
         t1.set_path_effects([patheffects.withStroke(linewidth=1.4, foreground="white")])
 
+    draw_north_arrow(ax1, e_lim1, n_lim1, north_angle_deg=0.0, sub_label="Grid N")
+
     sb1_x, sb1_y = e_lim1[1] - 7.2, n_lim1[0] + 1.8
     ax1.add_patch(mpatches.Rectangle((sb1_x - 0.8, sb1_y - 1.0), 6.8, 2.3, facecolor="white", edgecolor="#64748b", alpha=0.9, zorder=8))
     ax1.plot([sb1_x, sb1_x + 5.0], [sb1_y, sb1_y], color="#0f172a", linewidth=2.0, zorder=9)
@@ -172,6 +209,7 @@ def generate_a3_4panel_chart(
     ax1.set_xlabel("Easting E (m, TWD97)", fontsize=6.6, fontweight="bold"); ax1.set_ylabel("Northing N (m, TWD97)", fontsize=6.6, fontweight="bold")
     ax1.tick_params(labelsize=5.8); ax1.ticklabel_format(useOffset=False, style="plain"); ax1.grid(True, linestyle=":", linewidth=0.4, color="#cbd5e1")
 
+    # PANEL 2: LOCAL PLAN VIEW (with Rotated Grid North Arrow)
     ax2 = fig.add_axes([161.0 / W_MM, 46.0 / H_MM, 114.0 / W_MM, 204.0 / H_MM])
     hw2, hh2 = (114.0 / 1000.0) * float(scale_p2) / 2.0, (204.0 / 1000.0) * float(scale_p2) / 2.0
     ax2.set_xlim(-hw2, hw2); ax2.set_ylim(-hh2, hh2)
@@ -235,6 +273,8 @@ def generate_a3_4panel_chart(
                 txt_c = f"{c_title}" + chr(10) + "Corner Gap: N/A"
             ax2.annotate(txt_c, xy=(float(xy_c[0]), float(xy_c[1])), xytext=xy_box, ha="center", va="center", fontsize=5.3, fontweight="bold", color=bd,
                          bbox=dict(boxstyle="round,pad=0.24", facecolor=bg, edgecolor=bd, lw=0.85), arrowprops=dict(arrowstyle="->", color=bd, lw=0.9), zorder=9)
+
+    draw_north_arrow(ax2, (-hw2, hw2), (-hh2, hh2), north_angle_deg=-float(metrics.get("design_az", 0.0)), sub_label="Grid N")
 
     sb2_x, sb2_y = hw2 - 2.5, -hh2 + 0.65
     ax2.add_patch(mpatches.Rectangle((sb2_x - 0.2, sb2_y - 0.3), 2.4, 0.75, facecolor="white", edgecolor="#64748b", alpha=0.9, zorder=8))

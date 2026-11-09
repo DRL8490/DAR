@@ -22,7 +22,7 @@ def build_structured_report_markdown(metrics, include_history=False, ledger_list
         f"**Project:** Tung-Hsiao Power Plant 2nd Stage Renewal Subsea Gas Pipeline Project",
         f"**Client:** Taiwan Power Company (TPC) | **Contractor:** NMDC Energy | **Vessel:** DP2 MMA Prestige",
         f"**Crossing Array:** {xing_id} | **Location ID:** {loc_id} | **Mattress ID:** {mat_id} | **Active USBL:** {usbl_s}",
-        f"**Survey Date/Time:** {metrics.get('install_date','')} | **Deliverable Base:** {metrics.get('base_filename','')}",
+        f"**Placement Date & Time:** {metrics.get('install_date','')} | **Surveyor Name:** {metrics.get('surveyor_name','Duty Surveyor')} | **Deliverable:** {metrics.get('base_filename','')}",
         f"**Chart Scales @ A3:** Panel 1 (1:{scale_p1}) | Panel 2 (1:{scale_p2}) | Panel 3 (1:75/1:15) | Panel 4 (1:50/1:15)",
         "",
         "## EXECUTIVE VERDICT",
@@ -107,7 +107,7 @@ def generate_a4_report_pdf(metrics, workspace_dir="workspace", custom_report_md=
             y_cur -= 3.8
 
     ax.plot([14, 196], [19, 19], color="#cbd5e1", linewidth=0.8)
-    ax.text(18, 15.5, f"DP2 MMA Prestige | Tung-Hsiao 2nd Stage Subsea Gas Pipeline Project | Date: {metrics.get('install_date','')}", fontsize=6.0, color="#64748b")
+    ax.text(18, 15.5, f"DP2 MMA Prestige | Placement Date/Time: {metrics.get('install_date','')} | Surveyor: {metrics.get('surveyor_name','Duty Surveyor')}", fontsize=6.0, color="#64748b")
     ax.text(192, 15.5, "ISO A4 Portrait | Page 1 of 1", fontsize=6.0, color="#64748b", ha="right")
 
     buf = io.BytesIO()
