@@ -760,7 +760,7 @@ def load_mti_state():
 import os, re, json, base64
 import numpy as np
 from flask import jsonify, send_file, render_template_string
-from mti_4panel_math import run_rov_4panel_verification
+from mti_4panel_math import run_rov_4panel_verification, parse_bathy_xyz_text
 from mti_4panel_a3 import generate_a3_4panel_chart
 from mti_4panel_reports import build_structured_report_markdown, generate_a4_report_pdf, generate_editable_docx
 
@@ -839,16 +839,32 @@ def update_4panel_report():
 @login_required
 def upload_seabed():
     os.makedirs(MTI_WS_DIR, exist_ok=True)
-    xing_id = re.sub(r"[^A-Za-z0-9_-]", "_", str(request.form.get("crossing_id") or "CR-A1_L1").strip())
+    req_json = request.get_json(silent=True) or {}
+    xing_id = re.sub(r"[^A-Za-z0-9_-]", "_", str(request.form.get("crossing_id") or req_json.get("crossing_id") or "CR-A1_L1").strip())
+    raw_txt = ""
     f = request.files.get("seabed_file")
-    pts = []
-    for ln in (f.read().decode("utf-8", errors="ignore").splitlines() if f else []):
-        ps = [p for p in re.split(r"[\s,;]+", ln.strip()) if p]
-        if len(ps) >= 3 and ps[0][0] not in ("#", "/", "E", "e", "X", "x"):
-            try: pts.append([float(ps[0]), float(ps[1]), -abs(float(ps[2])) if float(ps[2]) > 0 else float(ps[2])])
-            except Exception: pass
-    if pts: np.save(os.path.join(MTI_WS_DIR, f"{xing_id}_seabed.npy"), np.array(pts, dtype=float))
-    return jsonify({"status": "ok", "crossing_id": xing_id, "points": len(pts)})
+    if f and f.filename:
+        raw_txt = f.read().decode("utf-8", errors="ignore")
+    else:
+        raw_txt = str(request.form.get("bathy_xyz_text") or req_json.get("bathy_xyz_text") or "")
+    pts_arr = parse_bathy_xyz_text(raw_txt)
+    if len(pts_arr) > 0:
+        np.save(os.path.join(MTI_WS_DIR, f"{xing_id}_seabed.npy"), pts_arr)
+        z_min, z_max = round(float(np.min(pts_arr[:, 2])), 2), round(float(np.max(pts_arr[:, 2])), 2)
+        return jsonify({"status": "ok", "crossing_id": xing_id, "points": int(len(pts_arr)), "z_min": z_min, "z_max": z_max})
+    return jsonify({"status": "error", "message": "No valid E N Z bathy points found."}), 400
+
+@mti_bp.route('/clear_seabed', methods=['POST'])
+@login_required
+def clear_seabed():
+    os.makedirs(MTI_WS_DIR, exist_ok=True)
+    req = request.get_json(silent=True) or request.form.to_dict()
+    xing_id = re.sub(r"[^A-Za-z0-9_-]", "_", str(req.get("crossing_id") or "CR-A1_L1").strip())
+    p = os.path.join(MTI_WS_DIR, f"{xing_id}_seabed.npy")
+    if os.path.exists(p):
+        try: os.remove(p)
+        except Exception: pass
+    return jsonify({"status": "ok", "crossing_id": xing_id})
 
 def _dl_4panel_file(kind, suffix, mime):
     os.makedirs(MTI_WS_DIR, exist_ok=True)
@@ -863,7 +879,7 @@ def _dl_4panel_file(kind, suffix, mime):
         cat_list = list(MATTRESS_CATALOG.values()) if isinstance(MATTRESS_CATALOG, dict) else list(MATTRESS_CATALOG)
         fd = cache.get("fix_data") or (ledger[0] if ledger else {})
         b_dict, metrics, c_xyz, xl, yl, zv, sb_loc, sb_full = run_rov_4panel_verification(fd, cat_list, MTI_WS_DIR)
-        generate_a3_4panel_chart(b_dict, metrics, c_xyz, xl, yl, zv, sb_loc, sb_full, MTI_WS_DIR, cache.get("include_history", True), ledger, cache.get("scale_p1", 250), cache.get("scale_p2", 75), save_pdf=True)
+        generate_a3_4panel_chart(b_dict, metrics, c_xyz, xl, yl, zv, sb_loc, sb_full, MTI_WS_DIR, cache.get("include_history", True), ledger, cache.get("scale_p1", 250), cache.get("scale_p2", 75), cache.get("show_contours", True), cache.get("contour_interval", 0.05), cache.get("show_soundings", True), cache.get("spot_spacing", 2.0), save_pdf=True)
     elif kind == "a4_pdf" and not os.path.exists(p):
         generate_a4_report_pdf(metrics, MTI_WS_DIR, rep_md or None)
     elif kind == "docx" and not os.path.exists(p):
@@ -896,17 +912,17 @@ STUDIO_HTML_TEMPLATE = """<!DOCTYPE html>
   <style>
     body { background:#0f172a; color:#f8fafc; font-family:system-ui,-apple-system,sans-serif; }
     .studio-card { background:#1e293b; border:1px solid #334155; border-radius:8px; }
-    #fpVisBox { background:#ffffff; color:#0f172a; height:540px; overflow-y:auto; white-space:pre-wrap; font-size:12.5px; line-height:1.45; }
-    #fpMdBox { background:#0f172a; color:#38bdf8; height:540px; font-size:12px; }
+    #fpVisBox { background:#ffffff; color:#0f172a; height:520px; overflow-y:auto; white-space:pre-wrap; font-size:12.5px; line-height:1.45; }
+    #fpMdBox { background:#0f172a; color:#38bdf8; height:520px; font-size:12px; }
   </style>
 </head>
 <body>
 <div class="container-fluid py-2 px-3">
   <div class="d-flex flex-wrap justify-content-between align-items-center py-2 px-3 mb-2 rounded" style="background:#020617;border:1px solid #1e293b;">
-    <div class="d-flex align-items-center gap-2">
+    <div class="d-flex flex-wrap align-items-center gap-2">
       <span class="fw-bold text-info fs-6"><i class="fas fa-drafting-compass me-2"></i>Subsea Mattress 4-Panel Verification &amp; Submittal Studio</span>
       <span id="fpActiveFilename" class="badge bg-primary font-monospace">Loading...</span>
-      <span id="fpStatusBadge" class="badge bg-success">READY</span>
+      <span id="fpBathyBadge" class="badge bg-secondary font-monospace">BATHY: REF_DEPTH</span>
     </div>
     <div class="d-flex flex-wrap gap-1 align-items-center">
       <a id="dlA3Pdf" href="/mti/download_a3_pdf" class="btn btn-sm btn-danger fw-bold"><i class="fas fa-file-pdf me-1"></i>A3 Chart PDF</a>
@@ -946,22 +962,44 @@ STUDIO_HTML_TEMPLATE = """<!DOCTYPE html>
         <select id="fpScP2" class="form-select form-select-sm"><option value="50">1:50</option><option value="75" selected>1:75</option><option value="100">1:100</option></select>
       </div>
       <div class="col-md-2 col-12 d-flex flex-column justify-content-center">
-        <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="fpSnd" checked><label class="form-check-label small" for="fpSnd">2.0m Soundings</label></div>
-        <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="fpCnt" checked><label class="form-check-label small" for="fpCnt">0.05m Contours &amp; Hist</label></div>
+        <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="fpSnd" checked><label class="form-check-label small" for="fpSnd">Spot Soundings</label></div>
+        <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="fpCnt" checked><label class="form-check-label small" for="fpCnt">Contours &amp; History</label></div>
       </div>
       <div class="col-md-2 col-12 d-flex gap-1">
-        <button type="button" id="btnRefresh4P" class="btn btn-sm btn-success fw-bold w-100" onclick="window.runStudioVerify()"><i class="fas fa-sync-alt me-1"></i>Render 4-Panel</button>
+        <button type="button" class="btn btn-sm btn-outline-info fw-bold w-50" onclick="window.toggleBathyDrawer()"><i class="fas fa-water me-1"></i>Bathy Input</button>
+        <button type="button" id="btnRefresh4P" class="btn btn-sm btn-success fw-bold w-50" onclick="window.runStudioVerify()"><i class="fas fa-sync-alt me-1"></i>Render</button>
+      </div>
+    </div>
+
+    <div id="bathyInputDrawer" class="mt-2 pt-2 border-top border-secondary" style="display:block;">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-5 col-12">
+          <label class="small fw-bold text-info"><i class="fas fa-water me-1"></i>Paste Pre-Survey Bathy Spot Soundings (E N Z or ID E N Z, one per line):</label>
+          <textarea id="inpBathyXyz" class="form-control form-control-sm font-monospace bg-dark text-light border-secondary" rows="2" placeholder="194540.00 2702615.00 -18.42&#10;194542.00 2702613.00 -18.45&#10;194545.00 2702611.00 -18.48"></textarea>
+        </div>
+        <div class="col-md-3 col-12">
+          <label class="small fw-bold text-info">Or Upload Bathy File (.xyz / .csv / .txt):</label>
+          <input type="file" id="inpBathyFile" class="form-control form-control-sm bg-dark text-light border-secondary" accept=".xyz,.csv,.txt">
+        </div>
+        <div class="col-md-2 col-6">
+          <label class="small fw-bold text-light">Fallback Ref Depth (m)</label>
+          <input type="number" step="0.01" id="inpSeabedRefZ" class="form-control form-control-sm bg-dark text-warning border-secondary fw-bold" value="-18.45" title="Used when no .xyz soundings are uploaded">
+        </div>
+        <div class="col-md-2 col-6 d-flex gap-1">
+          <button type="button" class="btn btn-sm btn-info text-dark fw-bold flex-grow-1" onclick="window.saveAndApplyBathy()"><i class="fas fa-check me-1"></i>Apply Bathy</button>
+          <button type="button" class="btn btn-sm btn-outline-danger fw-bold" onclick="window.clearBathyData()" title="Clear uploaded bathy soundings"><i class="fas fa-trash"></i></button>
+        </div>
       </div>
     </div>
   </div>
 
   <div class="row g-2">
     <div class="col-lg-7">
-      <div class="studio-card p-2 text-center position-relative" style="min-height:590px;display:flex;align-items:center;justify-content:center;">
+      <div class="studio-card p-2 text-center position-relative" style="min-height:560px;display:flex;align-items:center;justify-content:center;">
         <div id="fpSpinner" class="position-absolute top-50 start-50 translate-middle badge bg-dark border border-info p-3 fs-6" style="display:none;z-index:10;">
           <i class="fas fa-spinner fa-spin text-info me-2"></i>Rendering ISO A3 4-Panel Chart...
         </div>
-        <img id="fpPreviewImg" src="" class="img-fluid rounded bg-white" style="max-height:580px;" alt="ISO A3 4-Panel Chart Preview">
+        <img id="fpPreviewImg" src="" class="img-fluid rounded bg-white" style="max-height:550px;" alt="ISO A3 4-Panel Chart Preview">
       </div>
     </div>
     <div class="col-lg-5">
@@ -988,6 +1026,11 @@ STUDIO_HTML_TEMPLATE = """<!DOCTYPE html>
 const LEDGER_DATA = {{ ledger_json | safe }};
 const INIT_PARAMS = new URLSearchParams(window.location.search);
 
+window.toggleBathyDrawer = function() {
+  const d = document.getElementById('bathyInputDrawer');
+  d.style.display = (d.style.display === 'none') ? 'block' : 'none';
+};
+
 window.selectLedgerUnit = function(boxId) {
   const row = LEDGER_DATA.find(r => r.design_box_id === boxId);
   if (row) {
@@ -1005,6 +1048,34 @@ window.toggleFpTab = function(showMd) {
   document.getElementById('tabMd').classList.toggle('active', showMd);
 };
 
+window.saveAndApplyBathy = function() {
+  const f = document.getElementById('inpBathyFile').files[0];
+  const txt = document.getElementById('inpBathyXyz').value.trim();
+  if (f || txt) {
+    const fd = new FormData();
+    fd.append('crossing_id', 'CR-A1_L1');
+    if (f) fd.append('seabed_file', f);
+    if (txt) fd.append('bathy_xyz_text', txt);
+    fetch('/mti/upload_seabed', { method: 'POST', body: fd })
+      .then(r => r.json()).then(d => {
+        if (d.status === 'ok') {
+          window.runStudioVerify();
+        } else {
+          alert(d.message || 'Check E N Z format.');
+        }
+      });
+  } else {
+    window.runStudioVerify();
+  }
+};
+
+window.clearBathyData = function() {
+  document.getElementById('inpBathyXyz').value = '';
+  document.getElementById('inpBathyFile').value = '';
+  fetch('/mti/clear_seabed', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({crossing_id: 'CR-A1_L1'}) })
+    .then(() => window.runStudioVerify());
+};
+
 window.runStudioVerify = function(extra) {
   const payload = Object.assign({}, Object.fromEntries(INIT_PARAMS.entries()), extra || {});
   payload.design_box_id = (extra && extra.design_box_id) || document.getElementById('inpBoxId').value.trim();
@@ -1014,6 +1085,9 @@ window.runStudioVerify = function(extra) {
   payload.show_soundings = document.getElementById('fpSnd').checked;
   payload.show_contours = document.getElementById('fpCnt').checked;
   payload.include_history = document.getElementById('fpCnt').checked;
+  payload.seabed_ref_z = document.getElementById('inpSeabedRefZ').value;
+  const inlineBathy = document.getElementById('inpBathyXyz').value.trim();
+  if (inlineBathy) payload.bathy_xyz_text = inlineBathy;
 
   const btn = document.getElementById('btnRefresh4P'), sp = document.getElementById('fpSpinner');
   btn.disabled = true; sp.style.display = 'block';
@@ -1029,6 +1103,9 @@ window.runStudioVerify = function(extra) {
           document.getElementById('fpActiveFilename').innerText = fn + '.pdf';
           document.getElementById('inpBoxId').value = d.metrics.location_id || '';
           document.getElementById('inpTagId').value = d.metrics.mattress_id || '';
+          const bBadge = document.getElementById('fpBathyBadge');
+          bBadge.innerText = 'BATHY: ' + (d.metrics.bathy_source || 'REF_DEPTH') + ' (' + (d.metrics.bathy_count || 0) + ' pts | ' + (d.metrics.bathy_z_min || 0) + 'm)';
+          bBadge.className = 'badge font-monospace ' + (d.metrics.bathy_source === 'SURVEY_BATHY' ? 'bg-success' : 'bg-secondary');
           document.getElementById('dlA3Pdf').href = '/mti/download_a3_pdf?file=' + encodeURIComponent(fn);
           document.getElementById('dlA3Png').href = '/mti/download_a3_png?file=' + encodeURIComponent(fn);
           document.getElementById('dlA4Pdf').href = '/mti/download_a4_pdf?file=' + encodeURIComponent(fn);
@@ -1049,59 +1126,9 @@ window.apply4PanelReportEdits = function() {
 };
 
 document.addEventListener('DOMContentLoaded', function() {
+  if (INIT_PARAMS.get('seabed_ref_z')) document.getElementById('inpSeabedRefZ').value = INIT_PARAMS.get('seabed_ref_z');
+  if (INIT_PARAMS.get('bathy_xyz_text')) document.getElementById('inpBathyXyz').value = INIT_PARAMS.get('bathy_xyz_text');
   window.runStudioVerify();
-});
-</script>
-<script id="mti4PanelStudioUpgrade">
-document.addEventListener('DOMContentLoaded', function() {
-  const expBtn = document.querySelector('a[href*="export"]');
-  if (expBtn && !document.getElementById('btnTop4PanelWin')) {
-    const a = document.createElement('a');
-    a.id = 'btnTop4PanelWin';
-    a.href = '/mti/studio';
-    a.target = '_blank';
-    a.className = 'btn btn-sm btn-info text-dark fw-bold ms-1';
-    a.innerHTML = '&#128202; 4-Panel Studio (New Window)';
-    expBtn.parentNode.insertBefore(a, expBtn.nextSibling);
-  }
-
-  const fixForm = document.getElementById('mattressFixForm') || document.querySelector('form[action*="add_fix"]');
-  if (fixForm && !document.getElementById('btnPreview4Panel')) {
-    const saveBtn = fixForm.querySelector('button[type="submit"]');
-    if (saveBtn) {
-      const b = document.createElement('button');
-      b.type = 'button'; b.id = 'btnPreview4Panel';
-      b.className = 'btn btn-sm btn-info text-dark fw-bold ms-2';
-      b.innerHTML = '&#128202; Open 4-Panel Studio (New Window)';
-      b.onclick = function() {
-        const fd = new FormData(fixForm), qs = new URLSearchParams();
-        fd.forEach(function(v, k) { if (v !== null && String(v).trim() !== '') qs.set(k, String(v).trim()); });
-        window.open('/mti/studio?' + qs.toString(), '_blank');
-      };
-      saveBtn.parentNode.insertBefore(b, saveBtn.nextSibling);
-    }
-  }
-
-  let rowIdx = 0;
-  document.querySelectorAll('table tbody tr').forEach(function(tr) {
-    const actEl = tr.querySelector('button[onclick*="Fix"], a[href*="delete_fix"]');
-    if (!actEl || tr.querySelector('.btn-4panel-ledger')) return;
-    rowIdx += 1;
-    const rowTxt = tr.innerText || tr.textContent || '';
-    const mBox = rowTxt.match(/CR-[A-Z0-9_-]+_M[0-9]+/i);
-    const boxId = mBox ? mBox[0] : '';
-    const delLink = tr.querySelector('a[href*="delete_fix/"]');
-    const mId = delLink ? (delLink.getAttribute('href') || '').match(/delete_fix\/([0-9]+)/) : null;
-    const uno = mId ? mId[1] : String(rowIdx);
-
-    const a = document.createElement('a');
-    a.href = '/mti/studio?box_id=' + encodeURIComponent(boxId) + '&unit_no=' + encodeURIComponent(uno);
-    a.target = '_blank';
-    a.className = 'btn btn-xs btn-sm btn-info text-dark fw-bold me-1 btn-4panel-ledger';
-    a.title = 'Open ' + (boxId || ('Unit #' + uno)) + ' in 4-Panel Studio (New Window)';
-    a.innerHTML = '&#128202; 4-Panel';
-    actEl.parentNode.insertBefore(a, actEl);
-  });
 });
 </script>
 </body>

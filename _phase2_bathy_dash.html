@@ -1,0 +1,79 @@
+﻿<script id="mti4PanelStudioUpgrade">
+document.addEventListener('DOMContentLoaded', function() {
+  const expBtn = document.querySelector('a[href*="export"]');
+  if (expBtn && !document.getElementById('btnTop4PanelWin')) {
+    const a = document.createElement('a');
+    a.id = 'btnTop4PanelWin';
+    a.href = '/mti/studio';
+    a.target = '_blank';
+    a.className = 'btn btn-sm btn-info text-dark fw-bold ms-1';
+    a.innerHTML = '&#128202; 4-Panel Studio (New Window)';
+    expBtn.parentNode.insertBefore(a, expBtn.nextSibling);
+  }
+
+  const fixForm = document.getElementById('mattressFixForm') || document.querySelector('form[action*="add_fix"]');
+  if (fixForm && !document.getElementById('btnPreview4Panel')) {
+    const saveBtn = fixForm.querySelector('button[type="submit"]');
+    if (saveBtn) {
+      const bathyDiv = document.createElement('div');
+      bathyDiv.id = 'mtiFormBathyBox';
+      bathyDiv.className = 'col-12 mt-2 p-2 rounded border border-info bg-dark text-light';
+      bathyDiv.innerHTML = [
+        '<div class="d-flex flex-wrap justify-content-between align-items-center mb-1">',
+        '  <span class="small fw-bold text-info">&#127754; Pre-Survey Bathy Spot Soundings (Optional E N Z Paste or Ref Seabed Depth)</span>',
+        '  <div class="d-flex align-items-center gap-1">',
+        '    <label class="small text-light mb-0">Ref Depth (m):</label>',
+        '    <input type="number" step="0.01" name="seabed_ref_z" id="formSeabedRefZ" class="form-control form-control-sm bg-secondary text-white border-0 fw-bold" style="width:95px;" value="-18.45">',
+        '  </div>',
+        '</div>',
+        '<textarea name="bathy_xyz_text" id="formBathyXyzText" class="form-control form-control-sm font-monospace bg-dark text-info border-secondary" rows="2" placeholder="Paste E N Z spot soundings here (e.g. 194541.00 2702613.00 -18.45) or upload .xyz inside 4-Panel Studio..."></textarea>'
+      ].join('\n');
+      saveBtn.parentNode.parentNode.insertBefore(bathyDiv, saveBtn.parentNode);
+
+      const b = document.createElement('button');
+      b.type = 'button'; b.id = 'btnPreview4Panel';
+      b.className = 'btn btn-sm btn-info text-dark fw-bold ms-2';
+      b.innerHTML = '&#128202; Open 4-Panel Studio (New Window)';
+      b.onclick = function() {
+        const fd = new FormData(fixForm), qs = new URLSearchParams();
+        const bTxt = (document.getElementById('formBathyXyzText') || {}).value || '';
+        fd.forEach(function(v, k) {
+          if (k !== 'bathy_xyz_text' && v !== null && String(v).trim() !== '') qs.set(k, String(v).trim());
+        });
+        if (bTxt.trim()) {
+          const upFd = new FormData();
+          upFd.append('crossing_id', fd.get('crossing_id') || 'CR-A1_L1');
+          upFd.append('bathy_xyz_text', bTxt.trim());
+          fetch('/mti/upload_seabed', { method: 'POST', body: upFd }).finally(function() {
+            window.open('/mti/studio?' + qs.toString(), '_blank');
+          });
+        } else {
+          window.open('/mti/studio?' + qs.toString(), '_blank');
+        }
+      };
+      saveBtn.parentNode.insertBefore(b, saveBtn.nextSibling);
+    }
+  }
+
+  let rowIdx = 0;
+  document.querySelectorAll('table tbody tr').forEach(function(tr) {
+    const actEl = tr.querySelector('button[onclick*="Fix"], a[href*="delete_fix"]');
+    if (!actEl || tr.querySelector('.btn-4panel-ledger')) return;
+    rowIdx += 1;
+    const rowTxt = tr.innerText || tr.textContent || '';
+    const mBox = rowTxt.match(/CR-[A-Z0-9_-]+_M[0-9]+/i);
+    const boxId = mBox ? mBox[0] : '';
+    const delLink = tr.querySelector('a[href*="delete_fix/"]');
+    const mId = delLink ? (delLink.getAttribute('href') || '').match(/delete_fix\/([0-9]+)/) : null;
+    const uno = mId ? mId[1] : String(rowIdx);
+
+    const a = document.createElement('a');
+    a.href = '/mti/studio?box_id=' + encodeURIComponent(boxId) + '&unit_no=' + encodeURIComponent(uno);
+    a.target = '_blank';
+    a.className = 'btn btn-xs btn-sm btn-info text-dark fw-bold me-1 btn-4panel-ledger';
+    a.title = 'Open ' + (boxId || ('Unit #' + uno)) + ' in 4-Panel Studio (New Window)';
+    a.innerHTML = '&#128202; 4-Panel';
+    actEl.parentNode.insertBefore(a, actEl);
+  });
+});
+</script>

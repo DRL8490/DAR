@@ -7,8 +7,8 @@ import matplotlib.patches as mpatches
 import matplotlib.patheffects as patheffects
 from mti_4panel_math import idw_interpolate, _box_corners_cw
 
-def plot_seabed_layer(ax, seabed_xyz, x_lim, y_lim, is_zoomed=False, show_contours=True, contour_interval=0.05, show_soundings=True, spot_spacing=2.0):
-    if seabed_xyz is None or len(seabed_xyz) < 4:
+def plot_seabed_layer(ax, seabed_xyz, x_lim, y_lim, is_zoomed=False, show_contours=True, contour_interval=0.05, show_soundings=True, spot_spacing=2.0, bathy_source="REF_DEPTH"):
+    if seabed_xyz is None or len(seabed_xyz) < 1:
         return
     sb = np.asarray(seabed_xyz, dtype=float)
     nx, ny = (26, 34) if is_zoomed else (30, 42)
@@ -16,35 +16,52 @@ def plot_seabed_layer(ax, seabed_xyz, x_lim, y_lim, is_zoomed=False, show_contou
     q_xy = np.column_stack([gx.ravel(), gy.ravel()])
     gz = idw_interpolate(sb[:, :2], sb[:, 2], q_xy).reshape(gx.shape)
 
-    if show_contours:
+    if show_contours and len(sb) >= 4:
         c_step = max(float(contour_interval or 0.05), 0.01)
         z_lo, z_hi = float(np.min(gz)) - c_step, float(np.max(gz)) + c_step
-        levels = np.arange(math.floor(z_lo / c_step) * c_step, z_hi + c_step, c_step)
-        if 2 <= len(levels) <= 60:
-            ax.contour(gx, gy, gz, levels=levels, colors="#94a3b8", linewidths=0.45, linestyles="dashed", alpha=0.65, zorder=1)
+        if (z_hi - z_lo) >= c_step * 0.5:
+            levels = np.arange(math.floor(z_lo / c_step) * c_step, z_hi + c_step, c_step)
+            if 2 <= len(levels) <= 60:
+                ax.contour(gx, gy, gz, levels=levels, colors="#94a3b8", linewidths=0.45, linestyles="dashed", alpha=0.65, zorder=1)
 
     if show_soundings:
         sp = max(float(spot_spacing or 2.0), 0.5) if is_zoomed else max(float(spot_spacing or 2.0) * 2.0, 2.0)
-        xs = np.arange(math.ceil(x_lim[0] / sp) * sp, x_lim[1], sp)
-        ys = np.arange(math.ceil(y_lim[0] / sp) * sp, y_lim[1], sp)
-        sx_list, sy_list = [], []
         w_span, h_span = max(x_lim[1] - x_lim[0], 1e-3), max(y_lim[1] - y_lim[0], 1e-3)
-        for sx in xs:
-            for sy in ys:
-                fx, fy = (sx - x_lim[0]) / w_span, (sy - y_lim[0]) / h_span
-                if fx < 0.06 or fx > 0.94 or fy < 0.05 or fy > 0.94:
+        in_view = (sb[:, 0] >= x_lim[0]) & (sb[:, 0] <= x_lim[1]) & (sb[:, 1] >= y_lim[0]) & (sb[:, 1] <= y_lim[1])
+        sb_vis = sb[in_view]
+
+        # If real survey bathy points exist inside view, plot actual measured coordinates (thinned by min_dist)
+        plotted_pts = []
+        if bathy_source == "SURVEY_BATHY" and len(sb_vis) > 0:
+            min_d = sp * 0.75
+            for pt in sb_vis:
+                fx, fy = (pt[0] - x_lim[0]) / w_span, (pt[1] - y_lim[0]) / h_span
+                if fx < 0.05 or fx > 0.95 or fy < 0.05 or fy > 0.94:
                     continue
                 if fy < 0.18 and (fx < 0.44 or fx > 0.62):
                     continue
-                sx_list.append(sx); sy_list.append(sy)
-        if sx_list:
-            pts_s = np.column_stack([sx_list, sy_list])
-            zs_s = idw_interpolate(sb[:, :2], sb[:, 2], pts_s)
-            fmt = "{:.2f}" if is_zoomed else "{:.1f}"
-            for (px, py), pz in zip(pts_s, zs_s):
-                ax.plot(px, py, "+", color="#64748b", markersize=3.2, alpha=0.65, zorder=2)
-                t = ax.text(px, py, fmt.format(abs(float(pz))), fontsize=5.0 if is_zoomed else 4.7, fontweight="bold", color="#475569", ha="center", va="bottom", alpha=0.8, zorder=2)
-                t.set_path_effects([patheffects.withStroke(linewidth=1.5, foreground="white")])
+                if all(math.hypot(pt[0] - p[0], pt[1] - p[1]) >= min_d for p in plotted_pts):
+                    plotted_pts.append(pt)
+        if not plotted_pts:
+            xs = np.arange(math.ceil(x_lim[0] / sp) * sp, x_lim[1], sp)
+            ys = np.arange(math.ceil(y_lim[0] / sp) * sp, y_lim[1], sp)
+            grid_xy = []
+            for sx in xs:
+                for sy in ys:
+                    fx, fy = (sx - x_lim[0]) / w_span, (sy - y_lim[0]) / h_span
+                    if fx < 0.06 or fx > 0.94 or fy < 0.05 or fy > 0.94 or (fy < 0.18 and (fx < 0.44 or fx > 0.62)):
+                        continue
+                    grid_xy.append([sx, sy])
+            if grid_xy:
+                g_arr = np.array(grid_xy, dtype=float)
+                g_z = idw_interpolate(sb[:, :2], sb[:, 2], g_arr)
+                plotted_pts = np.column_stack([g_arr, g_z]).tolist()
+
+        fmt = "{:.2f}" if is_zoomed else "{:.1f}"
+        for px, py, pz in plotted_pts:
+            ax.plot(px, py, "+", color="#64748b", markersize=3.2, alpha=0.65, zorder=2)
+            t = ax.text(px, py, fmt.format(abs(float(pz))), fontsize=5.0 if is_zoomed else 4.7, fontweight="bold", color="#475569", ha="center", va="bottom", alpha=0.8, zorder=2)
+            t.set_path_effects([patheffects.withStroke(linewidth=1.5, foreground="white")])
 
 def generate_a3_4panel_chart(
     boxes_dict, metrics, cleaned_xyz, x_local, y_local, z_vals, seabed_local_xyz, seabed_full_xyz,
@@ -65,13 +82,12 @@ def generate_a3_4panel_chart(
     is_first = bool(metrics.get("is_first_in_array")) or (cur_uno == 1) or (str(loc_id).endswith("_M15") and str(mat_id).replace("#", "") == "A046")
     gap_tol = float(metrics.get("gap_tol") or 0.50)
     cl_tol = float(metrics.get("cl_tol") or 0.50)
+    bathy_src = str(metrics.get("bathy_source") or "REF_DEPTH")
 
-    # Full unclipped top header text
     verdict_full = str(metrics.get("verdict") or ("VERIFIED - WITHIN DESIGN TOLERANCE" if is_first else "VERIFIED - WITHIN DESIGN & GAP TOLERANCE"))
     ax_bg.text(18, 276.5, f"SUBSEA MATTRESS 4-PANEL VERIFICATION CHART  |  CROSSING: {metrics['crossing_id']}  |  ACTIVE USBL: {usbl_s}", color="white", fontsize=8.0, fontweight="bold", va="center", ha="left")
     ax_bg.text(402, 276.5, f"LOCATION: {loc_id}  |  MATTRESS ID: {mat_id}  |  {verdict_full}", color="#38bdf8", fontsize=7.8, fontweight="bold", va="center", ha="right")
 
-    # 4-Cell Partitioned Bottom Footer (NUDGE TO DESIGN removed; 0.50m side-to-side gap tolerance context added)
     ax_bg.add_patch(mpatches.Rectangle((14, 14), 392, 14, facecolor="#f8fafc", edgecolor="#0f172a", linewidth=1.2))
     for x_div in (110, 214, 316):
         ax_bg.plot([x_div, x_div], [14, 28], color="#0f172a", linewidth=1.0)
@@ -90,7 +106,7 @@ def generate_a3_4panel_chart(
 
     ax_bg.text(319, 23.5, f"FILE: {metrics['base_filename']}.pdf", fontsize=6.5, fontweight="bold", color="#0f172a")
     ax_bg.text(319, 19.5, f"SCALES @ A3: P1 1:{scale_p1} | P2 1:{scale_p2} | P3 1:75/1:15 | P4 1:50/1:15", fontsize=6.1, color="#334155")
-    ax_bg.text(319, 15.8, f"DATE: {metrics['install_date']} | {metrics['status']}", fontsize=6.2, fontweight="bold", color="#15803d")
+    ax_bg.text(319, 15.8, f"DATE: {metrics['install_date']} | BATHY: {bathy_src} ({metrics.get('bathy_count',0)} pts)", fontsize=6.0, fontweight="bold", color="#15803d")
 
     des_e, des_n = metrics["design_e"], metrics["design_n"]
     hist_map = {}
@@ -101,12 +117,11 @@ def generate_a3_4panel_chart(
             if r_bid and r_bid != loc_id and (r_uno < cur_uno or r_bid == "CR-A1_M15"):
                 hist_map[r_bid] = r
 
-    # PANEL 1: FULL CROSSING ARRAY
     ax1 = fig.add_axes([35.0 / W_MM, 56.0 / H_MM, 102.0 / W_MM, 184.0 / H_MM])
     hw1, hh1 = (102.0 / 1000.0) * float(scale_p1) / 2.0, (184.0 / 1000.0) * float(scale_p1) / 2.0
     e_lim1, n_lim1 = (des_e - hw1, des_e + hw1), (des_n - hh1, des_n + hh1)
     ax1.set_xlim(*e_lim1); ax1.set_ylim(*n_lim1)
-    plot_seabed_layer(ax1, seabed_full_xyz, e_lim1, n_lim1, False, show_contours, contour_interval, show_soundings, spot_spacing)
+    plot_seabed_layer(ax1, seabed_full_xyz, e_lim1, n_lim1, False, show_contours, contour_interval, show_soundings, spot_spacing, bathy_src)
 
     for bid, b in boxes_dict.items():
         short_lbl = bid.split("_")[-1]
@@ -136,11 +151,10 @@ def generate_a3_4panel_chart(
     ax1.set_xlabel("Easting E (m, TWD97)", fontsize=6.6, fontweight="bold"); ax1.set_ylabel("Northing N (m, TWD97)", fontsize=6.6, fontweight="bold")
     ax1.tick_params(labelsize=5.8); ax1.ticklabel_format(useOffset=False, style="plain"); ax1.grid(True, linestyle=":", linewidth=0.4, color="#cbd5e1")
 
-    # PANEL 2: ZOOMED PLAN VIEW
     ax2 = fig.add_axes([161.0 / W_MM, 46.0 / H_MM, 114.0 / W_MM, 204.0 / H_MM])
     hw2, hh2 = (114.0 / 1000.0) * float(scale_p2) / 2.0, (204.0 / 1000.0) * float(scale_p2) / 2.0
     ax2.set_xlim(-hw2, hw2); ax2.set_ylim(-hh2, hh2)
-    plot_seabed_layer(ax2, seabed_local_xyz, (-hw2, hw2), (-hh2, hh2), True, show_contours, contour_interval, show_soundings, spot_spacing)
+    plot_seabed_layer(ax2, seabed_local_xyz, (-hw2, hw2), (-hh2, hh2), True, show_contours, contour_interval, show_soundings, spot_spacing, bathy_src)
 
     ax2.add_patch(mpatches.Rectangle((-1.5, -3.0), 3.0, 6.0, fill=False, edgecolor="#dc2626", linewidth=1.8, zorder=5, label="Design Box (3.0x6.0m)"))
     sc2 = ax2.scatter(x_local, y_local, c=z_vals, cmap="turbo", s=16, alpha=0.9, zorder=6)
@@ -208,14 +222,18 @@ def generate_a3_4panel_chart(
     ax2.set_xlabel("Cross-Track X_local (m, WNW -1.5m to ESE +1.5m)", fontsize=6.6, fontweight="bold"); ax2.set_ylabel("Along-Track Y_local (m, SSW -3.0m to NNE +3.0m)", fontsize=6.6, fontweight="bold")
     ax2.tick_params(labelsize=5.8); ax2.grid(True, linestyle=":", linewidth=0.45, color="#cbd5e1")
 
+    # PANEL 3 & PANEL 4: Interpolate true seabed profile from seabed_local_xyz
     z_mean = float(np.mean(z_vals))
-    for ax_p, coord_arr, lim_x, edge_v, ttl, x_lbl in [
-        (fig.add_axes([315.0 / W_MM, 162.0 / H_MM, 83.0 / W_MM, 88.0 / H_MM]), y_local, (-3.5, 3.5), 3.0, "PANEL 3: LONGITUDINAL (SSW -> NNE)" + chr(10) + "H 1:75 | V 1:15 @ A3", "Along-Track Y_local (m)"),
-        (fig.add_axes([315.0 / W_MM, 46.0 / H_MM, 83.0 / W_MM, 86.0 / H_MM]), x_local, (-2.2, 2.2), 1.5, "PANEL 4: LATERAL (WNW -> ESE)" + chr(10) + "H 1:50 | V 1:15 @ A3", "Cross-Track X_local (m)")
+    sb_loc_arr = np.asarray(seabed_local_xyz, dtype=float)
+    for ax_p, coord_arr, lim_x, edge_v, is_long, ttl, x_lbl in [
+        (fig.add_axes([315.0 / W_MM, 162.0 / H_MM, 83.0 / W_MM, 88.0 / H_MM]), y_local, (-3.5, 3.5), 3.0, True, "PANEL 3: LONGITUDINAL (SSW -> NNE)" + chr(10) + "H 1:75 | V 1:15 @ A3", "Along-Track Y_local (m)"),
+        (fig.add_axes([315.0 / W_MM, 46.0 / H_MM, 83.0 / W_MM, 86.0 / H_MM]), x_local, (-2.2, 2.2), 1.5, False, "PANEL 4: LATERAL (WNW -> ESE)" + chr(10) + "H 1:50 | V 1:15 @ A3", "Cross-Track X_local (m)")
     ]:
         ax_p.scatter(coord_arr, np.abs(z_vals), c=z_vals, cmap="turbo", s=10, alpha=0.85, label="Mattress Surface")
         xs_l = np.linspace(lim_x[0], lim_x[1], 40)
-        ax_p.plot(xs_l, np.abs(z_mean - 0.28 + 0.005 * xs_l), "--", color="#64748b", lw=1.2, label="Seabed Baseline")
+        q_prof = np.column_stack([np.zeros_like(xs_l), xs_l]) if is_long else np.column_stack([xs_l, np.zeros_like(xs_l)])
+        z_prof = idw_interpolate(sb_loc_arr[:, :2], sb_loc_arr[:, 2], q_prof) if len(sb_loc_arr) >= 1 else np.full_like(xs_l, z_mean - 0.25)
+        ax_p.plot(xs_l, np.abs(z_prof), "--", color="#64748b", lw=1.2, label="Seabed Baseline")
         ax_p.axvline(-edge_v, color="#dc2626", ls="--", lw=1.2, label=f"Design (+/-{edge_v:.1f}m)"); ax_p.axvline(edge_v, color="#dc2626", ls="--", lw=1.2)
         ax_p.set_xlim(*lim_x); ax_p.set_ylim(abs(z_mean) + 0.65, abs(z_mean) - 0.65)
         ax_p.set_title(ttl, fontsize=7.0, fontweight="bold", pad=3); ax_p.set_xlabel(x_lbl, fontsize=6.3, fontweight="bold"); ax_p.set_ylabel("Depth Z (m, Inv)", fontsize=6.3, fontweight="bold")

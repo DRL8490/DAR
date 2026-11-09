@@ -18,6 +18,29 @@ def _box_corners_cw(ce, cn, az_deg, length=6.0, width=3.0):
     pts = [c + sL * (length / 2.0) * ul + sW * (width / 2.0) * us for sL, sW in [(1, -1), (1, 1), (-1, 1), (-1, -1)]]
     return np.array(pts, dtype=float), ul, us
 
+def parse_bathy_xyz_text(raw_text):
+    pts = []
+    for ln in str(raw_text or "").splitlines():
+        s = ln.strip()
+        if not s or s[0] in ("#", "/", "E", "e", "X", "x", "P", "p"):
+            continue
+        ps = [p for p in re.split(r"[\s,;]+", s) if p]
+        if len(ps) >= 3:
+            try:
+                nums = [float(p) for p in ps[:4] if re.match(r"^[+-]?\d+(\.\d+)?$", p)]
+                if len(nums) >= 3:
+                    if len(nums) == 4 and abs(nums[0]) < 10000 and nums[1] > 100000:
+                        e, n, z = nums[1], nums[2], nums[3]
+                    else:
+                        e, n, z = nums[0], nums[1], nums[2]
+                    if n < e and e > 1000000:
+                        e, n = n, e
+                    z = -abs(z) if 0 < abs(z) < 200 else z
+                    pts.append([e, n, z])
+            except Exception:
+                pass
+    return np.array(pts, dtype=float) if pts else np.zeros((0, 3), dtype=float)
+
 def build_crossing_boxes_from_catalog(catalog_list, crossing_id="CR-A1_L1", target_box_id="CR-A1_M15"):
     cats = list(catalog_list.values()) if isinstance(catalog_list, dict) else list(catalog_list or [])
     layer_boxes = [b for b in cats if str(b.get("layer", "")) == str(crossing_id)] or cats
@@ -56,27 +79,34 @@ def build_crossing_boxes_from_catalog(catalog_list, crossing_id="CR-A1_L1", targ
 def idw_interpolate(src_xy, src_z, query_xy, power=2.0):
     src_xy, src_z, query_xy = np.asarray(src_xy, float), np.asarray(src_z, float), np.asarray(query_xy, float)
     if len(src_xy) == 0:
-        return np.full(len(query_xy), -18.20)
+        return np.full(len(query_xy), -18.45)
+    if len(src_xy) > 1200:
+        step = max(1, len(src_xy) // 1200)
+        src_xy, src_z = src_xy[::step], src_z[::step]
     dx, dy = query_xy[:, 0:1] - src_xy[:, 0][None, :], query_xy[:, 1:2] - src_xy[:, 1][None, :]
     w = 1.0 / (np.maximum(dx * dx + dy * dy, 1e-8) ** (power / 2.0))
     return (w @ src_z) / np.sum(w, axis=1)
 
-def get_or_build_seabed_xyz(workspace_dir, crossing_id, boxes_dict, ref_depth_m=-18.30):
+def get_or_build_seabed_xyz(workspace_dir, crossing_id, boxes_dict, ref_depth_m=-18.45):
     os.makedirs(workspace_dir, exist_ok=True)
     npy_p = os.path.join(workspace_dir, f"{crossing_id}_seabed.npy")
     if os.path.exists(npy_p):
         try:
             arr = np.load(npy_p)
-            if arr.ndim == 2 and arr.shape[1] >= 3 and len(arr) > 4:
-                return arr[:, :3]
+            if arr.ndim == 2 and arr.shape[1] >= 3 and len(arr) >= 1:
+                arr = arr.copy()
+                arr[:, 2] = np.where((arr[:, 2] > 0) & (arr[:, 2] < 200), -arr[:, 2], arr[:, 2])
+                return arr[:, :3], "SURVEY_BATHY"
         except Exception:
             pass
+    safe_ref = float(ref_depth_m) if abs(float(ref_depth_m)) > 2.0 else -18.45
+    safe_ref = -abs(safe_ref)
     es = [b["design_e"] for b in boxes_dict.values()] if boxes_dict else [194541.4]
     ns = [b["design_n"] for b in boxes_dict.values()] if boxes_dict else [2702613.4]
     e_min, e_max, n_min, n_max = min(es) - 25.0, max(es) + 25.0, min(ns) - 25.0, max(ns) + 25.0
-    ee, nn = np.meshgrid(np.arange(e_min, e_max + 2.5, 2.5), np.arange(n_min, n_max + 2.5, 2.5))
-    zz = float(ref_depth_m) - 0.006 * (ee - np.mean(ee)) + 0.005 * (nn - np.mean(nn)) + 0.025 * np.sin((ee - e_min) * 0.35) * np.cos((nn - n_min) * 0.35)
-    return np.column_stack([ee.ravel(), nn.ravel(), zz.ravel()])
+    ee, nn = np.meshgrid(np.arange(e_min, e_max + 2.0, 2.0), np.arange(n_min, n_max + 2.0, 2.0))
+    zz = np.full_like(ee, safe_ref, dtype=float)
+    return np.column_stack([ee.ravel(), nn.ravel(), zz.ravel()]), "REF_DEPTH"
 
 def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace", cl_tol=0.50, gap_tol=0.50):
     xing_id = str(fix_data.get("crossing_id") or "CR-A1_L1").strip()
@@ -89,9 +119,16 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
     tb = boxes_dict.get(loc_id) or next(iter(boxes_dict.values()))
     loc_id, des_e, des_n, des_brg, des_az, ul, us = tb["id"], tb["design_e"], tb["design_n"], tb["bearing"], tb["azimuth"], tb["u_long"], tb["u_short"]
 
+    bathy_txt = str(fix_data.get("bathy_xyz_text") or "").strip()
+    if bathy_txt:
+        parsed_b = parse_bathy_xyz_text(bathy_txt)
+        if len(parsed_b) > 0:
+            os.makedirs(workspace_dir, exist_ok=True)
+            np.save(os.path.join(workspace_dir, f"{xing_id}_seabed.npy"), parsed_b)
+
     as_e, as_n = float(fix_data.get("aslaid_e") or fix_data.get("qaqc_e") or des_e), float(fix_data.get("aslaid_n") or fix_data.get("qaqc_n") or des_n)
     raw_z = float(fix_data.get("aslaid_z") or 0.0)
-    as_z = raw_z if abs(raw_z) > 1.0 else (-18.20 if unit_no == 1 else -18.35)
+    as_z = -abs(raw_z) if abs(raw_z) > 2.0 else (-18.20 if unit_no == 1 else -18.35)
     hdg = float(fix_data.get("heading_deg") or fix_data.get("qaqc_brg") or des_brg)
     hdg = round((hdg + 180.0) % 360.0, 3) if hdg < 180.0 else hdg
 
@@ -100,7 +137,7 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
         ce, cn, cz = fix_data.get(f"c{i}_e"), fix_data.get(f"c{i}_n"), fix_data.get(f"c{i}_z")
         if ce is not None and cn is not None and str(ce).strip() != "" and str(cn).strip() != "":
             try:
-                zv = float(cz) if (cz is not None and str(cz).strip() != "" and abs(float(cz)) > 1.0) else as_z
+                zv = -abs(float(cz)) if (cz is not None and str(cz).strip() != "" and abs(float(cz)) > 2.0) else as_z
                 c_pts.append([float(ce), float(cn), zv])
             except Exception:
                 pass
@@ -143,11 +180,13 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
 
     verdict = ("VERIFIED - WITHIN DESIGN TOLERANCE" if is_first else "VERIFIED - WITHIN DESIGN & GAP TOLERANCE") if (cl_off <= float(cl_tol) and (is_first or max_gap <= float(gap_tol))) else "ADVISORY - CHECK OFFSET OR GAP TOLERANCE"
 
-    seabed_full_xyz = get_or_build_seabed_xyz(workspace_dir, xing_id, boxes_dict, ref_depth_m=as_z - 0.25)
+    raw_ref_sb = fix_data.get("seabed_ref_z")
+    ref_sb_z = float(raw_ref_sb) if (raw_ref_sb is not None and str(raw_ref_sb).strip() != "" and abs(float(raw_ref_sb)) > 2.0) else (as_z - 0.25)
+    seabed_full_xyz, bathy_src = get_or_build_seabed_xyz(workspace_dir, xing_id, boxes_dict, ref_depth_m=ref_sb_z)
     sb_d = seabed_full_xyz[:, :2] - np.array([des_e, des_n])
     sb_x, sb_y = sb_d @ us, sb_d @ ul
-    m_loc = (np.abs(sb_x) <= 8.0) & (np.abs(sb_y) <= 10.0)
-    seabed_local_xyz = np.column_stack([sb_x[m_loc], sb_y[m_loc], seabed_full_xyz[m_loc, 2]])
+    m_loc = (np.abs(sb_x) <= 10.0) & (np.abs(sb_y) <= 12.0)
+    seabed_local_xyz = np.column_stack([sb_x[m_loc], sb_y[m_loc], seabed_full_xyz[m_loc, 2]]) if np.any(m_loc) else np.column_stack([sb_x, sb_y, seabed_full_xyz[:, 2]])
 
     metrics = {
         "unit_no": unit_no, "crossing_id": xing_id, "location_id": loc_id, "mattress_id": mat_id, "install_date": dt_str, "usbl_sensor": usbl_s,
@@ -161,6 +200,8 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
         "edge_ese": round(float(np.max(x_local)) - 1.5, 3), "edge_wnw": round(-1.5 - float(np.min(x_local)), 3),
         "is_first_in_array": is_first, "gaps": gaps, "gap_labels": gap_labels,
         "max_gap_m": round(max_gap, 3), "cl_tol": cl_tol, "gap_tol": gap_tol,
+        "bathy_source": bathy_src, "bathy_count": int(len(seabed_full_xyz)),
+        "bathy_z_min": round(float(np.min(seabed_full_xyz[:, 2])), 2), "bathy_z_max": round(float(np.max(seabed_full_xyz[:, 2])), 2),
         "neighbors": tb["neighbors"], "verdict": verdict,
         "env_wind": str(fix_data.get("env_wind") or ""), "env_current": str(fix_data.get("env_current") or ""), "remarks": str(fix_data.get("remarks") or "")
     }

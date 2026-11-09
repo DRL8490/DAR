@@ -1148,14 +1148,42 @@ document.addEventListener('DOMContentLoaded', function() {
   if (fixForm && !document.getElementById('btnPreview4Panel')) {
     const saveBtn = fixForm.querySelector('button[type="submit"]');
     if (saveBtn) {
+      const bathyDiv = document.createElement('div');
+      bathyDiv.id = 'mtiFormBathyBox';
+      bathyDiv.className = 'col-12 mt-2 p-2 rounded border border-info bg-dark text-light';
+      bathyDiv.innerHTML = [
+        '<div class="d-flex flex-wrap justify-content-between align-items-center mb-1">',
+        '  <span class="small fw-bold text-info">&#127754; Pre-Survey Bathy Spot Soundings (Optional E N Z Paste or Ref Seabed Depth)</span>',
+        '  <div class="d-flex align-items-center gap-1">',
+        '    <label class="small text-light mb-0">Ref Depth (m):</label>',
+        '    <input type="number" step="0.01" name="seabed_ref_z" id="formSeabedRefZ" class="form-control form-control-sm bg-secondary text-white border-0 fw-bold" style="width:95px;" value="-18.45">',
+        '  </div>',
+        '</div>',
+        '<textarea name="bathy_xyz_text" id="formBathyXyzText" class="form-control form-control-sm font-monospace bg-dark text-info border-secondary" rows="2" placeholder="Paste E N Z spot soundings here (e.g. 194541.00 2702613.00 -18.45) or upload .xyz inside 4-Panel Studio..."></textarea>'
+      ].join('
+');
+      saveBtn.parentNode.parentNode.insertBefore(bathyDiv, saveBtn.parentNode);
+
       const b = document.createElement('button');
       b.type = 'button'; b.id = 'btnPreview4Panel';
       b.className = 'btn btn-sm btn-info text-dark fw-bold ms-2';
       b.innerHTML = '&#128202; Open 4-Panel Studio (New Window)';
       b.onclick = function() {
         const fd = new FormData(fixForm), qs = new URLSearchParams();
-        fd.forEach(function(v, k) { if (v !== null && String(v).trim() !== '') qs.set(k, String(v).trim()); });
-        window.open('/mti/studio?' + qs.toString(), '_blank');
+        const bTxt = (document.getElementById('formBathyXyzText') || {}).value || '';
+        fd.forEach(function(v, k) {
+          if (k !== 'bathy_xyz_text' && v !== null && String(v).trim() !== '') qs.set(k, String(v).trim());
+        });
+        if (bTxt.trim()) {
+          const upFd = new FormData();
+          upFd.append('crossing_id', fd.get('crossing_id') || 'CR-A1_L1');
+          upFd.append('bathy_xyz_text', bTxt.trim());
+          fetch('/mti/upload_seabed', { method: 'POST', body: upFd }).finally(function() {
+            window.open('/mti/studio?' + qs.toString(), '_blank');
+          });
+        } else {
+          window.open('/mti/studio?' + qs.toString(), '_blank');
+        }
       };
       saveBtn.parentNode.insertBefore(b, saveBtn.nextSibling);
     }
