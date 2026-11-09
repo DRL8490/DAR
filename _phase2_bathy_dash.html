@@ -1,79 +1,127 @@
 ﻿<script id="mti4PanelStudioUpgrade">
-document.addEventListener('DOMContentLoaded', function() {
-  const expBtn = document.querySelector('a[href*="export"]');
-  if (expBtn && !document.getElementById('btnTop4PanelWin')) {
-    const a = document.createElement('a');
-    a.id = 'btnTop4PanelWin';
-    a.href = '/mti/studio';
-    a.target = '_blank';
-    a.className = 'btn btn-sm btn-info text-dark fw-bold ms-1';
-    a.innerHTML = '&#128202; 4-Panel Studio (New Window)';
-    expBtn.parentNode.insertBefore(a, expBtn.nextSibling);
-  }
-
-  const fixForm = document.getElementById('mattressFixForm') || document.querySelector('form[action*="add_fix"]');
-  if (fixForm && !document.getElementById('btnPreview4Panel')) {
-    const saveBtn = fixForm.querySelector('button[type="submit"]');
-    if (saveBtn) {
-      const bathyDiv = document.createElement('div');
-      bathyDiv.id = 'mtiFormBathyBox';
-      bathyDiv.className = 'col-12 mt-2 p-2 rounded border border-info bg-dark text-light';
-      bathyDiv.innerHTML = [
-        '<div class="d-flex flex-wrap justify-content-between align-items-center mb-1">',
-        '  <span class="small fw-bold text-info">&#127754; Pre-Survey Bathy Spot Soundings (Optional E N Z Paste or Ref Seabed Depth)</span>',
-        '  <div class="d-flex align-items-center gap-1">',
-        '    <label class="small text-light mb-0">Ref Depth (m):</label>',
-        '    <input type="number" step="0.01" name="seabed_ref_z" id="formSeabedRefZ" class="form-control form-control-sm bg-secondary text-white border-0 fw-bold" style="width:95px;" value="-18.45">',
-        '  </div>',
-        '</div>',
-        '<textarea name="bathy_xyz_text" id="formBathyXyzText" class="form-control form-control-sm font-monospace bg-dark text-info border-secondary" rows="2" placeholder="Paste E N Z spot soundings here (e.g. 194541.00 2702613.00 -18.45) or upload .xyz inside 4-Panel Studio..."></textarea>'
-      ].join('\n');
-      saveBtn.parentNode.parentNode.insertBefore(bathyDiv, saveBtn.parentNode);
-
-      const b = document.createElement('button');
-      b.type = 'button'; b.id = 'btnPreview4Panel';
-      b.className = 'btn btn-sm btn-info text-dark fw-bold ms-2';
-      b.innerHTML = '&#128202; Open 4-Panel Studio (New Window)';
-      b.onclick = function() {
-        const fd = new FormData(fixForm), qs = new URLSearchParams();
-        const bTxt = (document.getElementById('formBathyXyzText') || {}).value || '';
-        fd.forEach(function(v, k) {
-          if (k !== 'bathy_xyz_text' && v !== null && String(v).trim() !== '') qs.set(k, String(v).trim());
-        });
-        if (bTxt.trim()) {
-          const upFd = new FormData();
-          upFd.append('crossing_id', fd.get('crossing_id') || 'CR-A1_L1');
-          upFd.append('bathy_xyz_text', bTxt.trim());
-          fetch('/mti/upload_seabed', { method: 'POST', body: upFd }).finally(function() {
-            window.open('/mti/studio?' + qs.toString(), '_blank');
-          });
-        } else {
-          window.open('/mti/studio?' + qs.toString(), '_blank');
+(function() {
+  function initMti4PanelUpgrades() {
+    // 1. Remove top bar subtitle text ("139 CAD Design Mattresses ... Tolerances: Centerline Offset ... Inter-Mattress Gap ...")
+    document.querySelectorAll('p, div, small, span').forEach(function(el) {
+      if (el.children.length <= 2) {
+        const t = (el.textContent || '').trim();
+        if (t.indexOf('CAD Design Mattresses') !== -1 || (t.indexOf('Centerline Offset') !== -1 && t.indexOf('Inter-Mattress Gap') !== -1)) {
+          el.remove();
         }
-      };
-      saveBtn.parentNode.insertBefore(b, saveBtn.nextSibling);
+      }
+    });
+
+    // 2. Inject "4-Panel Studio" button in the top header button bar (next to Export MTI Ledger / Reports Hub)
+    if (!document.getElementById('btnTop4PanelWin')) {
+      let anchorBtn = document.querySelector('a[href*="export"], a[href*="report"]');
+      if (!anchorBtn) {
+        document.querySelectorAll('a.btn, button.btn').forEach(function(b) {
+          const bt = (b.textContent || '').trim();
+          if (bt.indexOf('Export MTI') !== -1 || bt.indexOf('Reports Hub') !== -1) anchorBtn = b;
+        });
+      }
+      if (anchorBtn && anchorBtn.parentNode) {
+        const a = document.createElement('a');
+        a.id = 'btnTop4PanelWin';
+        a.href = '/mti/studio';
+        a.target = '_blank';
+        a.className = 'btn btn-sm btn-info text-dark fw-bold';
+        a.style.cssText = 'background:#38bdf8;border-color:#0284c7;color:#0f172a;';
+        a.innerHTML = '&#128202; 4-Panel Studio';
+        anchorBtn.parentNode.insertBefore(a, anchorBtn.nextSibling);
+      }
+    }
+
+    // 3. Inject "4-Panel" button into EVERY row of the Cumulative MTI Fix Ledger table
+    let rowCounter = 0;
+    document.querySelectorAll('table tbody tr').forEach(function(tr) {
+      if (tr.querySelector('.btn-4panel-ledger')) return;
+      const rowTxt = (tr.innerText || tr.textContent || '').replace(/\s+/g, ' ');
+      const mBox = rowTxt.match(/CR-[A-Z0-9-]+_M\d+/i);
+      if (!mBox && rowTxt.indexOf('CL:') === -1 && rowTxt.indexOf('1st Unit') === -1) return;
+
+      rowCounter += 1;
+      const boxId = mBox ? mBox[0] : '';
+      const mXing = rowTxt.match(/\b(CR-[A-Z0-9]+(?:_L\d+)?)\b/i);
+      const xingId = mXing ? mXing[1] : (boxId ? boxId.split('_M')[0] : 'CR-A1_L1');
+      const mUnit = rowTxt.match(/#(\d+)\s+\d{4}-\d{2}-\d{2}/);
+      const uno = mUnit ? mUnit[1] : String(rowCounter);
+      const mTag = rowTxt.match(/#(A\d+|\d{3,4})\b/i);
+      const tagId = mTag ? ('#' + mTag[1].replace('#', '')) : '';
+
+      const lastTd = tr.cells[tr.cells.length - 1];
+      if (!lastTd) return;
+
+      const a = document.createElement('a');
+      a.href = '/mti/studio?crossing_id=' + encodeURIComponent(xingId) +
+               '&box_id=' + encodeURIComponent(boxId) +
+               '&physical_tag=' + encodeURIComponent(tagId) +
+               '&unit_no=' + encodeURIComponent(uno);
+      a.target = '_blank';
+      a.className = 'btn btn-sm btn-info text-dark fw-bold me-1 btn-4panel-ledger';
+      a.style.cssText = 'padding:2px 7px;font-size:11.5px;background:#38bdf8;border-color:#0284c7;color:#0f172a;display:inline-flex;align-items:center;gap:3px;';
+      a.title = 'Open ' + (boxId || ('Unit #' + uno)) + ' in 4-Panel Studio (New Window)';
+      a.innerHTML = '&#128202; 4-Panel';
+
+      const firstBtn = lastTd.querySelector('button, a, form');
+      if (firstBtn) {
+        firstBtn.parentNode.insertBefore(a, firstBtn);
+      } else {
+        lastTd.appendChild(a);
+      }
+    });
+
+    // 4. Inject Pre-Survey Bathy Box + "Open 4-Panel Studio" button inside Mattress Fix Form
+    const fixForm = document.getElementById('mattressFixForm') || document.querySelector('form[action*="add_fix"]');
+    if (fixForm && !document.getElementById('btnPreview4Panel')) {
+      const saveBtn = fixForm.querySelector('button[type="submit"]');
+      if (saveBtn) {
+        const bathyDiv = document.createElement('div');
+        bathyDiv.id = 'mtiFormBathyBox';
+        bathyDiv.className = 'col-12 mt-2 mb-2 p-2 rounded border border-info bg-dark text-light';
+        bathyDiv.innerHTML = [
+          '<div class="d-flex flex-wrap justify-content-between align-items-center mb-1">',
+          '  <span class="small fw-bold text-info">&#127754; Pre-Survey Bathy Spot Soundings (Optional E N Z Paste or Ref Seabed Depth)</span>',
+          '  <div class="d-flex align-items-center gap-1">',
+          '    <label class="small text-light mb-0">Ref Depth (m):</label>',
+          '    <input type="number" step="0.01" name="seabed_ref_z" id="formSeabedRefZ" class="form-control form-control-sm bg-secondary text-white border-0 fw-bold" style="width:95px;" value="-18.45">',
+          '  </div>',
+          '</div>',
+          '<textarea name="bathy_xyz_text" id="formBathyXyzText" class="form-control form-control-sm font-monospace bg-dark text-info border-secondary" rows="2" placeholder="Paste E N Z spot soundings here (e.g. 194541.00 2702613.00 -18.45) or upload .xyz inside 4-Panel Studio..."></textarea>'
+        ].join('\n');
+        saveBtn.parentNode.insertBefore(bathyDiv, saveBtn);
+
+        const b = document.createElement('button');
+        b.type = 'button'; b.id = 'btnPreview4Panel';
+        b.className = 'btn btn-sm btn-info text-dark fw-bold ms-2';
+        b.innerHTML = '&#128202; Open 4-Panel Studio (New Window)';
+        b.onclick = function() {
+          const fd = new FormData(fixForm), qs = new URLSearchParams();
+          const bTxt = (document.getElementById('formBathyXyzText') || {}).value || '';
+          fd.forEach(function(v, k) {
+            if (k !== 'bathy_xyz_text' && v !== null && String(v).trim() !== '') qs.set(k, String(v).trim());
+          });
+          if (bTxt.trim()) {
+            const upFd = new FormData();
+            upFd.append('crossing_id', fd.get('crossing_id') || 'CR-A1_L1');
+            upFd.append('bathy_xyz_text', bTxt.trim());
+            fetch('/mti/upload_seabed', { method: 'POST', body: upFd }).finally(function() {
+              window.open('/mti/studio?' + qs.toString(), '_blank');
+            });
+          } else {
+            window.open('/mti/studio?' + qs.toString(), '_blank');
+          }
+        };
+        saveBtn.parentNode.insertBefore(b, saveBtn.nextSibling);
+      }
     }
   }
 
-  let rowIdx = 0;
-  document.querySelectorAll('table tbody tr').forEach(function(tr) {
-    const actEl = tr.querySelector('button[onclick*="Fix"], a[href*="delete_fix"]');
-    if (!actEl || tr.querySelector('.btn-4panel-ledger')) return;
-    rowIdx += 1;
-    const rowTxt = tr.innerText || tr.textContent || '';
-    const mBox = rowTxt.match(/CR-[A-Z0-9_-]+_M[0-9]+/i);
-    const boxId = mBox ? mBox[0] : '';
-    const delLink = tr.querySelector('a[href*="delete_fix/"]');
-    const mId = delLink ? (delLink.getAttribute('href') || '').match(/delete_fix\/([0-9]+)/) : null;
-    const uno = mId ? mId[1] : String(rowIdx);
-
-    const a = document.createElement('a');
-    a.href = '/mti/studio?box_id=' + encodeURIComponent(boxId) + '&unit_no=' + encodeURIComponent(uno);
-    a.target = '_blank';
-    a.className = 'btn btn-xs btn-sm btn-info text-dark fw-bold me-1 btn-4panel-ledger';
-    a.title = 'Open ' + (boxId || ('Unit #' + uno)) + ' in 4-Panel Studio (New Window)';
-    a.innerHTML = '&#128202; 4-Panel';
-    actEl.parentNode.insertBefore(a, actEl);
-  });
-});
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMti4PanelUpgrades);
+  } else {
+    initMti4PanelUpgrades();
+  }
+  setTimeout(initMti4PanelUpgrades, 300);
+})();
 </script>

@@ -1,4 +1,4 @@
-﻿import os, re, math, json
+import os, re, math, json
 from datetime import datetime
 import numpy as np
 
@@ -43,6 +43,8 @@ def parse_bathy_xyz_text(raw_text):
 
 def build_crossing_boxes_from_catalog(catalog_list, crossing_id="CR-A1_L1", target_box_id="CR-A1_M15"):
     cats = list(catalog_list.values()) if isinstance(catalog_list, dict) else list(catalog_list or [])
+    t_hit = next((b for b in cats if str(b.get("name") or b.get("design_box_id")) == str(target_box_id)), None)
+    if t_hit and t_hit.get("layer"): crossing_id = str(t_hit["layer"])
     layer_boxes = [b for b in cats if str(b.get("layer", "")) == str(crossing_id)] or cats
     boxes_dict = {}
     for b in layer_boxes:
@@ -163,7 +165,7 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
     cl_off, d_brg = float(math.hypot(as_e - des_e, as_n - des_n)), round(((hdg - des_brg + 180.0) % 360.0) - 180.0, 3)
     pct_in = float(np.mean((np.abs(x_local) <= 1.50) & (np.abs(y_local) <= 3.00)) * 100.0)
 
-    is_first = bool(fix_data.get("is_first_in_array")) or (unit_no == 1) or (str(loc_id).endswith("_M15") and str(mat_id).replace("#", "") == "A046")
+    is_first = bool(fix_data.get("is_first_in_array")) or (unit_no == 1) or ("1st unit" in str(fix_data.get("gap_labels", "")).lower()) or (str(loc_id).endswith("_M15") and str(mat_id).replace("#", "") == "A046")
     gaps = {k: str(fix_data.get(f"gap_{k}", "") or "").strip() for k in ("nw", "ne", "sw", "se")}
     if not is_first and not any(gaps.values()):
         g1, g2 = float(fix_data.get("gap1_m") or 0.0), float(fix_data.get("gap2_m") or 0.0)

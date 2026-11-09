@@ -1051,9 +1051,11 @@ window.toggleFpTab = function(showMd) {
 window.saveAndApplyBathy = function() {
   const f = document.getElementById('inpBathyFile').files[0];
   const txt = document.getElementById('inpBathyXyz').value.trim();
+  const boxVal = document.getElementById('inpBoxId').value.trim();
+  const xingVal = boxVal.indexOf('CR-A3') === 0 ? 'CR-A3' : 'CR-A1_L1';
   if (f || txt) {
     const fd = new FormData();
-    fd.append('crossing_id', 'CR-A1_L1');
+    fd.append('crossing_id', xingVal);
     if (f) fd.append('seabed_file', f);
     if (txt) fd.append('bathy_xyz_text', txt);
     fetch('/mti/upload_seabed', { method: 'POST', body: fd })
@@ -1072,7 +1074,9 @@ window.saveAndApplyBathy = function() {
 window.clearBathyData = function() {
   document.getElementById('inpBathyXyz').value = '';
   document.getElementById('inpBathyFile').value = '';
-  fetch('/mti/clear_seabed', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({crossing_id: 'CR-A1_L1'}) })
+  const boxVal = document.getElementById('inpBoxId').value.trim();
+  const xingVal = boxVal.indexOf('CR-A3') === 0 ? 'CR-A3' : 'CR-A1_L1';
+  fetch('/mti/clear_seabed', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({crossing_id: xingVal}) })
     .then(() => window.runStudioVerify());
 };
 
