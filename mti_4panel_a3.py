@@ -1,4 +1,4 @@
-﻿import os, io, math
+﻿import os, io, re, math
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -61,12 +61,17 @@ def generate_a3_4panel_chart(
     ax_bg.add_patch(mpatches.Rectangle((14, 14), 392, 269, fill=False, edgecolor="#0f172a", linewidth=1.6))
     ax_bg.add_patch(mpatches.Rectangle((14, 270), 392, 13, facecolor="#0f172a", edgecolor="#0f172a"))
     loc_id, mat_id, usbl_s = metrics["location_id"], metrics["mattress_id"], metrics.get("usbl_sensor", "Survey Pole")
-    is_first = bool(metrics.get("is_first_in_array")) or (str(loc_id).endswith("_M15") and str(mat_id).replace("#", "") == "A046")
-    verdict_full = "VERIFIED - WITHIN DESIGN TOLERANCE" if (is_first and "VERIFIED" in str(metrics.get("verdict", ""))) else str(metrics.get("verdict", "VERIFIED"))
+    cur_uno = int(float(metrics.get("unit_no") or (1 if str(loc_id).endswith("_M15") else 2)))
+    is_first = bool(metrics.get("is_first_in_array")) or (cur_uno == 1) or (str(loc_id).endswith("_M15") and str(mat_id).replace("#", "") == "A046")
+    gap_tol = float(metrics.get("gap_tol") or 0.50)
+    cl_tol = float(metrics.get("cl_tol") or 0.50)
 
-    ax_bg.text(18, 276.5, f"SUBSEA MATTRESS 4-PANEL VERIFICATION CHART  |  CROSSING: {metrics['crossing_id']}  |  ACTIVE USBL: {usbl_s}", color="white", fontsize=8.4, fontweight="bold", va="center", ha="left")
-    ax_bg.text(402, 276.5, f"LOCATION: {loc_id}  |  MATTRESS ID: {mat_id}  |  {verdict_full}", color="#38bdf8", fontsize=8.2, fontweight="bold", va="center", ha="right")
+    # Full unclipped top header text
+    verdict_full = str(metrics.get("verdict") or ("VERIFIED - WITHIN DESIGN TOLERANCE" if is_first else "VERIFIED - WITHIN DESIGN & GAP TOLERANCE"))
+    ax_bg.text(18, 276.5, f"SUBSEA MATTRESS 4-PANEL VERIFICATION CHART  |  CROSSING: {metrics['crossing_id']}  |  ACTIVE USBL: {usbl_s}", color="white", fontsize=8.0, fontweight="bold", va="center", ha="left")
+    ax_bg.text(402, 276.5, f"LOCATION: {loc_id}  |  MATTRESS ID: {mat_id}  |  {verdict_full}", color="#38bdf8", fontsize=7.8, fontweight="bold", va="center", ha="right")
 
+    # 4-Cell Partitioned Bottom Footer (NUDGE TO DESIGN removed; 0.50m side-to-side gap tolerance context added)
     ax_bg.add_patch(mpatches.Rectangle((14, 14), 392, 14, facecolor="#f8fafc", edgecolor="#0f172a", linewidth=1.2))
     for x_div in (110, 214, 316):
         ax_bg.plot([x_div, x_div], [14, 28], color="#0f172a", linewidth=1.0)
@@ -77,22 +82,26 @@ def generate_a3_4panel_chart(
 
     ax_bg.text(113, 23.5, f"DESIGN ({loc_id}): E {metrics['design_e']:.3f} m, N {metrics['design_n']:.3f} m", fontsize=6.8, fontweight="bold", color="#0f172a")
     ax_bg.text(113, 19.5, f"AS-LAID ({mat_id}): E {metrics['aslaid_e']:.3f} m, N {metrics['aslaid_n']:.3f} m (Z: {metrics['aslaid_z']:.2f}m)", fontsize=6.4, color="#0369a1")
-    ax_bg.text(113, 15.8, f"dCL OFFSET: {metrics['cl_offset_m']:.3f} m (Tol +/-{metrics['cl_tol']:.2f}m | dAl {metrics['d_along_m']:+.2f}, dCr {metrics['d_cross_m']:+.2f}m)", fontsize=6.3, fontweight="bold", color="#15803d" if metrics["cl_offset_m"] <= metrics["cl_tol"] else "#b91c1c")
+    ax_bg.text(113, 15.8, f"dCL OFFSET: {metrics['cl_offset_m']:.3f} m (Tol +/-{cl_tol:.2f}m | dAl {metrics['d_along_m']:+.2f}, dCr {metrics['d_cross_m']:+.2f}m)", fontsize=6.3, fontweight="bold", color="#15803d" if metrics["cl_offset_m"] <= cl_tol else "#b91c1c")
 
     ax_bg.text(217, 23.5, f"SOUTH BRG: Des {metrics['design_brg']:.2f} deg | Act {metrics['heading_deg']:.2f} deg (dBrg {metrics['brg_diff_deg']:+.2f} deg)", fontsize=6.4, fontweight="bold", color="#0f172a")
-    ax_bg.text(217, 19.5, f"ROV GAPS: {'1st Unit (N/A)' if is_first else metrics['gap_labels'][:36]}", fontsize=6.3, color="#334155")
-    ax_bg.text(217, 15.8, f"NUDGE TO DESIGN: {metrics['nudge_dist_m']:.2f} m -> {metrics['nudge_dir']} ({metrics['nudge_az_deg']:.1f} deg)", fontsize=6.4, fontweight="bold", color="#0f172a")
+    ax_bg.text(217, 19.5, f"CORNER GAPS: {'1st Unit (N/A)' if is_first else metrics['gap_labels'][:38]}", fontsize=6.3, fontweight="bold", color="#0369a1" if not is_first else "#334155")
+    ax_bg.text(217, 15.8, f"TOLERANCE: Centerline +/-{cl_tol:.2f} m | Side-to-Side Gap <= {gap_tol:.2f} m", fontsize=6.2, fontweight="bold", color="#15803d")
 
     ax_bg.text(319, 23.5, f"FILE: {metrics['base_filename']}.pdf", fontsize=6.5, fontweight="bold", color="#0f172a")
     ax_bg.text(319, 19.5, f"SCALES @ A3: P1 1:{scale_p1} | P2 1:{scale_p2} | P3 1:75/1:15 | P4 1:50/1:15", fontsize=6.1, color="#334155")
     ax_bg.text(319, 15.8, f"DATE: {metrics['install_date']} | {metrics['status']}", fontsize=6.2, fontweight="bold", color="#15803d")
 
     des_e, des_n = metrics["design_e"], metrics["design_n"]
-    if is_first or not include_history:
-        hist_map = {}
-    else:
-        hist_map = {str(r.get("design_box_id")): r for r in (ledger_list or []) if r.get("design_box_id") and str(r.get("design_box_id")) != loc_id}
+    hist_map = {}
+    if not is_first and include_history and ledger_list:
+        for r in ledger_list:
+            r_bid = str(r.get("design_box_id") or "")
+            r_uno = int(float(r.get("unit_no") or 0))
+            if r_bid and r_bid != loc_id and (r_uno < cur_uno or r_bid == "CR-A1_M15"):
+                hist_map[r_bid] = r
 
+    # PANEL 1: FULL CROSSING ARRAY
     ax1 = fig.add_axes([35.0 / W_MM, 56.0 / H_MM, 102.0 / W_MM, 184.0 / H_MM])
     hw1, hh1 = (102.0 / 1000.0) * float(scale_p1) / 2.0, (184.0 / 1000.0) * float(scale_p1) / 2.0
     e_lim1, n_lim1 = (des_e - hw1, des_e + hw1), (des_n - hh1, des_n + hh1)
@@ -102,12 +111,16 @@ def generate_a3_4panel_chart(
     for bid, b in boxes_dict.items():
         short_lbl = bid.split("_")[-1]
         if bid == loc_id:
-            ax1.add_patch(mpatches.Polygon(b["corners"], closed=True, facecolor="#fef08a", edgecolor="#dc2626", linewidth=1.6, alpha=0.88, zorder=5))
+            if is_first:
+                ax1.add_patch(mpatches.Polygon(b["corners"], closed=True, facecolor="#fef08a", edgecolor="#dc2626", linewidth=1.6, linestyle="-", alpha=0.88, zorder=5))
+            else:
+                cur_c, _, _ = _box_corners_cw(metrics["aslaid_e"], metrics["aslaid_n"], (float(metrics["heading_deg"]) - 180.0) % 360.0)
+                ax1.add_patch(mpatches.Polygon(cur_c, closed=True, facecolor=(0.13, 0.77, 0.37, 0.25), edgecolor="#15803d", linewidth=1.8, linestyle="-", hatch="///", zorder=5))
             lbl = f"{short_lbl} [{mat_id}]"
         elif bid in hist_map:
             hr = hist_map[bid]
             hc, _, _ = _box_corners_cw(hr.get("aslaid_e", b["design_e"]), hr.get("aslaid_n", b["design_n"]), (float(hr.get("heading_deg", b["bearing"])) - 180.0) % 360.0)
-            ax1.add_patch(mpatches.Polygon(hc, closed=True, facecolor="#bbf7d0", edgecolor="#16a34a", linewidth=1.1, alpha=0.8, zorder=4))
+            ax1.add_patch(mpatches.Polygon(hc, closed=True, facecolor=(0.80, 0.92, 1.0, 0.28), edgecolor="#0369a1", linewidth=1.4, linestyle="--", zorder=4))
             lbl = f"{short_lbl} [{hr.get('physical_tag','')}]"
         else:
             ax1.add_patch(mpatches.Polygon(b["corners"], closed=True, facecolor="#e2e8f0", edgecolor="#475569", linewidth=0.7, alpha=0.55, zorder=3))
@@ -123,6 +136,7 @@ def generate_a3_4panel_chart(
     ax1.set_xlabel("Easting E (m, TWD97)", fontsize=6.6, fontweight="bold"); ax1.set_ylabel("Northing N (m, TWD97)", fontsize=6.6, fontweight="bold")
     ax1.tick_params(labelsize=5.8); ax1.ticklabel_format(useOffset=False, style="plain"); ax1.grid(True, linestyle=":", linewidth=0.4, color="#cbd5e1")
 
+    # PANEL 2: ZOOMED PLAN VIEW
     ax2 = fig.add_axes([161.0 / W_MM, 46.0 / H_MM, 114.0 / W_MM, 204.0 / H_MM])
     hw2, hh2 = (114.0 / 1000.0) * float(scale_p2) / 2.0, (204.0 / 1000.0) * float(scale_p2) / 2.0
     ax2.set_xlim(-hw2, hw2); ax2.set_ylim(-hh2, hh2)
@@ -147,23 +161,43 @@ def generate_a3_4panel_chart(
     ax2.plot(metrics["d_cross_m"], metrics["d_along_m"], "o", color="#16a34a", markersize=6.5, markeredgecolor="white", zorder=8, label="ROV 4-Corner Center")
     ax2.plot(qx, qy, "^", color="#0284c7", markersize=6.5, markeredgecolor="white", zorder=8, label="QA/QC USBL Center")
 
-    gaps = metrics.get("gaps") or {}
-    callouts = [
-        ("NNE (+3.0m)", metrics["edge_nne"], f"NW:{gaps.get('nw') or '-'} NE:{gaps.get('ne') or '-'}", (0.0, 3.0), (0.0, 3.85)),
-        ("SSW (-3.0m)", metrics["edge_ssw"], f"SW:{gaps.get('sw') or '-'} SE:{gaps.get('se') or '-'}", (0.0, -3.0), (0.0, -3.85)),
-        ("ESE (+1.5m)", metrics["edge_ese"], f"NE:{gaps.get('ne') or '-'} SE:{gaps.get('se') or '-'}", (1.5, 0.0), (2.75, 0.0)),
-        ("WNW (-1.5m)", metrics["edge_wnw"], f"NW:{gaps.get('nw') or '-'} SW:{gaps.get('sw') or '-'}", (-1.5, 0.0), (-2.75, 0.0)),
-    ]
-    for lbl_e, val_e, g_str, xy_p, xy_t in callouts:
-        if is_first:
+    if is_first:
+        side_callouts = [
+            ("NNE (+3.0m)", metrics["edge_nne"], (0.0, 3.0), (0.0, 3.85)),
+            ("SSW (-3.0m)", metrics["edge_ssw"], (0.0, -3.0), (0.0, -3.85)),
+            ("ESE (+1.5m)", metrics["edge_ese"], (1.5, 0.0), (2.75, 0.0)),
+            ("WNW (-1.5m)", metrics["edge_wnw"], (-1.5, 0.0), (-2.75, 0.0)),
+        ]
+        for lbl_e, val_e, xy_p, xy_t in side_callouts:
             ovh = val_e > 0.0
             bg, bd = ("#ffebee", "#dc2626") if ovh else ("#e8f5e9", "#16a34a")
             txt_c = f"{lbl_e}" + chr(10) + (f"Overhang: {val_e:+.2f}m" if ovh else f"Clear: {abs(val_e):.2f}m")
-        else:
-            bg, bd = ("#e0f2fe", "#0369a1")
-            txt_c = f"{lbl_e}" + chr(10) + f"Gap {g_str}"
-        ax2.annotate(txt_c, xy=xy_p, xytext=xy_t, ha="center", va="center", fontsize=5.5, fontweight="bold", color=bd,
-                     bbox=dict(boxstyle="round,pad=0.24", facecolor=bg, edgecolor=bd, lw=0.85), arrowprops=dict(arrowstyle="->", color=bd, lw=0.9), zorder=9)
+            ax2.annotate(txt_c, xy=xy_p, xytext=xy_t, ha="center", va="center", fontsize=5.5, fontweight="bold", color=bd,
+                         bbox=dict(boxstyle="round,pad=0.24", facecolor=bg, edgecolor=bd, lw=0.85), arrowprops=dict(arrowstyle="->", color=bd, lw=0.9), zorder=9)
+    else:
+        gaps = metrics.get("gaps") or {}
+        corner_defs = [
+            ("C1 (NW Corner)", gaps.get("nw", ""), c_loc[0], (-2.55, 3.95)),
+            ("C2 (NE Corner)", gaps.get("ne", ""), c_loc[1], (2.55, 3.95)),
+            ("C3 (SE Corner)", gaps.get("se", ""), c_loc[2], (2.55, -3.95)),
+            ("C4 (SW Corner)", gaps.get("sw", ""), c_loc[3], (-2.55, -3.95)),
+        ]
+        for c_title, g_raw, xy_c, xy_box in corner_defs:
+            g_str = str(g_raw or "").strip()
+            if g_str:
+                try:
+                    gv = float(re.sub(r"[^0-9.]", "", g_str))
+                    ok = gv <= gap_tol
+                except Exception:
+                    gv, ok = 0.0, True
+                bg, bd = ("#e8f5e9", "#15803d") if ok else ("#ffebee", "#dc2626")
+                unit_sfx = "" if g_str.lower().endswith("m") else " m"
+                txt_c = f"{c_title}" + chr(10) + f"Corner Gap: {g_str}{unit_sfx}" + chr(10) + f"(Tol <= {gap_tol:.2f} m)"
+            else:
+                bg, bd = ("#f1f5f9", "#475569")
+                txt_c = f"{c_title}" + chr(10) + "Corner Gap: N/A"
+            ax2.annotate(txt_c, xy=(float(xy_c[0]), float(xy_c[1])), xytext=xy_box, ha="center", va="center", fontsize=5.3, fontweight="bold", color=bd,
+                         bbox=dict(boxstyle="round,pad=0.24", facecolor=bg, edgecolor=bd, lw=0.85), arrowprops=dict(arrowstyle="->", color=bd, lw=0.9), zorder=9)
 
     sb2_x, sb2_y = hw2 - 2.5, -hh2 + 0.65
     ax2.add_patch(mpatches.Rectangle((sb2_x - 0.2, sb2_y - 0.3), 2.4, 0.75, facecolor="white", edgecolor="#64748b", alpha=0.9, zorder=8))

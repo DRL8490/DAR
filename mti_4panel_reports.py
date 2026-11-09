@@ -1,4 +1,4 @@
-import os, io, re, zipfile
+﻿import os, io, re, zipfile
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -8,8 +8,9 @@ def build_structured_report_markdown(metrics, include_history=False, ledger_list
     loc_id, mat_id = metrics.get("location_id", "CR-A1_M15"), metrics.get("mattress_id", "#A046")
     xing_id, usbl_s = metrics.get("crossing_id", "CR-A1_L1"), metrics.get("usbl_sensor", "Survey Pole")
     cl_off, cl_tol = float(metrics.get("cl_offset_m", 0.0)), float(metrics.get("cl_tol", 0.50))
-    max_g, g_tol = float(metrics.get("max_gap_m", 0.0)), float(metrics.get("gap_tol", 0.20))
+    max_g, g_tol = float(metrics.get("max_gap_m", 0.0)), float(metrics.get("gap_tol", 0.50))
     is_first = bool(metrics.get("is_first_in_array", False))
+    cur_uno = int(metrics.get("unit_no") or (1 if is_first else 2))
     c_enz = metrics.get("corners_enz") or [[0,0,0]]*4
     nb, gaps = metrics.get("neighbors") or {}, metrics.get("gaps") or {}
     cl_st = "PASS" if cl_off <= cl_tol else "EXCEEDS"
@@ -28,7 +29,7 @@ def build_structured_report_markdown(metrics, include_history=False, ledger_list
         f"- **Identification & Sensor:** Mattress **{mat_id}** at **{loc_id}** ({xing_id}) tracked via **{usbl_s}**.",
         f"- **Centerline Offset (dCL):** **{cl_off:.3f} m** vs. Tolerance **+/-{cl_tol:.2f} m** ({cl_st}) [dAlong: {metrics.get('d_along_m',0):+.3f} m, dCross: {metrics.get('d_cross_m',0):+.3f} m].",
         f"- **Heading Alignment:** Design South Brg **{metrics.get('design_brg',195.854):.3f} deg** vs. As-Laid **{metrics.get('heading_deg',195.854):.3f} deg** (dBrg: **{metrics.get('brg_diff_deg',0):+.3f} deg**).",
-        f"- **ROV Corner Gaps:** **{metrics.get('gap_labels','N/A')}** | Max Gap **{max_g:.2f} m** vs. Tolerance **<={g_tol:.2f} m** ({gap_st}).",
+        f"- **Surveyor Corner Gaps:** **{metrics.get('gap_labels','N/A')}** | Max Gap **{max_g:.2f} m** vs. Side-to-Side Gap Tolerance **<={g_tol:.2f} m** ({gap_st}).",
         "",
         "## 1. GEODETIC, 4-CORNER ROV & GAP COMPARISON TABLE",
         "| Parameter | Design Baseline | QA/QC USBL Fix | As-Laid 4-Corner ROV | Delta / Status |",
@@ -39,26 +40,28 @@ def build_structured_report_markdown(metrics, include_history=False, ledger_list
         f"| South Bearing (deg) | {metrics.get('design_brg',0):.3f} deg | {metrics.get('qaqc_brg',0):.3f} deg | {metrics.get('heading_deg',0):.3f} deg | {metrics.get('brg_diff_deg',0):+.3f} deg |",
         f"| North Azimuth (deg) | {metrics.get('design_az',0):.3f} deg | - | {metrics.get('act_az',0):.3f} deg | {metrics.get('brg_diff_deg',0):+.3f} deg |",
         f"| Radial Offset dCL (m) | 0.000 m (Tol +/-{cl_tol:.2f}m) | - | {cl_off:.3f} m | {cl_st} ({metrics.get('pct_inside',0):.1f}% in box) |",
-        f"| ROV Corner Gaps (m) | Tol <={g_tol:.2f} m | - | {metrics.get('gap_labels','N/A')} | {gap_st} |",
+        f"| Side-to-Side Gap (m) | Tol <={g_tol:.2f} m | - | {metrics.get('gap_labels','N/A')} | {gap_st} |",
         "",
-        "## 2. KEY SURVEY FINDINGS (4-CORNER ROV COORDINATES & ENVIRONMENT)",
-        f"- **C1 (NW):** E {c_enz[0][0]:.3f} m, N {c_enz[0][1]:.3f} m, Z {c_enz[0][2]:.2f} m | ROV Gap NW: {gaps.get('nw') or 'N/A'}",
-        f"- **C2 (NE):** E {c_enz[1][0]:.3f} m, N {c_enz[1][1]:.3f} m, Z {c_enz[1][2]:.2f} m | ROV Gap NE: {gaps.get('ne') or 'N/A'}",
-        f"- **C3 (SE):** E {c_enz[2][0]:.3f} m, N {c_enz[2][1]:.3f} m, Z {c_enz[2][2]:.2f} m | ROV Gap SE: {gaps.get('se') or 'N/A'}",
-        f"- **C4 (SW):** E {c_enz[3][0]:.3f} m, N {c_enz[3][1]:.3f} m, Z {c_enz[3][2]:.2f} m | ROV Gap SW: {gaps.get('sw') or 'N/A'}",
-        f"- **Edge Clearances:** NNE {metrics.get('edge_nne',0):+.2f}m (Nbr: {nb.get('NNE') or 'None'}), SSW {metrics.get('edge_ssw',0):+.2f}m (Nbr: {nb.get('SSW') or 'None'}), ESE {metrics.get('edge_ese',0):+.2f}m (Nbr: {nb.get('ESE') or 'None'}), WNW {metrics.get('edge_wnw',0):+.2f}m (Nbr: {nb.get('WNW') or 'None'}).",
+        "## 2. KEY SURVEY FINDINGS (4-CORNER ROV COORDINATES & CORNER GAPS)",
+        f"- **C1 (NW Corner):** E {c_enz[0][0]:.3f} m, N {c_enz[0][1]:.3f} m, Z {c_enz[0][2]:.2f} m" + ("" if is_first else f" | Surveyor Corner Gap NW: {gaps.get('nw') or 'N/A'}"),
+        f"- **C2 (NE Corner):** E {c_enz[1][0]:.3f} m, N {c_enz[1][1]:.3f} m, Z {c_enz[1][2]:.2f} m" + ("" if is_first else f" | Surveyor Corner Gap NE: {gaps.get('ne') or 'N/A'}"),
+        f"- **C3 (SE Corner):** E {c_enz[2][0]:.3f} m, N {c_enz[2][1]:.3f} m, Z {c_enz[2][2]:.2f} m" + ("" if is_first else f" | Surveyor Corner Gap SE: {gaps.get('se') or 'N/A'}"),
+        f"- **C4 (SW Corner):** E {c_enz[3][0]:.3f} m, N {c_enz[3][1]:.3f} m, Z {c_enz[3][2]:.2f} m" + ("" if is_first else f" | Surveyor Corner Gap SW: {gaps.get('sw') or 'N/A'}"),
+    ]
+    if is_first:
+        lines.append(f"- **1st-Unit Edge Overhang/Clearance:** NNE {metrics.get('edge_nne',0):+.2f}m, SSW {metrics.get('edge_ssw',0):+.2f}m, ESE {metrics.get('edge_ese',0):+.2f}m, WNW {metrics.get('edge_wnw',0):+.2f}m.")
+    else:
+        lines.append(f"- **Surveyor Recorded Corner Gaps (Tol <={g_tol:.2f}m Side-to-Side Gap):** {metrics.get('gap_labels','N/A')}.")
+    lines.extend([
         f"- **Environment:** Wind: {metrics.get('env_wind') or 'Recorded in Log'} | Current: {metrics.get('env_current') or 'Recorded in Log'}.",
         "",
-        "## 3. OPERATIONAL CRANE / ROV NUDGE RECOMMENDATION",
-        f"- **Required Vector to Design Center:** Shift **{metrics.get('nudge_dist_m',0):.2f} m** toward **{metrics.get('nudge_dir','N')}** (Azimuth **{metrics.get('nudge_az_deg',0):.1f} deg**).",
-        f"- **Cartesian Adjustments:** dE = **{metrics.get('nudge_de',0):+.3f} m**, dN = **{metrics.get('nudge_dn',0):+.3f} m**.",
-        "",
-        "## 4. SURVEYOR REMARKS",
+        "## 3. SURVEYOR REMARKS",
         f"- {metrics.get('remarks') or 'Mattress installation verified via WROV 4-corner fix and USBL telemetry.'}"
-    ]
-    if include_history and ledger_list and not is_first:
-        lines.extend(["", "## 5. HISTORICAL CROSSING LEDGER", "| Unit # | Date/Time | Location ID | Tag ID | As-Laid E | As-Laid N | Brg (deg) | dCL (m) | Gaps |", "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |"])
-        for r in ledger_list:
+    ])
+    hist_rows = [r for r in (ledger_list or []) if int(float(r.get("unit_no") or 0)) < cur_uno] if (include_history and not is_first) else []
+    if hist_rows:
+        lines.extend(["", "## 4. HISTORICAL PLACED UNITS LEDGER", "| Unit # | Date/Time | Location ID | Tag ID | As-Laid E | As-Laid N | Brg (deg) | dCL (m) | Corner Gaps |", "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |"])
+        for r in hist_rows:
             lines.append(f"| {r.get('unit_no','')} | {r.get('install_date','')} | {r.get('design_box_id','')} | {r.get('physical_tag','')} | {float(r.get('aslaid_e') or 0):.3f} | {float(r.get('aslaid_n') or 0):.3f} | {float(r.get('heading_deg') or 0):.2f} | {float(r.get('cl_offset_m') or 0):.3f} | {r.get('gap_labels','')} |")
     return chr(10).join(lines)
 
@@ -74,7 +77,7 @@ def generate_a4_report_pdf(metrics, workspace_dir="workspace", custom_report_md=
     ax.add_patch(mpatches.Rectangle((14, 269), 182, 14, facecolor="#0f172a", edgecolor="#0f172a"))
     loc_id, mat_id = metrics.get("location_id", "CR-A1_M15"), metrics.get("mattress_id", "#A046")
     ax.text(18, 277.5, f"ISO A4 SUBSEA MATTRESS VERIFICATION REPORT  |  {loc_id} ({mat_id})", color="white", fontsize=8.8, fontweight="bold", va="center")
-    ax.text(18, 272.2, f"File: {metrics.get('base_filename','')}_A4_Report.pdf  |  Active USBL: {metrics.get('usbl_sensor','Survey Pole')}  |  {metrics.get('verdict','')[:36]}", color="#38bdf8", fontsize=6.8, fontweight="bold", va="center")
+    ax.text(18, 272.2, f"File: {metrics.get('base_filename','')}_A4_Report.pdf  |  Active USBL: {metrics.get('usbl_sensor','Survey Pole')}  |  {metrics.get('verdict','')}", color="#38bdf8", fontsize=6.6, fontweight="bold", va="center")
 
     y_cur = 262.5
     for raw_l in str(md_text).splitlines():
