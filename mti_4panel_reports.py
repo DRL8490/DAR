@@ -1,10 +1,15 @@
-import os, io, re, gc, zipfile
+import os, io, re, gc, zipfile, textwrap
 from datetime import datetime
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.backends.backend_pdf import PdfPages
+
+CROSSING_SCOPES = [
+    ("CR-A1_L1", 25), ("CR-A1_L2", 2), ("CR-A2", 7), ("CR-A3", 36),
+    ("CR-B1_L1", 25), ("CR-B1_L2", 2), ("CR-B2", 7), ("CR-B3", 35)
+]
 
 def build_structured_report_markdown(metrics, include_history=False, ledger_list=None, scale_p1=250, scale_p2=75):
     loc_id, mat_id = metrics.get("location_id", "CR-A1_M15"), metrics.get("mattress_id", "#A046")
@@ -150,7 +155,11 @@ def generate_a4_report_pdf(metrics, workspace_dir="workspace", custom_report_md=
     return pdf_bytes
 
 def generate_mti_dpr_pdf(st_data, target_date_str=None, surveyor_name="Duty Surveyor", workspace_dir="workspace"):
-    """Generates a Daily Progress Report (DPR) PDF for MTI Operations covering 00:00 to 23:59 of target_date_str."""
+    """
+    Generates an executive Landscape Daily Progress Report (DPR) PDF for MTI Operations
+    covering 00:00 to 23:59 hrs of target_date_str, with bordered tables, per-crossing progress matrix,
+    metocean extraction, and word-wrapped chronological event logs.
+    """
     os.makedirs(workspace_dir, exist_ok=True)
     ledger = list((st_data or {}).get("ledger") or [])
     raw_logs = []
@@ -184,8 +193,10 @@ def generate_mti_dpr_pdf(st_data, target_date_str=None, surveyor_name="Duty Surv
             if d: all_dates.append(d)
         dt_iso = max(all_dates) if all_dates else datetime.utcnow().strftime("%Y-%m-%d")
 
+    prior_fixes = [r for r in ledger if (_norm_date(r.get("install_date")) or "9999") < dt_iso]
     day_fixes = [r for r in ledger if _norm_date(r.get("install_date")) == dt_iso]
     day_fixes.sort(key=lambda r: _extract_time(r.get("install_date")))
+    cum_fixes = [r for r in ledger if (_norm_date(r.get("install_date")) or "0000") <= dt_iso]
 
     day_logs = []
     for lg in raw_logs:
@@ -202,93 +213,167 @@ def generate_mti_dpr_pdf(st_data, target_date_str=None, surveyor_name="Duty Surv
         ax.set_xlim(0, W_MM); ax.set_ylim(0, H_MM); ax.set_xticks([]); ax.set_yticks([])
         ax.add_patch(mpatches.Rectangle((10, 10), 277, 190, fill=False, edgecolor="#0f172a", linewidth=1.4))
         ax.add_patch(mpatches.Rectangle((10, 185.5), 277, 14.5, facecolor="#0f172a", edgecolor="#0f172a"))
-        ax.text(14, 194.8, "SUBSEA MATTRESS & ROCK BAG INSTALLATION (MTI) - DAILY PROGRESS REPORT (DPR)", color="white", fontsize=10.5, fontweight="bold", va="center")
-        ax.text(14, 188.8, f"Reporting Period: {dt_iso} (00:00 to 23:59 hrs)  |  Vessel: DP2 MMA Prestige  |  Client: TPC  |  Contractor: NMDC", color="#38bdf8", fontsize=8.4, fontweight="bold", va="center")
-        ax.plot([10, 287], [16.0, 16.0], color="#cbd5e1", linewidth=0.8)
-        ax.text(14, 12.2, f"Tung-Hsiao 2nd Stage Subsea Gas Pipeline Project  |  Duty Surveyor: {surveyor_name}", fontsize=8.0, color="#475569", fontweight="bold")
-        ax.text(283, 12.2, f"MTI DPR ({dt_iso} 00:00-23:59) | Page {page_num}", fontsize=8.0, color="#475569", ha="right")
+        ax.text(14, 194.8, "SUBSEA MATTRESS & ROCK BAG INSTALLATION (MTI) - DAILY PROGRESS REPORT (DPR)", color="white", fontsize=10.2, fontweight="bold", va="center")
+        ax.text(14, 188.8, f"Reporting Period: {dt_iso} (00:00 to 23:59 hrs)  |  Vessel: DP2 MMA Prestige  |  Client: TPC  |  Contractor: NMDC", color="#38bdf8", fontsize=8.2, fontweight="bold", va="center")
+        ax.plot([10, 287], [15.5, 15.5], color="#cbd5e1", linewidth=0.8)
+        ax.text(14, 12.0, f"Tung-Hsiao 2nd Stage Subsea Gas Pipeline Project  |  Duty Surveyor: {surveyor_name}", fontsize=7.8, color="#475569", fontweight="bold")
+        ax.text(283, 12.0, f"MTI DPR ({dt_iso} | 00:00-23:59) | Page {page_num}", fontsize=7.8, color="#475569", ha="right")
         return fig, ax
 
     figs = []
     p_no = 1
     fig, ax = _new_dpr_page(p_no)
     figs.append(fig)
-    y = 179.5
+    y = 180.0
 
-    ax.add_patch(mpatches.Rectangle((13, y - 1.5), 271, 5.2, facecolor="#e2e8f0", edgecolor="none"))
-    ax.text(15, y + 1.0, f"1. DAILY MTI OPERATIONS SUMMARY ({dt_iso} | 00:00 TO 23:59 HRS)", fontsize=9.4, fontweight="bold", color="#0f172a", va="center")
+    # --- SECTION 1: DAILY & CUMULATIVE MTI PROGRESS MATRIX BY CROSSING ---
+    ax.add_patch(mpatches.Rectangle((13, y - 1.4), 271, 5.0, facecolor="#0f172a", edgecolor="none"))
+    ax.text(15, y + 1.1, f"1. MTI PROGRESS SUMMARY BY CROSSING LOCATION ({dt_iso} | 00:00 TO 23:59 HRS)", fontsize=8.8, fontweight="bold", color="white", va="center")
     y -= 5.8
-    total_scope = int((st_data or {}).get("target_mattresses") or 139)
-    ax.text(15, y, f"Mattresses Laid on {dt_iso} (00:00-23:59): {len(day_fixes)} unit(s)   |   Cumulative Mattresses Laid: {len(ledger)} / {total_scope} ({len(ledger)*100.0/max(total_scope,1):.1f}%)   |   Events Logged Today: {len(day_logs)}", fontsize=8.8, fontweight="bold", color="#0369a1")
-    y -= 5.5
 
-    ax.add_patch(mpatches.Rectangle((13, y - 1.5), 271, 5.2, facecolor="#e2e8f0", edgecolor="none"))
-    ax.text(15, y + 1.0, f"2. MATTRESSES PLACED ON {dt_iso} (00:00 TO 23:59 HRS)", fontsize=9.4, fontweight="bold", color="#0f172a", va="center")
-    y -= 5.4
+    col_x = [13.0, 48.0, 74.0, 100.0, 126.0, 152.0, 178.0, 204.0, 230.0, 256.0, 284.0]
+    headers_m = ["Metric / Area", "CR-A1_L1", "CR-A1_L2", "CR-A2", "CR-A3", "CR-B1_L1", "CR-B1_L2", "CR-B2", "CR-B3", "TOTAL"]
+    ax.add_patch(mpatches.Rectangle((13, y - 1.2), 271, 4.4, facecolor="#e2e8f0", edgecolor="#94a3b8", linewidth=0.5))
+    for idx_h, h_txt in enumerate(headers_m):
+        cx = (col_x[idx_h] + col_x[idx_h + 1]) / 2.0 if idx_h > 0 else col_x[0] + 2.0
+        ha_m = "center" if idx_h > 0 else "left"
+        ax.text(cx, y + 0.9, h_txt, fontsize=7.4, fontweight="bold", color="#0f172a", ha=ha_m, va="center")
+    y -= 4.4
+
+    def _cnt_xing(rows_list, x_id):
+        return sum(1 for r in rows_list if str(r.get("crossing_id") or str(r.get("design_box_id","")).split("_M")[0]).upper() == x_id.upper())
+
+    matrix_rows = [
+        ("Design Scope", [sc for _, sc in CROSSING_SCOPES], sum(sc for _, sc in CROSSING_SCOPES), "#334155", False),
+        ("Prev Laid", [_cnt_xing(prior_fixes, x) for x, _ in CROSSING_SCOPES], len(prior_fixes), "#475569", False),
+        ("Today (00-24h)", [_cnt_xing(day_fixes, x) for x, _ in CROSSING_SCOPES], len(day_fixes), "#0369a1", True),
+        ("Cumul. Laid", [_cnt_xing(cum_fixes, x) for x, _ in CROSSING_SCOPES], len(cum_fixes), "#15803d", True),
+        ("Remaining", [max(0, sc - _cnt_xing(cum_fixes, x)) for x, sc in CROSSING_SCOPES], max(0, sum(sc for _, sc in CROSSING_SCOPES) - len(cum_fixes)), "#b91c1c", False)
+    ]
+    for r_idx, (r_label, vals, tot_v, c_col, is_b) in enumerate(matrix_rows):
+        bg_c = "#f8fafc" if r_idx % 2 == 0 else "#ffffff"
+        ax.add_patch(mpatches.Rectangle((13, y - 1.1), 271, 4.0, facecolor=bg_c, edgecolor="#cbd5e1", linewidth=0.4))
+        ax.text(col_x[0] + 2.0, y + 0.8, r_label, fontsize=7.3, fontweight="bold", color=c_col, va="center")
+        for ic, v in enumerate(vals):
+            cx = (col_x[ic + 1] + col_x[ic + 2]) / 2.0
+            ax.text(cx, y + 0.8, str(v), fontsize=7.4, fontweight="bold" if (is_b and v > 0) else "normal", color=c_col if (is_b and v > 0) else "#1e293b", ha="center", va="center")
+        cx_tot = (col_x[9] + col_x[10]) / 2.0
+        ax.text(cx_tot, y + 0.8, str(tot_v), fontsize=7.6, fontweight="bold", color=c_col, ha="center", va="center")
+        y -= 4.0
+    for x_line in col_x:
+        ax.plot([x_line, x_line], [y + 2.9, y + 2.9 + 24.4], color="#cbd5e1", linewidth=0.4)
+    y -= 2.8
+
+    # --- SECTION 2: MATTRESSES PLACED ON TARGET DATE (00:00 - 23:59) ---
+    ax.add_patch(mpatches.Rectangle((13, y - 1.4), 271, 5.0, facecolor="#0f172a", edgecolor="none"))
+    ax.text(15, y + 1.1, f"2. MATTRESSES PLACED ON {dt_iso} (00:00 TO 23:59 HRS)", fontsize=8.8, fontweight="bold", color="white", va="center")
+    y -= 5.6
 
     if not day_fixes:
-        ax.text(15, y, f"No mattress fixes recorded between 00:00 and 23:59 on {dt_iso}.", fontsize=8.5, color="#64748b")
-        y -= 5.0
+        ax.add_patch(mpatches.Rectangle((13, y - 1.2), 271, 4.6, facecolor="#f8fafc", edgecolor="#cbd5e1", linewidth=0.5))
+        ax.text(15, y + 1.0, f"No mattress installations recorded between 00:00 and 23:59 hrs on {dt_iso}.", fontsize=8.0, color="#64748b", va="center")
+        y -= 6.5
     else:
-        cols_f = [(15, "Unit #"), (30, "Time"), (50, "Crossing"), (75, "Location ID"), (102, "Tag ID"), (122, "As-Laid E"), (152, "As-Laid N"), (182, "Brg"), (200, "dCL (m)"), (222, "Gaps / Status")]
-        for cx, c_lbl in cols_f:
-            ax.text(cx, y, c_lbl, fontsize=8.0, fontweight="bold", color="#0f172a", family="monospace")
-        y -= 4.0
-        for r in day_fixes:
+        f_cols = [
+            (13.0, 25.0, "Unit #"), (25.0, 40.0, "Time"), (40.0, 62.0, "Crossing"),
+            (62.0, 88.0, "Box ID"), (88.0, 108.0, "Tag ID"), (108.0, 138.0, "As-Laid E"),
+            (138.0, 170.0, "As-Laid N"), (170.0, 190.0, "Brg"), (190.0, 212.0, "dCL (m)"),
+            (212.0, 284.0, "Corner Gaps / Verdict")
+        ]
+        ax.add_patch(mpatches.Rectangle((13, y - 1.2), 271, 4.4, facecolor="#e2e8f0", edgecolor="#94a3b8", linewidth=0.5))
+        for x0, x1, h_lbl in f_cols:
+            ax.text(x0 + 1.5, y + 0.9, h_lbl, fontsize=7.4, fontweight="bold", color="#0f172a", va="center")
+        y -= 4.4
+        for idx_f, r in enumerate(day_fixes):
             if y < 22.0:
-                p_no += 1; fig, ax = _new_dpr_page(p_no); figs.append(fig); y = 179.5
+                p_no += 1; fig, ax = _new_dpr_page(p_no); figs.append(fig); y = 180.0
+            bg_c = "#f8fafc" if idx_f % 2 == 0 else "#ffffff"
+            ax.add_patch(mpatches.Rectangle((13, y - 1.2), 271, 4.2, facecolor=bg_c, edgecolor="#cbd5e1", linewidth=0.4))
             t_hm = _extract_time(r.get("install_date"))
-            row_vals = [
-                (15, f"#{r.get('unit_no','')}"),
-                (30, t_hm),
-                (50, str(r.get("crossing_id") or "")[:10]),
-                (75, str(r.get("design_box_id") or "")[:12]),
-                (102, str(r.get("physical_tag") or "")[:8]),
-                (122, f"{float(r.get('aslaid_e') or 0):.3f}"),
-                (152, f"{float(r.get('aslaid_n') or 0):.3f}"),
-                (182, f"{float(r.get('heading_deg') or 0):.1f}"),
-                (200, f"{float(r.get('cl_offset_m') or 0):.2f}m"),
-                (222, f"{r.get('gap_labels','')} ({r.get('status','Completed')})"[:32])
+            vals_f = [
+                f"#{r.get('unit_no','')}", t_hm, str(r.get("crossing_id") or "")[:10],
+                str(r.get("design_box_id") or "")[:12], str(r.get("physical_tag") or "")[:8],
+                f"{float(r.get('aslaid_e') or 0):.3f}", f"{float(r.get('aslaid_n') or 0):.3f}",
+                f"{float(r.get('heading_deg') or 0):.1f} deg", f"{float(r.get('cl_offset_m') or 0):.2f} m",
+                f"{r.get('gap_labels','1st Unit')} | {r.get('status','Completed')}"[:40]
             ]
-            for cx, val_s in row_vals:
-                ax.text(cx, y, val_s, fontsize=7.8, color="#1e293b", family="monospace")
-            y -= 4.0
-        y -= 2.0
+            for (x0, x1, _), v_str in zip(f_cols, vals_f):
+                ax.text(x0 + 1.5, y + 0.8, v_str, fontsize=7.4, color="#1e293b", family="monospace", va="center")
+            y -= 4.2
+        y -= 2.5
 
-    if y < 35.0:
-        p_no += 1; fig, ax = _new_dpr_page(p_no); figs.append(fig); y = 179.5
-    ax.add_patch(mpatches.Rectangle((13, y - 1.5), 271, 5.2, facecolor="#e2e8f0", edgecolor="none"))
-    ax.text(15, y + 1.0, f"3. CHRONOLOGICAL ONBOARD SURVEY LOGS ({dt_iso} | 00:00 TO 23:59 HRS)", fontsize=9.4, fontweight="bold", color="#0f172a", va="center")
-    y -= 5.4
+    # --- SECTION 3: CHRONOLOGICAL ONBOARD SURVEY EVENT LOG (00:00 - 23:59) ---
+    if y < 38.0:
+        p_no += 1; fig, ax = _new_dpr_page(p_no); figs.append(fig); y = 180.0
+    ax.add_patch(mpatches.Rectangle((13, y - 1.4), 271, 5.0, facecolor="#0f172a", edgecolor="none"))
+    ax.text(15, y + 1.1, f"3. CHRONOLOGICAL ONBOARD SURVEY EVENT LOG ({dt_iso} | 00:00 TO 23:59 HRS)", fontsize=8.8, fontweight="bold", color="white", va="center")
+    y -= 5.6
 
     if not day_logs:
-        ax.text(15, y, f"No survey events logged between 00:00 and 23:59 on {dt_iso}.", fontsize=8.5, color="#64748b")
+        ax.add_patch(mpatches.Rectangle((13, y - 1.2), 271, 4.6, facecolor="#f8fafc", edgecolor="#cbd5e1", linewidth=0.5))
+        ax.text(15, y + 1.0, f"No survey events logged between 00:00 and 23:59 hrs on {dt_iso}.", fontsize=8.0, color="#64748b", va="center")
+        y -= 6.0
     else:
-        cols_l = [(15, "Time"), (32, "Category"), (68, "Asset / Area"), (102, "Event Description & Operational Details"), (250, "Surveyor")]
-        for cx, c_lbl in cols_l:
-            ax.text(cx, y, c_lbl, fontsize=8.0, fontweight="bold", color="#0f172a", family="monospace")
-        y -= 4.0
-        for lg in day_logs:
-            if y < 21.0:
-                p_no += 1; fig, ax = _new_dpr_page(p_no); figs.append(fig); y = 179.5
+        l_cols = [
+            (13.0, 27.0, "Time"), (27.0, 62.0, "Category"), (62.0, 92.0, "Asset / Area"),
+            (92.0, 216.0, "Operational Event & Remarks"), (216.0, 252.0, "Wind / Curr"), (252.0, 284.0, "Surveyor")
+        ]
+        ax.add_patch(mpatches.Rectangle((13, y - 1.2), 271, 4.4, facecolor="#e2e8f0", edgecolor="#94a3b8", linewidth=0.5))
+        for x0, x1, h_lbl in l_cols:
+            ax.text(x0 + 1.5, y + 0.9, h_lbl, fontsize=7.4, fontweight="bold", color="#0f172a", va="center")
+        y -= 4.4
+
+        for idx_l, lg in enumerate(day_logs):
             ts_s = str(lg.get("timestamp") or lg.get("date") or lg.get("time") or "")
             t_hm = _extract_time(ts_s)
-            cat_s = str(lg.get("category") or lg.get("type") or lg.get("event_type") or "Ops")[:16]
+            cat_s = str(lg.get("category") or lg.get("type") or lg.get("event_type") or "Ops")[:18]
             area_s = str(lg.get("crossing_id") or lg.get("location") or lg.get("asset") or lg.get("vessel") or "MMA Prestige")[:15]
             desc_s = str(lg.get("description") or lg.get("title") or lg.get("remarks") or lg.get("message") or "").strip()
             sub_s = str(lg.get("details") or lg.get("sub_text") or lg.get("env") or "").strip()
-            full_desc = f"{desc_s} | {sub_s}" if (sub_s and sub_s not in desc_s) else desc_s
+            raw_combined = f"{desc_s} | {sub_s}" if (sub_s and sub_s not in desc_s) else desc_s
+
+            m_env = re.search(r"\[([^\]]*(?:Wind|Curr|USBL)[^\]]*)\]", raw_combined, re.I)
+            env_tag = m_env.group(1) if m_env else ""
+            env_short = re.sub(r"USBL:[^|]+\|\s*", "", env_tag, flags=re.I).replace("Curr:NaN", "Curr:-").strip()
+            clean_desc = re.sub(r"\s*\[[^\]]*(?:Wind|Curr|USBL)[^\]]*\]", "", raw_combined).strip(" |")
+
+            wrapped_lines = textwrap.wrap(clean_desc, width=68) or ["-"]
+            row_h = max(4.2, len(wrapped_lines) * 3.6 + 0.8)
+
+            if y - row_h < 24.0:
+                p_no += 1; fig, ax = _new_dpr_page(p_no); figs.append(fig); y = 180.0
+                ax.add_patch(mpatches.Rectangle((13, y - 1.2), 271, 4.4, facecolor="#e2e8f0", edgecolor="#94a3b8", linewidth=0.5))
+                for x0, x1, h_lbl in l_cols:
+                    ax.text(x0 + 1.5, y + 0.9, h_lbl, fontsize=7.4, fontweight="bold", color="#0f172a", va="center")
+                y -= 4.4
+
+            bg_c = "#f8fafc" if idx_l % 2 == 0 else "#ffffff"
+            ax.add_patch(mpatches.Rectangle((13, y - row_h + 3.0), 271, row_h, facecolor=bg_c, edgecolor="#cbd5e1", linewidth=0.4))
             surv_l = str(lg.get("surveyor") or lg.get("surveyor_name") or lg.get("user") or surveyor_name)[:16]
 
-            ax.text(15, y, t_hm, fontsize=7.8, fontweight="bold", color="#0369a1", family="monospace")
-            ax.text(32, y, cat_s, fontsize=7.8, fontweight="bold", color="#0f172a", family="monospace")
-            ax.text(68, y, area_s, fontsize=7.8, color="#334155", family="monospace")
-            ax.text(102, y, full_desc[:78], fontsize=7.8, color="#1e293b")
-            ax.text(250, y, surv_l, fontsize=7.6, color="#475569", family="monospace")
-            if len(full_desc) > 78:
-                y -= 3.6
-                ax.text(104, y, full_desc[78:156], fontsize=7.6, color="#475569")
-            y -= 4.1
+            ax.text(14.5, y + 0.7, t_hm, fontsize=7.5, fontweight="bold", color="#0369a1", family="monospace", va="center")
+            ax.text(28.5, y + 0.7, cat_s, fontsize=7.4, fontweight="bold", color="#0f172a", va="center")
+            ax.text(63.5, y + 0.7, area_s, fontsize=7.4, color="#334155", family="monospace", va="center")
+            for w_idx, w_ln in enumerate(wrapped_lines):
+                ax.text(93.5, y + 0.7 - w_idx * 3.5, w_ln, fontsize=7.5, color="#1e293b", va="center")
+            ax.text(217.5, y + 0.7, env_short[:20], fontsize=7.1, color="#0369a1", family="monospace", va="center")
+            ax.text(253.5, y + 0.7, surv_l, fontsize=7.3, color="#475569", va="center")
+            y -= row_h
+
+    # --- SIGN-OFF FOOTER BLOCK ---
+    if y >= 28.0:
+        sig_y = 17.5
+        ax.add_patch(mpatches.Rectangle((13, sig_y), 88, 9.5, facecolor="#f8fafc", edgecolor="#94a3b8", linewidth=0.5))
+        ax.text(15, sig_y + 6.8, f"Prepared By (Surveyor): {surveyor_name}", fontsize=7.2, fontweight="bold", color="#0f172a")
+        ax.text(15, sig_y + 2.2, "Signature / Date: _______________________", fontsize=6.8, color="#475569")
+
+        ax.add_patch(mpatches.Rectangle((104.5, sig_y), 88, 9.5, facecolor="#f8fafc", edgecolor="#94a3b8", linewidth=0.5))
+        ax.text(106.5, sig_y + 6.8, "Reviewed By (NMDC Chief Surveyor / PC):", fontsize=7.2, fontweight="bold", color="#0f172a")
+        ax.text(106.5, sig_y + 2.2, "Signature / Date: _______________________", fontsize=6.8, color="#475569")
+
+        ax.add_patch(mpatches.Rectangle((196, sig_y), 88, 9.5, facecolor="#f8fafc", edgecolor="#94a3b8", linewidth=0.5))
+        ax.text(198, sig_y + 6.8, "Client Representative (TPC):", fontsize=7.2, fontweight="bold", color="#0f172a")
+        ax.text(198, sig_y + 2.2, "Signature / Date: _______________________", fontsize=6.8, color="#475569")
 
     buf = io.BytesIO()
     with PdfPages(buf) as pdf_pages:
