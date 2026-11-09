@@ -1,4 +1,4 @@
-﻿import os, io, re, zipfile
+import os, io, re, zipfile
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -56,7 +56,7 @@ def build_structured_report_markdown(metrics, include_history=False, ledger_list
         "## 4. SURVEYOR REMARKS",
         f"- {metrics.get('remarks') or 'Mattress installation verified via WROV 4-corner fix and USBL telemetry.'}"
     ]
-    if include_history and ledger_list:
+    if include_history and ledger_list and not is_first:
         lines.extend(["", "## 5. HISTORICAL CROSSING LEDGER", "| Unit # | Date/Time | Location ID | Tag ID | As-Laid E | As-Laid N | Brg (deg) | dCL (m) | Gaps |", "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |"])
         for r in ledger_list:
             lines.append(f"| {r.get('unit_no','')} | {r.get('install_date','')} | {r.get('design_box_id','')} | {r.get('physical_tag','')} | {float(r.get('aslaid_e') or 0):.3f} | {float(r.get('aslaid_n') or 0):.3f} | {float(r.get('heading_deg') or 0):.2f} | {float(r.get('cl_offset_m') or 0):.3f} | {r.get('gap_labels','')} |")
