@@ -1,4 +1,5 @@
-﻿import os, io, re, zipfile
+import gc
+import os, io, re, zipfile
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -110,7 +111,7 @@ def generate_a4_report_pdf(metrics, workspace_dir="workspace", custom_report_md=
     ax.text(192, 15.5, "ISO A4 Portrait | Page 1 of 1", fontsize=6.0, color="#64748b", ha="right")
 
     buf = io.BytesIO()
-    fig.savefig(buf, format="pdf", dpi=150); plt.close(fig)
+    fig.savefig(buf, format="pdf", dpi=150); fig.clf(); plt.close(fig); plt.close('all'); gc.collect()
     pdf_bytes = buf.getvalue()
     for fn in ("latest_A4_Verification_Report.pdf", f"{metrics.get('base_filename','Report')}_A4_Report.pdf"):
         open(os.path.join(workspace_dir, fn), "wb").write(pdf_bytes)

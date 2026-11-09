@@ -1,4 +1,5 @@
-﻿import os, io, re, math
+import gc
+import os, io, re, math
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -260,7 +261,7 @@ def generate_a3_4panel_chart(
         buf_pdf = io.BytesIO()
         fig.savefig(buf_pdf, format="pdf", dpi=150)
         pdf_bytes = buf_pdf.getvalue()
-    plt.close(fig)
+    fig.clf(); plt.close(fig); plt.close('all'); gc.collect()
 
     for fn in ("latest_A3_4Panel_Chart", metrics["base_filename"]):
         open(os.path.join(workspace_dir, fn + ".png"), "wb").write(png_bytes)

@@ -1,4 +1,4 @@
-﻿import os, re, math, json
+import os, re, math, json
 from datetime import datetime
 import numpy as np
 
@@ -165,8 +165,8 @@ def idw_interpolate(src_xy, src_z, query_xy, power=2.0):
     src_xy, src_z, query_xy = np.asarray(src_xy, float), np.asarray(src_z, float), np.asarray(query_xy, float)
     if len(src_xy) == 0:
         return np.full(len(query_xy), -18.45)
-    if len(src_xy) > 1200:
-        step = max(1, len(src_xy) // 1200)
+    if len(src_xy) > 600:
+        step = max(1, len(src_xy) // 600)
         src_xy, src_z = src_xy[::step], src_z[::step]
     dx, dy = query_xy[:, 0:1] - src_xy[:, 0][None, :], query_xy[:, 1:2] - src_xy[:, 1][None, :]
     w = 1.0 / (np.maximum(dx * dx + dy * dy, 1e-8) ** (power / 2.0))
