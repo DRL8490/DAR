@@ -14,9 +14,9 @@ def draw_north_arrow(ax, x_lim, y_lim, north_angle_deg=0.0, sub_label="Grid N"):
     cy = float(y_lim[1]) - 0.082 * h
     r = 0.046 * w
 
-    bg_circle = mpatches.Circle((cx, cy), r * 1.38, facecolor="white", edgecolor="#475569", linewidth=0.8, alpha=0.92, zorder=10)
+    bg_circle = mpatches.Circle((cx, cy), r * 1.38, facecolor="white", edgecolor="#475569", linewidth=0.8, alpha=0.92, zorder=10, clip_on=True)
     ax.add_patch(bg_circle)
-    inner_ring = mpatches.Circle((cx, cy), r * 1.12, fill=False, edgecolor="#94a3b8", linewidth=0.45, linestyle=":", zorder=10)
+    inner_ring = mpatches.Circle((cx, cy), r * 1.12, fill=False, edgecolor="#94a3b8", linewidth=0.45, linestyle=":", zorder=10, clip_on=True)
     ax.add_patch(inner_ring)
 
     rad = math.radians(float(north_angle_deg))
@@ -28,16 +28,16 @@ def draw_north_arrow(ax, x_lim, y_lim, north_angle_deg=0.0, sub_label="Grid N"):
     left_w = (cx - ux * (r * 0.65) - px * (r * 0.42), cy - uy * (r * 0.65) - py * (r * 0.42))
     right_w = (cx - ux * (r * 0.65) + px * (r * 0.42), cy - uy * (r * 0.65) + py * (r * 0.42))
 
-    ax.add_patch(mpatches.Polygon([tip, left_w, tail_c], closed=True, facecolor="#0f172a", edgecolor="#0f172a", linewidth=0.7, zorder=11))
-    ax.add_patch(mpatches.Polygon([tip, right_w, tail_c], closed=True, facecolor="white", edgecolor="#0f172a", linewidth=0.7, zorder=11))
+    ax.add_patch(mpatches.Polygon([tip, left_w, tail_c], closed=True, facecolor="#0f172a", edgecolor="#0f172a", linewidth=0.7, zorder=11, clip_on=True))
+    ax.add_patch(mpatches.Polygon([tip, right_w, tail_c], closed=True, facecolor="white", edgecolor="#0f172a", linewidth=0.7, zorder=11, clip_on=True))
 
     nx_lbl = cx + ux * (r * 1.72)
     ny_lbl = cy + uy * (r * 1.72)
-    t_n = ax.text(nx_lbl, ny_lbl, "N", fontsize=6.8, fontweight="bold", color="#0f172a", ha="center", va="center", zorder=12)
+    t_n = ax.text(nx_lbl, ny_lbl, "N", fontsize=6.8, fontweight="bold", color="#0f172a", ha="center", va="center", zorder=12, clip_on=True)
     t_n.set_path_effects([patheffects.withStroke(linewidth=1.8, foreground="white")])
 
     if sub_label:
-        t_sub = ax.text(cx, cy - r * 1.65, sub_label, fontsize=4.6, fontweight="bold", color="#334155", ha="center", va="top", zorder=12)
+        t_sub = ax.text(cx, cy - r * 1.65, sub_label, fontsize=4.6, fontweight="bold", color="#334155", ha="center", va="top", zorder=12, clip_on=True)
         t_sub.set_path_effects([patheffects.withStroke(linewidth=1.5, foreground="white")])
 
 def plot_cad_background(ax, cad_polylines, is_local=False, des_e=0.0, des_n=0.0, u_short=None, u_long=None):
@@ -52,7 +52,9 @@ def plot_cad_background(ax, cad_polylines, is_local=False, des_e=0.0, des_n=0.0,
             px, py = d @ u_short, d @ u_long
         else:
             px, py = arr[:, 0], arr[:, 1]
-        ax.plot(px, py, color="#64748b", linewidth=0.65, linestyle="-", alpha=0.55, zorder=2)
+        ln_list = ax.plot(px, py, color="#64748b", linewidth=0.65, linestyle="-", alpha=0.55, zorder=2, clip_on=True)
+        for ln in ln_list:
+            ln.set_clip_path(ax.patch)
 
 def plot_seabed_layer(ax, seabed_xyz, x_lim, y_lim, is_zoomed=False, show_contours=True, contour_interval=0.05, show_soundings=True, spot_spacing=2.0, bathy_source="NO_BATHY_UPLOADED"):
     if seabed_xyz is None or len(seabed_xyz) < 1 or bathy_source != "SURVEY_BATHY":
@@ -110,8 +112,8 @@ def plot_seabed_layer(ax, seabed_xyz, x_lim, y_lim, is_zoomed=False, show_contou
 
         fmt = "{:.2f}" if is_zoomed else "{:.1f}"
         for px, py, pz in plotted_pts:
-            ax.plot(px, py, "+", color="#64748b", markersize=3.2, alpha=0.65, zorder=2)
-            t = ax.text(px, py, fmt.format(abs(float(pz))), fontsize=5.0 if is_zoomed else 4.7, fontweight="bold", color="#475569", ha="center", va="bottom", alpha=0.8, zorder=2)
+            ax.plot(px, py, "+", color="#64748b", markersize=3.2, alpha=0.65, zorder=2, clip_on=True)
+            t = ax.text(px, py, fmt.format(abs(float(pz))), fontsize=5.0 if is_zoomed else 4.7, fontweight="bold", color="#475569", ha="center", va="bottom", alpha=0.8, zorder=2, clip_on=True)
             t.set_path_effects([patheffects.withStroke(linewidth=1.5, foreground="white")])
 
 def generate_a3_4panel_chart(
@@ -171,7 +173,7 @@ def generate_a3_4panel_chart(
             if r_bid and r_bid != loc_id and (r_uno < cur_uno or r_bid == "CR-A1_M15"):
                 hist_map[r_bid] = r
 
-    # PANEL 1: FULL CROSSING ARRAY (with Grid North Arrow)
+    # PANEL 1: FULL CROSSING ARRAY (Strictly clipped inside ax1 frame)
     ax1 = fig.add_axes([35.0 / W_MM, 56.0 / H_MM, 102.0 / W_MM, 184.0 / H_MM])
     hw1, hh1 = (102.0 / 1000.0) * float(scale_p1) / 2.0, (184.0 / 1000.0) * float(scale_p1) / 2.0
     e_lim1, n_lim1 = (des_e - hw1, des_e + hw1), (des_n - hh1, des_n + hh1)
@@ -179,32 +181,42 @@ def generate_a3_4panel_chart(
     plot_seabed_layer(ax1, seabed_full_xyz, e_lim1, n_lim1, False, show_contours, contour_interval, show_soundings, spot_spacing, bathy_src)
     plot_cad_background(ax1, cad_polys, is_local=False)
 
+    w1_span, h1_span = max(e_lim1[1] - e_lim1[0], 1e-3), max(n_lim1[1] - n_lim1[0], 1e-3)
     for bid, b in boxes_dict.items():
         short_lbl = bid.split("_")[-1]
         if bid == loc_id:
             if is_first:
-                ax1.add_patch(mpatches.Polygon(b["corners"], closed=True, facecolor="#fef08a", edgecolor="#dc2626", linewidth=1.6, linestyle="-", alpha=0.88, zorder=5))
+                poly_p = mpatches.Polygon(b["corners"], closed=True, facecolor="#fef08a", edgecolor="#dc2626", linewidth=1.6, linestyle="-", alpha=0.88, zorder=5, clip_on=True)
             else:
                 cur_c, _, _ = _box_corners_cw(metrics["aslaid_e"], metrics["aslaid_n"], (float(metrics["heading_deg"]) - 180.0) % 360.0)
-                ax1.add_patch(mpatches.Polygon(cur_c, closed=True, facecolor=(0.13, 0.77, 0.37, 0.25), edgecolor="#15803d", linewidth=1.8, linestyle="-", hatch="///", zorder=5))
+                poly_p = mpatches.Polygon(cur_c, closed=True, facecolor=(0.13, 0.77, 0.37, 0.25), edgecolor="#15803d", linewidth=1.8, linestyle="-", hatch="///", zorder=5, clip_on=True)
             lbl = f"{short_lbl} [{mat_id}]"
         elif bid in hist_map:
             hr = hist_map[bid]
             hc, _, _ = _box_corners_cw(hr.get("aslaid_e", b["design_e"]), hr.get("aslaid_n", b["design_n"]), (float(hr.get("heading_deg", b["bearing"])) - 180.0) % 360.0)
-            ax1.add_patch(mpatches.Polygon(hc, closed=True, facecolor=(0.80, 0.92, 1.0, 0.28), edgecolor="#0369a1", linewidth=1.4, linestyle="--", zorder=4))
+            poly_p = mpatches.Polygon(hc, closed=True, facecolor=(0.80, 0.92, 1.0, 0.28), edgecolor="#0369a1", linewidth=1.4, linestyle="--", zorder=4, clip_on=True)
             lbl = f"{short_lbl} [{hr.get('physical_tag','')}]"
         else:
-            ax1.add_patch(mpatches.Polygon(b["corners"], closed=True, facecolor="#e2e8f0", edgecolor="#475569", linewidth=0.7, alpha=0.55, zorder=3))
+            poly_p = mpatches.Polygon(b["corners"], closed=True, facecolor="#e2e8f0", edgecolor="#475569", linewidth=0.7, alpha=0.55, zorder=3, clip_on=True)
             lbl = short_lbl
-        t1 = ax1.text(b["design_e"], b["design_n"], lbl, fontsize=5.1, fontweight="bold", color="#0f172a", ha="center", va="center", rotation=b["azimuth"] - 90.0, zorder=6)
-        t1.set_path_effects([patheffects.withStroke(linewidth=1.4, foreground="white")])
+        ax1.add_patch(poly_p)
+        poly_p.set_clip_path(ax1.patch)
+
+        # Only draw box text label if its center lies inside ax1's visible viewport (prevents M10/M11/M24..M33 overflow)
+        fx_b = (b["design_e"] - e_lim1[0]) / w1_span
+        fy_b = (b["design_n"] - n_lim1[0]) / h1_span
+        if 0.04 <= fx_b <= 0.96 and 0.04 <= fy_b <= 0.96:
+            if not (fy_b > 0.84 and fx_b < 0.20) and not (fy_b < 0.12 and fx_b > 0.68):
+                t1 = ax1.text(b["design_e"], b["design_n"], lbl, fontsize=5.1, fontweight="bold", color="#0f172a", ha="center", va="center", rotation=b["azimuth"] - 90.0, zorder=6, clip_on=True)
+                t1.set_path_effects([patheffects.withStroke(linewidth=1.4, foreground="white")])
+                t1.set_clip_path(ax1.patch)
 
     draw_north_arrow(ax1, e_lim1, n_lim1, north_angle_deg=0.0, sub_label="Grid N")
 
     sb1_x, sb1_y = e_lim1[1] - 7.2, n_lim1[0] + 1.8
-    ax1.add_patch(mpatches.Rectangle((sb1_x - 0.8, sb1_y - 1.0), 6.8, 2.3, facecolor="white", edgecolor="#64748b", alpha=0.9, zorder=8))
-    ax1.plot([sb1_x, sb1_x + 5.0], [sb1_y, sb1_y], color="#0f172a", linewidth=2.0, zorder=9)
-    ax1.text(sb1_x + 2.5, sb1_y + 0.3, "0 - 5 m", fontsize=5.6, fontweight="bold", ha="center", zorder=9)
+    ax1.add_patch(mpatches.Rectangle((sb1_x - 0.8, sb1_y - 1.0), 6.8, 2.3, facecolor="white", edgecolor="#64748b", alpha=0.9, zorder=8, clip_on=True))
+    ax1.plot([sb1_x, sb1_x + 5.0], [sb1_y, sb1_y], color="#0f172a", linewidth=2.0, zorder=9, clip_on=True)
+    ax1.text(sb1_x + 2.5, sb1_y + 0.3, "0 - 5 m", fontsize=5.6, fontweight="bold", ha="center", zorder=9, clip_on=True)
     ax1.set_title(f"PANEL 1: CROSSING ARRAY ({metrics['crossing_id']}) | 1:{scale_p1} @ A3", fontsize=7.6, fontweight="bold", pad=4)
     ax1.set_xlabel("Easting E (m, TWD97)", fontsize=6.6, fontweight="bold"); ax1.set_ylabel("Northing N (m, TWD97)", fontsize=6.6, fontweight="bold")
     ax1.tick_params(labelsize=5.8); ax1.ticklabel_format(useOffset=False, style="plain"); ax1.grid(True, linestyle=":", linewidth=0.4, color="#cbd5e1")
@@ -218,23 +230,23 @@ def generate_a3_4panel_chart(
 
     z_mean = float(np.mean(z_vals))
     vmin_c, vmax_c = round(z_mean - 0.50, 2), round(z_mean + 0.50, 2)
-    ax2.add_patch(mpatches.Rectangle((-1.5, -3.0), 3.0, 6.0, fill=False, edgecolor="#dc2626", linewidth=1.8, zorder=5, label="Design Box (3.0x6.0m)"))
-    sc2 = ax2.scatter(x_local, y_local, c=z_vals, cmap="turbo", vmin=vmin_c, vmax=vmax_c, s=16, alpha=0.9, zorder=6)
+    ax2.add_patch(mpatches.Rectangle((-1.5, -3.0), 3.0, 6.0, fill=False, edgecolor="#dc2626", linewidth=1.8, zorder=5, label="Design Box (3.0x6.0m)", clip_on=True))
+    sc2 = ax2.scatter(x_local, y_local, c=z_vals, cmap="turbo", vmin=vmin_c, vmax=vmax_c, s=16, alpha=0.9, zorder=6, clip_on=True)
     cax2 = fig.add_axes([278.0 / W_MM, 46.0 / H_MM, 3.2 / W_MM, 204.0 / H_MM])
     cb2 = fig.colorbar(sc2, cax=cax2); cb2.set_label("Depth Z (m, TWVD2001)", fontsize=6.4, fontweight="bold"); cb2.ax.tick_params(labelsize=5.6)
 
     c_loc = np.asarray(metrics["corners_local"], dtype=float)
-    ax2.add_patch(mpatches.Polygon(c_loc, closed=True, fill=False, edgecolor="#16a34a", linewidth=1.6, linestyle="--", zorder=7, label="ROV 4-Corner Polygon"))
+    ax2.add_patch(mpatches.Polygon(c_loc, closed=True, fill=False, edgecolor="#16a34a", linewidth=1.6, linestyle="--", zorder=7, label="ROV 4-Corner Polygon", clip_on=True))
     for idx_c, (cx, cy) in enumerate(c_loc, 1):
-        ax2.plot(cx, cy, "s", color="#15803d", markersize=4.5, zorder=8)
-        tc = ax2.text(cx, cy + 0.14, f"C{idx_c}", fontsize=5.8, fontweight="bold", color="#15803d", ha="center", zorder=9)
+        ax2.plot(cx, cy, "s", color="#15803d", markersize=4.5, zorder=8, clip_on=True)
+        tc = ax2.text(cx, cy + 0.14, f"C{idx_c}", fontsize=5.8, fontweight="bold", color="#15803d", ha="center", zorder=9, clip_on=True)
         tc.set_path_effects([patheffects.withStroke(linewidth=1.5, foreground="white")])
 
     q_d = np.array([metrics["qaqc_e"] - des_e, metrics["qaqc_n"] - des_n])
     qx, qy = float(q_d @ tb["u_short"]), float(q_d @ tb["u_long"])
-    ax2.plot(0, 0, "+", color="#dc2626", markersize=9, markeredgewidth=2.0, zorder=8, label="Design Center")
-    ax2.plot(metrics["d_cross_m"], metrics["d_along_m"], "o", color="#16a34a", markersize=6.5, markeredgecolor="white", zorder=8, label="ROV 4-Corner Center")
-    ax2.plot(qx, qy, "^", color="#0284c7", markersize=6.5, markeredgecolor="white", zorder=8, label="QA/QC USBL Center")
+    ax2.plot(0, 0, "+", color="#dc2626", markersize=9, markeredgewidth=2.0, zorder=8, label="Design Center", clip_on=True)
+    ax2.plot(metrics["d_cross_m"], metrics["d_along_m"], "o", color="#16a34a", markersize=6.5, markeredgecolor="white", zorder=8, label="ROV 4-Corner Center", clip_on=True)
+    ax2.plot(qx, qy, "^", color="#0284c7", markersize=6.5, markeredgecolor="white", zorder=8, label="QA/QC USBL Center", clip_on=True)
 
     if is_first:
         side_callouts = [
@@ -277,9 +289,9 @@ def generate_a3_4panel_chart(
     draw_north_arrow(ax2, (-hw2, hw2), (-hh2, hh2), north_angle_deg=-float(metrics.get("design_az", 0.0)), sub_label="Grid N")
 
     sb2_x, sb2_y = hw2 - 2.5, -hh2 + 0.65
-    ax2.add_patch(mpatches.Rectangle((sb2_x - 0.2, sb2_y - 0.3), 2.4, 0.75, facecolor="white", edgecolor="#64748b", alpha=0.9, zorder=8))
-    ax2.plot([sb2_x, sb2_x + 2.0], [sb2_y, sb2_y], color="#0f172a", linewidth=2.0, zorder=9)
-    ax2.text(sb2_x + 1.0, sb2_y + 0.1, "0 - 2 m", fontsize=5.5, fontweight="bold", ha="center", zorder=9)
+    ax2.add_patch(mpatches.Rectangle((sb2_x - 0.2, sb2_y - 0.3), 2.4, 0.75, facecolor="white", edgecolor="#64748b", alpha=0.9, zorder=8, clip_on=True))
+    ax2.plot([sb2_x, sb2_x + 2.0], [sb2_y, sb2_y], color="#0f172a", linewidth=2.0, zorder=9, clip_on=True)
+    ax2.text(sb2_x + 1.0, sb2_y + 0.1, "0 - 2 m", fontsize=5.5, fontweight="bold", ha="center", zorder=9, clip_on=True)
     ax2.legend(loc="lower left", fontsize=5.2, framealpha=0.92)
     ax2.set_title(f"PANEL 2: LOCAL PLAN VIEW ({loc_id} / {mat_id}) | 1:{scale_p2} @ A3", fontsize=7.6, fontweight="bold", pad=4)
     ax2.set_xlabel("Cross-Track X_local (m, WNW -1.5m to ESE +1.5m)", fontsize=6.6, fontweight="bold"); ax2.set_ylabel("Along-Track Y_local (m, SSW -3.0m to NNE +3.0m)", fontsize=6.6, fontweight="bold")

@@ -817,6 +817,23 @@ def _purge_cached_pdfs():
         except Exception:
             pass
 
+def _get_current_user_display_name():
+    try:
+        from flask import session
+        from flask_login import current_user
+        if current_user and getattr(current_user, "is_authenticated", False):
+            for attr in ("full_name", "display_name", "real_name", "name", "surveyor_name", "username", "email"):
+                val = getattr(current_user, attr, None)
+                if val and str(val).strip():
+                    return str(val).strip()
+        for k in ("full_name", "display_name", "user_name", "name", "surveyor_name", "username"):
+            val = session.get(k)
+            if val and str(val).strip():
+                return str(val).strip()
+    except Exception:
+        pass
+    return "Duty Surveyor"
+
 def _resolve_fix_data(req, ledger):
     uno = str(req.get("unit_no") or req.get("fix_id") or "").strip()
     box_q = str(req.get("design_box_id") or req.get("location_id") or req.get("box_id") or "").strip()
@@ -838,6 +855,7 @@ def _resolve_fix_data(req, ledger):
             fix_data[k] = v
     if box_q and "design_box_id" not in fix_data:
         fix_data["design_box_id"] = box_q
+    fix_data["surveyor_name"] = str(req.get("surveyor_name") or _get_current_user_display_name()).strip()
     return fix_data
 
 @mti_bp.route('/verify_4panel', methods=['POST'])
@@ -1219,7 +1237,7 @@ STUDIO_HTML_TEMPLATE = r"""<!DOCTYPE html>
       <div class="col-md-1 col-4">
         <label class="small fw-bold text-light">P1 / P2</label>
         <div class="d-flex gap-1">
-          <select id="fpScP1" class="form-select form-select-sm px-1" title="Panel 1 Scale"><option value="200">200</option><option value="250" selected>250</option><option value="300">300</option><option value="400">400</option></select>
+          <select id="fpScP1" class="form-select form-select-sm px-1" title="Panel 1 Scale"><option value="200">200</option><option value="250" selected>250</option><option value="300">300</option><option value="400">400</option><option value="500">500</option><option value="750">750</option><option value="1000">1000</option></select>
           <select id="fpScP2" class="form-select form-select-sm px-1" title="Panel 2 Scale"><option value="50">50</option><option value="75" selected>75</option><option value="100">100</option></select>
         </div>
       </div>
@@ -1271,7 +1289,7 @@ window.selectLedgerUnit = function(boxId) {
     document.getElementById('inpBoxId').value = row.design_box_id || '';
     document.getElementById('inpTagId').value = row.physical_tag || '';
     if (document.getElementById('inpInstallDate')) document.getElementById('inpInstallDate').value = row.install_date || '';
-    if (document.getElementById('inpSurveyor')) document.getElementById('inpSurveyor').value = row.surveyor_name || row.surveyor || 'Duty Surveyor';
+    if (document.getElementById('inpSurveyor')) document.getElementById('inpSurveyor').value = '{{ init_surveyor }}';
   }
   window.runStudioVerify({ design_box_id: boxId });
 };
@@ -1770,7 +1788,7 @@ def mti_4panel_studio_window():
     init_box = fd.get("design_box_id") or "CR-A1_M15"
     init_tag = fd.get("physical_tag") or "#A046"
     init_date = fd.get("install_date") or "2026-11-04 14:34"
-    init_surveyor = fd.get("surveyor_name") or fd.get("surveyor") or "Duty Surveyor"
+    init_surveyor = _get_current_user_display_name()
     return render_template_string(STUDIO_HTML_TEMPLATE, ledger=ledger, ledger_json=json.dumps(ledger), init_box=init_box, init_tag=init_tag, init_date=init_date, init_surveyor=init_surveyor)
 
 @mti_bp.route('/setup')

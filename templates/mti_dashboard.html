@@ -1226,7 +1226,7 @@ function openQrModal(){
       if (dtInp && dtInp.parentNode) {
         const sDiv = document.createElement('div');
         sDiv.className = dtInp.parentNode.className || 'col-md-4 col-6';
-        sDiv.innerHTML = '<label class="form-label small fw-bold text-info">Surveyor Name</label><input type="text" name="surveyor_name" id="inpFormSurveyorName" class="form-control form-control-sm fw-bold" placeholder="e.g. Abror / Roderick" value="Duty Surveyor">';
+        sDiv.innerHTML = '<label class="form-label small fw-bold text-info">Surveyor Name</label><input type="text" name="surveyor_name" id="inpFormSurveyorName" class="form-control form-control-sm fw-bold" placeholder="e.g. Abror / Roderick" value="{{ (current_user.full_name or current_user.display_name or current_user.name or current_user.username) if (current_user is defined and current_user.is_authenticated) else session.get('user_name', session.get('username', 'Duty Surveyor')) }}">';
         dtInp.parentNode.parentNode.insertBefore(sDiv, dtInp.parentNode.nextSibling);
       }
     }
