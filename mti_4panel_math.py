@@ -1,4 +1,4 @@
-import os, re, math, json
+﻿import os, re, math, json
 from datetime import datetime
 import numpy as np
 
@@ -22,29 +22,112 @@ def parse_bathy_xyz_text(raw_text):
     pts = []
     for ln in str(raw_text or "").splitlines():
         s = ln.strip()
-        if not s or s[0] in ("#", "/", "E", "e", "X", "x", "P", "p"):
+        if not s:
             continue
-        ps = [p for p in re.split(r"[\s,;]+", s) if p]
-        if len(ps) >= 3:
-            try:
-                nums = [float(p) for p in ps[:4] if re.match(r"^[+-]?\d+(\.\d+)?$", p)]
-                if len(nums) >= 3:
-                    if len(nums) == 4 and abs(nums[0]) < 10000 and nums[1] > 100000:
-                        e, n, z = nums[1], nums[2], nums[3]
-                    else:
-                        e, n, z = nums[0], nums[1], nums[2]
-                    if n < e and e > 1000000:
-                        e, n = n, e
-                    z = -abs(z) if 0 < abs(z) < 200 else z
-                    pts.append([e, n, z])
-            except Exception:
-                pass
+        nums = [float(m) for m in re.findall(r"[+-]?\d+(?:\.\d+)?", s)]
+        if len(nums) >= 3:
+            if len(nums) >= 4 and abs(nums[0]) < 50000 and abs(nums[1]) > 100000 and abs(nums[2]) > 100000:
+                e, n, z = nums[1], nums[2], nums[3]
+            else:
+                e, n, z = nums[0], nums[1], nums[2]
+            if abs(e) < 50000 or abs(n) < 50000:
+                continue
+            if n < e and e > 1000000:
+                e, n = n, e
+            z = -abs(z) if 0 < abs(z) < 500 else z
+            pts.append([round(e, 3), round(n, 3), round(z, 3)])
     return np.array(pts, dtype=float) if pts else np.zeros((0, 3), dtype=float)
 
-def build_crossing_boxes_from_catalog(catalog_list, crossing_id="CR-A1_L1", target_box_id="CR-A1_M15"):
-    cats = list(catalog_list.values()) if isinstance(catalog_list, dict) else list(catalog_list or [])
+def parse_design_catalog_text(raw_text, default_crossing="CR-A1_L1"):
+    entries = []
+    for ln in str(raw_text or "").splitlines():
+        s = ln.strip()
+        if not s or s.lower().startswith(("crossing", "box", "location", "#")):
+            continue
+        tokens = [t.strip() for t in re.split(r"[\s,;|\t]+", s) if t.strip()]
+        nums, str_toks = [], []
+        for t in tokens:
+            if re.match(r"^[+-]?\d+(?:\.\d+)?$", t):
+                nums.append(float(t))
+            else:
+                str_toks.append(t)
+        if len(nums) >= 3 and len(str_toks) >= 1:
+            if len(str_toks) >= 2:
+                xing, bid = str_toks[0], str_toks[1]
+            else:
+                bid = str_toks[0]
+                xing = bid.split("_M")[0] if "_M" in bid else default_crossing
+            de, dn, brg = nums[0], nums[1], nums[2]
+            if dn < de and de > 1000000:
+                de, dn = dn, de
+            entries.append({"layer": xing, "name": bid, "design_e": round(de, 3), "design_n": round(dn, 3), "bearing": round(brg % 360.0, 3)})
+    return entries
+
+def parse_dxf_background(raw_dxf_text):
+    lines = [l.strip() for l in str(raw_dxf_text or "").splitlines()]
+    polylines = []
+    n, i, cur_ent, cur_pts, x_tmp, x2_tmp = len(lines), 0, None, [], None, None
+    while i + 1 < n:
+        code, val = lines[i], lines[i + 1]
+        i += 2
+        if code == "0":
+            if cur_ent == "LWPOLYLINE" and len(cur_pts) >= 2:
+                polylines.append(cur_pts)
+            elif cur_ent == "LINE" and len(cur_pts) == 2:
+                polylines.append(cur_pts)
+            cur_ent, cur_pts, x_tmp, x2_tmp = val.upper(), [], None, None
+        elif cur_ent == "LWPOLYLINE":
+            if code == "10":
+                try: x_tmp = float(val)
+                except Exception: x_tmp = None
+            elif code == "20" and x_tmp is not None:
+                try:
+                    cur_pts.append([round(x_tmp, 3), round(float(val), 3)])
+                    x_tmp = None
+                except Exception: pass
+        elif cur_ent == "LINE":
+            if code == "10":
+                try: x_tmp = float(val)
+                except Exception: pass
+            elif code == "20" and x_tmp is not None:
+                try: cur_pts.append([round(x_tmp, 3), round(float(val), 3)])
+                except Exception: pass
+            elif code == "11":
+                try: x2_tmp = float(val)
+                except Exception: pass
+            elif code == "21" and x2_tmp is not None:
+                try: cur_pts.append([round(x2_tmp, 3), round(float(val), 3)])
+                except Exception: pass
+    if cur_ent in ("LWPOLYLINE", "LINE") and len(cur_pts) >= 2:
+        polylines.append(cur_pts)
+    return polylines
+
+def load_custom_catalog(workspace_dir="workspace"):
+    p = os.path.join(workspace_dir, "custom_design_catalog.json")
+    if os.path.exists(p):
+        try: return json.loads(open(p, "r", encoding="utf-8").read())
+        except Exception: pass
+    return []
+
+def load_cad_bg_polylines(workspace_dir, crossing_id):
+    p = os.path.join(workspace_dir, f"{crossing_id}_cad_bg.json")
+    if os.path.exists(p):
+        try: return json.loads(open(p, "r", encoding="utf-8").read())
+        except Exception: pass
+    return []
+
+def build_crossing_boxes_from_catalog(catalog_list, crossing_id="CR-A1_L1", target_box_id="CR-A1_M15", workspace_dir="workspace"):
+    base_cats = list(catalog_list.values()) if isinstance(catalog_list, dict) else list(catalog_list or [])
+    custom_cats = load_custom_catalog(workspace_dir)
+    merged_map = {str(b.get("name") or b.get("design_box_id")): dict(b) for b in base_cats if (b.get("name") or b.get("design_box_id"))}
+    for cb in custom_cats:
+        bid = str(cb.get("name") or cb.get("design_box_id") or "")
+        if bid:
+            merged_map[bid] = dict(cb)
+    cats = list(merged_map.values())
     t_hit = next((b for b in cats if str(b.get("name") or b.get("design_box_id")) == str(target_box_id)), None)
-    if t_hit and t_hit.get("layer"): crossing_id = str(t_hit["layer"])
+    if t_hit and t_hit.get("layer"):
+        crossing_id = str(t_hit["layer"])
     layer_boxes = [b for b in cats if str(b.get("layer", "")) == str(crossing_id)] or cats
     boxes_dict = {}
     for b in layer_boxes:
@@ -91,16 +174,17 @@ def idw_interpolate(src_xy, src_z, query_xy, power=2.0):
 
 def get_or_build_seabed_xyz(workspace_dir, crossing_id, boxes_dict, ref_depth_m=-18.45):
     os.makedirs(workspace_dir, exist_ok=True)
-    npy_p = os.path.join(workspace_dir, f"{crossing_id}_seabed.npy")
-    if os.path.exists(npy_p):
-        try:
-            arr = np.load(npy_p)
-            if arr.ndim == 2 and arr.shape[1] >= 3 and len(arr) >= 1:
-                arr = arr.copy()
-                arr[:, 2] = np.where((arr[:, 2] > 0) & (arr[:, 2] < 200), -arr[:, 2], arr[:, 2])
-                return arr[:, :3], "SURVEY_BATHY"
-        except Exception:
-            pass
+    for fn in (f"{crossing_id}_seabed.npy", "GLOBAL_seabed.npy"):
+        npy_p = os.path.join(workspace_dir, fn)
+        if os.path.exists(npy_p):
+            try:
+                arr = np.load(npy_p)
+                if arr.ndim == 2 and arr.shape[1] >= 3 and len(arr) >= 1:
+                    arr = arr.copy()
+                    arr[:, 2] = np.where((arr[:, 2] > 0) & (arr[:, 2] < 500), -arr[:, 2], arr[:, 2])
+                    return arr[:, :3], "SURVEY_BATHY"
+            except Exception:
+                pass
     safe_ref = float(ref_depth_m) if abs(float(ref_depth_m)) > 2.0 else -18.45
     safe_ref = -abs(safe_ref)
     es = [b["design_e"] for b in boxes_dict.values()] if boxes_dict else [194541.4]
@@ -117,16 +201,10 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
     dt_str = str(fix_data.get("install_date") or datetime.utcnow().strftime("%Y-%m-%d %H:%M")).strip()
     usbl_s = str(fix_data.get("usbl_sensor") or "Survey Pole").strip()
     unit_no = int(float(fix_data.get("unit_no") or (1 if loc_id.endswith("_M15") else 2)))
-    boxes_dict = build_crossing_boxes_from_catalog(catalog_list, xing_id, loc_id)
+    boxes_dict = build_crossing_boxes_from_catalog(catalog_list, xing_id, loc_id, workspace_dir)
     tb = boxes_dict.get(loc_id) or next(iter(boxes_dict.values()))
-    loc_id, des_e, des_n, des_brg, des_az, ul, us = tb["id"], tb["design_e"], tb["design_n"], tb["bearing"], tb["azimuth"], tb["u_long"], tb["u_short"]
-
-    bathy_txt = str(fix_data.get("bathy_xyz_text") or "").strip()
-    if bathy_txt:
-        parsed_b = parse_bathy_xyz_text(bathy_txt)
-        if len(parsed_b) > 0:
-            os.makedirs(workspace_dir, exist_ok=True)
-            np.save(os.path.join(workspace_dir, f"{xing_id}_seabed.npy"), parsed_b)
+    loc_id, xing_id = tb["id"], tb["layer"]
+    des_e, des_n, des_brg, des_az, ul, us = tb["design_e"], tb["design_n"], tb["bearing"], tb["azimuth"], tb["u_long"], tb["u_short"]
 
     as_e, as_n = float(fix_data.get("aslaid_e") or fix_data.get("qaqc_e") or des_e), float(fix_data.get("aslaid_n") or fix_data.get("qaqc_n") or des_n)
     raw_z = float(fix_data.get("aslaid_z") or 0.0)
@@ -190,6 +268,8 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
     m_loc = (np.abs(sb_x) <= 10.0) & (np.abs(sb_y) <= 12.0)
     seabed_local_xyz = np.column_stack([sb_x[m_loc], sb_y[m_loc], seabed_full_xyz[m_loc, 2]]) if np.any(m_loc) else np.column_stack([sb_x, sb_y, seabed_full_xyz[:, 2]])
 
+    cad_polylines = load_cad_bg_polylines(workspace_dir, xing_id)
+
     metrics = {
         "unit_no": unit_no, "crossing_id": xing_id, "location_id": loc_id, "mattress_id": mat_id, "install_date": dt_str, "usbl_sensor": usbl_s,
         "status": str(fix_data.get("status") or "Completed"), "base_filename": build_base_filename(loc_id, mat_id, dt_str),
@@ -204,6 +284,7 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
         "max_gap_m": round(max_gap, 3), "cl_tol": cl_tol, "gap_tol": gap_tol,
         "bathy_source": bathy_src, "bathy_count": int(len(seabed_full_xyz)),
         "bathy_z_min": round(float(np.min(seabed_full_xyz[:, 2])), 2), "bathy_z_max": round(float(np.max(seabed_full_xyz[:, 2])), 2),
+        "cad_polylines": cad_polylines, "cad_poly_count": len(cad_polylines),
         "neighbors": tb["neighbors"], "verdict": verdict,
         "env_wind": str(fix_data.get("env_wind") or ""), "env_current": str(fix_data.get("env_current") or ""), "remarks": str(fix_data.get("remarks") or "")
     }

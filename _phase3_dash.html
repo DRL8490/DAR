@@ -11,7 +11,12 @@
       }
     });
 
-    // 2. Inject "4-Panel Studio" button in the top header button bar (next to Export MTI Ledger / Reports Hub)
+    const oldBathyBox = document.getElementById('mtiFormBathyBox');
+    if (oldBathyBox) oldBathyBox.remove();
+    const oldBottomCard = document.getElementById('studio4PanelCard');
+    if (oldBottomCard) oldBottomCard.remove();
+
+    // 2. Inject "4-Panel Studio" & "Survey Setup (CAD / Design / Bathy)" buttons in the top header bar
     if (!document.getElementById('btnTop4PanelWin')) {
       let anchorBtn = document.querySelector('a[href*="export"], a[href*="report"]');
       if (!anchorBtn) {
@@ -21,14 +26,23 @@
         });
       }
       if (anchorBtn && anchorBtn.parentNode) {
-        const a = document.createElement('a');
-        a.id = 'btnTop4PanelWin';
-        a.href = '/mti/studio';
-        a.target = '_blank';
-        a.className = 'btn btn-sm btn-info text-dark fw-bold';
-        a.style.cssText = 'background:#38bdf8;border-color:#0284c7;color:#0f172a;';
-        a.innerHTML = '&#128202; 4-Panel Studio';
-        anchorBtn.parentNode.insertBefore(a, anchorBtn.nextSibling);
+        const aStudio = document.createElement('a');
+        aStudio.id = 'btnTop4PanelWin';
+        aStudio.href = '/mti/studio';
+        aStudio.target = '_blank';
+        aStudio.className = 'btn btn-sm btn-info text-dark fw-bold';
+        aStudio.style.cssText = 'background:#38bdf8;border-color:#0284c7;color:#0f172a;';
+        aStudio.innerHTML = '&#128202; 4-Panel Studio';
+        anchorBtn.parentNode.insertBefore(aStudio, anchorBtn.nextSibling);
+
+        const aSetup = document.createElement('a');
+        aSetup.id = 'btnTopSurveySetup';
+        aSetup.href = '/mti/setup';
+        aSetup.target = '_blank';
+        aSetup.className = 'btn btn-sm btn-warning text-dark fw-bold';
+        aSetup.style.cssText = 'background:#facc15;border-color:#eab308;color:#0f172a;';
+        aSetup.innerHTML = '&#9881; Survey Setup (CAD / Design / Bathy)';
+        anchorBtn.parentNode.insertBefore(aSetup, aStudio.nextSibling);
       }
     }
 
@@ -71,46 +85,22 @@
       }
     });
 
-    // 4. Inject Pre-Survey Bathy Box + "Open 4-Panel Studio" button inside Mattress Fix Form
+    // 4. Inject clean "Open 4-Panel Studio (New Window)" button inside Mattress Fix Form
     const fixForm = document.getElementById('mattressFixForm') || document.querySelector('form[action*="add_fix"]');
     if (fixForm && !document.getElementById('btnPreview4Panel')) {
       const saveBtn = fixForm.querySelector('button[type="submit"]');
       if (saveBtn) {
-        const bathyDiv = document.createElement('div');
-        bathyDiv.id = 'mtiFormBathyBox';
-        bathyDiv.className = 'col-12 mt-2 mb-2 p-2 rounded border border-info bg-dark text-light';
-        bathyDiv.innerHTML = [
-          '<div class="d-flex flex-wrap justify-content-between align-items-center mb-1">',
-          '  <span class="small fw-bold text-info">&#127754; Pre-Survey Bathy Spot Soundings (Optional E N Z Paste or Ref Seabed Depth)</span>',
-          '  <div class="d-flex align-items-center gap-1">',
-          '    <label class="small text-light mb-0">Ref Depth (m):</label>',
-          '    <input type="number" step="0.01" name="seabed_ref_z" id="formSeabedRefZ" class="form-control form-control-sm bg-secondary text-white border-0 fw-bold" style="width:95px;" value="-18.45">',
-          '  </div>',
-          '</div>',
-          '<textarea name="bathy_xyz_text" id="formBathyXyzText" class="form-control form-control-sm font-monospace bg-dark text-info border-secondary" rows="2" placeholder="Paste E N Z spot soundings here (e.g. 194541.00 2702613.00 -18.45) or upload .xyz inside 4-Panel Studio..."></textarea>'
-        ].join('\n');
-        saveBtn.parentNode.insertBefore(bathyDiv, saveBtn);
-
         const b = document.createElement('button');
-        b.type = 'button'; b.id = 'btnPreview4Panel';
+        b.type = 'button';
+        b.id = 'btnPreview4Panel';
         b.className = 'btn btn-sm btn-info text-dark fw-bold ms-2';
         b.innerHTML = '&#128202; Open 4-Panel Studio (New Window)';
         b.onclick = function() {
           const fd = new FormData(fixForm), qs = new URLSearchParams();
-          const bTxt = (document.getElementById('formBathyXyzText') || {}).value || '';
           fd.forEach(function(v, k) {
-            if (k !== 'bathy_xyz_text' && v !== null && String(v).trim() !== '') qs.set(k, String(v).trim());
+            if (v !== null && String(v).trim() !== '') qs.set(k, String(v).trim());
           });
-          if (bTxt.trim()) {
-            const upFd = new FormData();
-            upFd.append('crossing_id', fd.get('crossing_id') || 'CR-A1_L1');
-            upFd.append('bathy_xyz_text', bTxt.trim());
-            fetch('/mti/upload_seabed', { method: 'POST', body: upFd }).finally(function() {
-              window.open('/mti/studio?' + qs.toString(), '_blank');
-            });
-          } else {
-            window.open('/mti/studio?' + qs.toString(), '_blank');
-          }
+          window.open('/mti/studio?' + qs.toString(), '_blank');
         };
         saveBtn.parentNode.insertBefore(b, saveBtn.nextSibling);
       }

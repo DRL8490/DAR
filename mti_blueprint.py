@@ -756,16 +756,27 @@ def load_mti_state():
         save_mti_state(st)
     return st
 
-# --- STEP 4: FAST 4-PANEL STUDIO ROUTES & DEDICATED NEW WINDOW (/mti/studio) ---
+# --- STEP 4: CLEAN 4-PANEL STUDIO (/mti/studio) & SURVEY SETUP MANAGER (/mti/setup) ---
 import os, re, json, base64
 import numpy as np
 from flask import jsonify, send_file, render_template_string
-from mti_4panel_math import run_rov_4panel_verification, parse_bathy_xyz_text
+from mti_4panel_math import (
+    run_rov_4panel_verification, parse_bathy_xyz_text,
+    parse_design_catalog_text, parse_dxf_background,
+    load_custom_catalog, build_crossing_boxes_from_catalog
+)
 from mti_4panel_a3 import generate_a3_4panel_chart
 from mti_4panel_reports import build_structured_report_markdown, generate_a4_report_pdf, generate_editable_docx
 
 MTI_WS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "workspace")
 _as_bool = lambda v, d=True: d if v is None else str(v).strip().lower() in ("1", "true", "yes", "on")
+
+def _load_bathy_cfg():
+    p = os.path.join(MTI_WS_DIR, "bathy_config.json")
+    if os.path.exists(p):
+        try: return json.loads(open(p, "r", encoding="utf-8").read())
+        except Exception: pass
+    return {"ref_depth_m": -18.45}
 
 def _resolve_fix_data(req, ledger):
     uno = str(req.get("unit_no") or req.get("fix_id") or "").strip()
@@ -788,6 +799,8 @@ def _resolve_fix_data(req, ledger):
             fix_data[k] = v
     if box_q and "design_box_id" not in fix_data:
         fix_data["design_box_id"] = box_q
+    if "seabed_ref_z" not in fix_data:
+        fix_data["seabed_ref_z"] = _load_bathy_cfg().get("ref_depth_m", -18.45)
     return fix_data
 
 @mti_bp.route('/verify_4panel', methods=['POST'])
@@ -840,7 +853,15 @@ def update_4panel_report():
 def upload_seabed():
     os.makedirs(MTI_WS_DIR, exist_ok=True)
     req_json = request.get_json(silent=True) or {}
-    xing_id = re.sub(r"[^A-Za-z0-9_-]", "_", str(request.form.get("crossing_id") or req_json.get("crossing_id") or "CR-A1_L1").strip())
+    xing_id = re.sub(r"[^A-Za-z0-9_-]", "_", str(request.form.get("crossing_id") or req_json.get("crossing_id") or "GLOBAL").strip())
+    ref_z = request.form.get("ref_depth_m") or req_json.get("ref_depth_m")
+    if ref_z is not None and str(ref_z).strip() != "":
+        try:
+            cfg = _load_bathy_cfg()
+            cfg["ref_depth_m"] = -abs(float(ref_z))
+            open(os.path.join(MTI_WS_DIR, "bathy_config.json"), "w", encoding="utf-8").write(json.dumps(cfg))
+        except Exception:
+            pass
     raw_txt = ""
     f = request.files.get("seabed_file")
     if f and f.filename:
@@ -850,8 +871,11 @@ def upload_seabed():
     pts_arr = parse_bathy_xyz_text(raw_txt)
     if len(pts_arr) > 0:
         np.save(os.path.join(MTI_WS_DIR, f"{xing_id}_seabed.npy"), pts_arr)
+        np.save(os.path.join(MTI_WS_DIR, "GLOBAL_seabed.npy"), pts_arr)
         z_min, z_max = round(float(np.min(pts_arr[:, 2])), 2), round(float(np.max(pts_arr[:, 2])), 2)
         return jsonify({"status": "ok", "crossing_id": xing_id, "points": int(len(pts_arr)), "z_min": z_min, "z_max": z_max})
+    if ref_z is not None and str(ref_z).strip() != "":
+        return jsonify({"status": "ok", "crossing_id": xing_id, "points": 0, "message": f"Updated fallback reference depth to {-abs(float(ref_z)):.2f} m"})
     return jsonify({"status": "error", "message": "No valid E N Z bathy points found."}), 400
 
 @mti_bp.route('/clear_seabed', methods=['POST'])
@@ -859,12 +883,134 @@ def upload_seabed():
 def clear_seabed():
     os.makedirs(MTI_WS_DIR, exist_ok=True)
     req = request.get_json(silent=True) or request.form.to_dict()
+    xing_id = re.sub(r"[^A-Za-z0-9_-]", "_", str(req.get("crossing_id") or "ALL").strip())
+    for fn in os.listdir(MTI_WS_DIR):
+        if fn.endswith("_seabed.npy") and (xing_id in ("ALL", "GLOBAL") or fn.startswith(xing_id)):
+            try: os.remove(os.path.join(MTI_WS_DIR, fn))
+            except Exception: pass
+    return jsonify({"status": "ok", "crossing_id": xing_id})
+
+@mti_bp.route('/save_cad_bg', methods=['POST'])
+@login_required
+def save_cad_bg():
+    os.makedirs(MTI_WS_DIR, exist_ok=True)
+    req_json = request.get_json(silent=True) or {}
+    xing_id = re.sub(r"[^A-Za-z0-9_-]", "_", str(request.form.get("crossing_id") or req_json.get("crossing_id") or "CR-A1_L1").strip())
+    raw_txt = ""
+    f = request.files.get("cad_file")
+    if f and f.filename:
+        raw_txt = f.read().decode("utf-8", errors="ignore")
+    else:
+        raw_txt = str(request.form.get("cad_text") or req_json.get("cad_text") or "")
+    polylines = parse_dxf_background(raw_txt)
+    if not polylines and raw_txt.strip():
+        cur_poly = []
+        for ln in raw_txt.splitlines():
+            nums = [float(m) for m in re.findall(r"[+-]?\d+(?:\.\d+)?", ln)]
+            if len(nums) >= 2 and abs(nums[0]) > 50000 and abs(nums[1]) > 50000:
+                e, n = (nums[1], nums[0]) if (nums[1] < nums[0] and nums[0] > 1000000) else (nums[0], nums[1])
+                cur_poly.append([round(e, 3), round(n, 3)])
+            elif len(cur_poly) >= 2:
+                polylines.append(cur_poly); cur_poly = []
+        if len(cur_poly) >= 2:
+            polylines.append(cur_poly)
+    if polylines:
+        open(os.path.join(MTI_WS_DIR, f"{xing_id}_cad_bg.json"), "w", encoding="utf-8").write(json.dumps(polylines))
+        return jsonify({"status": "ok", "crossing_id": xing_id, "polylines": len(polylines)})
+    return jsonify({"status": "error", "message": "No valid DXF LWPOLYLINE/LINE or E N vertex pairs found."}), 400
+
+@mti_bp.route('/clear_cad_bg', methods=['POST'])
+@login_required
+def clear_cad_bg():
+    os.makedirs(MTI_WS_DIR, exist_ok=True)
+    req = request.get_json(silent=True) or request.form.to_dict()
     xing_id = re.sub(r"[^A-Za-z0-9_-]", "_", str(req.get("crossing_id") or "CR-A1_L1").strip())
-    p = os.path.join(MTI_WS_DIR, f"{xing_id}_seabed.npy")
+    p = os.path.join(MTI_WS_DIR, f"{xing_id}_cad_bg.json")
     if os.path.exists(p):
         try: os.remove(p)
         except Exception: pass
     return jsonify({"status": "ok", "crossing_id": xing_id})
+
+@mti_bp.route('/save_design_catalog', methods=['POST'])
+@login_required
+def save_design_catalog():
+    os.makedirs(MTI_WS_DIR, exist_ok=True)
+    req = request.get_json(silent=True) or request.form.to_dict()
+    xing_def = str(req.get("crossing_id") or "CR-A1_L1").strip()
+    new_entries = []
+    if req.get("box_id") and req.get("design_e") and req.get("design_n"):
+        try:
+            new_entries.append({
+                "layer": xing_def,
+                "name": str(req.get("box_id")).strip(),
+                "design_e": round(float(req.get("design_e")), 3),
+                "design_n": round(float(req.get("design_n")), 3),
+                "bearing": round(float(req.get("bearing") or 195.854) % 360.0, 3)
+            })
+        except Exception:
+            pass
+    raw_txt = str(req.get("catalog_text") or "")
+    f = request.files.get("catalog_file")
+    if f and f.filename:
+        raw_txt += "\n" + f.read().decode("utf-8", errors="ignore")
+    if raw_txt.strip():
+        new_entries.extend(parse_design_catalog_text(raw_txt, xing_def))
+    if not new_entries:
+        return jsonify({"status": "error", "message": "Provide a single Design Box or paste Crossing, Box_ID, E, N, Bearing lines."}), 400
+    existing = {str(b.get("name")): b for b in load_custom_catalog(MTI_WS_DIR) if b.get("name")}
+    for e in new_entries:
+        existing[e["name"]] = e
+    saved_list = list(existing.values())
+    open(os.path.join(MTI_WS_DIR, "custom_design_catalog.json"), "w", encoding="utf-8").write(json.dumps(saved_list, indent=2))
+    return jsonify({"status": "ok", "added": len(new_entries), "total_custom": len(saved_list)})
+
+@mti_bp.route('/clear_design_catalog', methods=['POST'])
+@login_required
+def clear_design_catalog():
+    os.makedirs(MTI_WS_DIR, exist_ok=True)
+    p = os.path.join(MTI_WS_DIR, "custom_design_catalog.json")
+    if os.path.exists(p):
+        try: os.remove(p)
+        except Exception: pass
+    return jsonify({"status": "ok"})
+
+@mti_bp.route('/setup_status')
+@login_required
+def mti_setup_status():
+    os.makedirs(MTI_WS_DIR, exist_ok=True)
+    bathy_files, cad_files = [], []
+    for fn in sorted(os.listdir(MTI_WS_DIR)):
+        fp = os.path.join(MTI_WS_DIR, fn)
+        if fn.endswith("_seabed.npy"):
+            try:
+                arr = np.load(fp)
+                bathy_files.append({
+                    "crossing_id": fn.replace("_seabed.npy", ""),
+                    "points": int(len(arr)),
+                    "z_min": round(float(np.min(arr[:, 2])), 2) if len(arr) else 0.0,
+                    "z_max": round(float(np.max(arr[:, 2])), 2) if len(arr) else 0.0
+                })
+            except Exception:
+                pass
+        elif fn.endswith("_cad_bg.json"):
+            try:
+                polys = json.loads(open(fp, "r", encoding="utf-8").read())
+                cad_files.append({"crossing_id": fn.replace("_cad_bg.json", ""), "polylines": len(polys)})
+            except Exception:
+                pass
+    base_cats = list(MATTRESS_CATALOG.values()) if isinstance(MATTRESS_CATALOG, dict) else list(MATTRESS_CATALOG)
+    custom_cats = load_custom_catalog(MTI_WS_DIR)
+    merged = {str(b.get("name") or b.get("design_box_id")): dict(b, source="CAD Default") for b in base_cats}
+    for cb in custom_cats:
+        merged[str(cb.get("name"))] = dict(cb, source="Custom Override")
+    return jsonify({
+        "status": "ok",
+        "ref_depth_m": _load_bathy_cfg().get("ref_depth_m", -18.45),
+        "bathy_datasets": bathy_files,
+        "cad_datasets": cad_files,
+        "custom_design_count": len(custom_cats),
+        "catalog": list(merged.values())
+    })
 
 def _dl_4panel_file(kind, suffix, mime):
     os.makedirs(MTI_WS_DIR, exist_ok=True)
@@ -912,8 +1058,8 @@ STUDIO_HTML_TEMPLATE = """<!DOCTYPE html>
   <style>
     body { background:#0f172a; color:#f8fafc; font-family:system-ui,-apple-system,sans-serif; }
     .studio-card { background:#1e293b; border:1px solid #334155; border-radius:8px; }
-    #fpVisBox { background:#ffffff; color:#0f172a; height:520px; overflow-y:auto; white-space:pre-wrap; font-size:12.5px; line-height:1.45; }
-    #fpMdBox { background:#0f172a; color:#38bdf8; height:520px; font-size:12px; }
+    #fpVisBox { background:#ffffff; color:#0f172a; height:555px; overflow-y:auto; white-space:pre-wrap; font-size:12.5px; line-height:1.45; }
+    #fpMdBox { background:#0f172a; color:#38bdf8; height:555px; font-size:12px; }
   </style>
 </head>
 <body>
@@ -925,11 +1071,12 @@ STUDIO_HTML_TEMPLATE = """<!DOCTYPE html>
       <span id="fpBathyBadge" class="badge bg-secondary font-monospace">BATHY: REF_DEPTH</span>
     </div>
     <div class="d-flex flex-wrap gap-1 align-items-center">
+      <a href="/mti/setup" target="_blank" class="btn btn-sm btn-outline-info fw-bold me-1"><i class="fas fa-sliders-h me-1"></i>Survey Setup (CAD / Design / Bathy)</a>
       <a id="dlA3Pdf" href="/mti/download_a3_pdf" class="btn btn-sm btn-danger fw-bold"><i class="fas fa-file-pdf me-1"></i>A3 Chart PDF</a>
       <a id="dlA3Png" href="/mti/download_a3_png" class="btn btn-sm btn-info text-dark fw-bold"><i class="fas fa-image me-1"></i>A3 PNG</a>
       <a id="dlA4Pdf" href="/mti/download_a4_pdf" class="btn btn-sm btn-warning text-dark fw-bold"><i class="fas fa-file-alt me-1"></i>A4 Report PDF</a>
       <a id="dlDocx" href="/mti/download_docx" class="btn btn-sm btn-primary fw-bold"><i class="fas fa-file-word me-1"></i>Editable Word (.docx)</a>
-      <button type="button" class="btn btn-sm btn-outline-light ms-2" onclick="window.close()">Close Window</button>
+      <button type="button" class="btn btn-sm btn-outline-light ms-1" onclick="window.close()">Close</button>
     </div>
   </div>
 
@@ -965,41 +1112,19 @@ STUDIO_HTML_TEMPLATE = """<!DOCTYPE html>
         <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="fpSnd" checked><label class="form-check-label small" for="fpSnd">Spot Soundings</label></div>
         <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="fpCnt" checked><label class="form-check-label small" for="fpCnt">Contours &amp; History</label></div>
       </div>
-      <div class="col-md-2 col-12 d-flex gap-1">
-        <button type="button" class="btn btn-sm btn-outline-info fw-bold w-50" onclick="window.toggleBathyDrawer()"><i class="fas fa-water me-1"></i>Bathy Input</button>
-        <button type="button" id="btnRefresh4P" class="btn btn-sm btn-success fw-bold w-50" onclick="window.runStudioVerify()"><i class="fas fa-sync-alt me-1"></i>Render</button>
-      </div>
-    </div>
-
-    <div id="bathyInputDrawer" class="mt-2 pt-2 border-top border-secondary" style="display:block;">
-      <div class="row g-2 align-items-end">
-        <div class="col-md-5 col-12">
-          <label class="small fw-bold text-info"><i class="fas fa-water me-1"></i>Paste Pre-Survey Bathy Spot Soundings (E N Z or ID E N Z, one per line):</label>
-          <textarea id="inpBathyXyz" class="form-control form-control-sm font-monospace bg-dark text-light border-secondary" rows="2" placeholder="194540.00 2702615.00 -18.42&#10;194542.00 2702613.00 -18.45&#10;194545.00 2702611.00 -18.48"></textarea>
-        </div>
-        <div class="col-md-3 col-12">
-          <label class="small fw-bold text-info">Or Upload Bathy File (.xyz / .csv / .txt):</label>
-          <input type="file" id="inpBathyFile" class="form-control form-control-sm bg-dark text-light border-secondary" accept=".xyz,.csv,.txt">
-        </div>
-        <div class="col-md-2 col-6">
-          <label class="small fw-bold text-light">Fallback Ref Depth (m)</label>
-          <input type="number" step="0.01" id="inpSeabedRefZ" class="form-control form-control-sm bg-dark text-warning border-secondary fw-bold" value="-18.45" title="Used when no .xyz soundings are uploaded">
-        </div>
-        <div class="col-md-2 col-6 d-flex gap-1">
-          <button type="button" class="btn btn-sm btn-info text-dark fw-bold flex-grow-1" onclick="window.saveAndApplyBathy()"><i class="fas fa-check me-1"></i>Apply Bathy</button>
-          <button type="button" class="btn btn-sm btn-outline-danger fw-bold" onclick="window.clearBathyData()" title="Clear uploaded bathy soundings"><i class="fas fa-trash"></i></button>
-        </div>
+      <div class="col-md-2 col-12">
+        <button type="button" id="btnRefresh4P" class="btn btn-sm btn-success fw-bold w-100" onclick="window.runStudioVerify()"><i class="fas fa-sync-alt me-1"></i>Render 4-Panel</button>
       </div>
     </div>
   </div>
 
   <div class="row g-2">
     <div class="col-lg-7">
-      <div class="studio-card p-2 text-center position-relative" style="min-height:560px;display:flex;align-items:center;justify-content:center;">
+      <div class="studio-card p-2 text-center position-relative" style="min-height:600px;display:flex;align-items:center;justify-content:center;">
         <div id="fpSpinner" class="position-absolute top-50 start-50 translate-middle badge bg-dark border border-info p-3 fs-6" style="display:none;z-index:10;">
           <i class="fas fa-spinner fa-spin text-info me-2"></i>Rendering ISO A3 4-Panel Chart...
         </div>
-        <img id="fpPreviewImg" src="" class="img-fluid rounded bg-white" style="max-height:550px;" alt="ISO A3 4-Panel Chart Preview">
+        <img id="fpPreviewImg" src="" class="img-fluid rounded bg-white" style="max-height:590px;" alt="ISO A3 4-Panel Chart Preview">
       </div>
     </div>
     <div class="col-lg-5">
@@ -1026,11 +1151,6 @@ STUDIO_HTML_TEMPLATE = """<!DOCTYPE html>
 const LEDGER_DATA = {{ ledger_json | safe }};
 const INIT_PARAMS = new URLSearchParams(window.location.search);
 
-window.toggleBathyDrawer = function() {
-  const d = document.getElementById('bathyInputDrawer');
-  d.style.display = (d.style.display === 'none') ? 'block' : 'none';
-};
-
 window.selectLedgerUnit = function(boxId) {
   const row = LEDGER_DATA.find(r => r.design_box_id === boxId);
   if (row) {
@@ -1048,38 +1168,6 @@ window.toggleFpTab = function(showMd) {
   document.getElementById('tabMd').classList.toggle('active', showMd);
 };
 
-window.saveAndApplyBathy = function() {
-  const f = document.getElementById('inpBathyFile').files[0];
-  const txt = document.getElementById('inpBathyXyz').value.trim();
-  const boxVal = document.getElementById('inpBoxId').value.trim();
-  const xingVal = boxVal.indexOf('CR-A3') === 0 ? 'CR-A3' : 'CR-A1_L1';
-  if (f || txt) {
-    const fd = new FormData();
-    fd.append('crossing_id', xingVal);
-    if (f) fd.append('seabed_file', f);
-    if (txt) fd.append('bathy_xyz_text', txt);
-    fetch('/mti/upload_seabed', { method: 'POST', body: fd })
-      .then(r => r.json()).then(d => {
-        if (d.status === 'ok') {
-          window.runStudioVerify();
-        } else {
-          alert(d.message || 'Check E N Z format.');
-        }
-      });
-  } else {
-    window.runStudioVerify();
-  }
-};
-
-window.clearBathyData = function() {
-  document.getElementById('inpBathyXyz').value = '';
-  document.getElementById('inpBathyFile').value = '';
-  const boxVal = document.getElementById('inpBoxId').value.trim();
-  const xingVal = boxVal.indexOf('CR-A3') === 0 ? 'CR-A3' : 'CR-A1_L1';
-  fetch('/mti/clear_seabed', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({crossing_id: xingVal}) })
-    .then(() => window.runStudioVerify());
-};
-
 window.runStudioVerify = function(extra) {
   const payload = Object.assign({}, Object.fromEntries(INIT_PARAMS.entries()), extra || {});
   payload.design_box_id = (extra && extra.design_box_id) || document.getElementById('inpBoxId').value.trim();
@@ -1089,9 +1177,6 @@ window.runStudioVerify = function(extra) {
   payload.show_soundings = document.getElementById('fpSnd').checked;
   payload.show_contours = document.getElementById('fpCnt').checked;
   payload.include_history = document.getElementById('fpCnt').checked;
-  payload.seabed_ref_z = document.getElementById('inpSeabedRefZ').value;
-  const inlineBathy = document.getElementById('inpBathyXyz').value.trim();
-  if (inlineBathy) payload.bathy_xyz_text = inlineBathy;
 
   const btn = document.getElementById('btnRefresh4P'), sp = document.getElementById('fpSpinner');
   btn.disabled = true; sp.style.display = 'block';
@@ -1130,10 +1215,282 @@ window.apply4PanelReportEdits = function() {
 };
 
 document.addEventListener('DOMContentLoaded', function() {
-  if (INIT_PARAMS.get('seabed_ref_z')) document.getElementById('inpSeabedRefZ').value = INIT_PARAMS.get('seabed_ref_z');
-  if (INIT_PARAMS.get('bathy_xyz_text')) document.getElementById('inpBathyXyz').value = INIT_PARAMS.get('bathy_xyz_text');
   window.runStudioVerify();
 });
+</script>
+</body>
+</html>"""
+
+SETUP_HTML_TEMPLATE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>MTI Survey Setup: CAD Background, Design Catalog &amp; Bathy Soundings</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css" rel="stylesheet">
+  <style>
+    body { background:#0f172a; color:#f8fafc; font-family:system-ui,-apple-system,sans-serif; }
+    .setup-card { background:#1e293b; border:1px solid #334155; border-radius:8px; height:100%; }
+  </style>
+</head>
+<body>
+<div class="container-fluid py-3 px-3">
+  <div class="d-flex flex-wrap justify-content-between align-items-center py-2 px-3 mb-3 rounded" style="background:#020617;border:1px solid #1e293b;">
+    <div>
+      <span class="fw-bold text-info fs-5"><i class="fas fa-sliders-h me-2"></i>MTI Survey Baseline Setup Manager</span>
+      <span class="badge bg-secondary ms-2">1. CAD Background (.dxf)  |  2. Design Center &amp; Bearing  |  3. Pre-Survey Bathy (E N Z)</span>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="/mti/studio" target="_blank" class="btn btn-sm btn-info text-dark fw-bold"><i class="fas fa-drafting-compass me-1"></i>Open 4-Panel Studio</a>
+      <a href="/mti" class="btn btn-sm btn-outline-light fw-bold"><i class="fas fa-arrow-left me-1"></i>Back to MTI Dashboard</a>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <!-- CARD 1: CAD BACKGROUND INPUT -->
+    <div class="col-lg-4">
+      <div class="setup-card p-3 d-flex flex-column">
+        <div class="d-flex justify-content-between align-items-center border-bottom border-secondary pb-2 mb-2">
+          <h6 class="fw-bold text-info mb-0"><i class="fas fa-layer-group me-2"></i>1. CAD Background Input (.dxf / Polylines)</h6>
+          <span id="cadStatusBadge" class="badge bg-secondary">0 Active</span>
+        </div>
+        <p class="small text-secondary mb-2">Upload an ASCII <code>.dxf</code> crossing drawing (extracts <code>LWPOLYLINE</code> &amp; <code>LINE</code> entities) or paste <code>E N</code> polyline coordinates to plot pipeline/cable alignments on Panels 1 &amp; 2.</p>
+
+        <div class="mb-2">
+          <label class="small fw-bold text-light">Target Crossing Array ID</label>
+          <select id="cadXingId" class="form-select form-select-sm bg-dark text-warning border-secondary fw-bold">
+            <option value="CR-A1_L1">CR-A1_L1</option>
+            <option value="CR-A1_L2">CR-A1_L2</option>
+            <option value="CR-A2">CR-A2</option>
+            <option value="CR-A3">CR-A3</option>
+            <option value="CR-B1_L1">CR-B1_L1</option>
+            <option value="CR-B1_L2">CR-B1_L2</option>
+            <option value="CR-B2">CR-B2</option>
+            <option value="CR-B3">CR-B3</option>
+          </select>
+        </div>
+        <div class="mb-2">
+          <label class="small fw-bold text-light">Upload CAD File (.dxf or .txt):</label>
+          <input type="file" id="cadFileInput" class="form-control form-control-sm bg-dark text-light border-secondary" accept=".dxf,.txt,.csv">
+        </div>
+        <div class="mb-2 flex-grow-1">
+          <label class="small fw-bold text-light">Or Paste Polyline Vertices (E N per line; blank line between polylines):</label>
+          <textarea id="cadTextInput" class="form-control form-control-sm font-monospace bg-dark text-info border-secondary" rows="5" placeholder="194530.000 2702605.000&#10;194555.000 2702625.000"></textarea>
+        </div>
+        <div class="d-flex gap-2 mb-2">
+          <button type="button" class="btn btn-sm btn-info text-dark fw-bold flex-grow-1" onclick="window.saveCadBg()"><i class="fas fa-upload me-1"></i>Save CAD Background</button>
+          <button type="button" class="btn btn-sm btn-outline-danger fw-bold" onclick="window.clearCadBg()"><i class="fas fa-trash me-1"></i>Clear</button>
+        </div>
+        <div id="cadSummaryBox" class="small font-monospace p-2 rounded bg-dark border border-secondary text-light" style="min-height:48px;">Loading CAD status...</div>
+      </div>
+    </div>
+
+    <!-- CARD 2: CENTER POINT & BEARING DESIGN INPUT -->
+    <div class="col-lg-4">
+      <div class="setup-card p-3 d-flex flex-column">
+        <div class="d-flex justify-content-between align-items-center border-bottom border-secondary pb-2 mb-2">
+          <h6 class="fw-bold text-warning mb-0"><i class="fas fa-crosshairs me-2"></i>2. Center Point &amp; Bearing Design Input</h6>
+          <span id="desStatusBadge" class="badge bg-primary">139 Boxes</span>
+        </div>
+        <p class="small text-secondary mb-2">Add or override Mattress Design Box Center Coordinates (<code>E, N</code> in TWD97) and Design South Bearing (<code>deg</code>).</p>
+
+        <div class="row g-1 mb-2">
+          <div class="col-4">
+            <label class="small fw-bold text-light">Crossing ID</label>
+            <input type="text" id="desXingId" class="form-control form-control-sm bg-dark text-light border-secondary fw-bold" value="CR-A1_L1">
+          </div>
+          <div class="col-4">
+            <label class="small fw-bold text-light">Box Location ID</label>
+            <input type="text" id="desBoxId" class="form-control form-control-sm bg-dark text-warning border-secondary fw-bold" placeholder="CR-A1_M15">
+          </div>
+          <div class="col-4">
+            <label class="small fw-bold text-light">South Brg (deg)</label>
+            <input type="number" step="0.001" id="desBrg" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="195.854">
+          </div>
+          <div class="col-6">
+            <label class="small fw-bold text-light">Design Easting E (m)</label>
+            <input type="number" step="0.001" id="desEast" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="194541.443">
+          </div>
+          <div class="col-6">
+            <label class="small fw-bold text-light">Design Northing N (m)</label>
+            <input type="number" step="0.001" id="desNorth" class="form-control form-control-sm bg-dark text-light border-secondary" placeholder="2702613.394">
+          </div>
+        </div>
+
+        <div class="mb-2">
+          <label class="small fw-bold text-light">Or Bulk Paste / Upload CSV (<code>Crossing_ID, Box_ID, Design_E, Design_N, Bearing</code>):</label>
+          <textarea id="desBulkText" class="form-control form-control-sm font-monospace bg-dark text-warning border-secondary mb-1" rows="3" placeholder="CR-A1_L1, CR-A1_M15, 194541.443, 2702613.394, 195.861"></textarea>
+          <input type="file" id="desFileInput" class="form-control form-control-sm bg-dark text-light border-secondary" accept=".csv,.txt">
+        </div>
+
+        <div class="d-flex gap-2 mb-2">
+          <button type="button" class="btn btn-sm btn-warning text-dark fw-bold flex-grow-1" onclick="window.saveDesignCatalog()"><i class="fas fa-save me-1"></i>Save Design Box(es)</button>
+          <button type="button" class="btn btn-sm btn-outline-danger fw-bold" onclick="window.clearDesignCatalog()" title="Reset custom overrides"><i class="fas fa-undo me-1"></i>Reset</button>
+        </div>
+
+        <div class="table-responsive rounded border border-secondary flex-grow-1" style="max-height:175px;overflow-y:auto;background:#0f172a;">
+          <table class="table table-sm table-dark table-striped mb-0" style="font-size:11px;">
+            <thead class="sticky-top bg-dark"><tr><th>Crossing</th><th>Box ID</th><th>Design E</th><th>Design N</th><th>Brg</th></tr></thead>
+            <tbody id="desCatalogTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- CARD 3: PRE-SURVEY BATHY SPOT SOUNDINGS INPUT -->
+    <div class="col-lg-4">
+      <div class="setup-card p-3 d-flex flex-column">
+        <div class="d-flex justify-content-between align-items-center border-bottom border-secondary pb-2 mb-2">
+          <h6 class="fw-bold text-success mb-0"><i class="fas fa-water me-2"></i>3. Pre-Survey Bathy Soundings Input</h6>
+          <span id="bathyStatusBadge" class="badge bg-secondary">REF_DEPTH</span>
+        </div>
+        <p class="small text-secondary mb-2">Upload a pre-survey <code>.xyz</code> / <code>.csv</code> sounding file or paste <code>E N Z</code> (or <code>ID E N Z</code>) spot soundings. Drives Panels 1 &amp; 2 spot soundings/contours and Panels 3 &amp; 4 seabed profiles.</p>
+
+        <div class="row g-2 mb-2">
+          <div class="col-6">
+            <label class="small fw-bold text-light">Target Crossing ID</label>
+            <select id="bathyXingId" class="form-select form-select-sm bg-dark text-success border-secondary fw-bold">
+              <option value="GLOBAL">GLOBAL (All Crossings)</option>
+              <option value="CR-A1_L1" selected>CR-A1_L1</option>
+              <option value="CR-A3">CR-A3</option>
+              <option value="CR-A2">CR-A2</option>
+              <option value="CR-B1_L1">CR-B1_L1</option>
+              <option value="CR-B3">CR-B3</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="small fw-bold text-light">Fallback Ref Depth (m)</label>
+            <input type="number" step="0.01" id="bathyRefDepth" class="form-control form-control-sm bg-dark text-warning border-secondary fw-bold" value="-18.45">
+          </div>
+        </div>
+
+        <div class="mb-2">
+          <label class="small fw-bold text-light">Upload Bathy File (.xyz / .csv / .txt):</label>
+          <input type="file" id="bathyFileInput" class="form-control form-control-sm bg-dark text-light border-secondary" accept=".xyz,.csv,.txt">
+        </div>
+        <div class="mb-2 flex-grow-1">
+          <label class="small fw-bold text-light">Or Paste Bathy Spot Soundings (<code>E N Z</code> or <code>ID E N Z</code>, one per line):</label>
+          <textarea id="bathyTextInput" class="form-control form-control-sm font-monospace bg-dark text-success border-secondary" rows="5" placeholder="194538.00 2702616.00 -18.42&#10;194541.50 2702613.50 -18.45&#10;194544.50 2702612.50 -18.48"></textarea>
+        </div>
+        <div class="d-flex gap-2 mb-2">
+          <button type="button" class="btn btn-sm btn-success fw-bold flex-grow-1" onclick="window.saveBathySetup()"><i class="fas fa-check me-1"></i>Save Bathy Soundings</button>
+          <button type="button" class="btn btn-sm btn-outline-danger fw-bold" onclick="window.clearBathySetup()"><i class="fas fa-trash me-1"></i>Clear</button>
+        </div>
+        <div id="bathySummaryBox" class="small font-monospace p-2 rounded bg-dark border border-secondary text-light" style="min-height:48px;">Loading Bathy status...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+window.refreshSetupStatus = function() {
+  fetch('/mti/setup_status').then(r => r.json()).then(d => {
+    if (d.status !== 'ok') return;
+    document.getElementById('bathyRefDepth').value = d.ref_depth_m || -18.45;
+
+    const cads = d.cad_datasets || [];
+    document.getElementById('cadStatusBadge').innerText = cads.length ? (cads.length + ' Crossing(s)') : 'None Uploaded';
+    document.getElementById('cadStatusBadge').className = 'badge ' + (cads.length ? 'bg-info text-dark' : 'bg-secondary');
+    document.getElementById('cadSummaryBox').innerHTML = cads.length
+      ? cads.map(c => '<div><strong class="text-info">' + c.crossing_id + ':</strong> ' + c.polylines + ' CAD polyline(s) active</div>').join('')
+      : '<span class="text-secondary">No custom DXF background uploaded yet (using standard catalog boxes).</span>';
+
+    const cat = d.catalog || [];
+    document.getElementById('desStatusBadge').innerText = cat.length + ' Boxes (' + (d.custom_design_count || 0) + ' Custom)';
+    const tbody = document.getElementById('desCatalogTbody');
+    tbody.innerHTML = cat.map(b => (
+      '<tr style="cursor:pointer;" onclick="window.fillDesignRow(\'' + b.layer + '\',\'' + b.name + '\',' + b.design_e + ',' + b.design_n + ',' + b.bearing + ')">' +
+      '<td>' + b.layer + '</td><td class="fw-bold text-warning">' + b.name + '</td>' +
+      '<td>' + Number(b.design_e).toFixed(3) + '</td><td>' + Number(b.design_n).toFixed(3) + '</td><td>' + Number(b.bearing).toFixed(2) + '&deg;</td></tr>'
+    )).join('');
+
+    const bathys = d.bathy_datasets || [];
+    document.getElementById('bathyStatusBadge').innerText = bathys.length ? ('SURVEY_BATHY (' + bathys[0].points + ' pts)') : ('REF_DEPTH (' + d.ref_depth_m + 'm)');
+    document.getElementById('bathyStatusBadge').className = 'badge ' + (bathys.length ? 'bg-success' : 'bg-secondary');
+    document.getElementById('bathySummaryBox').innerHTML = bathys.length
+      ? bathys.map(b => '<div><strong class="text-success">' + b.crossing_id + ':</strong> ' + b.points + ' soundings | Z: ' + b.z_min + 'm to ' + b.z_max + 'm</div>').join('')
+      : '<span class="text-warning">Using Fallback Reference Depth: ' + d.ref_depth_m + ' m (upload .xyz or paste E N Z above to plot real survey soundings).</span>';
+  });
+};
+
+window.fillDesignRow = function(xing, box, de, dn, brg) {
+  document.getElementById('desXingId').value = xing;
+  document.getElementById('desBoxId').value = box;
+  document.getElementById('desEast').value = de;
+  document.getElementById('desNorth').value = dn;
+  document.getElementById('desBrg').value = brg;
+};
+
+window.saveCadBg = function() {
+  const fd = new FormData();
+  fd.append('crossing_id', document.getElementById('cadXingId').value);
+  const f = document.getElementById('cadFileInput').files[0];
+  if (f) fd.append('cad_file', f);
+  fd.append('cad_text', document.getElementById('cadTextInput').value);
+  fetch('/mti/save_cad_bg', { method: 'POST', body: fd }).then(r => r.json()).then(d => {
+    if (d.status === 'ok') {
+      alert('Saved ' + d.polylines + ' CAD polyline(s) for ' + d.crossing_id);
+      window.refreshSetupStatus();
+    } else alert(d.message || 'Error saving CAD background.');
+  });
+};
+
+window.clearCadBg = function() {
+  const xing = document.getElementById('cadXingId').value;
+  fetch('/mti/clear_cad_bg', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({crossing_id: xing}) })
+    .then(() => window.refreshSetupStatus());
+};
+
+window.saveDesignCatalog = function() {
+  const fd = new FormData();
+  fd.append('crossing_id', document.getElementById('desXingId').value);
+  fd.append('box_id', document.getElementById('desBoxId').value);
+  fd.append('design_e', document.getElementById('desEast').value);
+  fd.append('design_n', document.getElementById('desNorth').value);
+  fd.append('bearing', document.getElementById('desBrg').value);
+  fd.append('catalog_text', document.getElementById('desBulkText').value);
+  const f = document.getElementById('desFileInput').files[0];
+  if (f) fd.append('catalog_file', f);
+  fetch('/mti/save_design_catalog', { method: 'POST', body: fd }).then(r => r.json()).then(d => {
+    if (d.status === 'ok') {
+      document.getElementById('desBulkText').value = '';
+      alert('Saved ' + d.added + ' design box entry/entries!');
+      window.refreshSetupStatus();
+    } else alert(d.message || 'Error saving design catalog.');
+  });
+};
+
+window.clearDesignCatalog = function() {
+  if (!confirm('Reset all custom design box overrides back to default CAD catalog?')) return;
+  fetch('/mti/clear_design_catalog', { method: 'POST' }).then(() => window.refreshSetupStatus());
+};
+
+window.saveBathySetup = function() {
+  const fd = new FormData();
+  fd.append('crossing_id', document.getElementById('bathyXingId').value);
+  fd.append('ref_depth_m', document.getElementById('bathyRefDepth').value);
+  const f = document.getElementById('bathyFileInput').files[0];
+  if (f) fd.append('seabed_file', f);
+  fd.append('bathy_xyz_text', document.getElementById('bathyTextInput').value);
+  fetch('/mti/upload_seabed', { method: 'POST', body: fd }).then(r => r.json()).then(d => {
+    if (d.status === 'ok') {
+      alert(d.points ? ('Saved ' + d.points + ' bathy spot soundings (' + d.z_min + 'm to ' + d.z_max + 'm)!') : d.message);
+      window.refreshSetupStatus();
+    } else alert(d.message || 'Error saving bathy soundings.');
+  });
+};
+
+window.clearBathySetup = function() {
+  const xing = document.getElementById('bathyXingId').value;
+  fetch('/mti/clear_seabed', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({crossing_id: xing}) })
+    .then(() => {
+      document.getElementById('bathyTextInput').value = '';
+      document.getElementById('bathyFileInput').value = '';
+      window.refreshSetupStatus();
+    });
+};
+
+document.addEventListener('DOMContentLoaded', window.refreshSetupStatus);
 </script>
 </body>
 </html>"""
@@ -1148,3 +1505,8 @@ def mti_4panel_studio_window():
     init_box = fd.get("design_box_id") or "CR-A1_M15"
     init_tag = fd.get("physical_tag") or "#A046"
     return render_template_string(STUDIO_HTML_TEMPLATE, ledger=ledger, ledger_json=json.dumps(ledger), init_box=init_box, init_tag=init_tag)
+
+@mti_bp.route('/setup')
+@login_required
+def mti_survey_setup_window():
+    return render_template_string(SETUP_HTML_TEMPLATE)

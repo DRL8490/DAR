@@ -7,6 +7,20 @@ import matplotlib.patches as mpatches
 import matplotlib.patheffects as patheffects
 from mti_4panel_math import idw_interpolate, _box_corners_cw
 
+def plot_cad_background(ax, cad_polylines, is_local=False, des_e=0.0, des_n=0.0, u_short=None, u_long=None):
+    if not cad_polylines:
+        return
+    for poly in cad_polylines:
+        arr = np.asarray(poly, dtype=float)
+        if arr.ndim != 2 or len(arr) < 2:
+            continue
+        if is_local and u_short is not None and u_long is not None:
+            d = arr[:, :2] - np.array([des_e, des_n])
+            px, py = d @ u_short, d @ u_long
+        else:
+            px, py = arr[:, 0], arr[:, 1]
+        ax.plot(px, py, color="#64748b", linewidth=0.65, linestyle="-", alpha=0.55, zorder=2)
+
 def plot_seabed_layer(ax, seabed_xyz, x_lim, y_lim, is_zoomed=False, show_contours=True, contour_interval=0.05, show_soundings=True, spot_spacing=2.0, bathy_source="REF_DEPTH"):
     if seabed_xyz is None or len(seabed_xyz) < 1:
         return
@@ -30,15 +44,12 @@ def plot_seabed_layer(ax, seabed_xyz, x_lim, y_lim, is_zoomed=False, show_contou
         in_view = (sb[:, 0] >= x_lim[0]) & (sb[:, 0] <= x_lim[1]) & (sb[:, 1] >= y_lim[0]) & (sb[:, 1] <= y_lim[1])
         sb_vis = sb[in_view]
 
-        # If real survey bathy points exist inside view, plot actual measured coordinates (thinned by min_dist)
         plotted_pts = []
-        if bathy_source == "SURVEY_BATHY" and len(sb_vis) > 0:
-            min_d = sp * 0.75
+        if bathy_source == "SURVEY_BATHY" and 1 <= len(sb_vis) <= 120:
+            min_d = sp * 0.70
             for pt in sb_vis:
                 fx, fy = (pt[0] - x_lim[0]) / w_span, (pt[1] - y_lim[0]) / h_span
-                if fx < 0.05 or fx > 0.95 or fy < 0.05 or fy > 0.94:
-                    continue
-                if fy < 0.18 and (fx < 0.44 or fx > 0.62):
+                if fx < 0.05 or fx > 0.95 or fy < 0.05 or fy > 0.94 or (fy < 0.18 and (fx < 0.44 or fx > 0.62)):
                     continue
                 if all(math.hypot(pt[0] - p[0], pt[1] - p[1]) >= min_d for p in plotted_pts):
                     plotted_pts.append(pt)
@@ -83,6 +94,7 @@ def generate_a3_4panel_chart(
     gap_tol = float(metrics.get("gap_tol") or 0.50)
     cl_tol = float(metrics.get("cl_tol") or 0.50)
     bathy_src = str(metrics.get("bathy_source") or "REF_DEPTH")
+    cad_polys = metrics.get("cad_polylines") or []
 
     verdict_full = str(metrics.get("verdict") or ("VERIFIED - WITHIN DESIGN TOLERANCE" if is_first else "VERIFIED - WITHIN DESIGN & GAP TOLERANCE"))
     ax_bg.text(18, 276.5, f"SUBSEA MATTRESS 4-PANEL VERIFICATION CHART  |  CROSSING: {metrics['crossing_id']}  |  ACTIVE USBL: {usbl_s}", color="white", fontsize=8.0, fontweight="bold", va="center", ha="left")
@@ -106,9 +118,10 @@ def generate_a3_4panel_chart(
 
     ax_bg.text(319, 23.5, f"FILE: {metrics['base_filename']}.pdf", fontsize=6.5, fontweight="bold", color="#0f172a")
     ax_bg.text(319, 19.5, f"SCALES @ A3: P1 1:{scale_p1} | P2 1:{scale_p2} | P3 1:75/1:15 | P4 1:50/1:15", fontsize=6.1, color="#334155")
-    ax_bg.text(319, 15.8, f"DATE: {metrics['install_date']} | BATHY: {bathy_src} ({metrics.get('bathy_count',0)} pts)", fontsize=6.0, fontweight="bold", color="#15803d")
+    ax_bg.text(319, 15.8, f"DATE: {metrics['install_date']} | {metrics['status']}", fontsize=6.2, fontweight="bold", color="#15803d")
 
     des_e, des_n = metrics["design_e"], metrics["design_n"]
+    tb = boxes_dict[loc_id]
     hist_map = {}
     if not is_first and include_history and ledger_list:
         for r in ledger_list:
@@ -122,6 +135,7 @@ def generate_a3_4panel_chart(
     e_lim1, n_lim1 = (des_e - hw1, des_e + hw1), (des_n - hh1, des_n + hh1)
     ax1.set_xlim(*e_lim1); ax1.set_ylim(*n_lim1)
     plot_seabed_layer(ax1, seabed_full_xyz, e_lim1, n_lim1, False, show_contours, contour_interval, show_soundings, spot_spacing, bathy_src)
+    plot_cad_background(ax1, cad_polys, is_local=False)
 
     for bid, b in boxes_dict.items():
         short_lbl = bid.split("_")[-1]
@@ -155,6 +169,7 @@ def generate_a3_4panel_chart(
     hw2, hh2 = (114.0 / 1000.0) * float(scale_p2) / 2.0, (204.0 / 1000.0) * float(scale_p2) / 2.0
     ax2.set_xlim(-hw2, hw2); ax2.set_ylim(-hh2, hh2)
     plot_seabed_layer(ax2, seabed_local_xyz, (-hw2, hw2), (-hh2, hh2), True, show_contours, contour_interval, show_soundings, spot_spacing, bathy_src)
+    plot_cad_background(ax2, cad_polys, is_local=True, des_e=des_e, des_n=des_n, u_short=tb["u_short"], u_long=tb["u_long"])
 
     ax2.add_patch(mpatches.Rectangle((-1.5, -3.0), 3.0, 6.0, fill=False, edgecolor="#dc2626", linewidth=1.8, zorder=5, label="Design Box (3.0x6.0m)"))
     sc2 = ax2.scatter(x_local, y_local, c=z_vals, cmap="turbo", s=16, alpha=0.9, zorder=6)
@@ -168,7 +183,6 @@ def generate_a3_4panel_chart(
         tc = ax2.text(cx, cy + 0.14, f"C{idx_c}", fontsize=5.8, fontweight="bold", color="#15803d", ha="center", zorder=9)
         tc.set_path_effects([patheffects.withStroke(linewidth=1.5, foreground="white")])
 
-    tb = boxes_dict[loc_id]
     q_d = np.array([metrics["qaqc_e"] - des_e, metrics["qaqc_n"] - des_n])
     qx, qy = float(q_d @ tb["u_short"]), float(q_d @ tb["u_long"])
     ax2.plot(0, 0, "+", color="#dc2626", markersize=9, markeredgewidth=2.0, zorder=8, label="Design Center")
@@ -222,7 +236,6 @@ def generate_a3_4panel_chart(
     ax2.set_xlabel("Cross-Track X_local (m, WNW -1.5m to ESE +1.5m)", fontsize=6.6, fontweight="bold"); ax2.set_ylabel("Along-Track Y_local (m, SSW -3.0m to NNE +3.0m)", fontsize=6.6, fontweight="bold")
     ax2.tick_params(labelsize=5.8); ax2.grid(True, linestyle=":", linewidth=0.45, color="#cbd5e1")
 
-    # PANEL 3 & PANEL 4: Interpolate true seabed profile from seabed_local_xyz
     z_mean = float(np.mean(z_vals))
     sb_loc_arr = np.asarray(seabed_local_xyz, dtype=float)
     for ax_p, coord_arr, lim_x, edge_v, is_long, ttl, x_lbl in [
