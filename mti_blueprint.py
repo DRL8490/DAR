@@ -853,7 +853,7 @@ def update_4panel_report():
 def upload_seabed():
     os.makedirs(MTI_WS_DIR, exist_ok=True)
     req_json = request.get_json(silent=True) or {}
-    xing_id = re.sub(r"[^A-Za-z0-9_-]", "_", str(request.form.get("crossing_id") or req_json.get("crossing_id") or "GLOBAL").strip())
+    xing_id = re.sub(r"[^A-Za-z0-9_-]", "_", str(request.form.get("crossing_id") or req_json.get("crossing_id") or "CR-A1_L1").strip())
     ref_z = request.form.get("ref_depth_m") or req_json.get("ref_depth_m")
     if ref_z is not None and str(ref_z).strip() != "":
         try:
@@ -862,13 +862,18 @@ def upload_seabed():
             open(os.path.join(MTI_WS_DIR, "bathy_config.json"), "w", encoding="utf-8").write(json.dumps(cfg))
         except Exception:
             pass
-    raw_txt = ""
-    f = request.files.get("seabed_file")
-    if f and f.filename:
-        raw_txt = f.read().decode("utf-8", errors="ignore")
+    pts_json = req_json.get("points_array")
+    if pts_json and isinstance(pts_json, list) and len(pts_json) > 0:
+        pts_arr = np.array(pts_json, dtype=float)[:, :3]
+        pts_arr[:, 2] = np.where((pts_arr[:, 2] > 0) & (pts_arr[:, 2] < 500), -pts_arr[:, 2], pts_arr[:, 2])
     else:
-        raw_txt = str(request.form.get("bathy_xyz_text") or req_json.get("bathy_xyz_text") or "")
-    pts_arr = parse_bathy_xyz_text(raw_txt)
+        raw_txt = ""
+        f = request.files.get("seabed_file")
+        if f and f.filename:
+            raw_txt = f.read().decode("utf-8", errors="ignore")
+        else:
+            raw_txt = str(request.form.get("bathy_xyz_text") or req_json.get("bathy_xyz_text") or "")
+        pts_arr = parse_bathy_xyz_text(raw_txt)
     if len(pts_arr) > 0:
         np.save(os.path.join(MTI_WS_DIR, f"{xing_id}_seabed.npy"), pts_arr)
         np.save(os.path.join(MTI_WS_DIR, "GLOBAL_seabed.npy"), pts_arr)
@@ -876,7 +881,7 @@ def upload_seabed():
         return jsonify({"status": "ok", "crossing_id": xing_id, "points": int(len(pts_arr)), "z_min": z_min, "z_max": z_max})
     if ref_z is not None and str(ref_z).strip() != "":
         return jsonify({"status": "ok", "crossing_id": xing_id, "points": 0, "message": f"Updated fallback reference depth to {-abs(float(ref_z)):.2f} m"})
-    return jsonify({"status": "error", "message": "No valid E N Z bathy points found."}), 400
+    return jsonify({"status": "error", "message": "No valid E N Z bathy points found in input."}), 400
 
 @mti_bp.route('/clear_seabed', methods=['POST'])
 @login_required
@@ -896,28 +901,31 @@ def save_cad_bg():
     os.makedirs(MTI_WS_DIR, exist_ok=True)
     req_json = request.get_json(silent=True) or {}
     xing_id = re.sub(r"[^A-Za-z0-9_-]", "_", str(request.form.get("crossing_id") or req_json.get("crossing_id") or "CR-A1_L1").strip())
-    raw_txt = ""
-    f = request.files.get("cad_file")
-    if f and f.filename:
-        raw_txt = f.read().decode("utf-8", errors="ignore")
-    else:
-        raw_txt = str(request.form.get("cad_text") or req_json.get("cad_text") or "")
-    polylines = parse_dxf_background(raw_txt)
-    if not polylines and raw_txt.strip():
-        cur_poly = []
-        for ln in raw_txt.splitlines():
-            nums = [float(m) for m in re.findall(r"[+-]?\d+(?:\.\d+)?", ln)]
-            if len(nums) >= 2 and abs(nums[0]) > 50000 and abs(nums[1]) > 50000:
-                e, n = (nums[1], nums[0]) if (nums[1] < nums[0] and nums[0] > 1000000) else (nums[0], nums[1])
-                cur_poly.append([round(e, 3), round(n, 3)])
-            elif len(cur_poly) >= 2:
-                polylines.append(cur_poly); cur_poly = []
-        if len(cur_poly) >= 2:
-            polylines.append(cur_poly)
+    polylines = req_json.get("polylines_array")
+    if not polylines or not isinstance(polylines, list):
+        raw_txt = ""
+        f = request.files.get("cad_file")
+        if f and f.filename:
+            raw_txt = f.read().decode("utf-8", errors="ignore")
+        else:
+            raw_txt = str(request.form.get("cad_text") or req_json.get("cad_text") or "")
+        polylines = parse_dxf_background(raw_txt)
+        if not polylines and raw_txt.strip():
+            cur_poly = []
+            for ln in raw_txt.splitlines():
+                nums = [float(m) for m in re.findall(r"[+-]?\d+(?:\.\d+)?", ln)]
+                if len(nums) >= 2 and abs(nums[0]) > 50000 and abs(nums[1]) > 50000:
+                    e, n = (nums[1], nums[0]) if (nums[1] < nums[0] and nums[0] > 1000000) else (nums[0], nums[1])
+                    cur_poly.append([round(e, 3), round(n, 3)])
+                elif len(cur_poly) >= 2:
+                    polylines.append(cur_poly); cur_poly = []
+            if len(cur_poly) >= 2:
+                polylines.append(cur_poly)
     if polylines:
         open(os.path.join(MTI_WS_DIR, f"{xing_id}_cad_bg.json"), "w", encoding="utf-8").write(json.dumps(polylines))
-        return jsonify({"status": "ok", "crossing_id": xing_id, "polylines": len(polylines)})
-    return jsonify({"status": "error", "message": "No valid DXF LWPOLYLINE/LINE or E N vertex pairs found."}), 400
+        n_verts = sum(len(p) for p in polylines)
+        return jsonify({"status": "ok", "crossing_id": xing_id, "polylines": len(polylines), "vertices": n_verts})
+    return jsonify({"status": "error", "message": "No valid DXF LWPOLYLINE/POLYLINE/LINE or E N vertex pairs found."}), 400
 
 @mti_bp.route('/clear_cad_bg', methods=['POST'])
 @login_required
@@ -1048,7 +1056,7 @@ def download_a4_pdf(): return _dl_4panel_file("a4_pdf", "_A4_Report.pdf", "appli
 @login_required
 def download_docx(): return _dl_4panel_file("docx", "_Report.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
-STUDIO_HTML_TEMPLATE = """<!DOCTYPE html>
+STUDIO_HTML_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -1221,7 +1229,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </body>
 </html>"""
 
-SETUP_HTML_TEMPLATE = """<!DOCTYPE html>
+SETUP_HTML_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -1235,7 +1243,7 @@ SETUP_HTML_TEMPLATE = """<!DOCTYPE html>
 </head>
 <body>
 <div class="container-fluid py-3 px-3">
-  <div class="d-flex flex-wrap justify-content-between align-items-center py-2 px-3 mb-3 rounded" style="background:#020617;border:1px solid #1e293b;">
+  <div class="d-flex flex-wrap justify-content-between align-items-center py-2 px-3 mb-2 rounded" style="background:#020617;border:1px solid #1e293b;">
     <div>
       <span class="fw-bold text-info fs-5"><i class="fas fa-sliders-h me-2"></i>MTI Survey Baseline Setup Manager</span>
       <span class="badge bg-secondary ms-2">1. CAD Background (.dxf)  |  2. Design Center &amp; Bearing  |  3. Pre-Survey Bathy (E N Z)</span>
@@ -1246,6 +1254,9 @@ SETUP_HTML_TEMPLATE = """<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Live Action Banner -->
+  <div id="globalToastBanner" class="alert alert-info py-2 px-3 mb-3 fw-bold small" style="display:none;"></div>
+
   <div class="row g-3">
     <!-- CARD 1: CAD BACKGROUND INPUT -->
     <div class="col-lg-4">
@@ -1254,7 +1265,7 @@ SETUP_HTML_TEMPLATE = """<!DOCTYPE html>
           <h6 class="fw-bold text-info mb-0"><i class="fas fa-layer-group me-2"></i>1. CAD Background Input (.dxf / Polylines)</h6>
           <span id="cadStatusBadge" class="badge bg-secondary">0 Active</span>
         </div>
-        <p class="small text-secondary mb-2">Upload an ASCII <code>.dxf</code> crossing drawing (extracts <code>LWPOLYLINE</code> &amp; <code>LINE</code> entities) or paste <code>E N</code> polyline coordinates to plot pipeline/cable alignments on Panels 1 &amp; 2.</p>
+        <p class="small text-secondary mb-2">Upload an ASCII <code>.dxf</code> crossing drawing (extracts <code>LWPOLYLINE</code>, <code>POLYLINE</code> &amp; <code>LINE</code> entities) or paste <code>E N</code> polyline coordinates to plot pipeline/cable alignments on Panels 1 &amp; 2.</p>
 
         <div class="mb-2">
           <label class="small fw-bold text-light">Target Crossing Array ID</label>
@@ -1271,17 +1282,17 @@ SETUP_HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
         <div class="mb-2">
           <label class="small fw-bold text-light">Upload CAD File (.dxf or .txt):</label>
-          <input type="file" id="cadFileInput" class="form-control form-control-sm bg-dark text-light border-secondary" accept=".dxf,.txt,.csv">
+          <input type="file" id="cadFileInput" class="form-control form-control-sm bg-dark text-light border-secondary" accept=".dxf,.txt,.csv" onchange="window.previewSelectedCadFile(this)">
         </div>
         <div class="mb-2 flex-grow-1">
           <label class="small fw-bold text-light">Or Paste Polyline Vertices (E N per line; blank line between polylines):</label>
           <textarea id="cadTextInput" class="form-control form-control-sm font-monospace bg-dark text-info border-secondary" rows="5" placeholder="194530.000 2702605.000&#10;194555.000 2702625.000"></textarea>
         </div>
         <div class="d-flex gap-2 mb-2">
-          <button type="button" class="btn btn-sm btn-info text-dark fw-bold flex-grow-1" onclick="window.saveCadBg()"><i class="fas fa-upload me-1"></i>Save CAD Background</button>
+          <button type="button" id="btnSaveCad" class="btn btn-sm btn-info text-dark fw-bold flex-grow-1" onclick="window.saveCadBg()"><i class="fas fa-upload me-1"></i>Save CAD Background</button>
           <button type="button" class="btn btn-sm btn-outline-danger fw-bold" onclick="window.clearCadBg()"><i class="fas fa-trash me-1"></i>Clear</button>
         </div>
-        <div id="cadSummaryBox" class="small font-monospace p-2 rounded bg-dark border border-secondary text-light" style="min-height:48px;">Loading CAD status...</div>
+        <div id="cadSummaryBox" class="small font-monospace p-2 rounded bg-dark border border-secondary text-light" style="min-height:58px;">Loading CAD status...</div>
       </div>
     </div>
 
@@ -1292,7 +1303,7 @@ SETUP_HTML_TEMPLATE = """<!DOCTYPE html>
           <h6 class="fw-bold text-warning mb-0"><i class="fas fa-crosshairs me-2"></i>2. Center Point &amp; Bearing Design Input</h6>
           <span id="desStatusBadge" class="badge bg-primary">139 Boxes</span>
         </div>
-        <p class="small text-secondary mb-2">Add or override Mattress Design Box Center Coordinates (<code>E, N</code> in TWD97) and Design South Bearing (<code>deg</code>).</p>
+        <p class="small text-secondary mb-2">Add or override Mattress Design Box Center Coordinates (<code>E, N</code> in TWD97) and Design South Bearing (<code>deg</code>). Click any row below to edit.</p>
 
         <div class="row g-1 mb-2">
           <div class="col-4">
@@ -1324,7 +1335,7 @@ SETUP_HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
 
         <div class="d-flex gap-2 mb-2">
-          <button type="button" class="btn btn-sm btn-warning text-dark fw-bold flex-grow-1" onclick="window.saveDesignCatalog()"><i class="fas fa-save me-1"></i>Save Design Box(es)</button>
+          <button type="button" id="btnSaveDes" class="btn btn-sm btn-warning text-dark fw-bold flex-grow-1" onclick="window.saveDesignCatalog()"><i class="fas fa-save me-1"></i>Save Design Box(es)</button>
           <button type="button" class="btn btn-sm btn-outline-danger fw-bold" onclick="window.clearDesignCatalog()" title="Reset custom overrides"><i class="fas fa-undo me-1"></i>Reset</button>
         </div>
 
@@ -1350,12 +1361,12 @@ SETUP_HTML_TEMPLATE = """<!DOCTYPE html>
           <div class="col-6">
             <label class="small fw-bold text-light">Target Crossing ID</label>
             <select id="bathyXingId" class="form-select form-select-sm bg-dark text-success border-secondary fw-bold">
-              <option value="GLOBAL">GLOBAL (All Crossings)</option>
               <option value="CR-A1_L1" selected>CR-A1_L1</option>
               <option value="CR-A3">CR-A3</option>
               <option value="CR-A2">CR-A2</option>
               <option value="CR-B1_L1">CR-B1_L1</option>
               <option value="CR-B3">CR-B3</option>
+              <option value="GLOBAL">GLOBAL (All Crossings)</option>
             </select>
           </div>
           <div class="col-6">
@@ -1366,40 +1377,63 @@ SETUP_HTML_TEMPLATE = """<!DOCTYPE html>
 
         <div class="mb-2">
           <label class="small fw-bold text-light">Upload Bathy File (.xyz / .csv / .txt):</label>
-          <input type="file" id="bathyFileInput" class="form-control form-control-sm bg-dark text-light border-secondary" accept=".xyz,.csv,.txt">
+          <input type="file" id="bathyFileInput" class="form-control form-control-sm bg-dark text-light border-secondary" accept=".xyz,.csv,.txt" onchange="window.previewSelectedBathyFile(this)">
         </div>
         <div class="mb-2 flex-grow-1">
           <label class="small fw-bold text-light">Or Paste Bathy Spot Soundings (<code>E N Z</code> or <code>ID E N Z</code>, one per line):</label>
           <textarea id="bathyTextInput" class="form-control form-control-sm font-monospace bg-dark text-success border-secondary" rows="5" placeholder="194538.00 2702616.00 -18.42&#10;194541.50 2702613.50 -18.45&#10;194544.50 2702612.50 -18.48"></textarea>
         </div>
         <div class="d-flex gap-2 mb-2">
-          <button type="button" class="btn btn-sm btn-success fw-bold flex-grow-1" onclick="window.saveBathySetup()"><i class="fas fa-check me-1"></i>Save Bathy Soundings</button>
+          <button type="button" id="btnSaveBathy" class="btn btn-sm btn-success fw-bold flex-grow-1" onclick="window.saveBathySetup()"><i class="fas fa-check me-1"></i>Save Bathy Soundings</button>
           <button type="button" class="btn btn-sm btn-outline-danger fw-bold" onclick="window.clearBathySetup()"><i class="fas fa-trash me-1"></i>Clear</button>
         </div>
-        <div id="bathySummaryBox" class="small font-monospace p-2 rounded bg-dark border border-secondary text-light" style="min-height:48px;">Loading Bathy status...</div>
+        <div id="bathySummaryBox" class="small font-monospace p-2 rounded bg-dark border border-secondary text-light" style="min-height:58px;">Loading Bathy status...</div>
       </div>
     </div>
   </div>
 </div>
 
 <script>
+window._catalogCache = [];
+
+window.showSetupBanner = function(msg, cls) {
+  const el = document.getElementById('globalToastBanner');
+  el.className = 'alert py-2 px-3 mb-3 fw-bold small ' + (cls || 'alert-info');
+  el.innerHTML = msg;
+  el.style.display = 'block';
+};
+
+window.getCrossingBounds = function(xingId) {
+  const boxes = (window._catalogCache || []).filter(b => b.layer === xingId);
+  if (!boxes.length) return null;
+  const es = boxes.map(b => Number(b.design_e));
+  const ns = boxes.map(b => Number(b.design_n));
+  return {
+    eMin: Math.min.apply(null, es) - 85.0,
+    eMax: Math.max.apply(null, es) + 85.0,
+    nMin: Math.min.apply(null, ns) - 85.0,
+    nMax: Math.max.apply(null, ns) + 85.0
+  };
+};
+
 window.refreshSetupStatus = function() {
   fetch('/mti/setup_status').then(r => r.json()).then(d => {
     if (d.status !== 'ok') return;
+    window._catalogCache = d.catalog || [];
     document.getElementById('bathyRefDepth').value = d.ref_depth_m || -18.45;
 
     const cads = d.cad_datasets || [];
-    document.getElementById('cadStatusBadge').innerText = cads.length ? (cads.length + ' Crossing(s)') : 'None Uploaded';
+    document.getElementById('cadStatusBadge').innerText = cads.length ? (cads.length + ' Crossing(s) Active') : '0 Active';
     document.getElementById('cadStatusBadge').className = 'badge ' + (cads.length ? 'bg-info text-dark' : 'bg-secondary');
     document.getElementById('cadSummaryBox').innerHTML = cads.length
-      ? cads.map(c => '<div><strong class="text-info">' + c.crossing_id + ':</strong> ' + c.polylines + ' CAD polyline(s) active</div>').join('')
-      : '<span class="text-secondary">No custom DXF background uploaded yet (using standard catalog boxes).</span>';
+      ? cads.map(c => '<div class="text-info">&#10004; <strong>' + c.crossing_id + ':</strong> ' + c.polylines + ' CAD polyline(s) saved &amp; active on Panels 1 &amp; 2</div>').join('')
+      : '<span class="text-secondary">No custom DXF background uploaded yet. Select a .dxf file above and click Save CAD Background.</span>';
 
     const cat = d.catalog || [];
     document.getElementById('desStatusBadge').innerText = cat.length + ' Boxes (' + (d.custom_design_count || 0) + ' Custom)';
     const tbody = document.getElementById('desCatalogTbody');
-    tbody.innerHTML = cat.map(b => (
-      '<tr style="cursor:pointer;" onclick="window.fillDesignRow(\'' + b.layer + '\',\'' + b.name + '\',' + b.design_e + ',' + b.design_n + ',' + b.bearing + ')">' +
+    tbody.innerHTML = cat.map((b, idx) => (
+      '<tr style="cursor:pointer;" data-idx="' + idx + '" onclick="window.fillDesignRowByIdx(' + idx + ')">' +
       '<td>' + b.layer + '</td><td class="fw-bold text-warning">' + b.name + '</td>' +
       '<td>' + Number(b.design_e).toFixed(3) + '</td><td>' + Number(b.design_n).toFixed(3) + '</td><td>' + Number(b.bearing).toFixed(2) + '&deg;</td></tr>'
     )).join('');
@@ -1408,40 +1442,91 @@ window.refreshSetupStatus = function() {
     document.getElementById('bathyStatusBadge').innerText = bathys.length ? ('SURVEY_BATHY (' + bathys[0].points + ' pts)') : ('REF_DEPTH (' + d.ref_depth_m + 'm)');
     document.getElementById('bathyStatusBadge').className = 'badge ' + (bathys.length ? 'bg-success' : 'bg-secondary');
     document.getElementById('bathySummaryBox').innerHTML = bathys.length
-      ? bathys.map(b => '<div><strong class="text-success">' + b.crossing_id + ':</strong> ' + b.points + ' soundings | Z: ' + b.z_min + 'm to ' + b.z_max + 'm</div>').join('')
-      : '<span class="text-warning">Using Fallback Reference Depth: ' + d.ref_depth_m + ' m (upload .xyz or paste E N Z above to plot real survey soundings).</span>';
+      ? bathys.map(b => '<div class="text-success">&#10004; <strong>' + b.crossing_id + ':</strong> ' + b.points + ' soundings active | Depth Z: ' + b.z_min + 'm to ' + b.z_max + 'm</div>').join('')
+      : '<span class="text-warning">Using Fallback Reference Depth: ' + d.ref_depth_m + ' m. Select a .xyz file above and click Save Bathy Soundings.</span>';
   });
 };
 
-window.fillDesignRow = function(xing, box, de, dn, brg) {
-  document.getElementById('desXingId').value = xing;
-  document.getElementById('desBoxId').value = box;
-  document.getElementById('desEast').value = de;
-  document.getElementById('desNorth').value = dn;
-  document.getElementById('desBrg').value = brg;
+window.fillDesignRowByIdx = function(idx) {
+  const b = (window._catalogCache || [])[idx];
+  if (!b) return;
+  document.getElementById('desXingId').value = b.layer || '';
+  document.getElementById('desBoxId').value = b.name || '';
+  document.getElementById('desEast').value = b.design_e || '';
+  document.getElementById('desNorth').value = b.design_n || '';
+  document.getElementById('desBrg').value = b.bearing || '';
+  window.showSetupBanner('Loaded <strong>' + b.name + '</strong> (' + b.layer + ') into Design Editor.', 'alert-warning');
+};
+
+window.previewSelectedCadFile = function(inputEl) {
+  const f = inputEl.files && inputEl.files[0];
+  if (!f) return;
+  const kb = (f.size / 1024).toFixed(1);
+  document.getElementById('cadSummaryBox').innerHTML = '<span class="text-warning"><i class="fas fa-file-code me-1"></i>Selected <strong>' + f.name + '</strong> (' + kb + ' KB) &mdash; Auto-parsing DXF entities...</span>';
+  window.saveCadBg();
+};
+
+window.previewSelectedBathyFile = function(inputEl) {
+  const f = inputEl.files && inputEl.files[0];
+  if (!f) return;
+  const kb = (f.size / 1024).toFixed(1);
+  document.getElementById('bathySummaryBox').innerHTML = '<span class="text-warning"><i class="fas fa-water me-1"></i>Selected <strong>' + f.name + '</strong> (' + kb + ' KB) &mdash; Auto-parsing E N Z soundings...</span>';
+  window.saveBathySetup();
 };
 
 window.saveCadBg = function() {
-  const fd = new FormData();
-  fd.append('crossing_id', document.getElementById('cadXingId').value);
+  const btn = document.getElementById('btnSaveCad');
+  const xing = document.getElementById('cadXingId').value;
   const f = document.getElementById('cadFileInput').files[0];
+  const txt = document.getElementById('cadTextInput').value;
+  if (!f && !txt.trim()) {
+    window.showSetupBanner('Please choose a .dxf file or paste polyline coordinates first.', 'alert-danger');
+    return;
+  }
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Parsing &amp; Saving DXF...';
+  document.getElementById('cadSummaryBox').innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Uploading and extracting polylines from ' + (f ? f.name : 'pasted text') + '...</span>';
+
+  const fd = new FormData();
+  fd.append('crossing_id', xing);
   if (f) fd.append('cad_file', f);
-  fd.append('cad_text', document.getElementById('cadTextInput').value);
-  fetch('/mti/save_cad_bg', { method: 'POST', body: fd }).then(r => r.json()).then(d => {
-    if (d.status === 'ok') {
-      alert('Saved ' + d.polylines + ' CAD polyline(s) for ' + d.crossing_id);
-      window.refreshSetupStatus();
-    } else alert(d.message || 'Error saving CAD background.');
-  });
+  fd.append('cad_text', txt);
+
+  fetch('/mti/save_cad_bg', { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(d => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-upload me-1"></i>Save CAD Background';
+      if (d.status === 'ok') {
+        const msg = 'SAVED CAD BACKGROUND: ' + d.polylines + ' polyline(s) (' + (d.vertices || 0) + ' vertices) loaded for ' + d.crossing_id + '!';
+        window.showSetupBanner('&#10004; ' + msg, 'alert-success');
+        window.refreshSetupStatus();
+      } else {
+        window.showSetupBanner('CAD Error: ' + (d.message || 'Could not parse DXF.'), 'alert-danger');
+        document.getElementById('cadSummaryBox').innerHTML = '<span class="text-danger">' + (d.message || 'Error') + '</span>';
+      }
+    })
+    .catch(err => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-upload me-1"></i>Save CAD Background';
+      window.showSetupBanner('Network error while saving CAD file: ' + err, 'alert-danger');
+    });
 };
 
 window.clearCadBg = function() {
   const xing = document.getElementById('cadXingId').value;
   fetch('/mti/clear_cad_bg', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({crossing_id: xing}) })
-    .then(() => window.refreshSetupStatus());
+    .then(() => {
+      document.getElementById('cadFileInput').value = '';
+      document.getElementById('cadTextInput').value = '';
+      window.showSetupBanner('Cleared CAD background for ' + xing, 'alert-secondary');
+      window.refreshSetupStatus();
+    });
 };
 
 window.saveDesignCatalog = function() {
+  const btn = document.getElementById('btnSaveDes');
+  btn.disabled = true;
   const fd = new FormData();
   fd.append('crossing_id', document.getElementById('desXingId').value);
   fd.append('box_id', document.getElementById('desBoxId').value);
@@ -1452,32 +1537,112 @@ window.saveDesignCatalog = function() {
   const f = document.getElementById('desFileInput').files[0];
   if (f) fd.append('catalog_file', f);
   fetch('/mti/save_design_catalog', { method: 'POST', body: fd }).then(r => r.json()).then(d => {
+    btn.disabled = false;
     if (d.status === 'ok') {
       document.getElementById('desBulkText').value = '';
-      alert('Saved ' + d.added + ' design box entry/entries!');
+      window.showSetupBanner('&#10004; Saved ' + d.added + ' design box entry/entries!', 'alert-success');
       window.refreshSetupStatus();
-    } else alert(d.message || 'Error saving design catalog.');
-  });
+    } else window.showSetupBanner(d.message || 'Error saving design catalog.', 'alert-danger');
+  }).catch(() => { btn.disabled = false; });
 };
 
 window.clearDesignCatalog = function() {
   if (!confirm('Reset all custom design box overrides back to default CAD catalog?')) return;
-  fetch('/mti/clear_design_catalog', { method: 'POST' }).then(() => window.refreshSetupStatus());
+  fetch('/mti/clear_design_catalog', { method: 'POST' }).then(() => {
+    window.showSetupBanner('Reset design catalog to 139 CAD defaults.', 'alert-secondary');
+    window.refreshSetupStatus();
+  });
+};
+
+window.parseXyzTextClientSide = function(rawText, xingId) {
+  const bnd = (xingId !== 'GLOBAL') ? window.getCrossingBounds(xingId) : null;
+  const allPts = [];
+  const inBoxPts = [];
+  const lines = rawText.split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const s = lines[i].trim();
+    if (!s) continue;
+    const c0 = s.charCodeAt(0);
+    if (c0 === 35 || c0 === 47 || c0 === 69 || c0 === 101 || c0 === 88 || c0 === 120) continue;
+    const ps = s.replace(/[,;]/g, ' ').trim().split(/\s+/);
+    if (ps.length < 3) continue;
+    const v0 = parseFloat(ps[0]), v1 = parseFloat(ps[1]), v2 = parseFloat(ps[2]);
+    if (isNaN(v0) || isNaN(v1) || isNaN(v2)) continue;
+    let e = v0, n = v1, z = v2;
+    if (ps.length >= 4 && Math.abs(v0) < 50000 && Math.abs(v1) > 100000 && Math.abs(v2) > 100000) {
+      e = v1; n = v2; z = parseFloat(ps[3]);
+    }
+    if (Math.abs(e) < 50000 || Math.abs(n) < 50000 || isNaN(z)) continue;
+    if (n < e && e > 1000000) { const t = e; e = n; n = t; }
+    if (z > 0 && z < 500) z = -Math.abs(z);
+    const pt = [Math.round(e * 1000) / 1000, Math.round(n * 1000) / 1000, Math.round(z * 1000) / 1000];
+    allPts.push(pt);
+    if (bnd && e >= bnd.eMin && e <= bnd.eMax && n >= bnd.nMin && n <= bnd.nMax) {
+      inBoxPts.push(pt);
+    }
+  }
+  const chosen = (inBoxPts.length >= 4) ? inBoxPts : allPts;
+  const maxKeep = 3500;
+  if (chosen.length > maxKeep) {
+    const step = Math.ceil(chosen.length / maxKeep);
+    const thinned = [];
+    for (let j = 0; j < chosen.length; j += step) thinned.push(chosen[j]);
+    return { points: thinned, totalRead: allPts.length, croppedCount: inBoxPts.length };
+  }
+  return { points: chosen, totalRead: allPts.length, croppedCount: inBoxPts.length };
 };
 
 window.saveBathySetup = function() {
-  const fd = new FormData();
-  fd.append('crossing_id', document.getElementById('bathyXingId').value);
-  fd.append('ref_depth_m', document.getElementById('bathyRefDepth').value);
+  const btn = document.getElementById('btnSaveBathy');
+  const xing = document.getElementById('bathyXingId').value;
+  const refZ = document.getElementById('bathyRefDepth').value;
   const f = document.getElementById('bathyFileInput').files[0];
-  if (f) fd.append('seabed_file', f);
-  fd.append('bathy_xyz_text', document.getElementById('bathyTextInput').value);
-  fetch('/mti/upload_seabed', { method: 'POST', body: fd }).then(r => r.json()).then(d => {
-    if (d.status === 'ok') {
-      alert(d.points ? ('Saved ' + d.points + ' bathy spot soundings (' + d.z_min + 'm to ' + d.z_max + 'm)!') : d.message);
-      window.refreshSetupStatus();
-    } else alert(d.message || 'Error saving bathy soundings.');
-  });
+  const txt = document.getElementById('bathyTextInput').value;
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Processing Bathy...';
+  document.getElementById('bathySummaryBox').innerHTML = '<span class="text-info"><i class="fas fa-spinner fa-spin me-1"></i>Reading bathy soundings...</span>';
+
+  const sendPointsPayload = function(ptsInfo) {
+    fetch('/mti/upload_seabed', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ crossing_id: xing, ref_depth_m: refZ, points_array: ptsInfo ? ptsInfo.points : [] })
+    }).then(r => r.json()).then(d => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-check me-1"></i>Save Bathy Soundings';
+      if (d.status === 'ok') {
+        const extra = (ptsInfo && ptsInfo.totalRead) ? (' (cropped from ' + ptsInfo.totalRead.toLocaleString() + ' total pts in file)') : '';
+        const msg = d.points
+          ? ('SAVED BATHY SOUNDINGS: ' + d.points + ' pts active for ' + d.crossing_id + extra + ' | Depth Z: ' + d.z_min + 'm to ' + d.z_max + 'm')
+          : (d.message || 'Updated fallback reference depth.');
+        window.showSetupBanner('&#10004; ' + msg, 'alert-success');
+        window.refreshSetupStatus();
+      } else {
+        window.showSetupBanner('Bathy Error: ' + (d.message || 'No valid points.'), 'alert-danger');
+        document.getElementById('bathySummaryBox').innerHTML = '<span class="text-danger">' + (d.message || 'Error') + '</span>';
+      }
+    }).catch(err => {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-check me-1"></i>Save Bathy Soundings';
+      window.showSetupBanner('Upload error: ' + err, 'alert-danger');
+    });
+  };
+
+  if (f) {
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+      const parsed = window.parseXyzTextClientSide(evt.target.result || '', xing);
+      document.getElementById('bathySummaryBox').innerHTML = '<span class="text-info">Parsed ' + parsed.totalRead.toLocaleString() + ' lines &rarr; Uploading ' + parsed.points.length + ' soundings...</span>';
+      sendPointsPayload(parsed);
+    };
+    reader.readAsText(f);
+  } else if (txt.trim()) {
+    const parsed = window.parseXyzTextClientSide(txt, xing);
+    sendPointsPayload(parsed);
+  } else {
+    sendPointsPayload(null);
+  }
 };
 
 window.clearBathySetup = function() {
@@ -1486,6 +1651,7 @@ window.clearBathySetup = function() {
     .then(() => {
       document.getElementById('bathyTextInput').value = '';
       document.getElementById('bathyFileInput').value = '';
+      window.showSetupBanner('Cleared bathy soundings for ' + xing, 'alert-secondary');
       window.refreshSetupStatus();
     });
 };

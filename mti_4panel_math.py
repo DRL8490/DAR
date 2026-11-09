@@ -1,4 +1,4 @@
-import os, re, math, json
+﻿import os, re, math, json
 from datetime import datetime
 import numpy as np
 
@@ -18,25 +18,38 @@ def _box_corners_cw(ce, cn, az_deg, length=6.0, width=3.0):
     pts = [c + sL * (length / 2.0) * ul + sW * (width / 2.0) * us for sL, sW in [(1, -1), (1, 1), (-1, 1), (-1, -1)]]
     return np.array(pts, dtype=float), ul, us
 
-def parse_bathy_xyz_text(raw_text):
+def parse_bathy_xyz_text(raw_text, bounds=None, max_pts=4000):
     pts = []
+    e_lo, e_hi, n_lo, n_hi = bounds if bounds else (-1e12, 1e12, -1e12, 1e12)
     for ln in str(raw_text or "").splitlines():
         s = ln.strip()
-        if not s:
+        if not s or s[0] in ("#", "/", "E", "e", "X", "x", "P", "p"):
             continue
-        nums = [float(m) for m in re.findall(r"[+-]?\d+(?:\.\d+)?", s)]
-        if len(nums) >= 3:
-            if len(nums) >= 4 and abs(nums[0]) < 50000 and abs(nums[1]) > 100000 and abs(nums[2]) > 100000:
-                e, n, z = nums[1], nums[2], nums[3]
-            else:
-                e, n, z = nums[0], nums[1], nums[2]
-            if abs(e) < 50000 or abs(n) < 50000:
-                continue
-            if n < e and e > 1000000:
-                e, n = n, e
-            z = -abs(z) if 0 < abs(z) < 500 else z
-            pts.append([round(e, 3), round(n, 3), round(z, 3)])
-    return np.array(pts, dtype=float) if pts else np.zeros((0, 3), dtype=float)
+        ps = s.replace(",", " ").replace(";", " ").split()
+        if len(ps) >= 3:
+            try:
+                v0, v1, v2 = float(ps[0]), float(ps[1]), float(ps[2])
+                if len(ps) >= 4 and abs(v0) < 50000 and abs(v1) > 100000 and abs(v2) > 100000:
+                    e, n, z = v1, v2, float(ps[3])
+                else:
+                    e, n, z = v0, v1, v2
+                if abs(e) < 50000 or abs(n) < 50000:
+                    continue
+                if n < e and e > 1000000:
+                    e, n = n, e
+                if e < e_lo or e > e_hi or n < n_lo or n > n_hi:
+                    continue
+                z = -abs(z) if 0 < abs(z) < 500 else z
+                pts.append([round(e, 3), round(n, 3), round(z, 3)])
+            except Exception:
+                pass
+    if not pts:
+        return np.zeros((0, 3), dtype=float)
+    arr = np.array(pts, dtype=float)
+    if len(arr) > max_pts:
+        step = max(1, len(arr) // max_pts)
+        arr = arr[::step]
+    return arr
 
 def parse_design_catalog_text(raw_text, default_crossing="CR-A1_L1"):
     entries = []
@@ -66,23 +79,81 @@ def parse_design_catalog_text(raw_text, default_crossing="CR-A1_L1"):
 def parse_dxf_background(raw_dxf_text):
     lines = [l.strip() for l in str(raw_dxf_text or "").splitlines()]
     polylines = []
-    n, i, cur_ent, cur_pts, x_tmp, x2_tmp = len(lines), 0, None, [], None, None
+    n = len(lines)
+    i = 0
+    in_entities = False
+    cur_ent = None
+    cur_pts = []
+    poly_pts = []
+    is_closed = False
+    x_tmp, x2_tmp = None, None
+
+    def _flush_lw(pts, closed):
+        if len(pts) >= 2:
+            if closed and (pts[0][0] != pts[-1][0] or pts[0][1] != pts[-1][1]):
+                pts = pts + [pts[0]]
+            polylines.append(pts)
+
     while i + 1 < n:
         code, val = lines[i], lines[i + 1]
         i += 2
+        if code == "2" and val.upper() == "ENTITIES":
+            in_entities = True
+            continue
+        if code == "0" and val.upper() == "ENDSEC" and in_entities:
+            _flush_lw(cur_pts, is_closed)
+            if len(poly_pts) >= 2:
+                _flush_lw(poly_pts, is_closed)
+            cur_ent, cur_pts, poly_pts = None, [], []
+            in_entities = False
+            continue
         if code == "0":
-            if cur_ent == "LWPOLYLINE" and len(cur_pts) >= 2:
-                polylines.append(cur_pts)
+            if cur_ent == "LWPOLYLINE":
+                _flush_lw(cur_pts, is_closed)
             elif cur_ent == "LINE" and len(cur_pts) == 2:
                 polylines.append(cur_pts)
-            cur_ent, cur_pts, x_tmp, x2_tmp = val.upper(), [], None, None
+            elif cur_ent == "VERTEX" and len(cur_pts) >= 1:
+                poly_pts.append(cur_pts[0])
+            elif cur_ent == "SEQEND" and len(poly_pts) >= 2:
+                _flush_lw(poly_pts, is_closed)
+                poly_pts = []
+            uval = val.upper()
+            if uval == "POLYLINE":
+                cur_ent = "POLYLINE"
+                poly_pts = []
+                is_closed = False
+            elif uval == "VERTEX":
+                cur_ent = "VERTEX"
+                cur_pts = []
+            else:
+                cur_ent = uval
+                cur_pts = []
+                if uval != "SEQEND":
+                    is_closed = False
+            x_tmp, x2_tmp = None, None
         elif cur_ent == "LWPOLYLINE":
-            if code == "10":
+            if code == "70":
+                try: is_closed = bool(int(val) & 1)
+                except Exception: pass
+            elif code == "10":
                 try: x_tmp = float(val)
                 except Exception: x_tmp = None
             elif code == "20" and x_tmp is not None:
                 try:
                     cur_pts.append([round(x_tmp, 3), round(float(val), 3)])
+                    x_tmp = None
+                except Exception: pass
+        elif cur_ent == "POLYLINE":
+            if code == "70":
+                try: is_closed = bool(int(val) & 1)
+                except Exception: pass
+        elif cur_ent == "VERTEX":
+            if code == "10":
+                try: x_tmp = float(val)
+                except Exception: x_tmp = None
+            elif code == "20" and x_tmp is not None:
+                try:
+                    cur_pts = [[round(x_tmp, 3), round(float(val), 3)]]
                     x_tmp = None
                 except Exception: pass
         elif cur_ent == "LINE":
@@ -98,8 +169,12 @@ def parse_dxf_background(raw_dxf_text):
             elif code == "21" and x2_tmp is not None:
                 try: cur_pts.append([round(x2_tmp, 3), round(float(val), 3)])
                 except Exception: pass
-    if cur_ent in ("LWPOLYLINE", "LINE") and len(cur_pts) >= 2:
+    if cur_ent == "LWPOLYLINE":
+        _flush_lw(cur_pts, is_closed)
+    elif cur_ent == "LINE" and len(cur_pts) == 2:
         polylines.append(cur_pts)
+    elif len(poly_pts) >= 2:
+        _flush_lw(poly_pts, is_closed)
     return polylines
 
 def load_custom_catalog(workspace_dir="workspace"):
