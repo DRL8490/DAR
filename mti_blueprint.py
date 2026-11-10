@@ -1357,6 +1357,7 @@ STUDIO_HTML_TEMPLATE = r"""<!DOCTYPE html>
     </div>
     <div class="d-flex flex-wrap gap-1 align-items-center">
       <a href="/mti/setup" target="_blank" class="btn btn-sm btn-outline-info fw-bold me-1"><i class="fas fa-sliders-h me-1"></i>Survey Setup (CAD / Design / Bathy)</a>
+      <button type="button" id="btnOpenAdhocModal" class="btn btn-sm btn-warning text-dark fw-bold me-1" onclick="window.openAdhocStudio()" title="Open Ad-Hoc Gemini Context &amp; Python PDF Chart Generator"><i class="fas fa-terminal me-1"></i>Ad-Hoc PDF Script</button>
       <a id="dlA3Pdf" href="/mti/download_a3_pdf" class="btn btn-sm btn-danger fw-bold" title="Download 2-Page Landscape Print PDF (Page 1: A3 Chart + Page 2: A4 Report)"><i class="fas fa-print me-1"></i>Print PDF</a>
       <a id="dlA3Png" href="/mti/download_a3_png" class="btn btn-sm btn-info text-dark fw-bold"><i class="fas fa-image me-1"></i>A3 PNG</a>
       <a id="dlA4Pdf" href="/mti/download_a4_pdf" style="display:none;"></a>
@@ -1527,6 +1528,327 @@ document.addEventListener('DOMContentLoaded', function() {
   window.runStudioVerify();
 });
 </script>
+
+<!-- ADHOC_STUDIO_START -->
+<style>
+  #adhocModalOverlay {
+    position: fixed; inset: 0; z-index: 9999; display: none;
+    background: rgba(2, 6, 23, 0.92); backdrop-filter: blur(3px);
+    padding: 12px; overflow-y: auto;
+  }
+  .adhoc-shell {
+    background: #0f172a; border: 1px solid #334155; border-radius: 10px;
+    max-width: 1760px; margin: 0 auto; min-height: calc(100vh - 26px);
+    display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,0.75);
+  }
+  .adhoc-panel {
+    background: #1e293b; border: 1px solid #334155; border-radius: 8px;
+  }
+  #adhocUserReqBox {
+    background: #020617; color: #facc15; border: 1px solid #0284c7;
+    font-size: 12.5px; line-height: 1.4;
+  }
+  #adhocContextBox {
+    background: #020617; color: #cbd5e1; border: 1px solid #334155;
+    font-size: 11.5px; line-height: 1.38; height: 390px; resize: vertical;
+  }
+  #adhocScriptBox {
+    background: #020617; color: #38bdf8; border: 1px solid #334155;
+    font-size: 12px; line-height: 1.42; height: 270px; resize: vertical;
+    tab-size: 4;
+  }
+  #adhocConsoleBox {
+    background: #020617; color: #e2e8f0; border: 1px solid #334155;
+    font-size: 11.5px; max-height: 130px; overflow-y: auto; white-space: pre-wrap;
+  }
+</style>
+
+<div id="adhocModalOverlay" role="dialog" aria-modal="true" aria-label="Ad-Hoc MTI PDF Chart Studio">
+  <div class="adhoc-shell p-2 px-3">
+    <div class="d-flex flex-wrap justify-content-between align-items-center pb-2 mb-2 border-bottom border-secondary">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <span class="fw-bold text-warning fs-6"><i class="fas fa-terminal me-2"></i>Ad-Hoc MTI PDF Chart &amp; DPR Extraction Studio</span>
+        <span class="badge bg-dark border border-info text-info font-monospace">1. Copy Context to Gemini -&gt; 2. Paste Python Script -&gt; 3. Generate PDF</span>
+      </div>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <select id="adhocSnippetSelect" class="form-select form-select-sm bg-dark text-warning border-secondary fw-bold" style="width:240px;" onchange="window.selectAdhocSnippet(this.value)">
+          <option value="__STARTER__">-- Starter Summary Script --</option>
+        </select>
+        <button type="button" class="btn btn-sm btn-outline-light fw-bold" onclick="window.closeAdhocStudio()"><i class="fas fa-times me-1"></i>Close (Esc)</button>
+      </div>
+    </div>
+
+    <div class="row g-2 flex-grow-1">
+      <!-- LEFT COLUMN: GEMINI CONTEXT & REQUEST BUILDER -->
+      <div class="col-lg-5 d-flex flex-column">
+        <div class="adhoc-panel p-2 d-flex flex-column h-100">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="small fw-bold text-info"><i class="fas fa-robot me-1"></i>Step 1: MTI Charting Context + DPR Extraction Request (Copy to Gemini)</span>
+            <button type="button" class="btn btn-sm btn-outline-info py-0 px-2 fw-bold" onclick="window.loadAdhocContext(true)" title="Refresh live database counts and loaded bathy/CAD status"><i class="fas fa-sync-alt me-1"></i>Refresh DB Snapshot</button>
+          </div>
+
+          <label class="small fw-bold text-warning mb-1" for="adhocUserReqBox">What do you want to extract or plot from the DPR-MTI Module?</label>
+          <textarea id="adhocUserReqBox" class="form-control form-control-sm font-monospace mb-2" rows="3" placeholder="Example: Plot an ISO A3 Landscape chart showing CR-A3 CAD &amp; bathy contours on the left, and a timeline of wind/current standby logs vs. mattresses placed on 2026-11-08 on the right." oninput="window.rebuildAdhocFullPrompt()"></textarea>
+
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <label class="small fw-bold text-light mb-0" for="adhocContextBox">Combined MTI Context + Request (Ready to Copy &amp; Paste into Gemini):</label>
+            <span id="adhocCopyStatus" class="small fw-bold text-success"></span>
+          </div>
+          <textarea id="adhocContextBox" class="form-control font-monospace mb-2 flex-grow-1" spellcheck="false"></textarea>
+
+          <button type="button" class="btn btn-sm btn-info text-dark fw-bold w-100 py-2" onclick="window.copyAdhocGeminiPrompt()">
+            <i class="fas fa-copy me-1"></i>Copy Full Context + Request for Gemini
+          </button>
+        </div>
+      </div>
+
+      <!-- RIGHT COLUMN: PYTHON SCRIPT INPUT, PREVIEW & PDF DOWNLOAD -->
+      <div class="col-lg-7 d-flex flex-column">
+        <div class="adhoc-panel p-2 d-flex flex-column h-100">
+          <div class="d-flex flex-wrap justify-content-between align-items-center mb-1 gap-1">
+            <span class="small fw-bold text-warning"><i class="fas fa-code me-1"></i>Step 2: Paste Gemini Python Script &amp; Generate Ad-Hoc PDF</span>
+            <div class="d-flex gap-1">
+              <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2 text-light" onclick="window.pasteFromClipboardToScript()" title="Paste clipboard into script editor"><i class="fas fa-paste me-1"></i>Paste Code</button>
+              <button type="button" class="btn btn-sm btn-outline-warning py-0 px-2" onclick="window.resetAdhocStarter()" title="Load starter example script">Reset Starter</button>
+            </div>
+          </div>
+
+          <textarea id="adhocScriptBox" class="form-control font-monospace mb-2" spellcheck="false" placeholder="# Paste Python Matplotlib / PdfPages script from Gemini here..."></textarea>
+
+          <div class="row g-2 align-items-end mb-2">
+            <div class="col-md-4 col-6">
+              <label class="small fw-bold text-light">Optional PDF Filename</label>
+              <input type="text" id="adhocFilenameInp" class="form-control form-control-sm bg-dark text-light border-secondary font-monospace" placeholder="YYYYMMDD_MTI_Custom.pdf">
+            </div>
+            <div class="col-md-3 col-6">
+              <label class="small fw-bold text-light">Save Reusable Snippet As</label>
+              <input type="text" id="adhocSaveTitleInp" class="form-control form-control-sm bg-dark text-warning border-secondary" placeholder="Optional preset name">
+            </div>
+            <div class="col-md-3 col-6">
+              <button type="button" id="btnRunAdhoc" class="btn btn-sm btn-success fw-bold w-100" onclick="window.runAdhocScript()">
+                <i class="fas fa-play me-1"></i>Generate Ad-Hoc PDF
+              </button>
+            </div>
+            <div class="col-md-2 col-6">
+              <a id="btnDlAdhocPdf" href="/mti/download_adhoc_pdf" target="_blank" class="btn btn-sm btn-danger fw-bold w-100 disabled" aria-disabled="true">
+                <i class="fas fa-file-pdf me-1"></i>Download PDF
+              </a>
+            </div>
+          </div>
+
+          <div id="adhocConsoleBox" class="rounded p-2 font-monospace mb-2">Ready. Click "Generate Ad-Hoc PDF" to run the script against live DPR-MTI data.</div>
+
+          <div class="rounded border border-secondary bg-white text-center p-2 flex-grow-1 d-flex align-items-center justify-content-center position-relative" style="min-height:250px;">
+            <span id="adhocEmptyPreviewMsg" class="text-secondary small fw-bold">Ad-Hoc PDF Page 1 Preview will appear here after execution.</span>
+            <img id="adhocPreviewImg" src="" class="img-fluid rounded" style="max-height:300px;display:none;" alt="Ad-Hoc Chart Preview">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  window._adhocBaseContext = '';
+  window._adhocStarterScript = '';
+  window._adhocSavedSnippets = [];
+
+  function ensureAdhocTopButton() {
+    if (document.getElementById('btnOpenAdhocModal')) return;
+    const setupLink = document.querySelector('a[href="/mti/setup"]');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = 'btnOpenAdhocModal';
+    btn.className = 'btn btn-sm btn-warning text-dark fw-bold me-1';
+    btn.innerHTML = '<i class="fas fa-terminal me-1"></i>Ad-Hoc PDF Script';
+    btn.onclick = window.openAdhocStudio;
+    if (setupLink && setupLink.parentNode) {
+      setupLink.parentNode.insertBefore(btn, setupLink.nextSibling);
+    }
+  }
+
+  window.rebuildAdhocFullPrompt = function() {
+    const reqEl = document.getElementById('adhocUserReqBox');
+    const ctxEl = document.getElementById('adhocContextBox');
+    if (!ctxEl) return;
+    const userReq = (reqEl && reqEl.value.trim())
+      ? reqEl.value.trim()
+      : '[Describe the chart, table, or data extraction you want from the DPR-MTI Module here]';
+    ctxEl.value = (window._adhocBaseContext || 'Loading MTI context...') +
+      '\n\n=== 5. SPECIFIC AD-HOC CHART / DPR-MTI EXTRACTION REQUEST ===\n' +
+      userReq +
+      '\n\nWrite ONLY the complete Python code using the pre-loaded DPR-MTI variables above, appending figure(s) to `OUTPUT_FIGS` and setting `OUTPUT_FILENAME`.';
+  };
+
+  function refreshSnippetDropdown(snips) {
+    window._adhocSavedSnippets = snips || [];
+    const sel = document.getElementById('adhocSnippetSelect');
+    if (!sel) return;
+    let html = '<option value="__STARTER__">-- Starter Summary Script --</option>';
+    window._adhocSavedSnippets.forEach(function(s, idx) {
+      const safeT = String(s.title || ('Snippet ' + (idx + 1))).replace(/</g, '&lt;');
+      html += '<option value="' + idx + '">' + safeT + '</option>';
+    });
+    sel.innerHTML = html;
+  }
+
+  window.selectAdhocSnippet = function(val) {
+    const codeEl = document.getElementById('adhocScriptBox');
+    const fnEl = document.getElementById('adhocFilenameInp');
+    if (!codeEl) return;
+    if (val === '__STARTER__') {
+      codeEl.value = window._adhocStarterScript || '';
+      if (fnEl) fnEl.value = '';
+      return;
+    }
+    const item = (window._adhocSavedSnippets || [])[ parseInt(val, 10) ];
+    if (item) {
+      codeEl.value = item.script_code || '';
+      if (fnEl && item.filename) fnEl.value = item.filename;
+    }
+  };
+
+  window.loadAdhocContext = function(forceReload) {
+    if (window._adhocBaseContext && !forceReload) {
+      window.rebuildAdhocFullPrompt();
+      return;
+    }
+    fetch('/mti/adhoc_context')
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d && d.status === 'ok') {
+          window._adhocBaseContext = d.context_text || '';
+          window._adhocStarterScript = d.starter_script || '';
+          refreshSnippetDropdown(d.saved_snippets || []);
+          const codeEl = document.getElementById('adhocScriptBox');
+          if (codeEl && !codeEl.value.trim()) {
+            codeEl.value = window._adhocStarterScript;
+          }
+          window.rebuildAdhocFullPrompt();
+        }
+      })
+      .catch(function(err) {
+        const ctxEl = document.getElementById('adhocContextBox');
+        if (ctxEl) ctxEl.value = 'Error loading context: ' + err;
+      });
+  };
+
+  window.openAdhocStudio = function() {
+    const ov = document.getElementById('adhocModalOverlay');
+    if (ov) ov.style.display = 'block';
+    window.loadAdhocContext(false);
+  };
+
+  window.closeAdhocStudio = function() {
+    const ov = document.getElementById('adhocModalOverlay');
+    if (ov) ov.style.display = 'none';
+  };
+
+  window.copyAdhocGeminiPrompt = function() {
+    const ctxEl = document.getElementById('adhocContextBox');
+    const stEl = document.getElementById('adhocCopyStatus');
+    if (!ctxEl) return;
+    ctxEl.select();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(ctxEl.value).then(function() {
+        if (stEl) { stEl.innerText = 'Copied! Paste into Gemini.'; setTimeout(function(){ stEl.innerText = ''; }, 3000); }
+      });
+    } else {
+      document.execCommand('copy');
+      if (stEl) { stEl.innerText = 'Copied! Paste into Gemini.'; setTimeout(function(){ stEl.innerText = ''; }, 3000); }
+    }
+  };
+
+  window.pasteFromClipboardToScript = function() {
+    const codeEl = document.getElementById('adhocScriptBox');
+    if (navigator.clipboard && navigator.clipboard.readText && codeEl) {
+      navigator.clipboard.readText().then(function(txt) {
+        if (txt) codeEl.value = txt;
+      }).catch(function() { codeEl.focus(); });
+    }
+  };
+
+  window.resetAdhocStarter = function() {
+    const codeEl = document.getElementById('adhocScriptBox');
+    if (codeEl) codeEl.value = window._adhocStarterScript || '';
+  };
+
+  window.runAdhocScript = function() {
+    const btn = document.getElementById('btnRunAdhoc');
+    const con = document.getElementById('adhocConsoleBox');
+    const img = document.getElementById('adhocPreviewImg');
+    const emptyMsg = document.getElementById('adhocEmptyPreviewMsg');
+    const dlBtn = document.getElementById('btnDlAdhocPdf');
+    const survInp = document.getElementById('inpSurveyor');
+
+    const payload = {
+      script_code: document.getElementById('adhocScriptBox').value,
+      filename: document.getElementById('adhocFilenameInp').value.trim(),
+      save_title: document.getElementById('adhocSaveTitleInp').value.trim(),
+      surveyor_name: survInp ? survInp.value.trim() : ''
+    };
+
+    btn.disabled = true;
+    con.style.color = '#38bdf8';
+    con.innerText = 'Executing Python script against live DPR-MTI data...';
+
+    fetch('/mti/run_adhoc_chart', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      btn.disabled = false;
+      if (d.status === 'ok') {
+        con.style.color = '#4ade80';
+        con.innerText = 'SUCCESS (' + d.page_count + ' page PDF): ' + d.filename + '\n' + (d.logs || '');
+        if (d.image_b64) {
+          img.src = 'data:image/png;base64,' + d.image_b64;
+          img.style.display = 'inline-block';
+          if (emptyMsg) emptyMsg.style.display = 'none';
+        }
+        if (dlBtn) {
+          dlBtn.href = '/mti/download_adhoc_pdf/' + encodeURIComponent(d.filename) + '?t=' + Date.now();
+          dlBtn.classList.remove('disabled');
+          dlBtn.removeAttribute('aria-disabled');
+        }
+        if (d.saved_snippets) {
+          refreshSnippetDropdown(d.saved_snippets);
+          document.getElementById('adhocSaveTitleInp').value = '';
+        }
+      } else {
+        con.style.color = '#f87171';
+        con.innerText = (d.message || 'Execution error') + '\n' + (d.logs || '');
+      }
+    })
+    .catch(function(err) {
+      btn.disabled = false;
+      con.style.color = '#f87171';
+      con.innerText = 'Network / Server Error: ' + err;
+    });
+  };
+
+  document.addEventListener('keydown', function(ev) {
+    if (ev.key === 'Escape') window.closeAdhocStudio();
+  });
+
+  function initAdhocBoot() {
+    ensureAdhocTopButton();
+    if (new URLSearchParams(window.location.search).get('adhoc') === '1') {
+      window.openAdhocStudio();
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAdhocBoot);
+  } else {
+    initAdhocBoot();
+  }
+})();
+</script>
+<!-- ADHOC_STUDIO_END -->
 </body>
 </html>"""
 
@@ -1979,3 +2301,69 @@ def mti_4panel_studio_window():
 @login_required
 def mti_survey_setup_window():
     return render_template_string(SETUP_HTML_TEMPLATE)
+
+# --- AD-HOC GEMINI CONTEXT & PYTHON PDF CHART ENGINE ROUTES ---
+from mti_adhoc import STARTER_ADHOC_SCRIPT, build_adhoc_gemini_context, execute_adhoc_chart_script
+
+@mti_bp.route('/adhoc_context')
+@login_required
+def mti_adhoc_context():
+    _load_setup_meta()
+    st = _collect_state_with_all_logs() if '_collect_state_with_all_logs' in globals() else load_mti_state()
+    cat_list = list(MATTRESS_CATALOG.values()) if isinstance(MATTRESS_CATALOG, dict) else list(MATTRESS_CATALOG)
+    surv_name = _get_current_user_display_name() if '_get_current_user_display_name' in globals() else 'Duty Surveyor'
+    ctx_text = build_adhoc_gemini_context(st, cat_list, MTI_WS_DIR, surv_name)
+    saved_snippets = list((st or {}).get("adhoc_snippets") or [])
+    return jsonify({
+        "status": "ok",
+        "context_text": ctx_text,
+        "starter_script": STARTER_ADHOC_SCRIPT,
+        "saved_snippets": saved_snippets,
+        "surveyor_name": surv_name
+    })
+
+@mti_bp.route('/run_adhoc_chart', methods=['POST'])
+@login_required
+def mti_run_adhoc_chart():
+    _load_setup_meta()
+    req = request.get_json(silent=True) or request.form.to_dict()
+    script_code = str(req.get("script_code") or "").strip()
+    custom_fn = str(req.get("filename") or "").strip()
+    save_title = str(req.get("save_title") or "").strip()
+
+    st = _collect_state_with_all_logs() if '_collect_state_with_all_logs' in globals() else load_mti_state()
+    cat_list = list(MATTRESS_CATALOG.values()) if isinstance(MATTRESS_CATALOG, dict) else list(MATTRESS_CATALOG)
+    surv_name = str(req.get("surveyor_name") or (_get_current_user_display_name() if '_get_current_user_display_name' in globals() else 'Duty Surveyor')).strip()
+
+    res = execute_adhoc_chart_script(
+        script_code=script_code,
+        st_data=st,
+        catalog_list=cat_list,
+        workspace_dir=MTI_WS_DIR,
+        surveyor_name=surv_name,
+        custom_filename=custom_fn
+    )
+
+    if res.get("status") == "ok" and save_title:
+        try:
+            st_save = load_mti_state()
+            snips = list(st_save.get("adhoc_snippets") or [])
+            snips = [s for s in snips if s.get("title") != save_title]
+            snips.insert(0, {"title": save_title, "script_code": script_code, "filename": res.get("filename", "")})
+            st_save["adhoc_snippets"] = snips[:20]
+            save_mti_state(st_save)
+            res["saved_snippets"] = st_save["adhoc_snippets"]
+        except Exception:
+            pass
+    return jsonify(res)
+
+@mti_bp.route('/download_adhoc_pdf')
+@mti_bp.route('/download_adhoc_pdf/<path:req_fn>')
+@login_required
+def mti_download_adhoc_pdf(req_fn=None):
+    os.makedirs(MTI_WS_DIR, exist_ok=True)
+    fn = re.sub(r"[^A-Za-z0-9_.-]", "_", os.path.basename(str(req_fn or request.args.get("file") or "latest_MTI_AdHoc_Chart.pdf")))
+    p = os.path.join(MTI_WS_DIR, fn)
+    if not os.path.exists(p):
+        p = os.path.join(MTI_WS_DIR, "latest_MTI_AdHoc_Chart.pdf")
+    return send_file(p, as_attachment=True, download_name=fn, mimetype="application/pdf")
