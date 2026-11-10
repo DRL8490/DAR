@@ -2281,6 +2281,403 @@ window.clearDesignCatalog = function() {
 
 document.addEventListener('DOMContentLoaded', window.refreshSetupStatus);
 </script>
+
+<!-- RAW_ROV_PANEL4_START -->
+<style>
+  #rawRovPanel4Card {
+    background: #161f2e; border: 1px solid #2a3950; border-radius: 10px;
+    padding: 16px 18px; color: #e2e8f0; box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+  #rawRovTextInp {
+    background: #0b1120; color: #38bdf8; border: 1px solid #334155;
+    font-size: 12px; line-height: 1.42; resize: vertical; tab-size: 12;
+  }
+  #rawRovTextInp::placeholder { color: #64748b; }
+  #rawRovTargetBox {
+    background: #0f172a; color: #facc15; border: 1px solid #334155; font-size: 12.5px;
+  }
+  .raw-rov-tbl {
+    background: #1c2536; border: 1px solid #334155; border-radius: 6px; overflow: hidden;
+  }
+  .raw-rov-tbl thead th {
+    background: #0f172a; color: #f8fafc; font-size: 12px; border-bottom: 1px solid #334155; padding: 8px 10px;
+  }
+  .raw-rov-tbl tbody td {
+    border-color: #2d3748; padding: 8px 10px; vertical-align: middle; font-size: 12px; color: #e2e8f0;
+  }
+</style>
+
+<div id="rawRovPanel4Mount" class="col-12 mt-3" style="display:none;">
+  <div id="rawRovPanel4Card">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-1 gap-2">
+      <div class="fw-bold" style="color:#22c55e;font-size:1.06rem;">
+        <i class="fas fa-crosshairs me-2"></i>4. Raw ROV Points per As-Laid Mattress (Actual Unadjusted Fixes)
+      </div>
+      <span id="rawRovLoadedBadge" class="badge" style="background:#16a34a;font-size:12px;padding:5px 10px;">0 / 0 Loaded</span>
+    </div>
+    <div class="small mb-3" style="color:#94a3b8;">
+      Store actual unadjusted ROV survey points per as-laid mattress separately from the post-processed 4-corner submittal ledger. Paste Excel or text rows (<code style="color:#f472b6;">Point_ID  E  N  Z</code>) or upload a <code style="color:#f472b6;">.txt</code> / <code style="color:#f472b6;">.csv</code> / <code style="color:#f472b6;">.xyz</code> file.
+    </div>
+
+    <div id="rawRovBanner" class="alert py-1 px-2 small fw-bold mb-2" style="display:none;"></div>
+
+    <div class="row g-3">
+      <div class="col-lg-5">
+        <div class="p-2 rounded" style="background:#0f172a;border:1px solid #2d3748;">
+          <label class="form-label small fw-bold text-info mb-1" for="rawRovTargetBox">Select As-Laid Mattress</label>
+          <select id="rawRovTargetBox" class="form-select form-select-sm fw-bold font-monospace mb-1">
+            <option value="__AUTO__">-- Auto-Detect Mattress from Point ID (Bulk Paste) --</option>
+          </select>
+          <div id="rawRovBoxHint" class="small font-monospace mb-2" style="color:#94a3b8;font-size:11px;">
+            Bulk mode auto-matches IDs like CRA1M15_NW, C1_NW_A1M16, C1_NW_A3M18.
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <label class="form-label small fw-bold text-light mb-0" for="rawRovTextInp">Raw ROV Coordinates (Point_ID, E, N, Z)</label>
+            <button type="button" id="btnClearRawRovBox" class="btn btn-xs btn-sm btn-outline-secondary py-0 px-2 text-light" style="font-size:11px;">Clear Input</button>
+          </div>
+          <textarea id="rawRovTextInp" class="form-control form-control-sm font-monospace mb-2" rows="8" spellcheck="false" placeholder="CRA1M15_NW   194540.8   2702617   -54.615&#10;CRA1M15_NE   194543.7   2702616   -54.606&#10;CRA1M15_SW   194539.1   2702611   -54.643&#10;CRA1M15_SE   194542.0   2702610   -53.246"></textarea>
+
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div class="d-flex align-items-center gap-3">
+              <div class="form-check mb-0" title="If checked, Z values are multiplied by -1">
+                <input class="form-check-input border-warning" type="checkbox" id="rawRovNegateZ">
+                <label class="form-check-label small text-warning fw-bold" for="rawRovNegateZ">Negate Z (&times;-1)</label>
+              </div>
+              <div class="form-check mb-0" title="Append points to existing mattress record instead of replacing">
+                <input class="form-check-input border-info" type="checkbox" id="rawRovAppendMode">
+                <label class="form-check-label small text-info fw-bold" for="rawRovAppendMode">Append</label>
+              </div>
+            </div>
+            <div class="d-flex gap-1">
+              <input type="file" id="rawRovFilePicker" accept=".txt,.csv,.xyz,.pts" style="display:none;">
+              <button type="button" id="btnLoadRawRovFile" class="btn btn-sm btn-outline-info fw-bold py-1 px-2"><i class="fas fa-folder-open me-1"></i>Load File</button>
+              <button type="button" id="btnSaveRawRov" class="btn btn-sm btn-success fw-bold py-1 px-3"><i class="fas fa-save me-1"></i>Save Raw ROV</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-7">
+        <div class="raw-rov-tbl table-responsive" style="max-height:345px;overflow-y:auto;">
+          <table class="table table-dark table-hover table-sm mb-0">
+            <thead>
+              <tr>
+                <th>As-Laid Mattress</th>
+                <th>Raw ROV Points (Unadjusted)</th>
+                <th class="text-end">Action</th>
+              </tr>
+            </thead>
+            <tbody id="rawRovTableBody">
+              <tr><td colspan="3" class="text-center text-secondary py-3">Loading raw ROV records...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  window._rawRovState = { store: {}, aslaid: [], catalog: [] };
+  window._rawRovUploadBoxTarget = '';
+
+  function escHtml(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function mountPanel4IntoSetupGrid() {
+    const mountEl = document.getElementById('rawRovPanel4Mount');
+    if (!mountEl) return;
+    let bathyHeading = null;
+    document.querySelectorAll('div, h5, h6, span').forEach(function(el) {
+      if (!bathyHeading && el.children.length <= 2 && (el.textContent || '').indexOf('3. Bathy Soundings Table') !== -1) {
+        bathyHeading = el;
+      }
+    });
+    if (bathyHeading) {
+      const col3 = bathyHeading.closest('[class*="col-"]');
+      if (col3 && col3.parentNode) {
+        col3.parentNode.appendChild(mountEl);
+        mountEl.style.display = 'block';
+        return;
+      }
+    }
+    const mainCont = document.querySelector('.container-fluid, .container') || document.body;
+    mainCont.appendChild(mountEl);
+    mountEl.style.display = 'block';
+  }
+
+  function showRawBanner(htmlMsg, cls) {
+    const b = document.getElementById('rawRovBanner');
+    if (!b) return;
+    b.className = 'alert py-1 px-2 small fw-bold mb-2 ' + (cls || 'alert-info');
+    b.innerHTML = htmlMsg;
+    b.style.display = 'block';
+    setTimeout(function() { b.style.display = 'none'; }, 5500);
+  }
+
+  function renderRawRovUI() {
+    const st = window._rawRovState;
+    const store = st.store || {};
+    const aslaid = st.aslaid || [];
+    const cat = st.catalog || [];
+
+    const loadedAslaid = aslaid.filter(function(u) { return !!store[u.box_id]; }).length;
+    const extraKeys = Object.keys(store).filter(function(k) {
+      return !aslaid.some(function(u) { return u.box_id === k; });
+    });
+    const badge = document.getElementById('rawRovLoadedBadge');
+    if (badge) {
+      badge.textContent = loadedAslaid + ' / ' + aslaid.length + ' Loaded' + (extraKeys.length ? (' (+' + extraKeys.length + ' staged)') : '');
+    }
+
+    const sel = document.getElementById('rawRovTargetBox');
+    const prevVal = sel ? sel.value : '__AUTO__';
+    if (sel) {
+      let optHtml = '<option value="__AUTO__">-- Auto-Detect Mattress from Point ID (Bulk Paste) --</option>';
+      if (aslaid.length > 0) {
+        optHtml += '<optgroup label="As-Laid Mattresses (Installed Ledger)">';
+        aslaid.forEach(function(u) {
+          const bId = escHtml(u.box_id);
+          const mark = store[u.box_id] ? (' [' + store[u.box_id].count + ' raw pts]') : ' [No raw pts]';
+          optHtml += '<option value="' + bId + '">#' + escHtml(u.unit_no) + ': ' + bId + ' (' + escHtml(u.tag) + ')' + mark + '</option>';
+        });
+        optHtml += '</optgroup>';
+      }
+      if (cat.length > 0) {
+        optHtml += '<optgroup label="All Design Mattress Boxes (139)">';
+        cat.forEach(function(c) {
+          const cName = escHtml(c.name);
+          optHtml += '<option value="' + cName + '">' + cName + ' (' + escHtml(c.layer) + ')</option>';
+        });
+        optHtml += '</optgroup>';
+      }
+      sel.innerHTML = optHtml;
+      if (Array.from(sel.options).some(function(o) { return o.value === prevVal; })) {
+        sel.value = prevVal;
+      }
+    }
+
+    const tbody = document.getElementById('rawRovTableBody');
+    if (!tbody) return;
+    const rowsToRender = [];
+    aslaid.forEach(function(u) {
+      rowsToRender.push({
+        box_id: u.box_id,
+        sub: '#' + u.unit_no + ' | ' + u.tag + ' | ' + (u.install_date || ''),
+        rec: store[u.box_id] || null
+      });
+    });
+    extraKeys.sort().forEach(function(k) {
+      rowsToRender.push({
+        box_id: k,
+        sub: 'Staged Raw ROV',
+        rec: store[k]
+      });
+    });
+
+    if (rowsToRender.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="3" class="text-center text-secondary py-3">No as-laid mattresses or raw ROV fixes recorded yet.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = rowsToRender.map(function(item) {
+      const bId = escHtml(item.box_id);
+      const rec = item.rec;
+      let midCell = '<span class="text-secondary"><i class="fas fa-minus-circle me-1"></i>No Raw ROV points</span>';
+      if (rec && rec.count > 0) {
+        const cMap = rec.corners || {};
+        const cSumm = ['NW', 'NE', 'SE', 'SW'].map(function(q) {
+          return cMap[q] ? (q + ':' + Number(cMap[q].e).toFixed(1) + ',' + Number(cMap[q].n).toFixed(0)) : (q + ':-');
+        }).join(' | ');
+        midCell = '<div class="fw-bold" style="color:#22c55e;"><i class="fas fa-check-circle me-1"></i>' +
+          rec.count + ' raw pts | Z: ' + Number(rec.z_min).toFixed(2) + 'm to ' + Number(rec.z_max).toFixed(2) + 'm</div>' +
+          '<div class="font-monospace text-light" style="font-size:10.8px;opacity:0.88;">' + escHtml(cSumm) + '</div>';
+      }
+      const delBtn = rec
+        ? ('<button type="button" class="btn btn-xs btn-sm btn-outline-danger py-0 px-2 js-raw-del" data-box="' + bId + '" title="Remove raw ROV points"><i class="fas fa-trash"></i></button>')
+        : '';
+      return (
+        '<tr>' +
+          '<td><div class="fw-bold text-warning font-monospace">' + bId + '</div>' +
+          '<div class="text-secondary" style="font-size:10.8px;">' + escHtml(item.sub) + '</div></td>' +
+          '<td>' + midCell + '</td>' +
+          '<td class="text-end text-nowrap">' +
+            '<button type="button" class="btn btn-xs btn-sm btn-outline-info fw-bold py-0 px-2 me-1 js-raw-edit" data-box="' + bId + '" title="Load into input box to inspect or edit">Edit</button>' +
+            '<button type="button" class="btn btn-xs btn-sm btn-success fw-bold py-0 px-2 me-1 js-raw-upload" data-box="' + bId + '" title="Upload .txt/.csv/.xyz raw ROV file"><i class="fas fa-upload me-1"></i>Upload</button>' +
+            delBtn +
+          '</td>' +
+        '</tr>'
+      );
+    }).join('');
+  }
+
+  function onTargetChange(val) {
+    const hint = document.getElementById('rawRovBoxHint');
+    const inp = document.getElementById('rawRovTextInp');
+    if (val === '__AUTO__') {
+      if (hint) hint.textContent = 'Bulk mode auto-matches IDs like CRA1M15_NW, C1_NW_A1M16, C1_NW_A3M18.';
+      return;
+    }
+    const rec = (window._rawRovState.store || {})[val];
+    const asl = (window._rawRovState.aslaid || []).find(function(u) { return u.box_id === val; });
+    if (rec && rec.raw_text && inp) {
+      inp.value = rec.raw_text;
+    }
+    if (hint) {
+      hint.textContent = (asl ? ('Ledger center: E ' + Number(asl.aslaid_e || 0).toFixed(3) + ', N ' + Number(asl.aslaid_n || 0).toFixed(3) + ' | ') : '') +
+        (rec ? ('Stored Raw ROV: ' + rec.count + ' pts (Updated ' + (rec.updated_at || '') + ')') : ('No raw ROV points saved yet for ' + val + '. Paste E, N, Z lines below.'));
+    }
+  }
+
+  function refreshRawRovStatus() {
+    fetch('/mti/raw_rov_status')
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d && d.status === 'ok') {
+          window._rawRovState.store = d.raw_rov_points || {};
+          window._rawRovState.aslaid = d.aslaid_units || [];
+          window._rawRovState.catalog = d.catalog_boxes || [];
+          renderRawRovUI();
+        }
+      })
+      .catch(function() {});
+  }
+
+  function submitRawRovPayload(rawText, targetBox) {
+    const btn = document.getElementById('btnSaveRawRov');
+    if (btn) btn.disabled = true;
+    fetch('/mti/save_raw_rov', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        raw_text: rawText,
+        target_box_id: targetBox,
+        negate_z: !!(document.getElementById('rawRovNegateZ') && document.getElementById('rawRovNegateZ').checked),
+        append_mode: !!(document.getElementById('rawRovAppendMode') && document.getElementById('rawRovAppendMode').checked)
+      })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (btn) btn.disabled = false;
+      if (d && d.status === 'ok') {
+        showRawBanner('&#10004; Saved Raw ROV fixes for: <strong>' + escHtml((d.updated_boxes || []).join(', ')) + '</strong>', 'alert-success');
+        refreshRawRovStatus();
+      } else {
+        showRawBanner(escHtml((d && d.message) || 'Could not parse valid TWD97 E/N points.'), 'alert-danger');
+      }
+    })
+    .catch(function(err) {
+      if (btn) btn.disabled = false;
+      showRawBanner('Network error saving Raw ROV points: ' + escHtml(err), 'alert-danger');
+    });
+  }
+
+  function bindPanel4Events() {
+    const sel = document.getElementById('rawRovTargetBox');
+    if (sel) sel.addEventListener('change', function() { onTargetChange(sel.value); });
+
+    const btnClr = document.getElementById('btnClearRawRovBox');
+    if (btnClr) btnClr.addEventListener('click', function() {
+      const inp = document.getElementById('rawRovTextInp');
+      if (inp) inp.value = '';
+    });
+
+    const picker = document.getElementById('rawRovFilePicker');
+    const btnLoad = document.getElementById('btnLoadRawRovFile');
+    if (btnLoad && picker) {
+      btnLoad.addEventListener('click', function() {
+        window._rawRovUploadBoxTarget = sel ? sel.value : '__AUTO__';
+        picker.click();
+      });
+      picker.addEventListener('change', function() {
+        const f = picker.files && picker.files[0];
+        if (!f) return;
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+          const txt = String(ev.target.result || '');
+          const inp = document.getElementById('rawRovTextInp');
+          if (inp) inp.value = txt;
+          const tBox = window._rawRovUploadBoxTarget || (sel ? sel.value : '__AUTO__');
+          submitRawRovPayload(txt, tBox);
+          picker.value = '';
+        };
+        reader.readAsText(f);
+      });
+    }
+
+    const btnSave = document.getElementById('btnSaveRawRov');
+    if (btnSave) {
+      btnSave.addEventListener('click', function() {
+        const inp = document.getElementById('rawRovTextInp');
+        const txt = (inp ? inp.value : '').trim();
+        if (!txt) {
+          showRawBanner('Please paste Raw ROV coordinates (Point_ID, E, N, Z) before saving.', 'alert-warning');
+          return;
+        }
+        submitRawRovPayload(txt, sel ? sel.value : '__AUTO__');
+      });
+    }
+
+    const tbody = document.getElementById('rawRovTableBody');
+    if (tbody) {
+      tbody.addEventListener('click', function(ev) {
+        const editBtn = ev.target.closest('.js-raw-edit');
+        if (editBtn) {
+          const bId = editBtn.getAttribute('data-box') || '';
+          if (sel && bId) {
+            sel.value = bId;
+            onTargetChange(bId);
+          }
+          const inp = document.getElementById('rawRovTextInp');
+          if (inp) inp.focus();
+          return;
+        }
+        const upBtn = ev.target.closest('.js-raw-upload');
+        if (upBtn && picker) {
+          const bId = upBtn.getAttribute('data-box') || '';
+          window._rawRovUploadBoxTarget = bId;
+          if (sel && bId) sel.value = bId;
+          picker.click();
+          return;
+        }
+        const delBtn = ev.target.closest('.js-raw-del');
+        if (delBtn) {
+          const bId = delBtn.getAttribute('data-box') || '';
+          if (!bId || !confirm('Remove stored Raw ROV points for ' + bId + '? (Post-processed submittal ledger will NOT be affected.)')) return;
+          fetch('/mti/delete_raw_rov', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ box_id: bId })
+          })
+          .then(function(r) { return r.json(); })
+          .then(function(d) {
+            if (d && d.status === 'ok') {
+              showRawBanner('Removed Raw ROV points for <strong>' + escHtml(bId) + '</strong>.', 'alert-info');
+              refreshRawRovStatus();
+            }
+          });
+        }
+      });
+    }
+  }
+
+  function bootPanel4() {
+    mountPanel4IntoSetupGrid();
+    bindPanel4Events();
+    refreshRawRovStatus();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootPanel4);
+  } else {
+    bootPanel4();
+  }
+})();
+</script>
+<!-- RAW_ROV_PANEL4_END -->
 </body>
 </html>"""
 
@@ -2367,3 +2764,96 @@ def mti_download_adhoc_pdf(req_fn=None):
     if not os.path.exists(p):
         p = os.path.join(MTI_WS_DIR, "latest_MTI_AdHoc_Chart.pdf")
     return send_file(p, as_attachment=True, download_name=fn, mimetype="application/pdf")
+
+# --- PANEL 4: RAW ROV POINTS PER AS-LAID MATTRESS ROUTES ---
+from mti_raw_rov import load_raw_rov_store, save_raw_rov_store, parse_and_merge_raw_rov_text
+
+@mti_bp.route('/raw_rov_status')
+@login_required
+def mti_raw_rov_status():
+    st = load_mti_state()
+    ledger = list((st or {}).get("ledger") or [])
+    cat_list = list(MATTRESS_CATALOG.values()) if isinstance(MATTRESS_CATALOG, dict) else list(MATTRESS_CATALOG)
+    store = load_raw_rov_store(st, MTI_WS_DIR, save_mti_state, ledger, cat_list)
+
+    aslaid_units = []
+    for idx, r in enumerate(sorted(ledger, key=lambda x: int(float(x.get("unit_no") or 9999))), start=1):
+        b_id = str(r.get("design_box_id") or "").strip().upper()
+        if not b_id:
+            continue
+        aslaid_units.append({
+            "unit_no": int(float(r.get("unit_no") or idx)),
+            "box_id": b_id,
+            "tag": str(r.get("physical_tag") or "-").strip(),
+            "crossing_id": str(r.get("crossing_id") or "").strip(),
+            "install_date": str(r.get("install_date") or "").strip(),
+            "aslaid_e": r.get("aslaid_e") or r.get("qaqc_e") or 0.0,
+            "aslaid_n": r.get("aslaid_n") or r.get("qaqc_n") or 0.0,
+            "has_raw": b_id in store,
+            "raw_count": int((store.get(b_id) or {}).get("count") or 0)
+        })
+
+    catalog_boxes = [
+        {"name": str(c.get("name") or "").strip().upper(), "layer": str(c.get("layer") or "").strip()}
+        for c in cat_list if c.get("name")
+    ]
+    return jsonify({
+        "status": "ok",
+        "raw_rov_points": store,
+        "aslaid_units": aslaid_units,
+        "catalog_boxes": catalog_boxes
+    })
+
+@mti_bp.route('/save_raw_rov', methods=['POST'])
+@login_required
+def mti_save_raw_rov():
+    req = request.get_json(silent=True) or request.form.to_dict()
+    raw_txt = str(req.get("raw_text") or "").strip()
+    if not raw_txt and "raw_file" in request.files:
+        f = request.files["raw_file"]
+        if f:
+            raw_txt = f.read().decode("utf-8", errors="ignore")
+
+    target_box = str(req.get("target_box_id") or "").strip()
+    neg_z = _as_bool(req.get("negate_z"), False) if "_as_bool" in globals() else bool(req.get("negate_z"))
+    app_mode = _as_bool(req.get("append_mode"), False) if "_as_bool" in globals() else bool(req.get("append_mode"))
+
+    st = load_mti_state()
+    ledger = list((st or {}).get("ledger") or [])
+    cat_list = list(MATTRESS_CATALOG.values()) if isinstance(MATTRESS_CATALOG, dict) else list(MATTRESS_CATALOG)
+    cur_store = load_raw_rov_store(st, MTI_WS_DIR, None, ledger, cat_list)
+
+    new_store, updated_boxes, skipped = parse_and_merge_raw_rov_text(
+        raw_txt, cur_store, target_box_id=target_box, negate_z=neg_z,
+        append_mode=app_mode, ledger=ledger, catalog=cat_list
+    )
+    if not updated_boxes:
+        return jsonify({
+            "status": "error",
+            "message": "No valid TWD97 E/N points matched a Mattress ID. Select a Target As-Laid Mattress in the dropdown if point IDs do not include the Box ID."
+        }), 400
+
+    save_raw_rov_store(new_store, st, save_mti_state, MTI_WS_DIR)
+    return jsonify({
+        "status": "ok",
+        "updated_boxes": updated_boxes,
+        "skipped_lines": skipped,
+        "total_boxes": len(new_store)
+    })
+
+@mti_bp.route('/delete_raw_rov', methods=['POST'])
+@login_required
+def mti_delete_raw_rov():
+    req = request.get_json(silent=True) or request.form.to_dict()
+    b_id = str(req.get("box_id") or "").strip().upper()
+    st = load_mti_state()
+    ledger = list((st or {}).get("ledger") or [])
+    cat_list = list(MATTRESS_CATALOG.values()) if isinstance(MATTRESS_CATALOG, dict) else list(MATTRESS_CATALOG)
+    cur_store = load_raw_rov_store(st, MTI_WS_DIR, None, ledger, cat_list)
+    if b_id == "__ALL__":
+        cur_store = {}
+    else:
+        for k in [k for k in list(cur_store.keys()) if str(k).upper() == b_id]:
+            cur_store.pop(k, None)
+    save_raw_rov_store(cur_store, st, save_mti_state, MTI_WS_DIR)
+    return jsonify({"status": "ok", "deleted": b_id, "total_boxes": len(cur_store)})

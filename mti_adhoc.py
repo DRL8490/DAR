@@ -13,6 +13,7 @@ from mti_4panel_math import (
     idw_interpolate, get_or_build_seabed_xyz, load_cad_bg_polylines
 )
 from mti_4panel_a3 import draw_north_arrow, plot_cad_background, plot_seabed_layer
+from mti_raw_rov import load_raw_rov_store, get_raw_rov_corners_tuple
 from mti_4panel_reports import (
     CROSSING_SCOPES, norm_mti_date, extract_all_mti_logs, parse_log_entry_fields
 )
@@ -69,6 +70,7 @@ OUTPUT_FIGS.append(fig)
 
 def build_adhoc_gemini_context(st_data, catalog_list, workspace_dir="workspace", surveyor_name="Duty Surveyor"):
     ledger = list((st_data or {}).get("ledger") or [])
+    raw_rov_store = load_raw_rov_store(st_data, workspace_dir, None, ledger, catalog_list)
     raw_logs = extract_all_mti_logs(st_data or {})
     parsed_logs = [parse_log_entry_fields(lg, surveyor_name) for lg in raw_logs]
     log_dates = sorted({p[0] for p in parsed_logs if p[0]}, reverse=True)
@@ -116,6 +118,7 @@ def build_adhoc_gemini_context(st_data, catalog_list, workspace_dir="workspace",
         f"   - `catalog`: List of {len(catalog_list or [])} design mattress dicts with keys `['layer', 'name', 'design_e', 'design_n', 'bearing']`",
         f"   - Loaded Bathy Locations: {bathy_ready or ['None']}",
         f"   - Loaded CAD DXF Locations: {cad_ready or ['None']}",
+        f"   - `raw_rov_points`: Dict of {len(raw_rov_store)} mattresses with ACTUAL unadjusted ROV survey points from Setup Panel 4 (`keys`: {sorted(list(raw_rov_store.keys())) or ['None']}; note: `ledger[i]` c1..c4 are post-processed submittal coords)",
         "",
         "3. PRE-LOADED HELPER FUNCTIONS & LIBRARIES:",
         "   - Libraries ready in scope: `np`, `plt`, `mpatches`, `patheffects`, `PdfPages`, `math`, `re`, `json`, `textwrap`, `datetime`, `io`",
@@ -128,6 +131,8 @@ def build_adhoc_gemini_context(st_data, catalog_list, workspace_dir="workspace",
         "   - `plot_seabed_layer(ax, seabed_xyz, x_lim, y_lim, is_zoomed=False, show_contours=True, contour_interval=0.05, show_soundings=True, spot_spacing=2.0, bathy_source='SURVEY_BATHY')`",
         "   - `plot_cad_background(ax, cad_polylines, is_local=False, des_e=0.0, des_n=0.0, u_short=None, u_long=None)`",
         "   - `norm_mti_date(val)` -> `'YYYY-MM-DD'` string",
+        "   - `get_raw_rov_corners(box_id)` -> `(corners_4x2_cw, pt_ids_cw, z_vals_cw)` in clockwise NW, NE, SE, SW order from Setup Panel 4 `(None, None, None)` if absent",
+        "   - `get_raw_rov_points(box_id)` -> list of all raw ROV fix dicts `[{'pt_id', 'quad', 'e', 'n', 'z'}, ...]` for `box_id`",
         "",
         "4. OUTPUT CONTRACT (REQUIRED AT END OF SCRIPT):",
         "   - Append every Matplotlib figure page in order to `OUTPUT_FIGS` (e.g., `OUTPUT_FIGS.append(fig)`).",
@@ -153,6 +158,7 @@ def execute_adhoc_chart_script(
 
     plt.close("all")
     ledger = list((st_data or {}).get("ledger") or [])
+    raw_rov_store = load_raw_rov_store(st_data, workspace_dir, None, ledger, catalog_list)
     raw_logs = extract_all_mti_logs(st_data or {})
     parsed_logs = [parse_log_entry_fields(lg, surveyor_name) for lg in raw_logs]
     cats = list(catalog_list.values()) if isinstance(catalog_list, dict) else list(catalog_list or [])
@@ -202,6 +208,9 @@ def execute_adhoc_chart_script(
         "plot_seabed_layer": plot_seabed_layer,
         "plot_cad_background": plot_cad_background,
         "norm_mti_date": norm_mti_date,
+        "raw_rov_points": raw_rov_store,
+        "get_raw_rov_corners": lambda b_id: get_raw_rov_corners_tuple(raw_rov_store, b_id),
+        "get_raw_rov_points": lambda b_id: list((raw_rov_store.get(str(b_id or "").strip().upper()) or {}).get("points") or []),
         "OUTPUT_FIGS": output_figs,
         "OUTPUT_PDF_BYTES": None,
         "OUTPUT_FILENAME": custom_filename or f"{today_ymd}_MTI_AdHoc_Chart.pdf",
