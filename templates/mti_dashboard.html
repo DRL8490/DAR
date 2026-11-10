@@ -1135,9 +1135,12 @@ function openQrModal(){
 
 
 
+
 <script id="mti4PanelStudioUpgrade">
 (function() {
   window.MTI_CURRENT_USER_NAME = '';
+  window.MTI_DPR_COUNTS = {};
+  window.MTI_DPR_LATEST_DATE = '';
 
   function detectCurrentUserFromDom() {
     const srvInp = document.querySelector('input[name="surveyor"]:not(#inpFormSurveyorName), input[name="user_name"], input[name="operator"], #surveyorNameInput');
@@ -1162,12 +1165,49 @@ function openQrModal(){
     }
   }
 
+  function getTodayIsoLocal() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + d;
+  }
+
   function getSelectedDprDate() {
-    const dtInput = document.querySelector('input[type="date"], input[name*="dpr_date"], input[id*="dprDate"], input[placeholder*="YYYY"]');
-    if (dtInput && dtInput.value && dtInput.value.trim()) {
-      return dtInput.value.trim();
+    const picker = document.getElementById('mtiTopDprDate');
+    if (picker && picker.value && picker.value.trim()) {
+      return picker.value.trim();
     }
-    return '';
+    return window.MTI_DPR_LATEST_DATE || getTodayIsoLocal();
+  }
+
+  function buildDprDownloadUrl(dtIso) {
+    const cleanIso = (dtIso || getSelectedDprDate()).replace(/[^0-9-]/g, '');
+    const yyyymmdd = cleanIso.replace(/-/g, '') || getTodayIsoLocal().replace(/-/g, '');
+    const fname = yyyymmdd + '_MTI_Daily_Progress_Report.pdf';
+    const survVal = window.MTI_CURRENT_USER_NAME || detectCurrentUserFromDom() || '';
+    const qs = new URLSearchParams();
+    if (cleanIso) qs.set('date', cleanIso);
+    if (survVal) qs.set('surveyor_name', survVal);
+    return '/mti/create_pdf_dpr/' + encodeURIComponent(fname) + (qs.toString() ? ('?' + qs.toString()) : '');
+  }
+
+  function updateDprButtonAndTooltip() {
+    const picker = document.getElementById('mtiTopDprDate');
+    const btn = document.getElementById('btnCreatePdfMtiDpr');
+    if (!btn) return;
+    const dtVal = getSelectedDprDate();
+    const url = buildDprDownloadUrl(dtVal);
+    btn.setAttribute('href', url);
+    const info = (window.MTI_DPR_COUNTS && window.MTI_DPR_COUNTS[dtVal]) ? window.MTI_DPR_COUNTS[dtVal] : null;
+    const yyyymmdd = dtVal.replace(/-/g, '');
+    const countSummary = info
+      ? (' (' + (info.fixes || 0) + ' fix(es), ' + (info.logs || 0) + ' log(s))')
+      : ' (0 fixes, 0 logs recorded on this date)';
+    btn.title = 'Download ' + yyyymmdd + '_MTI_Daily_Progress_Report.pdf for ' + dtVal + ' 00:00-23:59' + countSummary;
+    if (picker) {
+      picker.title = 'Select MTI DPR Date (00:00-23:59)' + countSummary;
+    }
   }
 
   function removeLine4ZInputs() {
@@ -1201,13 +1241,12 @@ function openQrModal(){
     const oldSetupBtn = document.getElementById('btnTopSurveySetup');
     if (oldSetupBtn) oldSetupBtn.remove();
 
-    let dprAnchorBtn = null;
+    let dprAnchorEl = null;
 
     document.querySelectorAll('a.btn, button.btn').forEach(function(btn) {
       const txt = (btn.textContent || '').replace(/\s+/g, ' ').trim();
       const href = (btn.getAttribute('href') || '').toLowerCase();
 
-      // 1. Scan QR -> keep only icon, remove text
       if (txt.indexOf('Scan QR') !== -1) {
         const icon = btn.querySelector('i, svg');
         btn.title = 'Scan QR';
@@ -1221,58 +1260,72 @@ function openQrModal(){
         }
         btn.classList.add('px-2');
       }
-      // 2. Mobile Input Page -> keep only icon, remove text
-      else if (txt.indexOf('Mobile Input Page') !== -1 || href.indexOf('mobile') !== -1) {
-        if (txt.indexOf('Mobile Input') !== -1) {
-          const icon = btn.querySelector('i, svg');
-          btn.title = 'Mobile Input Page';
-          btn.setAttribute('aria-label', 'Mobile Input Page');
-          if (icon) {
-            icon.className = icon.className.replace(/\bme-\d+\b/g, '').trim();
-            btn.innerHTML = '';
-            btn.appendChild(icon);
-          } else {
-            btn.innerHTML = '<i class="fas fa-mobile-alt"></i>';
-          }
-          btn.classList.add('px-2');
+      else if (txt.indexOf('Mobile Input Page') !== -1 || (href.indexOf('mobile') !== -1 && txt.indexOf('Mobile Input') !== -1)) {
+        const icon = btn.querySelector('i, svg');
+        btn.title = 'Mobile Input Page';
+        btn.setAttribute('aria-label', 'Mobile Input Page');
+        if (icon) {
+          icon.className = icon.className.replace(/\bme-\d+\b/g, '').trim();
+          btn.innerHTML = '';
+          btn.appendChild(icon);
+        } else {
+          btn.innerHTML = '<i class="fas fa-mobile-alt"></i>';
         }
+        btn.classList.add('px-2');
       }
-      // 3. Change "Export MTI Ledger & Logs (.xlsx)" to "Create PDF MTI DPR"
-      else if (txt.indexOf('Export MTI') !== -1 || href.indexOf('export') !== -1 || btn.id === 'btnCreatePdfMtiDpr') {
+      else if (txt.indexOf('Export MTI') !== -1 || href.indexOf('export_excel') !== -1 || btn.id === 'btnCreatePdfMtiDpr') {
         btn.id = 'btnCreatePdfMtiDpr';
-        btn.title = 'Create Daily Progress Report PDF (00:00 to 23:59 logs)';
+        btn.className = 'btn btn-sm btn-success fw-bold d-inline-flex align-items-center';
+        btn.style.cssText = 'border-top-left-radius:0;border-bottom-left-radius:0;white-space:nowrap;';
         btn.innerHTML = '<i class="fas fa-file-pdf me-1"></i>Create PDF MTI DPR';
+
+        let grp = document.getElementById('mtiDprControlGroup');
+        if (!grp && btn.parentNode) {
+          grp = document.createElement('div');
+          grp.id = 'mtiDprControlGroup';
+          grp.className = 'd-inline-flex align-items-stretch';
+          grp.style.cssText = 'vertical-align:middle;';
+
+          const dtInp = document.createElement('input');
+          dtInp.type = 'date';
+          dtInp.id = 'mtiTopDprDate';
+          dtInp.className = 'form-control form-control-sm fw-bold font-monospace';
+          dtInp.style.cssText = 'width:138px;border-top-right-radius:0;border-bottom-right-radius:0;border-color:#198754;background:#ffffff;color:#0f172a;font-size:12px;padding:2px 6px;cursor:pointer;';
+          dtInp.value = window.MTI_DPR_LATEST_DATE || getTodayIsoLocal();
+          dtInp.addEventListener('change', function() {
+            dtInp.dataset.userEdited = '1';
+            updateDprButtonAndTooltip();
+          });
+
+          btn.parentNode.insertBefore(grp, btn);
+          grp.appendChild(dtInp);
+          grp.appendChild(btn);
+        }
+
         btn.onclick = function(ev) {
           ev.preventDefault();
-          const dtVal = getSelectedDprDate();
-          const survVal = window.MTI_CURRENT_USER_NAME || detectCurrentUserFromDom() || '';
-          const qs = new URLSearchParams();
-          if (dtVal) qs.set('date', dtVal);
-          if (survVal) qs.set('surveyor_name', survVal);
-          window.open('/mti/create_pdf_dpr' + (qs.toString() ? ('?' + qs.toString()) : ''), '_blank');
+          const url = buildDprDownloadUrl(getSelectedDprDate());
+          window.open(url, '_blank');
         };
-        btn.setAttribute('href', '/mti/create_pdf_dpr');
-        dprAnchorBtn = btn;
+        dprAnchorEl = grp || btn;
+        updateDprButtonAndTooltip();
       }
-      // 4. Remove Reports Hub button from MTI top bar
       else if (txt.indexOf('Reports Hub') !== -1 || href.indexOf('reports_hub') !== -1 || href === '/reports') {
         btn.remove();
       }
-      // 5. Remove Survey Setup button from MTI top bar
       else if (txt.indexOf('Survey Setup') !== -1 && btn.id !== 'btnStudioSurveySetup') {
         btn.remove();
       }
     });
 
-    // 6. Inject or update the "CHART" button right after "Create PDF MTI DPR"
     let chartBtn = document.getElementById('btnTop4PanelWin');
-    if (!chartBtn && dprAnchorBtn && dprAnchorBtn.parentNode) {
+    if (!chartBtn && dprAnchorEl && dprAnchorEl.parentNode) {
       chartBtn = document.createElement('a');
       chartBtn.id = 'btnTop4PanelWin';
       chartBtn.target = '_blank';
       chartBtn.className = 'btn btn-sm btn-info text-dark fw-bold';
       chartBtn.style.cssText = 'background:#38bdf8;border-color:#0284c7;color:#0f172a;';
-      dprAnchorBtn.parentNode.insertBefore(chartBtn, dprAnchorBtn.nextSibling);
+      dprAnchorEl.parentNode.insertBefore(chartBtn, dprAnchorEl.nextSibling);
     }
     if (chartBtn) {
       chartBtn.innerHTML = '&#128202; CHART';
@@ -1397,17 +1450,34 @@ function openQrModal(){
     });
   }
 
-  fetch('/mti/whoami')
+  fetch('/mti/dpr_dates')
     .then(function(r) { return r.json(); })
     .then(function(d) {
-      if (d && d.user_name && d.user_name.toLowerCase() !== 'duty surveyor') {
+      if (!d || d.status !== 'ok') return;
+      if (d.user_name && d.user_name.toLowerCase() !== 'duty surveyor') {
         window.MTI_CURRENT_USER_NAME = d.user_name;
         syncSurveyorInputBox(true);
         const topStudio = document.getElementById('btnTop4PanelWin');
         if (topStudio) topStudio.href = '/mti/studio?surveyor_name=' + encodeURIComponent(d.user_name);
       }
+      window.MTI_DPR_COUNTS = d.counts || {};
+      if (d.latest_date) {
+        window.MTI_DPR_LATEST_DATE = d.latest_date;
+        const picker = document.getElementById('mtiTopDprDate');
+        if (picker && !picker.dataset.userEdited) {
+          picker.value = d.latest_date;
+        }
+      }
+      updateDprButtonAndTooltip();
     })
-    .catch(function() {});
+    .catch(function() {
+      fetch('/mti/whoami').then(function(r) { return r.json(); }).then(function(d) {
+        if (d && d.user_name && d.user_name.toLowerCase() !== 'duty surveyor') {
+          window.MTI_CURRENT_USER_NAME = d.user_name;
+          syncSurveyorInputBox(true);
+        }
+      }).catch(function() {});
+    });
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initMti4PanelUpgrades);

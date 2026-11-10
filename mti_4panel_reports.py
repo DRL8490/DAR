@@ -11,6 +11,173 @@ CROSSING_SCOPES = [
     ("CR-B1_L1", 25), ("CR-B1_L2", 2), ("CR-B2", 7), ("CR-B3", 35)
 ]
 
+def norm_mti_date(s):
+    s = str(s or "").strip()
+    m1 = re.search(r"(\d{4})[-/](\d{1,2})[-/](\d{1,2})", s)
+    if m1:
+        return f"{int(m1.group(1)):04d}-{int(m1.group(2)):02d}-{int(m1.group(3)):02d}"
+    m2 = re.search(r"(\d{1,2})[-/](\d{1,2})[-/](\d{4})", s)
+    if m2:
+        a, b, y = int(m2.group(1)), int(m2.group(2)), int(m2.group(3))
+        return f"{y:04d}-{b:02d}-{a:02d}" if a > 12 else f"{y:04d}-{a:02d}-{b:02d}"
+    m3 = re.match(r"^(\d{4})(\d{2})(\d{2})$", s)
+    if m3:
+        return f"{m3.group(1)}-{m3.group(2)}-{m3.group(3)}"
+    months = {"jan":1,"feb":2,"mar":3,"apr":4,"may":5,"jun":6,"jul":7,"aug":8,"sep":9,"oct":10,"nov":11,"dec":12}
+    m4 = re.search(r"([A-Za-z]{3})[a-z]*[\s,-]+(\d{1,2})[\s,-]+(\d{4})", s)
+    if m4 and m4.group(1).lower() in months:
+        return f"{int(m4.group(3)):04d}-{months[m4.group(1).lower()]:02d}-{int(m4.group(2)):02d}"
+    m5 = re.search(r"(\d{1,2})[\s,-]+([A-Za-z]{3})[a-z]*[\s,-]+(\d{4})", s)
+    if m5 and m5.group(2).lower() in months:
+        return f"{int(m5.group(3)):04d}-{months[m5.group(2).lower()]:02d}-{int(m5.group(1)):02d}"
+    return ""
+
+def extract_all_mti_logs(st_data):
+    # Extracts onboard survey logs across list-of-dicts OR date-keyed dict-of-lists in MTI state.
+    if not isinstance(st_data, dict):
+        return []
+    priority_keys = (
+        "input_logs", "logs", "survey_logs", "onboard_logs",
+        "events", "event_log", "event_logs", "daily_logs", "ops_logs", "activity_logs"
+    )
+    collected = []
+    seen_sigs = set()
+
+    def _add_item(item, parent_dt=""):
+        if not isinstance(item, dict):
+            return
+        d_copy = dict(item)
+        if parent_dt and not any(d_copy.get(k) for k in ("log_date", "event_date", "date", "dpr_date")):
+            d_copy["log_date"] = parent_dt
+        sig = repr(sorted((str(ik), str(iv)) for ik, iv in d_copy.items()))
+        if sig not in seen_sigs:
+            seen_sigs.add(sig)
+            collected.append(d_copy)
+
+    for k in priority_keys:
+        val = st_data.get(k)
+        if isinstance(val, list):
+            for item in val:
+                _add_item(item)
+        elif isinstance(val, dict):
+            for sub_k, sub_v in val.items():
+                p_dt = norm_mti_date(sub_k)
+                if isinstance(sub_v, list):
+                    for item in sub_v:
+                        _add_item(item, p_dt)
+                elif isinstance(sub_v, dict):
+                    _add_item(sub_v, p_dt)
+
+    if not collected:
+        skip_keys = {"ledger", "catalog", "custom_catalog", "users", "user_access", "survey_setup"}
+        for k, val in st_data.items():
+            if k in skip_keys:
+                continue
+            if isinstance(val, list) and val and isinstance(val[0], dict) and "design_e" not in val[0] and "aslaid_e" not in val[0]:
+                for item in val:
+                    _add_item(item)
+            elif isinstance(val, dict):
+                for sub_k, sub_v in val.items():
+                    p_dt = norm_mti_date(sub_k)
+                    if p_dt and isinstance(sub_v, list):
+                        for item in sub_v:
+                            _add_item(item, p_dt)
+    return collected
+
+def parse_log_entry_fields(lg, default_surveyor="Duty Surveyor"):
+    """Normalizes any MTI log dict into (date_iso, time_hm, category, area, clean_desc, env_short, surveyor)."""
+    dt_found = ""
+    tm_found = ""
+    date_keys = ("log_date", "event_date", "date", "dpr_date", "timestamp", "datetime", "dt", "created_at", "logged_at", "install_date", "time")
+    time_keys = ("log_time", "event_time", "time", "start_time", "hm", "hrs", "timestamp", "datetime", "dt", "created_at", "logged_at")
+
+    for dk in date_keys:
+        if lg.get(dk):
+            d = norm_mti_date(lg.get(dk))
+            if d:
+                dt_found = d
+                break
+    for tk in time_keys:
+        val = str(lg.get(tk) or "").strip()
+        m_t = re.search(r"(?:^|\s|T)(\d{1,2}:\d{2})(?::\d{2})?", val)
+        if m_t:
+            hh, mm = [int(x) for x in m_t.group(1).split(":")]
+            if 0 <= hh <= 23 and 0 <= mm <= 59:
+                tm_found = f"{hh:02d}:{mm:02d}"
+                break
+
+    if not dt_found:
+        for v in lg.values():
+            if isinstance(v, str):
+                d = norm_mti_date(v)
+                if d:
+                    dt_found = d
+                    break
+    if not tm_found:
+        for v in lg.values():
+            if isinstance(v, str):
+                m_t = re.search(r"(?:^|\s|T)(\d{1,2}:\d{2})", v)
+                if m_t:
+                    hh, mm = [int(x) for x in m_t.group(1).split(":")]
+                    if 0 <= hh <= 23 and 0 <= mm <= 59:
+                        tm_found = f"{hh:02d}:{mm:02d}"
+                        break
+
+    cat_s = str(
+        lg.get("category") or lg.get("log_type") or lg.get("event_type") or
+        lg.get("type") or lg.get("activity_type") or lg.get("phase") or "Ops"
+    ).strip()
+
+    area_s = str(
+        lg.get("crossing_id") or lg.get("crossing") or lg.get("area") or
+        lg.get("location") or lg.get("asset") or lg.get("vessel") or lg.get("target") or "MMA Prestige"
+    ).strip()
+
+    primary_parts = []
+    for pk in ("event", "activity", "title", "description", "summary", "message", "log_text"):
+        pv = str(lg.get(pk) or "").strip()
+        if pv and pv not in primary_parts:
+            primary_parts.append(pv)
+    for sk in ("details", "notes", "note", "remarks", "comment", "sub_text", "operational_notes"):
+        sv = str(lg.get(sk) or "").strip()
+        if sv and all(sv not in p for p in primary_parts):
+            primary_parts.append(sv)
+    if not primary_parts:
+        skip_meta = {
+            "id", "date", "log_date", "event_date", "dpr_date", "time", "log_time", "event_time",
+            "timestamp", "datetime", "dt", "created_at", "logged_at", "category", "log_type",
+            "event_type", "type", "activity_type", "phase", "crossing_id", "crossing", "area",
+            "location", "asset", "vessel", "target", "wind", "env_wind", "wind_kt", "wind_speed",
+            "current", "curr", "env_current", "current_ms", "curr_kt", "usbl", "usbl_sensor",
+            "surveyor", "surveyor_name", "logged_by", "user_name", "username", "user", "author"
+        }
+        for fk, fv in lg.items():
+            if str(fk).lower() not in skip_meta and isinstance(fv, str) and fv.strip():
+                primary_parts.append(fv.strip())
+    raw_combined = " | ".join(primary_parts) if primary_parts else "-"
+
+    w_val = str(lg.get("wind") or lg.get("env_wind") or lg.get("wind_kt") or lg.get("wind_speed") or "").strip()
+    c_val = str(lg.get("current") or lg.get("curr") or lg.get("env_current") or lg.get("current_ms") or lg.get("curr_kt") or "").strip()
+    m_env = re.search(r"\[([^\]]*(?:Wind|Curr|USBL)[^\]]*)\]", raw_combined, re.I)
+    env_tag = m_env.group(1) if m_env else ""
+    clean_desc = re.sub(r"\s*\[[^\]]*(?:Wind|Curr|USBL)[^\]]*\]", "", raw_combined).strip(" |") or "-"
+
+    if env_tag:
+        env_short = re.sub(r"USBL:[^|]+\|\s*", "", env_tag, flags=re.I).replace("Curr:NaN", "Curr:-").strip()
+    elif w_val or c_val:
+        w_str = f"W:{w_val}" if w_val and w_val.lower() != "nan" else ""
+        c_str = f"C:{c_val}" if c_val and c_val.lower() != "nan" else ""
+        env_short = " | ".join([x for x in (w_str, c_str) if x])
+    else:
+        env_short = "-"
+
+    surv_l = str(
+        lg.get("surveyor_name") or lg.get("surveyor") or lg.get("logged_by") or
+        lg.get("user_name") or lg.get("username") or lg.get("user") or lg.get("author") or default_surveyor
+    ).strip()
+
+    return dt_found, (tm_found or "00:00"), cat_s, area_s, clean_desc, env_short, surv_l
+
 def build_structured_report_markdown(metrics, include_history=False, ledger_list=None, scale_p1=250, scale_p2=75):
     loc_id, mat_id = metrics.get("location_id", "CR-A1_M15"), metrics.get("mattress_id", "#A046")
     xing_id, usbl_s = metrics.get("crossing_id", "CR-A1_L1"), metrics.get("usbl_sensor", "Survey Pole")
@@ -72,7 +239,6 @@ def build_structured_report_markdown(metrics, include_history=False, ledger_list
     return chr(10).join(lines)
 
 def render_a4_landscape_figures(metrics, custom_report_md=None):
-    """Renders Landscape (297 x 210 mm) report page(s) with +2 pt larger fonts, no redundant Chart Scales line, and no 'ISO A4' text."""
     md_text = custom_report_md if custom_report_md else build_structured_report_markdown(metrics)
     filtered_lines = [
         ln for ln in str(md_text).splitlines()
@@ -156,54 +322,34 @@ def generate_a4_report_pdf(metrics, workspace_dir="workspace", custom_report_md=
 
 def generate_mti_dpr_pdf(st_data, target_date_str=None, surveyor_name="Duty Surveyor", workspace_dir="workspace"):
     """
-    Generates an executive Landscape Daily Progress Report (DPR) PDF for MTI Operations
-    covering 00:00 to 23:59 hrs of target_date_str, with bordered tables, per-crossing progress matrix,
-    metocean extraction, and word-wrapped chronological event logs.
+    Generates a Landscape Daily Progress Report (DPR) PDF for MTI Operations covering 00:00 to 23:59 hrs
+    of target_date_str, with YYYYMMDD filename, universal log extraction, and signature lines removed.
     """
     os.makedirs(workspace_dir, exist_ok=True)
     ledger = list((st_data or {}).get("ledger") or [])
-    raw_logs = []
-    for k in ("logs", "events", "event_log", "survey_logs"):
-        if isinstance((st_data or {}).get(k), list) and len(st_data[k]) > 0:
-            raw_logs = list(st_data[k])
-            break
-
-    def _norm_date(s):
-        s = str(s or "").strip()
-        m1 = re.search(r"(\d{4})[-/](\d{2})[-/](\d{2})", s)
-        if m1:
-            return f"{m1.group(1)}-{m1.group(2)}-{m1.group(3)}"
-        m2 = re.search(r"(\d{2})[-/](\d{2})[-/](\d{4})", s)
-        if m2:
-            return f"{m2.group(3)}-{m2.group(2)}-{m2.group(1)}"
-        return ""
+    raw_logs = extract_all_mti_logs(st_data)
+    parsed_logs = [parse_log_entry_fields(lg, surveyor_name) for lg in raw_logs]
 
     def _extract_time(s):
         m = re.search(r"(\d{2}:\d{2})", str(s or ""))
         return m.group(1) if m else "00:00"
 
-    dt_iso = _norm_date(target_date_str)
+    dt_iso = norm_mti_date(target_date_str)
     if not dt_iso:
-        all_dates = []
-        for lg in raw_logs:
-            d = _norm_date(lg.get("timestamp") or lg.get("date") or lg.get("time") or lg.get("dt"))
-            if d: all_dates.append(d)
+        all_dates = [d for (d, _, _, _, _, _, _) in parsed_logs if d]
         for r in ledger:
-            d = _norm_date(r.get("install_date"))
-            if d: all_dates.append(d)
+            d = norm_mti_date(r.get("install_date"))
+            if d:
+                all_dates.append(d)
         dt_iso = max(all_dates) if all_dates else datetime.utcnow().strftime("%Y-%m-%d")
 
-    prior_fixes = [r for r in ledger if (_norm_date(r.get("install_date")) or "9999") < dt_iso]
-    day_fixes = [r for r in ledger if _norm_date(r.get("install_date")) == dt_iso]
+    prior_fixes = [r for r in ledger if (norm_mti_date(r.get("install_date")) or "9999") < dt_iso]
+    day_fixes = [r for r in ledger if norm_mti_date(r.get("install_date")) == dt_iso]
     day_fixes.sort(key=lambda r: _extract_time(r.get("install_date")))
-    cum_fixes = [r for r in ledger if (_norm_date(r.get("install_date")) or "0000") <= dt_iso]
+    cum_fixes = [r for r in ledger if (norm_mti_date(r.get("install_date")) or "0000") <= dt_iso]
 
-    day_logs = []
-    for lg in raw_logs:
-        ts_raw = lg.get("timestamp") or lg.get("date") or lg.get("time") or lg.get("dt") or ""
-        if _norm_date(ts_raw) == dt_iso:
-            day_logs.append(lg)
-    day_logs.sort(key=lambda lg: _extract_time(lg.get("timestamp") or lg.get("date") or lg.get("time") or ""))
+    day_logs = [item for item in parsed_logs if item[0] == dt_iso]
+    day_logs.sort(key=lambda item: item[1])
 
     W_MM, H_MM = 297.0, 210.0
 
@@ -285,7 +431,7 @@ def generate_mti_dpr_pdf(st_data, target_date_str=None, surveyor_name="Duty Surv
             ax.text(x0 + 1.5, y + 0.9, h_lbl, fontsize=7.4, fontweight="bold", color="#0f172a", va="center")
         y -= 4.4
         for idx_f, r in enumerate(day_fixes):
-            if y < 22.0:
+            if y < 19.5:
                 p_no += 1; fig, ax = _new_dpr_page(p_no); figs.append(fig); y = 180.0
             bg_c = "#f8fafc" if idx_f % 2 == 0 else "#ffffff"
             ax.add_patch(mpatches.Rectangle((13, y - 1.2), 271, 4.2, facecolor=bg_c, edgecolor="#cbd5e1", linewidth=0.4))
@@ -303,7 +449,7 @@ def generate_mti_dpr_pdf(st_data, target_date_str=None, surveyor_name="Duty Surv
         y -= 2.5
 
     # --- SECTION 3: CHRONOLOGICAL ONBOARD SURVEY EVENT LOG (00:00 - 23:59) ---
-    if y < 38.0:
+    if y < 28.0:
         p_no += 1; fig, ax = _new_dpr_page(p_no); figs.append(fig); y = 180.0
     ax.add_patch(mpatches.Rectangle((13, y - 1.4), 271, 5.0, facecolor="#0f172a", edgecolor="none"))
     ax.text(15, y + 1.1, f"3. CHRONOLOGICAL ONBOARD SURVEY EVENT LOG ({dt_iso} | 00:00 TO 23:59 HRS)", fontsize=8.8, fontweight="bold", color="white", va="center")
@@ -323,24 +469,11 @@ def generate_mti_dpr_pdf(st_data, target_date_str=None, surveyor_name="Duty Surv
             ax.text(x0 + 1.5, y + 0.9, h_lbl, fontsize=7.4, fontweight="bold", color="#0f172a", va="center")
         y -= 4.4
 
-        for idx_l, lg in enumerate(day_logs):
-            ts_s = str(lg.get("timestamp") or lg.get("date") or lg.get("time") or "")
-            t_hm = _extract_time(ts_s)
-            cat_s = str(lg.get("category") or lg.get("type") or lg.get("event_type") or "Ops")[:18]
-            area_s = str(lg.get("crossing_id") or lg.get("location") or lg.get("asset") or lg.get("vessel") or "MMA Prestige")[:15]
-            desc_s = str(lg.get("description") or lg.get("title") or lg.get("remarks") or lg.get("message") or "").strip()
-            sub_s = str(lg.get("details") or lg.get("sub_text") or lg.get("env") or "").strip()
-            raw_combined = f"{desc_s} | {sub_s}" if (sub_s and sub_s not in desc_s) else desc_s
-
-            m_env = re.search(r"\[([^\]]*(?:Wind|Curr|USBL)[^\]]*)\]", raw_combined, re.I)
-            env_tag = m_env.group(1) if m_env else ""
-            env_short = re.sub(r"USBL:[^|]+\|\s*", "", env_tag, flags=re.I).replace("Curr:NaN", "Curr:-").strip()
-            clean_desc = re.sub(r"\s*\[[^\]]*(?:Wind|Curr|USBL)[^\]]*\]", "", raw_combined).strip(" |")
-
+        for idx_l, (_, t_hm, cat_s, area_s, clean_desc, env_short, surv_l) in enumerate(day_logs):
             wrapped_lines = textwrap.wrap(clean_desc, width=68) or ["-"]
             row_h = max(4.2, len(wrapped_lines) * 3.6 + 0.8)
 
-            if y - row_h < 24.0:
+            if y - row_h + 3.0 < 17.0:
                 p_no += 1; fig, ax = _new_dpr_page(p_no); figs.append(fig); y = 180.0
                 ax.add_patch(mpatches.Rectangle((13, y - 1.2), 271, 4.4, facecolor="#e2e8f0", edgecolor="#94a3b8", linewidth=0.5))
                 for x0, x1, h_lbl in l_cols:
@@ -349,31 +482,15 @@ def generate_mti_dpr_pdf(st_data, target_date_str=None, surveyor_name="Duty Surv
 
             bg_c = "#f8fafc" if idx_l % 2 == 0 else "#ffffff"
             ax.add_patch(mpatches.Rectangle((13, y - row_h + 3.0), 271, row_h, facecolor=bg_c, edgecolor="#cbd5e1", linewidth=0.4))
-            surv_l = str(lg.get("surveyor") or lg.get("surveyor_name") or lg.get("user") or surveyor_name)[:16]
 
             ax.text(14.5, y + 0.7, t_hm, fontsize=7.5, fontweight="bold", color="#0369a1", family="monospace", va="center")
-            ax.text(28.5, y + 0.7, cat_s, fontsize=7.4, fontweight="bold", color="#0f172a", va="center")
-            ax.text(63.5, y + 0.7, area_s, fontsize=7.4, color="#334155", family="monospace", va="center")
+            ax.text(28.5, y + 0.7, cat_s[:18], fontsize=7.4, fontweight="bold", color="#0f172a", va="center")
+            ax.text(63.5, y + 0.7, area_s[:15], fontsize=7.4, color="#334155", family="monospace", va="center")
             for w_idx, w_ln in enumerate(wrapped_lines):
                 ax.text(93.5, y + 0.7 - w_idx * 3.5, w_ln, fontsize=7.5, color="#1e293b", va="center")
             ax.text(217.5, y + 0.7, env_short[:20], fontsize=7.1, color="#0369a1", family="monospace", va="center")
-            ax.text(253.5, y + 0.7, surv_l, fontsize=7.3, color="#475569", va="center")
+            ax.text(253.5, y + 0.7, surv_l[:16], fontsize=7.3, color="#475569", va="center")
             y -= row_h
-
-    # --- SIGN-OFF FOOTER BLOCK ---
-    if y >= 28.0:
-        sig_y = 17.5
-        ax.add_patch(mpatches.Rectangle((13, sig_y), 88, 9.5, facecolor="#f8fafc", edgecolor="#94a3b8", linewidth=0.5))
-        ax.text(15, sig_y + 6.8, f"Prepared By (Surveyor): {surveyor_name}", fontsize=7.2, fontweight="bold", color="#0f172a")
-        ax.text(15, sig_y + 2.2, "Signature / Date: _______________________", fontsize=6.8, color="#475569")
-
-        ax.add_patch(mpatches.Rectangle((104.5, sig_y), 88, 9.5, facecolor="#f8fafc", edgecolor="#94a3b8", linewidth=0.5))
-        ax.text(106.5, sig_y + 6.8, "Reviewed By (NMDC Chief Surveyor / PC):", fontsize=7.2, fontweight="bold", color="#0f172a")
-        ax.text(106.5, sig_y + 2.2, "Signature / Date: _______________________", fontsize=6.8, color="#475569")
-
-        ax.add_patch(mpatches.Rectangle((196, sig_y), 88, 9.5, facecolor="#f8fafc", edgecolor="#94a3b8", linewidth=0.5))
-        ax.text(198, sig_y + 6.8, "Client Representative (TPC):", fontsize=7.2, fontweight="bold", color="#0f172a")
-        ax.text(198, sig_y + 2.2, "Signature / Date: _______________________", fontsize=6.8, color="#475569")
 
     buf = io.BytesIO()
     with PdfPages(buf) as pdf_pages:
@@ -382,9 +499,9 @@ def generate_mti_dpr_pdf(st_data, target_date_str=None, surveyor_name="Duty Surv
             f.clf(); plt.close(f)
     plt.close('all'); gc.collect()
     pdf_bytes = buf.getvalue()
-    fn_out = f"{dt_iso.replace('-','')}_MTI_Daily_Progress_Report.pdf"
+    yyyymmdd = dt_iso.replace("-", "")
+    fn_out = f"{yyyymmdd}_MTI_Daily_Progress_Report.pdf"
     open(os.path.join(workspace_dir, fn_out), "wb").write(pdf_bytes)
-    open(os.path.join(workspace_dir, "latest_MTI_DPR.pdf"), "wb").write(pdf_bytes)
     return pdf_bytes, fn_out, dt_iso
 
 def _xml_esc(s):

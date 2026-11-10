@@ -766,7 +766,7 @@ from mti_4panel_math import (
     load_custom_catalog, build_crossing_boxes_from_catalog
 )
 from mti_4panel_a3 import generate_a3_4panel_chart
-from mti_4panel_reports import build_structured_report_markdown, generate_a4_report_pdf, generate_editable_docx, generate_mti_dpr_pdf
+from mti_4panel_reports import build_structured_report_markdown, generate_a4_report_pdf, generate_editable_docx, generate_mti_dpr_pdf, extract_all_mti_logs, parse_log_entry_fields, norm_mti_date
 
 MTI_WS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "workspace")
 _as_bool = lambda v, d=True: d if v is None else str(v).strip().lower() in ("1", "true", "yes", "on")
@@ -1256,16 +1256,66 @@ def _dl_4panel_file(kind, suffix, mime):
         generate_editable_docx(metrics, rep_md or build_structured_report_markdown(metrics), MTI_WS_DIR)
     return send_file(p, as_attachment=True, download_name=base + suffix, mimetype=mime)
 
-@mti_bp.route('/create_pdf_dpr')
+
+def _collect_state_with_all_logs():
+    st = dict(load_mti_state() or {})
+    if not extract_all_mti_logs(st):
+        for g_name, g_obj in list(globals().items()):
+            if "log" in g_name.lower() and hasattr(g_obj, "query"):
+                try:
+                    rows = g_obj.query.all()
+                    st["input_logs"] = [
+                        {c.name: str(getattr(r, c.name) or "") for c in r.__table__.columns}
+                        for r in rows if hasattr(r, "__table__")
+                    ]
+                    if st["input_logs"]:
+                        break
+                except Exception:
+                    pass
+    return st
+
+@mti_bp.route('/dpr_dates')
 @login_required
-def create_pdf_dpr():
+def mti_dpr_dates():
+    st = _collect_state_with_all_logs()
+    ledger = list(st.get("ledger") or [])
+    raw_logs = extract_all_mti_logs(st)
+    counts = {}
+    for r in ledger:
+        d = norm_mti_date(r.get("install_date"))
+        if d:
+            counts.setdefault(d, {"fixes": 0, "logs": 0})["fixes"] += 1
+    for lg in raw_logs:
+        d, _, _, _, _, _, _ = parse_log_entry_fields(lg)
+        if d:
+            counts.setdefault(d, {"fixes": 0, "logs": 0})["logs"] += 1
+    active_dates = sorted(counts.keys(), reverse=True)
+    from datetime import datetime as _dt
+    latest_date = active_dates[0] if active_dates else _dt.utcnow().strftime("%Y-%m-%d")
+    return jsonify({
+        "status": "ok",
+        "latest_date": latest_date,
+        "active_dates": active_dates,
+        "counts": counts,
+        "total_logs": len(raw_logs),
+        "user_name": _get_current_user_display_name()
+    })
+
+@mti_bp.route('/create_pdf_dpr')
+@mti_bp.route('/create_pdf_dpr/<path:req_filename>')
+@login_required
+def create_pdf_dpr(req_filename=None):
+    import io as _io
     os.makedirs(MTI_WS_DIR, exist_ok=True)
-    st = load_mti_state()
+    st = _collect_state_with_all_logs()
     dt_q = str(request.args.get("date") or "").strip()
+    if not dt_q and req_filename:
+        m_fn = re.search(r"(\d{8})", str(req_filename))
+        if m_fn:
+            dt_q = m_fn.group(1)
     surv_q = str(request.args.get("surveyor_name") or _get_current_user_display_name()).strip()
-    _, fn_out, _ = generate_mti_dpr_pdf(st, target_date_str=dt_q, surveyor_name=surv_q, workspace_dir=MTI_WS_DIR)
-    p = os.path.join(MTI_WS_DIR, fn_out)
-    return send_file(p, as_attachment=True, download_name=fn_out, mimetype="application/pdf")
+    pdf_bytes, fn_out, _ = generate_mti_dpr_pdf(st, target_date_str=dt_q, surveyor_name=surv_q, workspace_dir=MTI_WS_DIR)
+    return send_file(_io.BytesIO(pdf_bytes), as_attachment=True, download_name=fn_out, mimetype="application/pdf")
 
 @mti_bp.route('/download_a3_pdf')
 @login_required
