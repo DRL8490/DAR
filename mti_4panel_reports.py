@@ -187,55 +187,45 @@ def build_structured_report_markdown(metrics, include_history=False, ledger_list
     cur_uno = int(metrics.get("unit_no") or (1 if is_first else 2))
     c_enz = metrics.get("corners_enz") or [[0,0,0]]*4
     gaps = metrics.get("gaps") or {}
-    cl_st = "PASS" if cl_off <= cl_tol else "EXCEEDS"
-    gap_st = "N/A (1st Unit)" if is_first else ("PASS" if max_g <= g_tol else "EXCEEDS")
+    cl_st = "PASS" if cl_off <= cl_tol else "EXCEEDS TOLERANCE"
+    gap_st = "N/A (1st Unit)" if is_first else ("PASS" if max_g <= g_tol else "EXCEEDS TOLERANCE")
+
+    env_parts = []
+    if str(metrics.get("env_wind") or "").strip():
+        env_parts.append(f"Wind {metrics['env_wind']}")
+    if str(metrics.get("env_current") or "").strip():
+        env_parts.append(f"Current {metrics['env_current']}")
+    env_line = ", ".join(env_parts) if env_parts else "Not recorded"
+    raw_rem = str(metrics.get("remarks") or "").strip()
 
     lines = [
-        f"# SUBSEA MATTRESS VERIFICATION REPORT: {loc_id} ({mat_id})",
-        f"**Project:** Tung-Hsiao Power Plant 2nd Stage Renewal Subsea Gas Pipeline Project",
-        f"**Client:** Taiwan Power Company (TPC) | **Contractor:** NMDC Energy | **Vessel:** DP2 MMA Prestige",
-        f"**Crossing Array:** {xing_id} | **Location ID:** {loc_id} | **Mattress ID:** {mat_id} | **Active USBL:** {usbl_s}",
-        f"**Placement Date & Time:** {metrics.get('install_date','')} | **Surveyor Name:** {metrics.get('surveyor_name','Duty Surveyor')} | **Deliverable:** {metrics.get('base_filename','')}",
+        f"**Verdict:** {metrics.get('verdict', 'VERIFIED')}  --  **Crossing:** {xing_id}  --  **Placement:** {metrics.get('install_date','')}  --  **Surveyor:** {metrics.get('surveyor_name','Duty Surveyor')}",
         "",
-        "## EXECUTIVE VERDICT",
-        f"- **Overall Status:** {metrics.get('verdict', 'VERIFIED')}",
-        f"- **Identification & Sensor:** Mattress **{mat_id}** at **{loc_id}** ({xing_id}) tracked via **{usbl_s}**.",
-        f"- **Centerline Offset (dCL):** **{cl_off:.3f} m** vs. Tolerance **+/-{cl_tol:.2f} m** ({cl_st}) [dAlong: {metrics.get('d_along_m',0):+.3f} m, dCross: {metrics.get('d_cross_m',0):+.3f} m].",
-        f"- **Heading Alignment:** Design South Brg **{metrics.get('design_brg',195.854):.3f} deg** vs. As-Laid **{metrics.get('heading_deg',195.854):.3f} deg** (dBrg: **{metrics.get('brg_diff_deg',0):+.3f} deg**).",
-        f"- **Surveyor Corner Gaps:** **{metrics.get('gap_labels','N/A')}** | Max Gap **{max_g:.2f} m** vs. Side-to-Side Gap Tolerance **<={g_tol:.2f} m** ({gap_st}).",
-        "",
-        "## 1. GEODETIC, 4-CORNER ROV & GAP COMPARISON TABLE",
-        "| Parameter | Design Baseline | QA/QC USBL Fix | As-Laid 4-Corner ROV | Delta / Status |",
+        "## 1. GEODETIC & TOLERANCE SUMMARY",
+        "| Parameter | Design | QA/QC USBL | As-Laid ROV | Delta / Result |",
         "| :--- | :--- | :--- | :--- | :--- |",
         f"| Easting E (m, TWD97) | {metrics.get('design_e',0):.3f} | {metrics.get('qaqc_e',0):.3f} | {metrics.get('aslaid_e',0):.3f} | {metrics.get('aslaid_e',0)-metrics.get('design_e',0):+.3f} m |",
         f"| Northing N (m, TWD97) | {metrics.get('design_n',0):.3f} | {metrics.get('qaqc_n',0):.3f} | {metrics.get('aslaid_n',0):.3f} | {metrics.get('aslaid_n',0)-metrics.get('design_n',0):+.3f} m |",
-        f"| Depth Z (m, TWVD2001) | Seabed + 0.30 m | - | {metrics.get('aslaid_z',-18.2):.2f} | Verified WROV |",
-        f"| South Bearing (deg) | {metrics.get('design_brg',0):.3f} deg | {metrics.get('qaqc_brg',0):.3f} deg | {metrics.get('heading_deg',0):.3f} deg | {metrics.get('brg_diff_deg',0):+.3f} deg |",
-        f"| North Azimuth (deg) | {metrics.get('design_az',0):.3f} deg | - | {metrics.get('act_az',0):.3f} deg | {metrics.get('brg_diff_deg',0):+.3f} deg |",
-        f"| Radial Offset dCL (m) | 0.000 m (Tol +/-{cl_tol:.2f}m) | - | {cl_off:.3f} m | {cl_st} ({metrics.get('pct_inside',0):.1f}% in box) |",
-        f"| Side-to-Side Gap (m) | Tol <={g_tol:.2f} m | - | {metrics.get('gap_labels','N/A')} | {gap_st} |",
+        f"| Depth Z (m, TWVD2001) | Seabed + 0.30 m | - | {metrics.get('aslaid_z',-18.2):.2f} | WROV 4-Corner Mean |",
+        f"| South Bearing (deg) | {metrics.get('design_brg',0):.2f} | {metrics.get('qaqc_brg',0):.2f} | {metrics.get('heading_deg',0):.2f} | {metrics.get('brg_diff_deg',0):+.2f} deg |",
+        f"| Radial Offset dCL (m) | <= {cl_tol:.2f} m | - | {cl_off:.3f} m | {cl_st} (dAl {metrics.get('d_along_m',0):+.2f}, dCr {metrics.get('d_cross_m',0):+.2f}m) |",
+        f"| Side-to-Side Gap (m) | <= {g_tol:.2f} m | - | {metrics.get('gap_labels','N/A')} | {gap_st} |",
         "",
-        "## 2. KEY SURVEY FINDINGS (4-CORNER ROV COORDINATES & CORNER GAPS)",
-        f"- **C1 (NW Corner):** E {c_enz[0][0]:.3f} m, N {c_enz[0][1]:.3f} m, Z {c_enz[0][2]:.2f} m" + ("" if is_first else f" | Surveyor Corner Gap NW: {gaps.get('nw') or 'N/A'}"),
-        f"- **C2 (NE Corner):** E {c_enz[1][0]:.3f} m, N {c_enz[1][1]:.3f} m, Z {c_enz[1][2]:.2f} m" + ("" if is_first else f" | Surveyor Corner Gap NE: {gaps.get('ne') or 'N/A'}"),
-        f"- **C3 (SE Corner):** E {c_enz[2][0]:.3f} m, N {c_enz[2][1]:.3f} m, Z {c_enz[2][2]:.2f} m" + ("" if is_first else f" | Surveyor Corner Gap SE: {gaps.get('se') or 'N/A'}"),
-        f"- **C4 (SW Corner):** E {c_enz[3][0]:.3f} m, N {c_enz[3][1]:.3f} m, Z {c_enz[3][2]:.2f} m" + ("" if is_first else f" | Surveyor Corner Gap SW: {gaps.get('sw') or 'N/A'}"),
+        "## 2. AS-LAID 4-CORNER ROV COORDINATES",
+        f"- C1 (NW): E {c_enz[0][0]:.3f}, N {c_enz[0][1]:.3f}, Z {c_enz[0][2]:.2f} m" + ("" if is_first else f"  [Gap NW: {gaps.get('nw') or '-'}]"),
+        f"- C2 (NE): E {c_enz[1][0]:.3f}, N {c_enz[1][1]:.3f}, Z {c_enz[1][2]:.2f} m" + ("" if is_first else f"  [Gap NE: {gaps.get('ne') or '-'}]"),
+        f"- C3 (SE): E {c_enz[2][0]:.3f}, N {c_enz[2][1]:.3f}, Z {c_enz[2][2]:.2f} m" + ("" if is_first else f"  [Gap SE: {gaps.get('se') or '-'}]"),
+        f"- C4 (SW): E {c_enz[3][0]:.3f}, N {c_enz[3][1]:.3f}, Z {c_enz[3][2]:.2f} m" + ("" if is_first else f"  [Gap SW: {gaps.get('sw') or '-'}]"),
+        "",
+        "## 3. FIELD EXCEPTIONS, ENVIRONMENT & REMARKS",
+        f"- Metocean: {env_line}",
+        f"- Remarks: {raw_rem if raw_rem else 'None (within design specification).'}"
     ]
-    if is_first:
-        lines.append(f"- **1st-Unit Edge Overhang/Clearance:** NNE {metrics.get('edge_nne',0):+.2f}m, SSW {metrics.get('edge_ssw',0):+.2f}m, ESE {metrics.get('edge_ese',0):+.2f}m, WNW {metrics.get('edge_wnw',0):+.2f}m.")
-    else:
-        lines.append(f"- **Surveyor Recorded Corner Gaps (Tol <={g_tol:.2f}m Side-to-Side Gap):** {metrics.get('gap_labels','N/A')}.")
-    lines.extend([
-        f"- **Environment:** Wind: {metrics.get('env_wind') or 'Recorded in Log'} | Current: {metrics.get('env_current') or 'Recorded in Log'}.",
-        "",
-        "## 3. SURVEYOR REMARKS",
-        f"- {metrics.get('remarks') or 'Mattress installation verified via WROV 4-corner fix and USBL telemetry.'}"
-    ])
     hist_rows = [r for r in (ledger_list or []) if int(float(r.get("unit_no") or 0)) < cur_uno] if (include_history and not is_first) else []
     if hist_rows:
-        lines.extend(["", "## 4. HISTORICAL PLACED UNITS LEDGER", "| Unit # | Date/Time | Location ID | Tag ID | As-Laid E | As-Laid N | Brg (deg) | dCL (m) | Corner Gaps |", "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |"])
+        lines.extend(["", "## 4. PRIOR PLACED UNITS IN CROSSING", "| Unit # | Date/Time | Box ID | Tag ID | As-Laid E | As-Laid N | dCL (m) | Gaps |", "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |"])
         for r in hist_rows:
-            lines.append(f"| {r.get('unit_no','')} | {r.get('install_date','')} | {r.get('design_box_id','')} | {r.get('physical_tag','')} | {float(r.get('aslaid_e') or 0):.3f} | {float(r.get('aslaid_n') or 0):.3f} | {float(r.get('heading_deg') or 0):.2f} | {float(r.get('cl_offset_m') or 0):.3f} | {r.get('gap_labels','')} |")
+            lines.append(f"| {r.get('unit_no','')} | {r.get('install_date','')} | {r.get('design_box_id','')} | {r.get('physical_tag','')} | {float(r.get('aslaid_e') or 0):.3f} | {float(r.get('aslaid_n') or 0):.3f} | {float(r.get('cl_offset_m') or 0):.3f} | {r.get('gap_labels','')} |")
     return chr(10).join(lines)
 
 def render_a4_landscape_figures(metrics, custom_report_md=None):
@@ -371,6 +361,14 @@ def generate_mti_dpr_pdf(st_data, target_date_str=None, surveyor_name="Duty Surv
     fig, ax = _new_dpr_page(p_no)
     figs.append(fig)
     y = 180.0
+
+    # --- EXECUTIVE TAKEAWAY LINE (Audience-First Signal Before Tables) ---
+    latest_status = day_logs[-1][4][:78] if day_logs else ("Installation active" if day_fixes else "No field events logged")
+    pct_done = (len(cum_fixes) * 100.0) / 139.0
+    exec_line = f"DAILY TAKEAWAY: +{len(day_fixes)} Laid Today ({len(cum_fixes)}/139 Cumul, {pct_done:.1f}%)  |  {len(day_logs)} Log Event(s)  |  Latest Status: {latest_status}"
+    ax.add_patch(mpatches.Rectangle((13, y - 1.2), 271, 4.8, facecolor="#f0f9ff", edgecolor="#0284c7", linewidth=0.6))
+    ax.text(15, y + 1.1, exec_line[:135], fontsize=7.8, fontweight="bold", color="#0f172a", va="center")
+    y -= 6.0
 
     # --- SECTION 1: DAILY & CUMULATIVE MTI PROGRESS MATRIX BY CROSSING ---
     ax.add_patch(mpatches.Rectangle((13, y - 1.4), 271, 5.0, facecolor="#0f172a", edgecolor="none"))
