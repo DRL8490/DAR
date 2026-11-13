@@ -1,0 +1,172 @@
+<!-- MTI_REMARKS_TOGGLE_START -->
+<style>
+  .mti-remarks-col-hidden {
+    display: none !important;
+  }
+  .btn-mti-remarks-toggle {
+    font-size: 12px;
+    padding: 4px 10px;
+    white-space: nowrap;
+    border-radius: 6px;
+    transition: all 0.15s ease-in-out;
+  }
+  .th-remarks-inline-eye {
+    cursor: pointer;
+    opacity: 0.65;
+    margin-left: 5px;
+    font-size: 11px;
+  }
+  .th-remarks-inline-eye:hover {
+    opacity: 1.0;
+  }
+</style>
+<script id="mtiRemarksToggleUpgrade">
+(function() {
+  function isDarkElement(el) {
+    if (!el) return false;
+    const cls = (el.className || '').toLowerCase();
+    if (cls.indexOf('bg-dark') !== -1 || cls.indexOf('text-white') !== -1 || cls.indexOf('text-light') !== -1) {
+      return true;
+    }
+    try {
+      const bg = window.getComputedStyle(el).backgroundColor || '';
+      const m = bg.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+      if (m) {
+        const r = parseInt(m[1], 10), g = parseInt(m[2], 10), b = parseInt(m[3], 10);
+        if (r === 0 && g === 0 && b === 0 && bg.indexOf('0)') !== -1) return false;
+        return (0.299 * r + 0.587 * g + 0.114 * b) < 140;
+      }
+    } catch (e) {}
+    return false;
+  }
+
+  function initRemarksToggles() {
+    document.querySelectorAll('table').forEach(function(tbl, tblIdx) {
+      if (tbl.dataset.remarksToggleBound === '1') return;
+      const theadRow = tbl.querySelector('thead tr');
+      if (!theadRow) return;
+
+      let remarksColIdx = -1;
+      let remarksTh = null;
+      Array.from(theadRow.cells).forEach(function(th, cIdx) {
+        const cleanTxt = (th.textContent || '').replace(/\s+/g, ' ').trim();
+        if (/^remarks$/i.test(cleanTxt)) {
+          remarksColIdx = cIdx;
+          remarksTh = th;
+        }
+      });
+
+      if (remarksColIdx === -1 || !remarksTh) return;
+      tbl.dataset.remarksToggleBound = '1';
+
+      let card = tbl.closest('.card');
+      let headerBar = card ? card.querySelector('.card-header') : null;
+      if (!headerBar && tbl.parentElement) {
+        const prev = tbl.parentElement.previousElementSibling || tbl.previousElementSibling;
+        if (prev && (prev.classList.contains('card-header') || isDarkElement(prev))) {
+          headerBar = prev;
+        }
+      }
+
+      const darkHdr = isDarkElement(headerBar);
+      const shownBtnClass = darkHdr
+        ? 'btn btn-sm btn-outline-light fw-bold btn-mti-remarks-toggle'
+        : 'btn btn-sm btn-outline-secondary fw-bold btn-mti-remarks-toggle';
+      const hiddenBtnClass = 'btn btn-sm btn-warning text-dark fw-bold btn-mti-remarks-toggle';
+
+      const baseTitle = headerBar
+        ? (headerBar.textContent || '').replace(/\([^)]*\)/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 28)
+        : ('tbl_' + tblIdx);
+      const storageKey = 'mti_hide_remarks_' + baseTitle;
+
+      const toggleBtn = document.createElement('button');
+      toggleBtn.type = 'button';
+
+      function syncRowCells(isHidden) {
+        remarksTh.classList.toggle('mti-remarks-col-hidden', isHidden);
+        tbl.querySelectorAll('tbody tr').forEach(function(tr) {
+          if (tr.cells && tr.cells.length > remarksColIdx) {
+            if (tr.cells.length === 1 && tr.cells[0].colSpan > 1) return;
+            tr.cells[remarksColIdx].classList.toggle('mti-remarks-col-hidden', isHidden);
+          }
+        });
+      }
+
+      function applyHiddenState(isHidden) {
+        syncRowCells(isHidden);
+        if (isHidden) {
+          toggleBtn.className = hiddenBtnClass;
+          toggleBtn.innerHTML = '<i class="fas fa-eye me-1"></i>Show Remarks';
+          toggleBtn.title = 'Show the Remarks column';
+        } else {
+          toggleBtn.className = shownBtnClass;
+          toggleBtn.innerHTML = '<i class="fas fa-eye-slash me-1"></i>Hide Remarks';
+          toggleBtn.title = 'Hide the Remarks column for a compact view';
+        }
+        try {
+          localStorage.setItem(storageKey, isHidden ? '1' : '0');
+        } catch (e) {}
+      }
+
+      toggleBtn.addEventListener('click', function(ev) {
+        ev.preventDefault();
+        const currentlyHidden = remarksTh.classList.contains('mti-remarks-col-hidden');
+        applyHiddenState(!currentlyHidden);
+      });
+
+      const inlineEye = document.createElement('i');
+      inlineEye.className = 'fas fa-eye-slash th-remarks-inline-eye';
+      inlineEye.title = 'Hide Remarks column';
+      inlineEye.addEventListener('click', function(ev) {
+        ev.stopPropagation();
+        applyHiddenState(true);
+      });
+      remarksTh.appendChild(inlineEye);
+
+      if (headerBar) {
+        const existingRightBtn = headerBar.querySelector('button.btn, a.btn');
+        if (existingRightBtn && existingRightBtn.parentNode === headerBar) {
+          const rightGroup = document.createElement('div');
+          rightGroup.className = 'd-inline-flex flex-wrap align-items-center gap-2';
+          headerBar.insertBefore(rightGroup, existingRightBtn);
+          rightGroup.appendChild(toggleBtn);
+          rightGroup.appendChild(existingRightBtn);
+        } else if (existingRightBtn && existingRightBtn.parentNode) {
+          existingRightBtn.parentNode.insertBefore(toggleBtn, existingRightBtn);
+          toggleBtn.classList.add('me-2');
+        } else {
+          headerBar.classList.add('d-flex', 'justify-content-between', 'align-items-center');
+          headerBar.appendChild(toggleBtn);
+        }
+      } else if (tbl.parentNode) {
+        const topWrap = document.createElement('div');
+        topWrap.className = 'd-flex justify-content-end mb-2';
+        topWrap.appendChild(toggleBtn);
+        tbl.parentNode.insertBefore(topWrap, tbl);
+      }
+
+      const tbody = tbl.querySelector('tbody');
+      if (tbody && window.MutationObserver) {
+        const obs = new MutationObserver(function() {
+          syncRowCells(remarksTh.classList.contains('mti-remarks-col-hidden'));
+        });
+        obs.observe(tbody, { childList: true });
+      }
+
+      let savedHidden = false;
+      try {
+        savedHidden = localStorage.getItem(storageKey) === '1';
+      } catch (e) {}
+      applyHiddenState(savedHidden);
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initRemarksToggles);
+  } else {
+    initRemarksToggles();
+  }
+  setTimeout(initRemarksToggles, 250);
+})();
+</script>
+<!-- MTI_REMARKS_TOGGLE_END -->

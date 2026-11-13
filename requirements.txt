@@ -22,3 +22,5 @@ pypdf>=4.0.0
 SQLAlchemy>=2.0.0
 Werkzeug>=3.0.0
 matplotlib
+
+ezdxf>=1.1.0
