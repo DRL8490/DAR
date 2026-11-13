@@ -324,7 +324,7 @@ LEAN_CORE_TASKS = [
     }
 ,
     {
-        "id": "CT-15", "label": "Client Rep Witness: 6-Step Mattress / Rock Bag Touchdown & Release (±0.50m CL / <=0.20m Gap)",
+        "id": "CT-15", "label": "Client Rep Witness: 6-Step Mattress / Rock Bag Touchdown & Release (±0.50m CL / <=0.50m Gap)",
         "action_required": "Check Survey", "task_category": "Bathymetric Survey",
         "command_verb": "VERIFY", "default_instrument": "USBL",
         "instruments": ["USBL", "ROV", "PDS", "EIVA NaviPac", "MBES  WS166", "Echo-4", "PC"]
@@ -444,7 +444,7 @@ USER_HISTORICAL_SEEDS = {
         ("MWS-08", "CT-02", 14, "Tunghsiao Temp Platform Progress Survey"),
     ],
     "daryll": [
-        ("MWS-15", "CT-15", 25, "Client Rep Witness: 6-Step Mattress Touchdown & Release (±0.50m CL / <=0.20m Gap)"),
+        ("MWS-15", "CT-15", 25, "Client Rep Witness: 6-Step Mattress Touchdown & Release (±0.50m CL / <=0.50m Gap)"),
         ("MWS-15", "CT-18", 18, "Client Rep Witness: Pre-Lay Corridor, Cable Crossing DoB & Post-Lay MBES/WROV Survey"),
         ("MWS-15", "CT-17", 15, "Client Rep QA/QC Audit: Daily DOR Sign-Off, Subsea Fix Log & Geodetic Reconciliation"),
         ("MWS-16", "CT-16", 14, "Client Rep Witness: MMA Prestige DimCon, GNSS/PPP & Dynamic USBL CASIUS/Box-In Calib"),

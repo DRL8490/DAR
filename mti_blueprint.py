@@ -55,7 +55,7 @@ DEFAULT_MTI_STATE = {
     "campaign_target_mattresses": 139,
     "campaign_target_rockbags": 28,
     "cl_tolerance_m": 0.50,
-    "gap_tolerance_m": 0.20,
+    "gap_tolerance_m": 0.50,
     "ledger": [
         {
             "id": 1, "unit_no": 1, "is_first_in_array": True, "unit_type": "Concrete Mattress",
@@ -161,6 +161,29 @@ def save_mti_state(mti_state):
         config.schema_data = json.dumps(schema)
     db.session.commit()
 
+# --- MTI_GAP_TOL_050_MIGRATION_START ---
+_orig_load_mti_state_gaptol050 = load_mti_state
+_in_gaptol050_save_guard = False
+
+def load_mti_state(*args, **kwargs):
+    global _in_gaptol050_save_guard
+    st = _orig_load_mti_state_gaptol050(*args, **kwargs)
+    if isinstance(st, dict) and not st.get("gap_tol_050_migrated"):
+        st["gap_tolerance_m"] = 0.50
+        if isinstance(st.get("survey_setup"), dict) and "gap_tolerance_m" in st["survey_setup"]:
+            st["survey_setup"]["gap_tolerance_m"] = 0.50
+        st["gap_tol_050_migrated"] = True
+        if not _in_gaptol050_save_guard and "save_mti_state" in globals():
+            try:
+                _in_gaptol050_save_guard = True
+                save_mti_state(st)
+            except Exception:
+                pass
+            finally:
+                _in_gaptol050_save_guard = False
+    return st
+# --- MTI_GAP_TOL_050_MIGRATION_END ---
+
 @mti_bp.route('/', methods=['GET'])
 @login_required
 def mti_dashboard():
@@ -171,7 +194,7 @@ def mti_dashboard():
     target_matt = int(state.get("campaign_target_mattresses", 139))
     target_rb = int(state.get("campaign_target_rockbags", 28))
     cl_tol = float(state.get("cl_tolerance_m", 0.50))
-    gap_tol = float(state.get("gap_tolerance_m", 0.20))
+    gap_tol = float(state.get("gap_tolerance_m", 0.50))
 
     completed_matt = sum(1 for r in ledger if r.get("status") == "Completed" and r.get("unit_type", "Concrete Mattress") == "Concrete Mattress")
     completed_rb = sum(1 for r in ledger if r.get("status") == "Completed" and r.get("unit_type") == "Rock Bag")
