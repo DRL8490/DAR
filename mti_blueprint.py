@@ -161,28 +161,7 @@ def save_mti_state(mti_state):
         config.schema_data = json.dumps(schema)
     db.session.commit()
 
-# --- MTI_GAP_TOL_050_MIGRATION_START ---
-_orig_load_mti_state_gaptol050 = load_mti_state
-_in_gaptol050_save_guard = False
 
-def load_mti_state(*args, **kwargs):
-    global _in_gaptol050_save_guard
-    st = _orig_load_mti_state_gaptol050(*args, **kwargs)
-    if isinstance(st, dict) and not st.get("gap_tol_050_migrated"):
-        st["gap_tolerance_m"] = 0.50
-        if isinstance(st.get("survey_setup"), dict) and "gap_tolerance_m" in st["survey_setup"]:
-            st["survey_setup"]["gap_tolerance_m"] = 0.50
-        st["gap_tol_050_migrated"] = True
-        if not _in_gaptol050_save_guard and "save_mti_state" in globals():
-            try:
-                _in_gaptol050_save_guard = True
-                save_mti_state(st)
-            except Exception:
-                pass
-            finally:
-                _in_gaptol050_save_guard = False
-    return st
-# --- MTI_GAP_TOL_050_MIGRATION_END ---
 
 @mti_bp.route('/', methods=['GET'])
 @login_required
@@ -203,7 +182,7 @@ def mti_dashboard():
         1 for r in ledger
         if r.get("status") == "Completed"
         and float(r.get("cl_offset_m", 0)) <= cl_tol
-        and float(r.get("gap_m", 0)) <= gap_tol
+        and (bool(r.get("is_first_in_array")) or float(r.get("gap_m") or 0) <= gap_tol)
     )
 
     pct_matt = round((completed_matt / target_matt) * 100, 1) if target_matt else 0.0
@@ -554,7 +533,7 @@ def mti_mobile():
     ledger = sorted(state.get("ledger", []), key=lambda x: int(x.get("unit_no", 999)))
     input_logs = sorted(state.get("input_logs", []), key=lambda x: str(x.get("timestamp", "")), reverse=True)
     completed_matt = sum(1 for r in ledger if r.get("status") == "Completed" and r.get("unit_type", "Concrete Mattress") == "Concrete Mattress")
-    return render_template('mti_mobile.html', ledger=ledger, input_logs=input_logs, completed_matt=completed_matt, target_matt=int(state.get("campaign_target_mattresses", 139)), catalog_json=json.dumps(MATTRESS_CATALOG))
+    return render_template('mti_mobile.html', ledger=ledger, input_logs=input_logs, completed_matt=completed_matt, target_matt=int(state.get("campaign_target_mattresses", 139)), cl_tol=float(state.get("cl_tolerance_m", 0.50)), gap_tol=float(state.get("gap_tolerance_m", 0.50)), catalog_json=json.dumps(MATTRESS_CATALOG))
 
 
 # --- MOBILE HOME SCREEN SHORTCUT (PWA MANIFEST, SERVICE WORKER & IOS WEBCLIP) ---
@@ -772,6 +751,12 @@ def load_mti_state():
             st = {}
     if not isinstance(st, dict):
         st = {}
+    if not st.get("gap_tol_050_v2") or abs(float(st.get("gap_tolerance_m") or 0.0) - 0.20) < 1e-6:
+        st["gap_tolerance_m"] = 0.50
+        if isinstance(st.get("survey_setup"), dict) and "gap_tolerance_m" in st["survey_setup"]:
+            st["survey_setup"]["gap_tolerance_m"] = 0.50
+        st["gap_tol_050_v2"] = True
+        save_mti_state(st)
     if not st.get("dpr_20261107_clean_v7"):
         st["ledger"] = [dict(x) for x in PRELOADED_MTI_LEDGER]
         st["input_logs"] = [dict(x) for x in PRELOADED_MTI_LOGS]
@@ -2880,3 +2865,28 @@ def mti_delete_raw_rov():
             cur_store.pop(k, None)
     save_raw_rov_store(cur_store, st, save_mti_state, MTI_WS_DIR)
     return jsonify({"status": "ok", "deleted": b_id, "total_boxes": len(cur_store)})
+
+# --- MTI_GAP_TOL_050_FINAL_ENFORCE_START ---
+_real_final_load_mti_state = load_mti_state
+_final_gaptol_saving = False
+
+def load_mti_state(*args, **kwargs):
+    global _final_gaptol_saving
+    st = _real_final_load_mti_state(*args, **kwargs)
+    if isinstance(st, dict):
+        cur_g = st.get("gap_tolerance_m")
+        if not st.get("gap_tol_050_v2") or cur_g is None or abs(float(cur_g) - 0.20) < 1e-6:
+            st["gap_tolerance_m"] = 0.50
+            if isinstance(st.get("survey_setup"), dict):
+                st["survey_setup"]["gap_tolerance_m"] = 0.50
+            st["gap_tol_050_v2"] = True
+            if not _final_gaptol_saving:
+                try:
+                    _final_gaptol_saving = True
+                    save_mti_state(st)
+                except Exception:
+                    pass
+                finally:
+                    _final_gaptol_saving = False
+    return st
+# --- MTI_GAP_TOL_050_FINAL_ENFORCE_END ---
