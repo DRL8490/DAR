@@ -56,6 +56,8 @@
   </div>
   <div id="mobFixCard" class="m-card border-success" style="display:none;">
     <form action="/mti/add_fix" method="POST" id="mattressFixForm" class="rov-corners-box">
+  <input type="hidden" name="fix_id" id="inpFixId" value="">
+  <input type="hidden" name="corners_ui_bound" value="1">
   <div class="d-flex justify-content-between align-items-center mb-2 border-bottom pb-1">
     <h6 class="fw-bold text-success mb-0"><i class="fas fa-crosshairs me-1"></i> Mattress Fix Input Box (Actual Mattress &amp; Bearing Calculated from ROV Corners)</h6>
     <span class="badge bg-secondary" id="calcSourceBadge">Enter 4 ROV Corners</span>
@@ -154,38 +156,38 @@
 
   <!-- LINE 4 : AS-LAID ROV COORDINATES INPUT = E,N,Z OF 4-CORNERS OF MATTRESS -->
   <div class="p-2 mb-2 rounded bg-white border border-success text-dark">
-    <div class="small fw-bold text-uppercase text-success mb-1" style="font-size:10.5px;">Line 4 : As-Laid ROV Coordinates Input = E, N, Z of 4-Corners of Mattress</div>
+    <div class="small fw-bold text-uppercase text-success mb-1" style="font-size:10.5px;">Line 4 : As-Laid ROV Coordinates Input = E, N of 4-Corners of Mattress</div>
     <div class="row g-2">
       <div class="col-md-3 col-6">
-        <label class="small fw-bold text-dark mb-1">Corner 1 (C1 - NW: E, N, Z)</label>
+        <label class="small fw-bold text-dark mb-1">Corner 1 (C1 - NW: E, N)</label>
         <div class="input-group input-group-sm">
           <input type="number" step="0.001" name="c1_e" id="c1_e" class="form-control px-1 border-success" placeholder="E1" oninput="recalcAllMattress()">
           <input type="number" step="0.001" name="c1_n" id="c1_n" class="form-control px-1 border-success" placeholder="N1" oninput="recalcAllMattress()">
-          <input type="number" step="0.01" name="c1_z" id="c1_z" class="form-control px-1 border-success" placeholder="Z1" oninput="recalcAllMattress()">
+          <input type="hidden" name="c1_z" id="c1_z" value="">
         </div>
       </div>
       <div class="col-md-3 col-6">
-        <label class="small fw-bold text-dark mb-1">Corner 2 (C2 - NE: E, N, Z)</label>
+        <label class="small fw-bold text-dark mb-1">Corner 2 (C2 - NE: E, N)</label>
         <div class="input-group input-group-sm">
           <input type="number" step="0.001" name="c2_e" id="c2_e" class="form-control px-1 border-success" placeholder="E2" oninput="recalcAllMattress()">
           <input type="number" step="0.001" name="c2_n" id="c2_n" class="form-control px-1 border-success" placeholder="N2" oninput="recalcAllMattress()">
-          <input type="number" step="0.01" name="c2_z" id="c2_z" class="form-control px-1 border-success" placeholder="Z2" oninput="recalcAllMattress()">
+          <input type="hidden" name="c2_z" id="c2_z" value="">
         </div>
       </div>
       <div class="col-md-3 col-6">
-        <label class="small fw-bold text-dark mb-1">Corner 3 (C3 - SE: E, N, Z)</label>
+        <label class="small fw-bold text-dark mb-1">Corner 3 (C3 - SE: E, N)</label>
         <div class="input-group input-group-sm">
           <input type="number" step="0.001" name="c3_e" id="c3_e" class="form-control px-1 border-success" placeholder="E3" oninput="recalcAllMattress()">
           <input type="number" step="0.001" name="c3_n" id="c3_n" class="form-control px-1 border-success" placeholder="N3" oninput="recalcAllMattress()">
-          <input type="number" step="0.01" name="c3_z" id="c3_z" class="form-control px-1 border-success" placeholder="Z3" oninput="recalcAllMattress()">
+          <input type="hidden" name="c3_z" id="c3_z" value="">
         </div>
       </div>
       <div class="col-md-3 col-6">
-        <label class="small fw-bold text-dark mb-1">Corner 4 (C4 - SW: E, N, Z)</label>
+        <label class="small fw-bold text-dark mb-1">Corner 4 (C4 - SW: E, N)</label>
         <div class="input-group input-group-sm">
           <input type="number" step="0.001" name="c4_e" id="c4_e" class="form-control px-1 border-success" placeholder="E4" oninput="recalcAllMattress()">
           <input type="number" step="0.001" name="c4_n" id="c4_n" class="form-control px-1 border-success" placeholder="N4" oninput="recalcAllMattress()">
-          <input type="number" step="0.01" name="c4_z" id="c4_z" class="form-control px-1 border-success" placeholder="Z4" oninput="recalcAllMattress()">
+          <input type="hidden" name="c4_z" id="c4_z" value="">
         </div>
       </div>
     </div>
@@ -381,7 +383,7 @@ function syncDirGaps(){
   document.getElementById('inpGap2').value = (vals[1] ?? vals[0] ?? 0).toFixed(2);
   ['gNW','gNE','gSW','gSE'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.style.borderColor = el.value === '' ? '#ced4da' : (parseFloat(el.value) <= 0.20 ? '#16a34a' : '#dc2626');
+    if (el) el.style.borderColor = el.value === '' ? '#ced4da' : (parseFloat(el.value) <= 0.50 ? '#16a34a' : '#dc2626');
   });
 }
 </script>
@@ -394,7 +396,7 @@ function syncDirGaps(){
 const CATALOG = {{ catalog_json | default('[]') | safe }}, catMap = {};
 document.addEventListener('DOMContentLoaded', () => {
   const sel = document.getElementById('mCatalogSel');
-  CATALOG.forEach(it => { catMap[it.name] = it; sel.appendChild(new Option(`${it.name} (${it.layer}) - Brg:${it.bearing.toFixed(1)} deg`, it.name)); });
+  if (sel) CATALOG.forEach(it => { catMap[it.name] = it; sel.appendChild(new Option(`${it.name} (${it.layer}) - Brg:${it.bearing.toFixed(1)} deg`, it.name)); });
 });
 function nowStr(){ const d=new Date(), p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
 const EVENT_CONFIGS = {
@@ -422,7 +424,7 @@ function openMobEvt(t){
   document.getElementById('mEvtRem').value = ''; document.getElementById('mEvtRem').placeholder = cfg.pr;
   c.scrollIntoView({behavior:'smooth'});
 }
-function openMobFix(){ document.getElementById('mobEvtCard').style.display='none'; const c=document.getElementById('mobFixCard'); c.style.display='block'; document.getElementById('mFixTs').value=nowStr(); c.scrollIntoView({behavior:'smooth'}); }
+function openMobFix(){ document.getElementById('mobEvtCard').style.display='none'; const c=document.getElementById('mobFixCard'); c.style.display='block'; if(document.getElementById('inpFixDateTime')) document.getElementById('inpFixDateTime').value=nowStr(); c.scrollIntoView({behavior:'smooth'}); }
 function onMobSelectMatt(){ const it=catMap[document.getElementById('mCatalogSel').value]; if(!it) return; document.getElementById('mXing').value=it.layer; document.getElementById('mBox').value=it.name; document.getElementById('mDesE').value=it.design_e.toFixed(3); document.getElementById('mDesN').value=it.design_n.toFixed(3); document.getElementById('mHdg').value=it.bearing.toFixed(3); calcMobOff(); rotMobSvg(); }
 function rotMobSvg(){ const b=parseFloat(document.getElementById('mHdg').value)||0; document.getElementById('mSvgRot').setAttribute('transform',`rotate(${b} 55 34)`); document.getElementById('mBrgBadge').innerHTML=`Brg: ${b.toFixed(1)}&deg;`; }
 function calcMobOff(){ const de=parseFloat(document.getElementById('mDesE').value), dn=parseFloat(document.getElementById('mDesN').value), ae=parseFloat(document.getElementById('mAsE').value), an=parseFloat(document.getElementById('mAsN').value); if(!isNaN(de)&&!isNaN(dn)&&!isNaN(ae)&&!isNaN(an)) document.getElementById('mClOff').value=Math.hypot(ae-de,an-dn).toFixed(2); }
@@ -510,7 +512,7 @@ function triggerPhoneShortcut(){
     if (origMobEvt) window.openMobEvt = function(t){ origMobEvt(t); toggleEvtEnv(t); };
 
     document.querySelectorAll('form[action="/mti/add_fix"]').forEach(function(f){
-      if (f.querySelector('.rov-corners-box')) return;
+      if (f.classList.contains('rov-corners-box') || f.querySelector('.rov-corners-box')) return;
       const box = document.createElement('div');
       box.className = 'p-2 my-2 rounded border border-primary rov-corners-box';
       box.style.background = 'rgba(2,132,199,0.06)';
@@ -534,10 +536,10 @@ function triggerPhoneShortcut(){
         </div>
         <div class="small fw-bold text-success mb-1"><i class="fas fa-vector-square me-1"></i>2. ROV 4-Corners Input (E, N, Z) &rarr; Auto-Calculates Actual Mattress Center &amp; Bearing</div>
         <div class="row g-1 mb-2">
-          <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C1</span><input type="number" step="0.001" name="c1_e" class="form-control px-1 rc" placeholder="E1"><input type="number" step="0.001" name="c1_n" class="form-control px-1 rc" placeholder="N1"><input type="number" step="0.01" name="c1_z" class="form-control px-1 rc" placeholder="Z1"></div></div>
-          <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C2</span><input type="number" step="0.001" name="c2_e" class="form-control px-1 rc" placeholder="E2"><input type="number" step="0.001" name="c2_n" class="form-control px-1 rc" placeholder="N2"><input type="number" step="0.01" name="c2_z" class="form-control px-1 rc" placeholder="Z2"></div></div>
-          <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C3</span><input type="number" step="0.001" name="c3_e" class="form-control px-1 rc" placeholder="E3"><input type="number" step="0.001" name="c3_n" class="form-control px-1 rc" placeholder="N3"><input type="number" step="0.01" name="c3_z" class="form-control px-1 rc" placeholder="Z3"></div></div>
-          <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C4</span><input type="number" step="0.001" name="c4_e" class="form-control px-1 rc" placeholder="E4"><input type="number" step="0.001" name="c4_n" class="form-control px-1 rc" placeholder="N4"><input type="number" step="0.01" name="c4_z" class="form-control px-1 rc" placeholder="Z4"></div></div>
+          <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C1</span><input type="number" step="0.001" name="c1_e" class="form-control px-1 rc" placeholder="E1"><input type="number" step="0.001" name="c1_n" class="form-control px-1 rc" placeholder="N1"><input type="hidden" name="c1_z" id="c1_z" value=""></div></div>
+          <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C2</span><input type="number" step="0.001" name="c2_e" class="form-control px-1 rc" placeholder="E2"><input type="number" step="0.001" name="c2_n" class="form-control px-1 rc" placeholder="N2"><input type="hidden" name="c2_z" id="c2_z" value=""></div></div>
+          <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C3</span><input type="number" step="0.001" name="c3_e" class="form-control px-1 rc" placeholder="E3"><input type="number" step="0.001" name="c3_n" class="form-control px-1 rc" placeholder="N3"><input type="hidden" name="c3_z" id="c3_z" value=""></div></div>
+          <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C4</span><input type="number" step="0.001" name="c4_e" class="form-control px-1 rc" placeholder="E4"><input type="number" step="0.001" name="c4_n" class="form-control px-1 rc" placeholder="N4"><input type="hidden" name="c4_z" id="c4_z" value=""></div></div>
         </div>
         <div class="row g-2">
           <div class="col-6"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind (e.g. 16kt NE)"></div>

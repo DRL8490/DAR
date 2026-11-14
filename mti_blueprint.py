@@ -39,17 +39,67 @@ MATTRESS_CATALOG = [
     for r in json.loads(zlib.decompress(base64.b64decode(MATTRESS_B64)).decode("utf-8"))
 ]
 
-def compute_4_corners(center_e, center_n, bearing_deg, length_m=6.0, width_m=3.0):
-    """Calculates 4 corner coordinates (C1..C4) in the background (saved in DB/Excel, hidden from UI)."""
-    rad = math.radians(float(bearing_deg or 0.0))
-    sin_b, cos_b = math.sin(rad), math.cos(rad)
+def compute_4_corners(center_e, center_n, bearing_deg, length_m=6.0, width_m=3.0, default_z=0.0):
+    b = float(bearing_deg or 195.854) % 360.0
+    s_brg = (b + 180.0) % 360.0 if b < 180.0 else b
+    az_rad = math.radians((s_brg - 180.0) % 360.0)
+    sin_a, cos_a = math.sin(az_rad), math.cos(az_rad)
     dl, dw = length_m / 2.0, width_m / 2.0
-    signs = [(+1, -1), (+1, +1), (-1, +1), (-1, -1)]
     corners = {}
-    for idx, (sl, sw) in enumerate(signs, start=1):
-        corners[f"c{idx}_e"] = round(center_e + sl * dl * sin_b + sw * dw * cos_b, 3)
-        corners[f"c{idx}_n"] = round(center_n + sl * dl * cos_b - sw * dw * sin_b, 3)
+    for idx, (sl, sw) in enumerate([(+1, -1), (+1, +1), (-1, +1), (-1, -1)], start=1):
+        corners[f"c{idx}_e"] = round(center_e + sl * dl * sin_a + sw * dw * cos_a, 3)
+        corners[f"c{idx}_n"] = round(center_n + sl * dl * cos_a - sw * dw * sin_a, 3)
+        corners[f"c{idx}_z"] = round(float(default_z or 0.0), 3)
     return corners
+
+def _merged_cat_map():
+    cm = {str(c["name"]).upper(): dict(c) for c in MATTRESS_CATALOG if c.get("name")}
+    if "load_custom_catalog" in globals() and "MTI_WS_DIR" in globals():
+        for cb in load_custom_catalog(MTI_WS_DIR):
+            if cb.get("name"):
+                cm[str(cb["name"]).upper()] = dict(cb)
+    return cm
+
+def _strip_auto_rem_tags(rem_raw):
+    s = re.sub(r"^(?:\[(?:Survey Pole(?:\s+USBL)?|Vessel(?:\s+USBL)?|Vessel Nav \+ Pole Fix|USBL:[^\]]+)\]\s*)+", "", str(rem_raw or ""), flags=re.I).strip()
+    return re.sub(r"(?:\s*\[(?:USBL:[^\]]*\|?\s*)?(?:Wind:[^\]]*|Curr:[^\]]*)\])+\s*$", "", s, flags=re.I).strip()
+
+def _enrich_fix_row(r, cat_map, input_logs=None):
+    d = dict(r)
+    b_up = str(d.get("design_box_id") or "").strip().upper()
+    cat_it = cat_map.get(b_up) or {}
+    d["design_brg"] = round(float(d.get("design_brg") or cat_it.get("bearing") or d.get("heading_deg") or 195.854), 3)
+    d["qaqc_e"] = d.get("qaqc_e") or d.get("aslaid_e") or d.get("design_e") or 0.0
+    d["qaqc_n"] = d.get("qaqc_n") or d.get("aslaid_n") or d.get("design_n") or 0.0
+    d["qaqc_brg"] = d.get("qaqc_brg") or d.get("heading_deg") or d["design_brg"]
+    rem_raw = str(d.get("remarks") or "")
+    if not d.get("usbl_sensor"):
+        d["usbl_sensor"] = "Vessel" if "[vessel" in rem_raw.lower() else "Survey Pole"
+    for key, pat in (("env_wind", r"Wind\s*:\s*([^\]|]+)"), ("env_current", r"Curr\s*:\s*([^\]|]+)")):
+        if not d.get(key):
+            m = re.search(pat, rem_raw, re.I)
+            if m: d[key] = m.group(1).strip()
+    g_lbl = str(d.get("gap_labels") or "")
+    for q in ("nw", "ne", "sw", "se"):
+        if not str(d.get(f"gap_{q}") or "").strip():
+            mq = re.search(rf"\b{q.upper()}\s*:\s*([0-9.]+)", g_lbl, re.I)
+            if mq: d[f"gap_{q}"] = mq.group(1)
+    if not any(str(d.get(f"gap_{q}") or "").strip() for q in ("nw", "ne", "sw", "se")) and not d.get("is_first_in_array"):
+        g1_v, g2_v = float(d.get("gap1_m") or 0.0), float(d.get("gap2_m") or 0.0)
+        if g1_v > 0: d["gap_nw"] = f"{g1_v:.2f}"
+        if g2_v > 0: d["gap_sw"] = f"{g2_v:.2f}"
+    surv = str(d.get("surveyor_name") or d.get("surveyor") or "").strip()
+    if not surv or surv.lower() == "duty surveyor":
+        for lg in (input_logs or []):
+            if str(lg.get("event_type") or "") == "Mattress fix" and b_up and b_up in str(lg.get("ref_id") or "").upper():
+                cand = str(lg.get("surveyor") or "").strip()
+                if cand and cand.lower() != "duty surveyor":
+                    surv = cand
+                    break
+    d["surveyor_name"] = surv
+    d["clean_remarks"] = _strip_auto_rem_tags(rem_raw)
+    return d
+
 
 DEFAULT_MTI_STATE = {
     "campaign_target_mattresses": 139,
@@ -167,7 +217,7 @@ def save_mti_state(mti_state):
 @login_required
 def mti_dashboard():
     state = load_mti_state()
-    ledger = sorted(state.get("ledger", []), key=lambda x: int(x.get("unit_no", 999)))
+    ledger = [_enrich_fix_row(r, _merged_cat_map(), state.get("input_logs")) for r in sorted(state.get("ledger", []), key=lambda x: int(x.get("unit_no", 999)))]
     input_logs = sorted(state.get("input_logs", []), key=lambda x: str(x.get("timestamp", "")), reverse=True)
 
     target_matt = int(state.get("campaign_target_mattresses", 139))
@@ -193,6 +243,7 @@ def mti_dashboard():
     return render_template(
         'mti_dashboard.html',
         ledger=ledger,
+        ledger_json=json.dumps(ledger),
         input_logs=input_logs,
         target_matt=target_matt,
         target_rb=target_rb,
@@ -205,7 +256,7 @@ def mti_dashboard():
         pct_matt=pct_matt,
         today_str=today_str,
         now_dt_str=now_dt_str,
-        catalog_json=json.dumps(MATTRESS_CATALOG)
+        catalog_json=json.dumps(list(_merged_cat_map().values()))
     )
 
 @mti_bp.route('/add_fix', methods=['POST'])
@@ -213,119 +264,151 @@ def mti_dashboard():
 def add_fix():
     state = load_mti_state()
     ledger = state.get("ledger", [])
-    unit_no = request.form.get("unit_no", type=int) or (len(ledger) + 1)
-    is_first = (request.form.get("is_first_in_array") == "true") or (unit_no == 1)
-    des_e = request.form.get("design_e", type=float) or 0.0
-    des_n = request.form.get("design_n", type=float) or 0.0
-    qaqc_e = request.form.get("qaqc_e", type=float) or 0.0
-    qaqc_n = request.form.get("qaqc_n", type=float) or 0.0
-    qaqc_brg = request.form.get("qaqc_brg", type=float) or 0.0
-    usbl_sensor = (request.form.get("usbl_sensor") or "Survey Pole").strip()
+    cat_map = _merged_cat_map()
+
+    fix_id = request.form.get("fix_id", type=int)
+    unit_no = request.form.get("unit_no", type=int) or (max([int(r.get("unit_no", 0)) for r in ledger] + [0]) + 1)
+    existing = next((r for r in ledger if int(r.get("id", 0)) == fix_id), None) if fix_id else None
+    if not existing and not str(request.form.get("fix_id") or "").strip():
+        if request.form.get("corners_ui_bound") != "1":
+            existing = next((r for r in ledger if int(r.get("unit_no", 0)) == unit_no), None)
+    ex = dict(existing) if existing else {}
+
+    xing_id = (request.form.get("crossing_id") or ex.get("crossing_id") or "CR-A1_L1").strip()
+    box_id = (request.form.get("design_box_id") or ex.get("design_box_id") or f"CR-A1_M{unit_no}").strip()
+    tag_id = (request.form.get("physical_tag") or ex.get("physical_tag") or "").strip()
+    cat_it = cat_map.get(box_id.upper()) or {}
+
+    des_e = request.form.get("design_e", type=float)
+    des_n = request.form.get("design_n", type=float)
+    des_brg = request.form.get("design_brg", type=float)
+    des_e = float(ex.get("design_e") or cat_it.get("design_e") or 0.0) if des_e is None else des_e
+    des_n = float(ex.get("design_n") or cat_it.get("design_n") or 0.0) if des_n is None else des_n
+    des_brg = float(ex.get("design_brg") or cat_it.get("bearing") or 195.854) if (des_brg is None or abs(des_brg) < 1e-6) else des_brg
+
+    usbl_raw = (request.form.get("usbl_sensor") or ex.get("usbl_sensor") or "Survey Pole").strip()
+    usbl_sensor = "Vessel" if ("vessel" in usbl_raw.lower() and "pole" not in usbl_raw.lower()) else ("Survey Pole" if "pole" in usbl_raw.lower() else usbl_raw)
+
+    qaqc_e = request.form.get("qaqc_e", type=float) or float(ex.get("qaqc_e") or ex.get("aslaid_e") or des_e or 0.0)
+    qaqc_n = request.form.get("qaqc_n", type=float) or float(ex.get("qaqc_n") or ex.get("aslaid_n") or des_n or 0.0)
+    qaqc_brg = request.form.get("qaqc_brg", type=float) or float(ex.get("qaqc_brg") or ex.get("heading_deg") or des_brg)
+
+    form_as_z = request.form.get("aslaid_z", type=float)
+    prev_as_z = float(ex.get("aslaid_z") or 0.0)
+    fallback_z = form_as_z if (form_as_z is not None and abs(form_as_z) > 1e-6) else prev_as_z
 
     pts = []
     for i in (1, 2, 3, 4):
-        ce = request.form.get(f"c{i}_e", type=float)
-        cn = request.form.get(f"c{i}_n", type=float)
-        cz = request.form.get(f"c{i}_z", type=float)
+        ce, cn, cz = request.form.get(f"c{i}_e", type=float), request.form.get(f"c{i}_n", type=float), request.form.get(f"c{i}_z", type=float)
         if ce and cn:
-            pts.append((ce, cn, cz or 0.0))
+            pts.append((ce, cn, cz if (cz is not None and abs(cz) > 1e-6) else float(ex.get(f"c{i}_z") or fallback_z or 0.0)))
+
+    if len(pts) != 4 and existing and request.form.get("corners_ui_bound") != "1":
+        ex_pts = [(float(ex[f"c{i}_e"]), float(ex[f"c{i}_n"]), float(ex.get(f"c{i}_z") or fallback_z or 0.0)) for i in (1, 2, 3, 4) if ex.get(f"c{i}_e") and ex.get(f"c{i}_n")]
+        if len(ex_pts) == 4:
+            pts = ex_pts
 
     if len(pts) == 4:
         as_e = round(sum(p[0] for p in pts) / 4.0, 3)
         as_n = round(sum(p[1] for p in pts) / 4.0, 3)
-        as_z = round(sum(p[2] for p in pts) / 4.0, 3)
+        mean_cz = round(sum(p[2] for p in pts) / 4.0, 3)
+        if form_as_z is not None and abs(form_as_z) > 1e-6 and abs(form_as_z - prev_as_z) > 1e-3 and abs(mean_cz - prev_as_z) <= 1e-2:
+            as_z = round(form_as_z, 3)
+            pts = [(p[0], p[1], as_z) for p in pts]
+        else:
+            as_z = mean_cz if abs(mean_cz) > 1e-6 else round(fallback_z, 3)
         be, bn = (pts[0][0] + pts[1][0]) / 2.0, (pts[0][1] + pts[1][1]) / 2.0
         fe, fn = (pts[2][0] + pts[3][0]) / 2.0, (pts[2][1] + pts[3][1]) / 2.0
         hdg = round((math.degrees(math.atan2(fe - be, fn - bn)) + 360.0) % 360.0, 3)
-        if hdg < 180.0:
-            hdg = round(hdg + 180.0, 3)
+        hdg = round(hdg + 180.0, 3) if hdg < 180.0 else hdg
         corners = {f"c{i+1}_e": round(pts[i][0], 3) for i in range(4)}
         corners.update({f"c{i+1}_n": round(pts[i][1], 3) for i in range(4)})
-        corners.update({f"c{i+1}_z": round(pts[i][2], 3) for i in range(4)})
+        corners.update({f"c{i+1}_z": round(pts[i][2] if abs(pts[i][2]) > 1e-6 else as_z, 3) for i in range(4)})
     else:
         as_e = request.form.get("aslaid_e", type=float) or qaqc_e
         as_n = request.form.get("aslaid_n", type=float) or qaqc_n
-        as_z = request.form.get("aslaid_z", type=float) or 0.0
-        hdg = round(request.form.get("heading_deg", type=float) or qaqc_brg or 195.854, 3)
-        if hdg < 180.0:
-            hdg = round(hdg + 180.0, 3)
-        corners = compute_4_corners(as_e, as_n, hdg, 6.0, 3.0)
+        as_z = round(fallback_z, 3)
+        hdg = round(request.form.get("heading_deg", type=float) or qaqc_brg or des_brg, 3)
+        hdg = round(hdg + 180.0, 3) if hdg < 180.0 else hdg
+        corners = compute_4_corners(as_e, as_n, hdg, 6.0, 3.0, as_z)
 
-    cl_off = round(math.hypot(as_e - des_e, as_n - des_n), 2) if (as_e and des_e) else (request.form.get("cl_offset_m", type=float) or 0.0)
+    cl_off = round(math.hypot(as_e - des_e, as_n - des_n), 2) if (as_e and des_e) else round(float(request.form.get("cl_offset_m", type=float) or 0.0), 2)
 
-    gnw, gne, gsw, gse = [request.form.get(k, "").strip() for k in ("gap_nw", "gap_ne", "gap_sw", "gap_se")]
+    gnw, gne, gsw, gse = [str(request.form.get(k) or "").strip() for k in ("gap_nw", "gap_ne", "gap_sw", "gap_se")]
+    chk_first = str(request.form.get("is_first_in_array") or "").strip().lower() in ("true", "1", "on", "yes")
+    is_first = chk_first or (unit_no == 1 and not any([gnw, gne, gsw, gse]))
+
     g_parts, g_vals = [], []
     if not is_first:
         for lbl, val in [("NW", gnw), ("NE", gne), ("SW", gsw), ("SE", gse)]:
             if val != "":
                 try:
                     fv = round(float(val), 2)
-                    g_parts.append(f"{lbl}:{fv:.2f}m")
-                    g_vals.append(fv)
+                    g_parts.append(f"{lbl}:{fv:.2f}m"); g_vals.append(fv)
                 except Exception:
                     pass
     if is_first:
+        gnw, gne, gsw, gse = "", "", "", ""
         gap_labels, gap1, gap2, max_gap = "1st Unit (N/A)", 0.0, 0.0, 0.0
     elif g_vals:
         gap_labels = " | ".join(g_parts)
         gap1, gap2, max_gap = g_vals[0], (g_vals[1] if len(g_vals) > 1 else g_vals[0]), max(g_vals)
     else:
-        gap1 = round(request.form.get("gap1_m", type=float) or 0.0, 2)
-        gap2 = round(request.form.get("gap2_m", type=float) or 0.0, 2)
+        gap1 = round(request.form.get("gap1_m", type=float) or float(ex.get("gap1_m") or 0.0), 2)
+        gap2 = round(request.form.get("gap2_m", type=float) or float(ex.get("gap2_m") or 0.0), 2)
         max_gap = round(max(gap1, gap2), 2)
-        gap_labels = f"G1:{gap1:.2f}m | G2:{gap2:.2f}m"
+        prev_lbl = str(ex.get("gap_labels") or "").strip()
+        gap_labels = prev_lbl if (prev_lbl and "1st unit" not in prev_lbl.lower() and max_gap > 0) else (f"G1:{gap1:.2f}m | G2:{gap2:.2f}m" if max_gap > 0 else "N/A")
 
-    env_w = (request.form.get("env_wind") or "").strip()
-    env_c = (request.form.get("env_current") or "").strip()
-    env_s = (request.form.get("env_swell") or "").strip()
+    env_w = str(request.form.get("env_wind") if request.form.get("env_wind") is not None else ex.get("env_wind", "")).strip()
+    env_c = str(request.form.get("env_current") if request.form.get("env_current") is not None else ex.get("env_current", "")).strip()
+    env_s = str(request.form.get("env_swell") if request.form.get("env_swell") is not None else ex.get("env_swell", "")).strip()
     env_tag = " | ".join([f"{k}:{v}" for k, v in [("Wind", env_w), ("Curr", env_c)] if v])
 
-    dt_str = (request.form.get("install_date") or datetime.utcnow().strftime('%Y-%m-%d %H:%M')).strip()
-    xing_id = (request.form.get("crossing_id") or "CR-A1_L1").strip()
-    box_id = (request.form.get("design_box_id") or f"CR-A1_M{unit_no}").strip()
-    tag_id = (request.form.get("physical_tag") or "").strip()
-    rem_str = (request.form.get("remarks") or "").strip()
-    if usbl_sensor and f"[{usbl_sensor}]" not in rem_str:
-        rem_str = f"[{usbl_sensor}] {rem_str}".strip()
-    if env_tag and env_tag not in rem_str:
-        rem_str = f"{rem_str} [{env_tag}]".strip()
+    dt_str = (request.form.get("install_date") or ex.get("install_date") or datetime.utcnow().strftime('%Y-%m-%d %H:%M')).strip()
+    cur_usr = _get_current_user_display_name() if "_get_current_user_display_name" in globals() else getattr(current_user, "name", "Duty Surveyor")
+    surv_name = (request.form.get("surveyor_name") or ex.get("surveyor_name") or ex.get("surveyor") or cur_usr).strip()
 
-    existing = next((r for r in ledger if int(r.get("unit_no", 0)) == unit_no), None)
+    rem_str = _strip_auto_rem_tags(request.form.get("remarks") if request.form.get("remarks") is not None else ex.get("remarks", ""))
+    if usbl_sensor: rem_str = f"[{usbl_sensor}] {rem_str}".strip()
+    if env_tag: rem_str = f"{rem_str} [{env_tag}]".strip()
+
     entry = {
-        "id": existing["id"] if existing else (max([int(r.get("id", 0)) for r in ledger] + [0]) + 1),
-        "unit_no": unit_no, "is_first_in_array": is_first, "unit_type": "Concrete Mattress",
+        "id": int(ex["id"]) if existing else (max([int(r.get("id", 0)) for r in ledger] + [0]) + 1),
+        "unit_no": unit_no, "is_first_in_array": is_first, "unit_type": ex.get("unit_type") or "Concrete Mattress",
         "crossing_id": xing_id, "design_box_id": box_id, "physical_tag": tag_id,
-        "install_date": dt_str, "usbl_sensor": usbl_sensor,
-        "design_e": round(des_e, 3), "design_n": round(des_n, 3),
+        "install_date": dt_str, "usbl_sensor": usbl_sensor, "surveyor_name": surv_name, "surveyor": surv_name,
+        "design_e": round(des_e, 3), "design_n": round(des_n, 3), "design_brg": round(des_brg, 3),
         "qaqc_e": round(qaqc_e or as_e, 3), "qaqc_n": round(qaqc_n or as_n, 3), "qaqc_brg": round(qaqc_brg or hdg, 3),
         "aslaid_e": round(as_e, 3), "aslaid_n": round(as_n, 3), "aslaid_z": round(as_z, 3),
-        "cl_offset_m": round(cl_off, 2), "heading_deg": hdg,
+        "cl_offset_m": round(cl_off, 2), "heading_deg": hdg, "brg_diff_deg": round(((hdg - des_brg + 180.0) % 360.0) - 180.0, 3),
         "gap_nw": gnw, "gap_ne": gne, "gap_sw": gsw, "gap_se": gse,
         "gap_labels": gap_labels, "gap1_m": gap1, "gap2_m": gap2, "gap_m": max_gap,
         "env_wind": env_w, "env_current": env_c, "env_swell": env_s,
-        "status": request.form.get("status", "Completed"), "remarks": rem_str,
-        **corners
+        "status": request.form.get("status") or ex.get("status") or "Completed", "remarks": rem_str, **corners
     }
     if existing:
-        ledger.remove(existing)
-    ledger.append(entry)
+        ledger[ledger.index(existing)] = entry
+    else:
+        ledger.append(entry)
     state["ledger"] = ledger
 
-    input_logs = state.get("input_logs", [])
     if not existing:
+        input_logs = state.get("input_logs", [])
         input_logs.append({
             "id": max([int(x.get("id", 0)) for x in input_logs] + [0]) + 1,
-            "event_type": "Mattress fix", "timestamp": dt_str,
-            "surveyor": getattr(current_user, "name", "Surveyor"),
+            "event_type": "Mattress fix", "timestamp": dt_str, "surveyor": surv_name,
             "ref_id": f"{box_id} ({tag_id}) [{usbl_sensor}]",
             "val1": f"Act E:{as_e:.2f}, N:{as_n:.2f}, Z:{as_z:.2f} (dCL:{cl_off:.2f}m)",
-            "val2": f"Brg:{hdg:.1f} deg | {gap_labels}",
-            "remarks": rem_str
+            "val2": f"Brg:{hdg:.1f} deg | {gap_labels}", "remarks": rem_str
         })
         state["input_logs"] = input_logs
 
+    if "_purge_cached_pdfs" in globals():
+        try: _purge_cached_pdfs()
+        except Exception: pass
     save_mti_state(state)
-    flash(f"Saved Unit #{unit_no} ({box_id} / {tag_id}) via {usbl_sensor}!", "success")
+    flash(f"{'Updated' if existing else 'Saved'} Unit #{unit_no} ({box_id} / {tag_id}) via {usbl_sensor}!", "success")
     return redirect(url_for('mti_bp.mti_mobile') if '/mobile' in (request.referrer or '') else url_for('mti_bp.mti_dashboard'))
 
 @mti_bp.route('/delete_fix/<int:fix_id>', methods=['POST'])
@@ -530,10 +613,10 @@ def user_access_list():
 def mti_mobile():
     from flask import render_template
     state = load_mti_state()
-    ledger = sorted(state.get("ledger", []), key=lambda x: int(x.get("unit_no", 999)))
+    ledger = [_enrich_fix_row(r, _merged_cat_map(), state.get("input_logs")) for r in sorted(state.get("ledger", []), key=lambda x: int(x.get("unit_no", 999)))]
     input_logs = sorted(state.get("input_logs", []), key=lambda x: str(x.get("timestamp", "")), reverse=True)
     completed_matt = sum(1 for r in ledger if r.get("status") == "Completed" and r.get("unit_type", "Concrete Mattress") == "Concrete Mattress")
-    return render_template('mti_mobile.html', ledger=ledger, input_logs=input_logs, completed_matt=completed_matt, target_matt=int(state.get("campaign_target_mattresses", 139)), cl_tol=float(state.get("cl_tolerance_m", 0.50)), gap_tol=float(state.get("gap_tolerance_m", 0.50)), catalog_json=json.dumps(MATTRESS_CATALOG))
+    return render_template('mti_mobile.html', ledger=ledger, ledger_json=json.dumps(ledger), input_logs=input_logs, completed_matt=completed_matt, target_matt=int(state.get("campaign_target_mattresses", 139)), cl_tol=float(state.get("cl_tolerance_m", 0.50)), gap_tol=float(state.get("gap_tolerance_m", 0.50)), catalog_json=json.dumps(list(_merged_cat_map().values())))
 
 
 # --- MOBILE HOME SCREEN SHORTCUT (PWA MANIFEST, SERVICE WORKER & IOS WEBCLIP) ---
@@ -914,26 +997,6 @@ def mti_whoami():
 
 @mti_bp.after_request
 def _mti_ensure_surveyor_saved(response):
-    try:
-        if request.method == 'POST' and any(p in request.path for p in ('add_fix', 'save_fix', 'edit_fix', 'update_fix')):
-            s_name = str(request.form.get('surveyor_name') or _get_current_user_display_name()).strip()
-            box_id = str(request.form.get('design_box_id') or request.form.get('box_id') or '').strip()
-            if s_name:
-                st = load_mti_state()
-                ledger = st.get('ledger') or []
-                changed = False
-                for r in ledger:
-                    if box_id and str(r.get('design_box_id', '')).upper() == box_id.upper():
-                        r['surveyor_name'] = s_name
-                        r['surveyor'] = s_name
-                        changed = True
-                    elif not r.get('surveyor_name') or str(r.get('surveyor_name')).strip().lower() == 'duty surveyor':
-                        r['surveyor_name'] = s_name
-                        changed = True
-                if changed:
-                    save_mti_state(st)
-    except Exception:
-        pass
     return response
 
 @mti_bp.route('/verify_4panel', methods=['POST'])
