@@ -627,12 +627,18 @@ def convert_matplotlib_figs_to_dxf(figs, out_path, native_4panel_metrics=None, p
 
             is_twd97 = (50000.0 <= 0.5 * (x0 + x1) <= 500000.0 and 2000000.0 <= 0.5 * (y0 + y1) <= 3100000.0)
             is_p2_local = (native_4panel_metrics is not None and "PANEL 2" in ttl_up)
+            split_vps = (native_4panel_metrics or {}).get("split_p1_viewports") or {}
+            split_key = "PANEL 1A" if "PANEL 1A" in ttl_up else ("PANEL 1B" if "PANEL 1B" in ttl_up else "")
 
             if is_twd97:
                 lbl_lyrs = {ly for ly in page_adhoc_layers.get(p_idx, set()) if ly.endswith('_LABELS')}
                 freeze_set = ((all_adhoc_layers - page_adhoc_layers.get(p_idx, set())) | lbl_lyrs) if all_adhoc_layers else None
                 _add_locked_viewport(psp, doc, bb_mm, 0.5 * (x0 + x1), 0.5 * (y0 + y1), abs(y1 - y0), twist_deg=0.0, frozen_layers=freeze_set)
                 _render_axes_chrome_and_texts_mm(psp, ax, px_to_mm, l_sheet, include_data_texts=(native_4panel_metrics is None))
+            elif split_key and split_key in split_vps:
+                sv = split_vps[split_key]
+                _add_locked_viewport(psp, doc, bb_mm, float(sv["ce"]), float(sv["cn"]), abs(y1 - y0), twist_deg=float(sv["az"]))
+                _render_axes_chrome_and_texts_mm(psp, ax, px_to_mm, l_sheet, include_data_texts=False)
             elif is_p2_local:
                 des_e = float(native_4panel_metrics.get("design_e") or native_4panel_metrics.get("aslaid_e") or 0.0)
                 des_n = float(native_4panel_metrics.get("design_n") or native_4panel_metrics.get("aslaid_n") or 0.0)
