@@ -87,11 +87,12 @@
         <div class="col-md-3">
             <div class="kpi-card border-start border-4 border-warning">
                 <div class="text-muted small fw-bold text-uppercase">1-Click DPR Board Sync</div>
-                <form action="/mti/sync_to_dpr" method="POST" class="mt-2 d-flex gap-2">
-                    <input type="date" name="sync_date" value="{{ today_str }}" class="form-control form-control-sm" required>
-                    <button type="submit" class="btn btn-sm btn-warning fw-bold text-nowrap">Sync to DPR</button>
+                <form action="/mti/sync_to_dpr" method="POST" class="mt-2 d-flex flex-wrap gap-1">
+                    <input type="date" name="sync_date" value="{{ today_str }}" class="form-control form-control-sm" style="flex:1 1 118px;min-width:118px;" required>
+                    <button type="submit" name="sync_mode" value="date" class="btn btn-sm btn-warning fw-bold text-nowrap" title="Create/update 1 SurveyTask log per confirmed Mattress Fix on selected date">Sync Date</button>
+                    <button type="submit" name="sync_mode" value="all_fixes" class="btn btn-sm btn-outline-dark fw-bold text-nowrap" title="Convert &amp; sync 1 SurveyTask log for every confirmed Mattress Fix in Ledger">All Fixes</button>
                 </form>
-                <small class="text-muted d-block mt-1">Logs daily MTI &amp; event inputs into SurveyTask</small>
+                <small class="text-muted d-block mt-1">Logs 1 SurveyTask entry per confirmed Mattress Fix</small>
             </div>
         </div>
     </div>

@@ -396,16 +396,13 @@ def add_fix():
         ledger.append(entry)
     state["ledger"] = ledger
 
-    if not existing:
-        input_logs = state.get("input_logs", [])
-        input_logs.append({
-            "id": max([int(x.get("id", 0)) for x in input_logs] + [0]) + 1,
-            "event_type": "Mattress fix", "timestamp": dt_str, "surveyor": surv_name,
-            "ref_id": f"{box_id} ({tag_id}) [{usbl_sensor}]",
-            "val1": f"Act E:{as_e:.2f}, N:{as_n:.2f}, Z:{as_z:.2f} (dCL:{cl_off:.2f}m)",
-            "val2": f"Brg:{hdg:.1f} deg | {gap_labels}", "remarks": rem_str
-        })
-        state["input_logs"] = input_logs
+    state["input_logs"] = _sync_fix_to_mti_input_logs(state.get("input_logs", []), entry)
+    try:
+        from app import db as _db_af
+        if _upsert_confirmed_fix_to_surveytask(entry, skip_if_manual_exists=False):
+            _db_af.session.commit()
+    except Exception:
+        pass
 
     if "_purge_cached_pdfs" in globals():
         try: _purge_cached_pdfs()
@@ -418,9 +415,13 @@ def add_fix():
 @login_required
 def delete_fix(fix_id):
     state = load_mti_state()
-    state["ledger"] = [r for r in state.get("ledger", []) if int(r.get("id", 0)) != fix_id]
+    ledger = state.get("ledger", [])
+    target = next((r for r in ledger if int(r.get("id", 0)) == fix_id), None)
+    state["ledger"] = [r for r in ledger if int(r.get("id", 0)) != fix_id]
+    if target:
+        _remove_fix_from_dpr_and_logs(target.get("design_box_id"), target.get("unit_no"), state=state)
     save_mti_state(state)
-    flash("Removed entry from MTI Ledger.", "success")
+    flash("Removed entry from MTI Ledger & DPR Register.", "success")
     return redirect(url_for('mti_bp.mti_mobile') if '/mobile' in (request.referrer or '') else url_for('mti_bp.mti_dashboard'))
 
 @mti_bp.route('/add_input_log', methods=['POST'])
@@ -481,47 +482,168 @@ def update_targets():
         flash(f"Updated Mattress Target Total to {new_target} units!", "success")
     return redirect(url_for('mti_bp.mti_mobile') if '/mobile' in (request.referrer or '') else url_for('mti_bp.mti_dashboard'))
 
-@mti_bp.route('/sync_to_dpr', methods=['POST'])
-@login_required
-def sync_to_dpr():
-    from app import SurveyTask, db
-    state = load_mti_state()
-    sync_date_str = request.form.get("sync_date") or datetime.utcnow().strftime('%Y-%m-%d')
-    sync_dt = datetime.strptime(sync_date_str, '%Y-%m-%d').date()
+# --- MTI_ONE_LOG_PER_CONFIRMED_FIX_START ---
+def _parse_mti_fix_dt(dt_raw, fallback_ymd=None):
+    s = re.sub(r"\s+", " ", str(dt_raw or "").replace("T", " ").strip())
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y/%m/%d %H:%M", "%Y-%m-%d"):
+        try:
+            dt_obj = datetime.strptime(s[:len(fmt) + 2].strip(), fmt)
+            return dt_obj.date(), dt_obj
+        except Exception:
+            pass
+    m_iso = re.search(r"(\d{4}-\d{2}-\d{2})", s)
+    ymd = m_iso.group(1) if m_iso else (fallback_ymd or datetime.utcnow().strftime("%Y-%m-%d"))
+    m_hm = re.search(r"(\d{1,2}):(\d{2})", s)
+    hh, mm = (int(m_hm.group(1)), int(m_hm.group(2))) if m_hm else (0, 0)
+    dt_obj = datetime.strptime(f"{ymd} {hh:02d}:{mm:02d}", "%Y-%m-%d %H:%M")
+    return dt_obj.date(), dt_obj
 
-    day_fixes = [r for r in state.get("ledger", []) if str(r.get("install_date", "")).startswith(sync_date_str)]
-    day_events = [e for e in state.get("input_logs", []) if str(e.get("timestamp", "")).startswith(sync_date_str)]
+def _sync_fix_to_mti_input_logs(input_logs, entry):
+    logs = list(input_logs or [])
+    box_id = str(entry.get("design_box_id") or "").strip()
+    box_up = box_id.upper()
+    tag_id = str(entry.get("physical_tag") or "").strip()
+    usbl_s = str(entry.get("usbl_sensor") or "Survey Pole").strip()
+    status_ok = (str(entry.get("status") or "Completed").strip().lower() == "completed")
 
-    if not day_fixes and not day_events:
-        flash(f"No MTI fixes or input events found on {sync_date_str} to sync.", "error")
-        return redirect(url_for('mti_bp.mti_mobile') if '/mobile' in (request.referrer or '') else url_for('mti_bp.mti_dashboard'))
+    match_idx = None
+    for idx, lg in enumerate(logs):
+        if str(lg.get("event_type") or "").strip().lower() != "mattress fix":
+            continue
+        ref_up = str(lg.get("ref_id") or "").upper()
+        if box_up and re.search(rf"(?<![A-Za-z0-9_-]){re.escape(box_up)}(?![0-9])", ref_up):
+            match_idx = idx
+            break
 
-    comp_units = [f"#{r['unit_no']} ({r['design_box_id']}/{r['physical_tag']}, dCL={r['cl_offset_m']}m)" for r in day_fixes if r.get("status") == "Completed"]
-    prog_units = [f"#{r['unit_no']} ({r['design_box_id']})" for r in day_fixes if r.get("status") == "In Progress"]
-    evt_summaries = [f"[{e['timestamp'].split(' ')[-1]} {e['event_type']}] {e['val1']}" for e in sorted(day_events, key=lambda x: x.get('timestamp', ''))]
+    if not status_ok:
+        if match_idx is not None:
+            logs.pop(match_idx)
+        return logs
 
-    opening_str = f"MMA Prestige Subsea Mattress Installation Witnessing ({sync_date_str})"
-    closing_parts = []
-    if comp_units:
-        closing_parts.append("Completed & Verified: " + "; ".join(comp_units))
-    if prog_units:
-        closing_parts.append("Ongoing: " + ", ".join(prog_units))
-    if evt_summaries:
-        closing_parts.append("Shift Events: " + "; ".join(evt_summaries[:8]))
-    full_rem = f"{opening_str} | Closed: {' | '.join(closing_parts)}"
+    raw_surv = str(entry.get("surveyor_name") or entry.get("surveyor") or getattr(current_user, "name", "Duty Surveyor")).strip()
+    full_surv = resolve_full_surveyor_name(raw_surv) if "resolve_full_surveyor_name" in globals() else raw_surv
+    as_e = float(entry.get("aslaid_e") or 0.0)
+    as_n = float(entry.get("aslaid_n") or 0.0)
+    as_z = float(entry.get("aslaid_z") or 0.0)
+    cl_off = float(entry.get("cl_offset_m") or 0.0)
+    hdg = float(entry.get("heading_deg") or 0.0)
+    gap_lbl = str(entry.get("gap_labels") or "N/A")
 
-    existing_task = SurveyTask.query.filter(
-        SurveyTask.execution_date == sync_dt,
-        SurveyTask.remarks.ilike(f"%{opening_str}%")
-    ).first()
-
-    if existing_task:
-        existing_task.remarks = full_rem
-        existing_task.status = "Closed"
+    new_lg = {
+        "id": int(logs[match_idx].get("id", 0)) if match_idx is not None else (max([int(x.get("id", 0)) for x in logs] + [0]) + 1),
+        "event_type": "Mattress fix",
+        "timestamp": str(entry.get("install_date") or datetime.utcnow().strftime("%Y-%m-%d %H:%M")).strip(),
+        "surveyor": full_surv,
+        "ref_id": f"{box_id} ({tag_id}) [{usbl_s}]",
+        "val1": f"Act E:{as_e:.3f}, N:{as_n:.3f}, Z:{as_z:.2f} (dCL:{cl_off:.2f}m)",
+        "val2": f"Brg:{hdg:.1f} deg | {gap_lbl}",
+        "usbl_sensor": usbl_s,
+        "env_wind": str(entry.get("env_wind") or ""),
+        "env_current": str(entry.get("env_current") or ""),
+        "remarks": str(entry.get("remarks") or ""),
+    }
+    if match_idx is not None:
+        logs[match_idx] = new_lg
     else:
-        new_t = SurveyTask(
-            surveyor_name=current_user.name,
-            assigned_to="Daryll Enano, Mohamad Abror Hediarto, Roderick Gonzales Clavel",
+        logs.append(new_lg)
+    return logs
+
+def _remove_fix_from_dpr_and_logs(box_id, unit_no=None, state=None):
+    box_up = str(box_id or "").strip().upper()
+    if isinstance(state, dict) and box_up:
+        state["input_logs"] = [
+            lg for lg in (state.get("input_logs") or [])
+            if not (
+                str(lg.get("event_type") or "").strip().lower() == "mattress fix"
+                and re.search(rf"(?<![A-Za-z0-9_-]){re.escape(box_up)}(?![0-9])", str(lg.get("ref_id") or "").upper())
+            )
+        ]
+    try:
+        from app import SurveyTask, db
+        q_rows = SurveyTask.query.filter(SurveyTask.sub_location == "338_Subsea_Crossings").all()
+        removed = False
+        for t in q_rows:
+            rem_t = str(t.remarks or "")
+            if "MMA Prestige Mattress Fix Confirmed" in rem_t:
+                if (box_up and f": {box_up} (" in rem_t.upper()) or (unit_no and f"Unit #{unit_no}:" in rem_t):
+                    db.session.delete(t)
+                    removed = True
+        if removed:
+            db.session.commit()
+    except Exception:
+        pass
+
+def _upsert_confirmed_fix_to_surveytask(entry, skip_if_manual_exists=False):
+    if str(entry.get("status") or "Completed").strip().lower() != "completed":
+        _remove_fix_from_dpr_and_logs(entry.get("design_box_id"), entry.get("unit_no"))
+        return False
+
+    from app import SurveyTask, db
+    unit_no = int(float(entry.get("unit_no") or 1))
+    box_id = str(entry.get("design_box_id") or f"CR-A1_M{unit_no}").strip()
+    box_up = box_id.upper()
+    tag_id = str(entry.get("physical_tag") or "").strip() or "N/A"
+    usbl_s = str(entry.get("usbl_sensor") or "Survey Pole").strip()
+    exec_dt, fix_dt = _parse_mti_fix_dt(entry.get("install_date"))
+
+    raw_surv = str(entry.get("surveyor_name") or entry.get("surveyor") or getattr(current_user, "name", "Duty Surveyor")).strip()
+    full_surv = resolve_full_surveyor_name(raw_surv) if "resolve_full_surveyor_name" in globals() else raw_surv
+    if not full_surv or full_surv.lower() in ("duty surveyor", "surveyor"):
+        full_surv = getattr(current_user, "name", "Daryll Enano")
+
+    as_e = float(entry.get("aslaid_e") or 0.0)
+    as_n = float(entry.get("aslaid_n") or 0.0)
+    as_z = float(entry.get("aslaid_z") or 0.0)
+    hdg = float(entry.get("heading_deg") or 0.0)
+    cl_off = float(entry.get("cl_offset_m") or 0.0)
+    gap_lbl = str(entry.get("gap_labels") or ("1st Unit (N/A)" if entry.get("is_first_in_array") else "N/A"))
+
+    raw_rem = str(entry.get("remarks") or "").strip()
+    clean_note = _strip_auto_rem_tags(raw_rem) if "_strip_auto_rem_tags" in globals() else raw_rem
+
+    opening_str = f"MMA Prestige Mattress Fix Confirmed - Unit #{unit_no}: {box_id} ({tag_id})"
+    closing_bits = [
+        f"Act E:{as_e:.3f}, N:{as_n:.3f}, Z:{as_z:.2f}m",
+        f"Brg:{hdg:.2f} deg",
+        f"dCL:{cl_off:.2f}m",
+        f"Gaps:{gap_lbl}",
+        f"USBL:{usbl_s}",
+        f"Verified by {full_surv}",
+    ]
+    if clean_note:
+        closing_bits.append(f"Notes: {clean_note}")
+    full_rem = f"{opening_str} | Closed: {' ; '.join(closing_bits)}"
+
+    bundled_hdr = f"MMA Prestige Subsea Mattress Installation Witnessing ({exec_dt.strftime('%Y-%m-%d')})"
+    for old_b in SurveyTask.query.filter(SurveyTask.execution_date == exec_dt, SurveyTask.remarks.ilike(f"%{bundled_hdr}%")).all():
+        db.session.delete(old_b)
+
+    all_sub = SurveyTask.query.filter(SurveyTask.sub_location == "338_Subsea_Crossings").all()
+    existing_t = None
+    for t in all_sub:
+        rem_t = str(t.remarks or "")
+        rem_up = rem_t.upper()
+        if "MMA PRESTIGE MATTRESS FIX CONFIRMED" in rem_up:
+            if f": {box_up} (" in rem_up or f"UNIT #{unit_no}:" in rem_up:
+                existing_t = t
+                break
+        elif skip_if_manual_exists and t.execution_date == exec_dt:
+            if box_up in rem_up and "MATTRESS INSTALLATION" in rem_up and "WROV ASSIST" not in rem_up and "WITNESSING (" not in rem_up:
+                return False
+
+    team_roster = "Daryll Enano, Mohamad Abror Hediarto, Roderick Gonzales Clavel"
+    if existing_t:
+        existing_t.surveyor_name = full_surv
+        existing_t.assigned_to = team_roster
+        existing_t.execution_date = exec_dt
+        existing_t.start_time = fix_dt
+        existing_t.end_time = fix_dt
+        existing_t.remarks = full_rem
+        existing_t.status = "Closed"
+    else:
+        db.session.add(SurveyTask(
+            surveyor_name=full_surv,
+            assigned_to=team_roster,
             requestor="Offshore - Walaa Ezzat Gomaa",
             command_verb="VERIFY",
             task_category="Bathymetric Survey",
@@ -535,14 +657,64 @@ def sync_to_dpr():
             status="Closed",
             is_urgent=False,
             priority=99,
-            start_time=datetime.combine(sync_dt, datetime.min.time()),
-            execution_date=sync_dt,
-            end_time=datetime.utcnow()
-        )
-        db.session.add(new_t)
+            start_time=fix_dt,
+            execution_date=exec_dt,
+            end_time=fix_dt
+        ))
+    return True
+
+@mti_bp.route('/sync_to_dpr', methods=['POST'])
+@login_required
+def sync_to_dpr():
+    from app import db
+    state = load_mti_state()
+    ledger = list(state.get("ledger") or [])
+    in_logs = list(state.get("input_logs") or [])
+    sync_mode = str(request.form.get("sync_mode") or "date").strip().lower()
+    sync_date_str = str(request.form.get("sync_date") or datetime.utcnow().strftime("%Y-%m-%d")).strip()
+
+    def _row_ymd(r):
+        d_obj, _ = _parse_mti_fix_dt(r.get("install_date"))
+        return d_obj.strftime("%Y-%m-%d")
+
+    if sync_mode == "all_fixes":
+        target_fixes = [
+            r for r in ledger
+            if str(r.get("status") or "Completed").strip().lower() == "completed"
+        ]
+    else:
+        target_fixes = [
+            r for r in ledger
+            if _row_ymd(r) == sync_date_str
+            and str(r.get("status") or "Completed").strip().lower() == "completed"
+        ]
+
+    target_fixes.sort(key=lambda r: (_parse_mti_fix_dt(r.get("install_date"))[1], int(float(r.get("unit_no") or 0))))
+
+    if not target_fixes:
+        scope_lbl = "the MTI Ledger" if sync_mode == "all_fixes" else sync_date_str
+        flash(f"No confirmed (Completed) Mattress Fixes found on {scope_lbl} to sync.", "error")
+        return redirect(url_for('mti_bp.mti_mobile') if '/mobile' in (request.referrer or '') else url_for('mti_bp.mti_dashboard'))
+
+    synced_cnt = 0
+    for r in target_fixes:
+        r_enr = dict(r)
+        if not r_enr.get("surveyor_name") and "_find_fix_surveyor_from_logs" in globals():
+            r_enr["surveyor_name"] = _find_fix_surveyor_from_logs(r_enr.get("design_box_id"), in_logs, r_enr.get("physical_tag"))
+        in_logs = _sync_fix_to_mti_input_logs(in_logs, r_enr)
+        if _upsert_confirmed_fix_to_surveytask(r_enr, skip_if_manual_exists=(sync_mode == "all_fixes")):
+            synced_cnt += 1
+
+    state["input_logs"] = in_logs
+    save_mti_state(state)
     db.session.commit()
-    flash(f"Synced {sync_date_str} MTI fixes & event inputs into the DPR & KPI Master Register!", "success")
+
+    if sync_mode == "all_fixes":
+        flash(f"Synced {synced_cnt} individual SurveyTask log(s) across all confirmed Mattress Fixes!", "success")
+    else:
+        flash(f"Synced {synced_cnt} individual SurveyTask log(s) for confirmed Mattress Fixes on {sync_date_str}!", "success")
     return redirect(url_for('mti_bp.mti_mobile') if '/mobile' in (request.referrer or '') else url_for('mti_bp.mti_dashboard'))
+# --- MTI_ONE_LOG_PER_CONFIRMED_FIX_END ---
 
 @mti_bp.route('/export_excel', methods=['GET'])
 @login_required
