@@ -262,6 +262,16 @@ def execute_adhoc_chart_script(
                     pdf_pages.savefig(f, dpi=150)
             pdf_bytes = buf_pdf.getvalue()
 
+    dxf_fn = re.sub(r"\.pdf$", ".dxf", safe_fn, flags=re.I)
+    if figs:
+        try:
+            from mti_dxf_export import convert_matplotlib_figs_to_dxf
+            dxf_out = os.path.join(workspace_dir, dxf_fn)
+            dxf_bytes = convert_matplotlib_figs_to_dxf(figs, dxf_out)
+            open(os.path.join(workspace_dir, "latest_MTI_AdHoc_Chart.dxf"), "wb").write(dxf_bytes)
+        except Exception:
+            dxf_fn = ""
+
     page_count = len(figs) if figs else 1
     for f in figs:
         try:
@@ -278,6 +288,7 @@ def execute_adhoc_chart_script(
     return {
         "status": "ok",
         "filename": safe_fn,
+        "dxf_filename": dxf_fn,
         "page_count": page_count,
         "image_b64": preview_png_b64,
         "logs": stdout_buf.getvalue().strip() or f"Rendered {page_count} page(s) -> {safe_fn}"

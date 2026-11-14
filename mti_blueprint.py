@@ -902,7 +902,7 @@ def _save_setup_meta(meta):
 
 def _purge_cached_pdfs():
     os.makedirs(MTI_WS_DIR, exist_ok=True)
-    for p in glob.glob(os.path.join(MTI_WS_DIR, "*.pdf")):
+    for p in glob.glob(os.path.join(MTI_WS_DIR, "*.pdf")) + glob.glob(os.path.join(MTI_WS_DIR, "*.dxf")):
         try:
             os.remove(p)
         except Exception:
@@ -1325,6 +1325,27 @@ def _dl_4panel_file(kind, suffix, mime):
         generate_a4_report_pdf(metrics, MTI_WS_DIR, rep_md or None)
     elif kind == "docx" and not os.path.exists(p):
         generate_editable_docx(metrics, rep_md or build_structured_report_markdown(metrics), MTI_WS_DIR)
+    elif kind == "dxf" and not os.path.exists(p):
+        from mti_dxf_export import generate_4panel_studio_dxf
+        st = load_mti_state()
+        ledger = st.get("ledger", [])
+        cat_list = list(MATTRESS_CATALOG.values()) if isinstance(MATTRESS_CATALOG, dict) else list(MATTRESS_CATALOG)
+        fd = cache.get("fix_data") or (ledger[0] if ledger else {})
+        b_dict, metrics, c_xyz, xl, yl, zv, sb_loc, sb_full = run_rov_4panel_verification(fd, cat_list, MTI_WS_DIR)
+        raw_store = load_raw_rov_store(st, MTI_WS_DIR, None, ledger, cat_list) if "load_raw_rov_store" in globals() else {}
+        generate_4panel_studio_dxf(
+            b_dict, metrics, c_xyz, xl, yl, zv, sb_loc, sb_full, MTI_WS_DIR,
+            cache.get("include_history", True), ledger,
+            cache.get("scale_p1", 250), cache.get("scale_p2", 75),
+            cache.get("show_contours", True), cache.get("contour_interval", 0.05),
+            cache.get("show_soundings", True), cache.get("spot_spacing", 2.0),
+            custom_report_md=rep_md or None,
+            cad_polys=metrics.get("cad_polylines") or [],
+            raw_rov_store=raw_store
+        )
+        if not os.path.exists(p):
+            alt_p = os.path.join(MTI_WS_DIR, str(metrics.get("base_filename") or "") + ".dxf")
+            p = alt_p if os.path.exists(alt_p) else os.path.join(MTI_WS_DIR, "latest_A3_4Panel_Chart.dxf")
     return send_file(p, as_attachment=True, download_name=base + suffix, mimetype=mime)
 
 
@@ -1404,6 +1425,10 @@ def download_a4_pdf(): return _dl_4panel_file("a4_pdf", "_A4_Report.pdf", "appli
 @login_required
 def download_docx(): return _dl_4panel_file("docx", "_Report.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
+@mti_bp.route('/download_dxf')
+@login_required
+def download_dxf(): return _dl_4panel_file("dxf", ".dxf", "application/dxf")
+
 STUDIO_HTML_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1431,6 +1456,7 @@ STUDIO_HTML_TEMPLATE = r"""<!DOCTYPE html>
       <button type="button" id="btnOpenAdhocModal" class="btn btn-sm btn-warning text-dark fw-bold me-1" onclick="window.openAdhocStudio()" title="Open Ad-Hoc Gemini Context &amp; Python PDF Chart Generator"><i class="fas fa-terminal me-1"></i>Ad-Hoc PDF Script</button>
       <a id="dlA3Pdf" href="/mti/download_a3_pdf" class="btn btn-sm btn-danger fw-bold" title="Download 2-Page Landscape Print PDF (Page 1: A3 Chart + Page 2: A4 Report)"><i class="fas fa-print me-1"></i>Print PDF</a>
       <a id="dlA3Png" href="/mti/download_a3_png" class="btn btn-sm btn-info text-dark fw-bold"><i class="fas fa-image me-1"></i>A3 PNG</a>
+      <a id="dlDxf" href="/mti/download_dxf" class="btn btn-sm btn-success fw-bold" title="Download CAD (.dxf) with TWD97 Model Space &amp; PDF-Matched Paper Space Layout"><i class="fas fa-layer-group me-1"></i>CAD (.dxf)</a>
       <a id="dlA4Pdf" href="/mti/download_a4_pdf" style="display:none;"></a>
       <a id="dlDocx" href="/mti/download_docx" class="btn btn-sm btn-primary fw-bold"><i class="fas fa-file-word me-1"></i>Editable Word (.docx)</a>
       <button type="button" class="btn btn-sm btn-outline-light ms-1" onclick="window.close()">Close</button>
@@ -1580,6 +1606,7 @@ window.runStudioVerify = function(extra) {
           document.getElementById('dlA3Png').href = '/mti/download_a3_png?file=' + encodeURIComponent(fn) + '&t=' + ts;
           document.getElementById('dlA4Pdf').href = '/mti/download_a4_pdf?file=' + encodeURIComponent(fn) + '&t=' + ts;
           document.getElementById('dlDocx').href = '/mti/download_docx?file=' + encodeURIComponent(fn) + '&t=' + ts;
+          if (document.getElementById('dlDxf')) document.getElementById('dlDxf').href = '/mti/download_dxf?file=' + encodeURIComponent(fn) + '&t=' + ts;
         }
       }
     }).catch(err => { btn.disabled = false; sp.style.display = 'none'; alert('Render error: ' + err); });
@@ -1686,23 +1713,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
           <textarea id="adhocScriptBox" class="form-control font-monospace mb-2" spellcheck="false" placeholder="# Paste Python Matplotlib / PdfPages script from Gemini here..."></textarea>
 
-          <div class="row g-2 align-items-end mb-2">
-            <div class="col-md-4 col-6">
-              <label class="small fw-bold text-light">Optional PDF Filename</label>
+                    <div class="row g-2 align-items-end mb-2">
+            <div class="col-md-3 col-6">
+              <label class="small fw-bold text-light">Optional PDF/DXF Name</label>
               <input type="text" id="adhocFilenameInp" class="form-control form-control-sm bg-dark text-light border-secondary font-monospace" placeholder="YYYYMMDD_MTI_Custom.pdf">
             </div>
             <div class="col-md-3 col-6">
               <label class="small fw-bold text-light">Save Reusable Snippet As</label>
               <input type="text" id="adhocSaveTitleInp" class="form-control form-control-sm bg-dark text-warning border-secondary" placeholder="Optional preset name">
             </div>
-            <div class="col-md-3 col-6">
+            <div class="col-md-2 col-4">
               <button type="button" id="btnRunAdhoc" class="btn btn-sm btn-success fw-bold w-100" onclick="window.runAdhocScript()">
-                <i class="fas fa-play me-1"></i>Generate Ad-Hoc PDF
+                <i class="fas fa-play me-1"></i>Generate
               </button>
             </div>
-            <div class="col-md-2 col-6">
+            <div class="col-md-2 col-4">
               <a id="btnDlAdhocPdf" href="/mti/download_adhoc_pdf" target="_blank" class="btn btn-sm btn-danger fw-bold w-100 disabled" aria-disabled="true">
-                <i class="fas fa-file-pdf me-1"></i>Download PDF
+                <i class="fas fa-file-pdf me-1"></i>PDF
+              </a>
+            </div>
+            <div class="col-md-2 col-4">
+              <a id="btnDlAdhocDxf" href="/mti/download_adhoc_dxf" target="_blank" class="btn btn-sm btn-info text-dark fw-bold w-100 disabled" aria-disabled="true" title="Download TWD97 Model Space + Paper Space Layout DXF">
+                <i class="fas fa-layer-group me-1"></i>CAD (.dxf)
               </a>
             </div>
           </div>
@@ -1884,6 +1916,13 @@ document.addEventListener('DOMContentLoaded', function() {
           dlBtn.href = '/mti/download_adhoc_pdf/' + encodeURIComponent(d.filename) + '?t=' + Date.now();
           dlBtn.classList.remove('disabled');
           dlBtn.removeAttribute('aria-disabled');
+        }
+        const dlDxfBtn = document.getElementById('btnDlAdhocDxf');
+        if (dlDxfBtn) {
+          const dxfFn = d.dxf_filename || String(d.filename || 'latest_MTI_AdHoc_Chart.dxf').replace(/\.pdf$/i, '.dxf');
+          dlDxfBtn.href = '/mti/download_adhoc_dxf/' + encodeURIComponent(dxfFn) + '?t=' + Date.now();
+          dlDxfBtn.classList.remove('disabled');
+          dlDxfBtn.removeAttribute('aria-disabled');
         }
         if (d.saved_snippets) {
           refreshSnippetDropdown(d.saved_snippets);
@@ -2835,6 +2874,19 @@ def mti_download_adhoc_pdf(req_fn=None):
     if not os.path.exists(p):
         p = os.path.join(MTI_WS_DIR, "latest_MTI_AdHoc_Chart.pdf")
     return send_file(p, as_attachment=True, download_name=fn, mimetype="application/pdf")
+
+@mti_bp.route('/download_adhoc_dxf')
+@mti_bp.route('/download_adhoc_dxf/<path:req_fn>')
+@login_required
+def mti_download_adhoc_dxf(req_fn=None):
+    os.makedirs(MTI_WS_DIR, exist_ok=True)
+    fn = re.sub(r"[^A-Za-z0-9_.-]", "_", os.path.basename(str(req_fn or request.args.get("file") or "latest_MTI_AdHoc_Chart.dxf")))
+    if fn.lower().endswith(".pdf"):
+        fn = fn[:-4] + ".dxf"
+    p = os.path.join(MTI_WS_DIR, fn)
+    if not os.path.exists(p):
+        p = os.path.join(MTI_WS_DIR, "latest_MTI_AdHoc_Chart.dxf")
+    return send_file(p, as_attachment=True, download_name=fn, mimetype="application/dxf")
 
 # --- PANEL 4: RAW ROV POINTS PER AS-LAID MATTRESS ROUTES ---
 from mti_raw_rov import load_raw_rov_store, save_raw_rov_store, parse_and_merge_raw_rov_text

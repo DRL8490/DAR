@@ -1,3 +1,4 @@
+import os as _os; _os.environ.setdefault("EZDXF_DISABLE_C_EXT", "1")
 import os, io, re, math
 import numpy as np
 import ezdxf
@@ -335,6 +336,7 @@ def _extract_axes_data_to_modelspace(doc, ax, layer_prefix):
         dx, dy = ax.transData.inverted().transform(disp_xy)
         if _in_twd_bounds(float(dx), float(dy)):
             c_rgb = _rgb_tuple(tx.get_color(), (248, 250, 252)) or (248, 250, 252)
+            c_rgb = (248, 250, 252) if sum(c_rgb) < 160 else c_rgb
             # Scale text cap-height to true world meters matching the axes scale
             ax_bb = ax.get_position()
             fig_h_mm = ax.figure.get_size_inches()[1] * 25.4
@@ -473,6 +475,12 @@ def _render_axes_chrome_and_texts_mm(psp, ax, px_to_mm, layer_name, include_data
                 continue
             px, py = tx.get_transform().transform(tx.get_position())
             mx, my = px * px_to_mm, py * px_to_mm
+            arr_p = getattr(tx, "arrow_patch", None)
+            if arr_p is not None and arr_p.get_visible():
+                av_mm = arr_p.get_path().transformed(arr_p.get_patch_transform()).vertices * px_to_mm
+                ac_rgb = _rgb_tuple(arr_p.get_edgecolor(), None) or _rgb_tuple(arr_p.get_facecolor(), (71, 85, 105))
+                if len(av_mm) >= 2 and ac_rgb:
+                    psp.add_lwpolyline([(float(v[0]), float(v[1])) for v in av_mm], dxfattribs={"layer": layer_name, "true_color": ezdxf.rgb2int(ac_rgb)})
             bb_patch = tx.get_bbox_patch()
             if bb_patch is not None and bb_patch.get_visible():
                 v_mm = bb_patch.get_path().transformed(bb_patch.get_patch_transform()).vertices * px_to_mm
@@ -621,9 +629,10 @@ def convert_matplotlib_figs_to_dxf(figs, out_path, native_4panel_metrics=None, p
             is_p2_local = (native_4panel_metrics is not None and "PANEL 2" in ttl_up)
 
             if is_twd97:
-                freeze_set = (all_adhoc_layers - page_adhoc_layers.get(p_idx, set())) if all_adhoc_layers else None
+                lbl_lyrs = {ly for ly in page_adhoc_layers.get(p_idx, set()) if ly.endswith('_LABELS')}
+                freeze_set = ((all_adhoc_layers - page_adhoc_layers.get(p_idx, set())) | lbl_lyrs) if all_adhoc_layers else None
                 _add_locked_viewport(psp, doc, bb_mm, 0.5 * (x0 + x1), 0.5 * (y0 + y1), abs(y1 - y0), twist_deg=0.0, frozen_layers=freeze_set)
-                _render_axes_chrome_and_texts_mm(psp, ax, px_to_mm, l_sheet, include_data_texts=False)
+                _render_axes_chrome_and_texts_mm(psp, ax, px_to_mm, l_sheet, include_data_texts=(native_4panel_metrics is None))
             elif is_p2_local:
                 des_e = float(native_4panel_metrics.get("design_e") or native_4panel_metrics.get("aslaid_e") or 0.0)
                 des_n = float(native_4panel_metrics.get("design_n") or native_4panel_metrics.get("aslaid_n") or 0.0)
