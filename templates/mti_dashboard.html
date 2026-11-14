@@ -1457,7 +1457,7 @@ function openQrModal(){
       chartBtn.innerHTML = '&#128202; CHART';
       chartBtn.title = 'Open 4-Panel Verification & Submittal Studio';
       const activeUser = window.MTI_CURRENT_USER_NAME || detectCurrentUserFromDom() || '';
-      chartBtn.href = '/mti/studio' + (activeUser ? ('?surveyor_name=' + encodeURIComponent(activeUser)) : '');
+      chartBtn.href = '/mti/studio';
     }
   }
 
@@ -1554,7 +1554,7 @@ function openQrModal(){
                     '&box_id=' + encodeURIComponent(boxId) +
                     '&physical_tag=' + encodeURIComponent(tagId) +
                     '&unit_no=' + encodeURIComponent(uno) +
-                    (activeSurv ? ('&surveyor_name=' + encodeURIComponent(activeSurv)) : '');
+                    '';
         window.open(url, '_blank');
       };
 
@@ -1584,7 +1584,7 @@ function openQrModal(){
         window.MTI_CURRENT_USER_NAME = d.user_name;
         syncSurveyorInputBox(true);
         const topStudio = document.getElementById('btnTop4PanelWin');
-        if (topStudio) topStudio.href = '/mti/studio?surveyor_name=' + encodeURIComponent(d.user_name);
+        if (topStudio) topStudio.href = '/mti/studio';
       }
       window.MTI_DPR_COUNTS = d.counts || {};
       if (d.latest_date) {

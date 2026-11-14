@@ -175,8 +175,8 @@ def generate_a3_4panel_chart(
                 hist_map[r_bid] = r
 
     # PANEL 1: FULL CROSSING ARRAY (Strictly clipped inside ax1 frame)
-    ax1 = fig.add_axes([35.0 / W_MM, 56.0 / H_MM, 102.0 / W_MM, 184.0 / H_MM])
-    hw1, hh1 = (102.0 / 1000.0) * float(scale_p1) / 2.0, (184.0 / 1000.0) * float(scale_p1) / 2.0
+    ax1 = fig.add_axes([33.0 / W_MM, 41.0 / H_MM, 128.0 / W_MM, 219.0 / H_MM])
+    hw1, hh1 = (128.0 / 1000.0) * float(scale_p1) / 2.0, (219.0 / 1000.0) * float(scale_p1) / 2.0
     e_lim1, n_lim1 = (des_e - hw1, des_e + hw1), (des_n - hh1, des_n + hh1)
     ax1.set_xlim(*e_lim1); ax1.set_ylim(*n_lim1)
     plot_seabed_layer(ax1, seabed_full_xyz, e_lim1, n_lim1, False, show_contours, contour_interval, show_soundings, spot_spacing, bathy_src)
@@ -223,8 +223,8 @@ def generate_a3_4panel_chart(
     ax1.tick_params(labelsize=5.8); ax1.ticklabel_format(useOffset=False, style="plain"); ax1.grid(True, linestyle=":", linewidth=0.4, color="#cbd5e1")
 
     # PANEL 2: LOCAL PLAN VIEW (with Rotated Grid North Arrow)
-    ax2 = fig.add_axes([161.0 / W_MM, 46.0 / H_MM, 114.0 / W_MM, 204.0 / H_MM])
-    hw2, hh2 = (114.0 / 1000.0) * float(scale_p2) / 2.0, (204.0 / 1000.0) * float(scale_p2) / 2.0
+    ax2 = fig.add_axes([179.0 / W_MM, 41.0 / H_MM, 128.0 / W_MM, 219.0 / H_MM])
+    hw2, hh2 = (128.0 / 1000.0) * float(scale_p2) / 2.0, (219.0 / 1000.0) * float(scale_p2) / 2.0
     ax2.set_xlim(-hw2, hw2); ax2.set_ylim(-hh2, hh2)
     plot_seabed_layer(ax2, seabed_local_xyz, (-hw2, hw2), (-hh2, hh2), True, show_contours, contour_interval, show_soundings, spot_spacing, bathy_src)
     plot_cad_background(ax2, cad_polys, is_local=True, des_e=des_e, des_n=des_n, u_short=tb["u_short"], u_long=tb["u_long"])
@@ -233,7 +233,7 @@ def generate_a3_4panel_chart(
     vmin_c, vmax_c = round(z_mean - 0.50, 2), round(z_mean + 0.50, 2)
     ax2.add_patch(mpatches.Rectangle((-1.5, -3.0), 3.0, 6.0, fill=False, edgecolor="#dc2626", linewidth=1.8, zorder=5, label="Design Box (3.0x6.0m)", clip_on=True))
     sc2 = ax2.scatter(x_local, y_local, c=z_vals, cmap="turbo", vmin=vmin_c, vmax=vmax_c, s=16, alpha=0.9, zorder=6, clip_on=True)
-    cax2 = fig.add_axes([278.0 / W_MM, 46.0 / H_MM, 3.2 / W_MM, 204.0 / H_MM])
+    cax2 = fig.add_axes([309.8 / W_MM, 41.0 / H_MM, 3.2 / W_MM, 219.0 / H_MM])
     cb2 = fig.colorbar(sc2, cax=cax2); cb2.set_label("Depth Z (m, TWVD2001)", fontsize=6.4, fontweight="bold"); cb2.ax.tick_params(labelsize=5.6)
 
     c_loc = np.asarray(metrics["corners_local"], dtype=float)
@@ -299,29 +299,31 @@ def generate_a3_4panel_chart(
     ax2.tick_params(labelsize=5.8); ax2.grid(True, linestyle=":", linewidth=0.45, color="#cbd5e1")
 
     sb_loc_arr = np.asarray(seabed_local_xyz, dtype=float)
-    for ax_p, coord_arr, lim_x, edge_v, is_long, ttl, x_lbl in [
-        (fig.add_axes([315.0 / W_MM, 162.0 / H_MM, 83.0 / W_MM, 88.0 / H_MM]), y_local, (-3.5, 3.5), 3.0, True, "PANEL 3: LONGITUDINAL (SSW -> NNE)" + chr(10) + "H 1:75 | V 1:15 @ A3", "Along-Track Y_local (m)"),
-        (fig.add_axes([315.0 / W_MM, 46.0 / H_MM, 83.0 / W_MM, 88.0 / H_MM]), x_local, (-3.5, 3.5), 1.5, False, "PANEL 4: LATERAL (WNW -> ESE)" + chr(10) + "H 1:75 | V 1:15 @ A3", "Cross-Track X_local (m)")
+    for ax_p, coord_arr, lim_x, edge_v, is_long, ttl_top, x_lbl in [
+        (fig.add_axes([341.9 / W_MM, 163.9 / H_MM, 58.1 / W_MM, 61.6 / H_MM]), y_local, (-3.486, 3.486), 3.0, True, "PANEL 3: LONGITUDINAL (SSW -> NNE)", "Along-Track Y_local (m)"),
+        (fig.add_axes([341.9 / W_MM, 75.5 / H_MM, 58.1 / W_MM, 61.6 / H_MM]), x_local, (-3.486, 3.486), 1.5, False, "PANEL 4: LATERAL (WNW -> ESE)", "Cross-Track X_local (m)")
     ]:
-        ax_p.scatter(coord_arr, z_vals, c=z_vals, cmap="turbo", vmin=vmin_c, vmax=vmax_c, s=10, alpha=0.85, label="Mattress Surface")
+        ax_p.scatter(coord_arr, z_vals, c=z_vals, cmap="turbo", vmin=vmin_c, vmax=vmax_c, s=9, alpha=0.85, label="Mattress Surface")
         xs_l = np.linspace(lim_x[0], lim_x[1], 40)
         if bathy_src == "SURVEY_BATHY" and len(sb_loc_arr) >= 1:
             q_prof = np.column_stack([np.zeros_like(xs_l), xs_l]) if is_long else np.column_stack([xs_l, np.zeros_like(xs_l)])
             z_prof = idw_interpolate(sb_loc_arr[:, :2], sb_loc_arr[:, 2], q_prof)
-            ax_p.plot(xs_l, z_prof, "--", color="#0284c7", lw=1.35, label="Survey Seabed Profile")
+            ax_p.plot(xs_l, z_prof, "--", color="#0284c7", lw=1.25, label="Survey Seabed Profile")
             z_center = 0.5 * (float(np.mean(z_vals)) + float(np.mean(z_prof)))
-            half_win = max(0.66, 0.5 * abs(float(np.max(z_prof) - np.min(z_vals))) + 0.35)
+            half_win = max(0.616, 0.5 * abs(float(np.max(z_prof) - np.min(z_vals))) + 0.32)
         else:
             z_center = z_mean
-            half_win = 0.66
+            half_win = 0.616
+        v_sc_lbl = int(round((2.0 * half_win) / (61.6 / 1000.0)))
+        ttl = ttl_top + chr(10) + f"H 1:120 | V 1:{v_sc_lbl} @ A3"
         if z_center <= 0:
             y_bottom, y_top = z_center - half_win, z_center + half_win
         else:
             y_bottom, y_top = z_center + half_win, z_center - half_win
-        ax_p.axvline(-edge_v, color="#dc2626", ls="--", lw=1.2, label=f"Design (+/-{edge_v:.1f}m)"); ax_p.axvline(edge_v, color="#dc2626", ls="--", lw=1.2)
+        ax_p.axvline(-edge_v, color="#dc2626", ls="--", lw=1.1, label=f"Design (+/-{edge_v:.1f}m)"); ax_p.axvline(edge_v, color="#dc2626", ls="--", lw=1.1)
         ax_p.set_xlim(*lim_x); ax_p.set_ylim(y_bottom, y_top)
-        ax_p.set_title(ttl, fontsize=7.0, fontweight="bold", pad=3); ax_p.set_xlabel(x_lbl, fontsize=6.3, fontweight="bold"); ax_p.set_ylabel("Depth Z (m, TWVD2001)", fontsize=6.3, fontweight="bold")
-        ax_p.tick_params(labelsize=5.6); ax_p.grid(True, linestyle=":", lw=0.45, color="#cbd5e1"); ax_p.legend(loc="lower right", fontsize=5.0, framealpha=0.9)
+        ax_p.set_title(ttl, fontsize=6.5, fontweight="bold", pad=3); ax_p.set_xlabel(x_lbl, fontsize=5.9, fontweight="bold"); ax_p.set_ylabel("Depth Z (m, TWVD2001)", fontsize=5.9, fontweight="bold")
+        ax_p.tick_params(labelsize=5.2); ax_p.grid(True, linestyle=":", lw=0.45, color="#cbd5e1"); ax_p.legend(loc="lower right", fontsize=4.6, framealpha=0.9)
 
     buf_png = io.BytesIO()
     fig.savefig(buf_png, format="png", dpi=125)

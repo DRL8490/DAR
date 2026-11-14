@@ -958,7 +958,23 @@ def _get_current_user_display_name():
         pass
     return "Duty Surveyor"
 
-def _resolve_fix_data(req, ledger):
+def _find_fix_surveyor_from_logs(box_id, input_logs, tag_id=""):
+    b_up = str(box_id or "").strip().upper()
+    t_up = str(tag_id or "").strip().upper().replace("#", "")
+    best = ""
+    for lg in (input_logs or []):
+        if str(lg.get("event_type") or "").strip().lower() != "mattress fix":
+            continue
+        ref_up = str(lg.get("ref_id") or "").upper()
+        if b_up and re.search(rf"(?<![A-Za-z0-9_-]){re.escape(b_up)}(?![0-9])", ref_up):
+            cand = str(lg.get("surveyor") or lg.get("surveyor_name") or "").strip()
+            if cand and cand.lower() not in ("duty surveyor", "surveyor"):
+                best = cand
+                if t_up and t_up in ref_up:
+                    return cand
+    return best
+
+def _resolve_fix_data(req, ledger, input_logs=None):
     uno = str(req.get("unit_no") or req.get("fix_id") or "").strip()
     box_q = str(req.get("design_box_id") or req.get("location_id") or req.get("box_id") or "").strip()
     tag_q = str(req.get("physical_tag") or req.get("mattress_id") or "").strip()
@@ -973,21 +989,28 @@ def _resolve_fix_data(req, ledger):
         matched = ledger[0]
     fix_data = dict(matched) if matched else {}
     for k, v in req.items():
-        if k in ("unit_no", "fix_id") and matched:
+        if k in ("unit_no", "fix_id", "surveyor_name", "surveyor_override") and matched:
             continue
         if v is not None and str(v).strip() != "":
             fix_data[k] = v
     if box_q and "design_box_id" not in fix_data:
         fix_data["design_box_id"] = box_q
+    log_surv = _find_fix_surveyor_from_logs(fix_data.get("design_box_id"), input_logs, fix_data.get("physical_tag"))
+    saved_surv = str((matched or {}).get("surveyor_name") or (matched or {}).get("surveyor") or "").strip()
+    if not saved_surv or saved_surv.lower() in ("duty surveyor", "surveyor"):
+        saved_surv = log_surv
     req_surv = str(req.get("surveyor_name") or "").strip()
-    saved_surv = str(fix_data.get("surveyor_name") or fix_data.get("surveyor") or "").strip()
-    cur_u = _get_current_user_display_name()
-    if req_surv and req_surv.lower() != "duty surveyor":
+    is_override = str(req.get("surveyor_override") or "").strip() == "1"
+    if is_override and req_surv and req_surv.lower() != "duty surveyor":
         fix_data["surveyor_name"] = req_surv
     elif saved_surv and saved_surv.lower() != "duty surveyor":
         fix_data["surveyor_name"] = saved_surv
+    elif log_surv:
+        fix_data["surveyor_name"] = log_surv
+    elif not matched and req_surv and req_surv.lower() != "duty surveyor":
+        fix_data["surveyor_name"] = req_surv
     else:
-        fix_data["surveyor_name"] = cur_u
+        fix_data["surveyor_name"] = _get_current_user_display_name()
     return fix_data
 
 @mti_bp.route('/whoami')
@@ -1008,7 +1031,7 @@ def verify_4panel():
     ledger = st.get("ledger", [])
     cat_list = list(MATTRESS_CATALOG.values()) if isinstance(MATTRESS_CATALOG, dict) else list(MATTRESS_CATALOG)
     req = request.get_json(silent=True) or request.form.to_dict()
-    fix_data = _resolve_fix_data(req, ledger)
+    fix_data = _resolve_fix_data(req, ledger, st.get('input_logs', []))
 
     sc_p1, sc_p2 = int(float(req.get("scale_p1") or 250)), int(float(req.get("scale_p2") or 75))
     inc_hist = _as_bool(req.get("include_history"), True)
@@ -1016,14 +1039,6 @@ def verify_4panel():
     c_int, s_spc = float(req.get("contour_interval") or 0.05), float(req.get("spot_spacing") or 2.0)
 
     _purge_cached_pdfs()
-
-    if req.get('surveyor_name') or req.get('install_date'):
-        for r in ledger:
-            if str(r.get('design_box_id','')).upper() == str(fix_data.get('design_box_id','')).upper():
-                if req.get('surveyor_name'): r['surveyor_name'] = str(req['surveyor_name']).strip()
-                if req.get('install_date'): r['install_date'] = str(req['install_date']).strip()
-        try: save_mti_state(st)
-        except Exception: pass
     b_dict, metrics, c_xyz, xl, yl, zv, sb_loc, sb_full = run_rov_4panel_verification(fix_data, cat_list, MTI_WS_DIR)
     png_b, _ = generate_a3_4panel_chart(b_dict, metrics, c_xyz, xl, yl, zv, sb_loc, sb_full, MTI_WS_DIR, inc_hist, ledger, sc_p1, sc_p2, sh_cont, c_int, sh_snd, s_spc, save_pdf=False)
     rep_md = build_structured_report_markdown(metrics, inc_hist, ledger, sc_p1, sc_p2)
@@ -1489,7 +1504,7 @@ STUDIO_HTML_TEMPLATE = r"""<!DOCTYPE html>
       </div>
       <div class="col-md-2 col-6">
         <label class="small fw-bold text-info">Surveyor Name</label>
-        <input type="text" id="inpSurveyor" class="form-control form-control-sm fw-bold bg-dark text-warning border-info" value="{{ init_surveyor }}" placeholder="e.g. Abror / Roderick">
+        <input type="text" id="inpSurveyor" class="form-control form-control-sm fw-bold bg-dark text-warning border-info" value="{{ init_surveyor }}" placeholder="Recorded Fix Surveyor" oninput="this.dataset.userEdited='1'">
       </div>
       <div class="col-md-1 col-4">
         <label class="small fw-bold text-warning" title="Mattress Thickness (m)">Thick(m)</label>
@@ -1545,14 +1560,17 @@ const LEDGER_DATA = {{ ledger_json | safe }};
 const INIT_PARAMS = new URLSearchParams(window.location.search);
 
 window.selectLedgerUnit = function(boxId) {
+  for (const k of Array.from(INIT_PARAMS.keys())) { INIT_PARAMS.delete(k); }
   const row = LEDGER_DATA.find(r => r.design_box_id === boxId);
+  const sEl = document.getElementById('inpSurveyor');
+  if (sEl) sEl.dataset.userEdited = '';
   if (row) {
     document.getElementById('inpBoxId').value = row.design_box_id || '';
     document.getElementById('inpTagId').value = row.physical_tag || '';
     if (document.getElementById('inpInstallDate')) document.getElementById('inpInstallDate').value = row.install_date || '';
-    if (document.getElementById('inpSurveyor')) document.getElementById('inpSurveyor').value = '{{ init_surveyor }}';
+    if (sEl) sEl.value = row.surveyor_name || row.surveyor || '';
   }
-  window.runStudioVerify({ design_box_id: boxId });
+  window.runStudioVerify({ design_box_id: boxId, unit_no: row ? (row.unit_no || '') : '' });
 };
 
 window.toggleFpTab = function(showMd) {
@@ -1568,7 +1586,7 @@ window.runStudioVerify = function(extra) {
   payload.design_box_id = (extra && extra.design_box_id) || document.getElementById('inpBoxId').value.trim();
   payload.physical_tag = document.getElementById('inpTagId').value.trim();
   if (document.getElementById('inpInstallDate')) payload.install_date = document.getElementById('inpInstallDate').value.trim();
-  if (document.getElementById('inpSurveyor')) payload.surveyor_name = document.getElementById('inpSurveyor').value.trim();
+  const _sEl = document.getElementById('inpSurveyor'); if (_sEl && _sEl.dataset.userEdited === '1' && _sEl.value.trim()) { payload.surveyor_name = _sEl.value.trim(); payload.surveyor_override = '1'; } else { delete payload.surveyor_name; delete payload.surveyor_override; }
   if (document.getElementById('inpMatThick')) payload.mat_thickness_m = document.getElementById('inpMatThick').value;
   if (document.getElementById('inpMatThick')) payload.mat_thickness_m = document.getElementById('inpMatThick').value;
   payload.scale_p1 = document.getElementById('fpScP1').value;
@@ -2795,13 +2813,25 @@ document.addEventListener('DOMContentLoaded', window.refreshSetupStatus);
 @login_required
 def mti_4panel_studio_window():
     st = load_mti_state()
-    ledger = st.get("ledger", [])
+    in_logs = st.get("input_logs", [])
+    raw_ledger = sorted(st.get("ledger", []), key=lambda x: int(x.get("unit_no", 999)))
+    if "_enrich_fix_row" in globals() and "_merged_cat_map" in globals():
+        ledger = [_enrich_fix_row(r, _merged_cat_map(), in_logs) for r in raw_ledger]
+    else:
+        ledger = []
+        for r in raw_ledger:
+            d = dict(r)
+            ls = _find_fix_surveyor_from_logs(d.get("design_box_id"), in_logs, d.get("physical_tag"))
+            if not d.get("surveyor_name") or str(d.get("surveyor_name")).lower() in ("duty surveyor", "surveyor"):
+                if ls:
+                    d["surveyor_name"] = ls
+            ledger.append(d)
     req = request.args.to_dict()
-    fd = _resolve_fix_data(req, ledger)
+    fd = _resolve_fix_data(req, ledger, in_logs)
     init_box = fd.get("design_box_id") or "CR-A1_M15"
     init_tag = fd.get("physical_tag") or "#A046"
     init_date = fd.get("install_date") or "2026-11-04 14:34"
-    init_surveyor = str(req.get("surveyor_name") or _get_current_user_display_name()).strip()
+    init_surveyor = str(fd.get("surveyor_name") or _get_current_user_display_name()).strip()
     return render_template_string(STUDIO_HTML_TEMPLATE, ledger=ledger, ledger_json=json.dumps(ledger), init_box=init_box, init_tag=init_tag, init_date=init_date, init_surveyor=init_surveyor)
 
 @mti_bp.route('/setup')
@@ -2989,19 +3019,30 @@ def load_mti_state(*args, **kwargs):
     global _final_gaptol_saving
     st = _real_final_load_mti_state(*args, **kwargs)
     if isinstance(st, dict):
+        dirty = False
         cur_g = st.get("gap_tolerance_m")
         if not st.get("gap_tol_050_v2") or cur_g is None or abs(float(cur_g) - 0.20) < 1e-6:
             st["gap_tolerance_m"] = 0.50
             if isinstance(st.get("survey_setup"), dict):
                 st["survey_setup"]["gap_tolerance_m"] = 0.50
             st["gap_tol_050_v2"] = True
-            if not _final_gaptol_saving:
-                try:
-                    _final_gaptol_saving = True
-                    save_mti_state(st)
-                except Exception:
-                    pass
-                finally:
-                    _final_gaptol_saving = False
+            dirty = True
+        if not st.get("studio_surveyor_repair_v1"):
+            in_logs = st.get("input_logs") or []
+            for r in (st.get("ledger") or []):
+                orig_s = _find_fix_surveyor_from_logs(r.get("design_box_id"), in_logs, r.get("physical_tag"))
+                if orig_s:
+                    r["surveyor_name"] = orig_s
+                    r["surveyor"] = orig_s
+            st["studio_surveyor_repair_v1"] = True
+            dirty = True
+        if dirty and not _final_gaptol_saving:
+            try:
+                _final_gaptol_saving = True
+                save_mti_state(st)
+            except Exception:
+                pass
+            finally:
+                _final_gaptol_saving = False
     return st
 # --- MTI_GAP_TOL_050_FINAL_ENFORCE_END ---
