@@ -3,14 +3,58 @@ from datetime import datetime
 import numpy as np
 
 AREA_LOCATIONS = ["CR-A1_L1", "CR-A1_L2", "CR-A2", "CR-A3", "CR-B1_L1", "CR-B1_L2", "CR-B2", "CR-B3"]
+GROUP_CENTERED_PREFIXES = ("CR-A1", "CR-A2", "CR-B1", "CR-B2")
 
-def build_base_filename(location_id, mattress_id, date_str=None):
+SURVEYOR_FULLNAME_FALLBACKS = {
+    "abror": "Mohamad Abror Hediarto",
+    "mohamad abror": "Mohamad Abror Hediarto",
+    "mohamad abror hediarto": "Mohamad Abror Hediarto",
+    "roderick": "Roderick Gonzales Clavel",
+    "roderick gonzales clavel": "Roderick Gonzales Clavel",
+    "daryll": "Daryll Enano",
+    "walaa": "Walaa Ezzat Gomaa",
+}
+
+def is_group_centered_crossing(crossing_id):
+    x_up = str(crossing_id or "").strip().upper()
+    return any(x_up == p or x_up.startswith(p + "_") for p in GROUP_CENTERED_PREFIXES)
+
+def resolve_full_surveyor_name(raw_name, user_names=None):
+    s = re.sub(r"\s+", " ", str(raw_name or "").strip())
+    if not s or s.lower() in ("duty surveyor", "surveyor", "unknown", "none"):
+        return s or "Duty Surveyor"
+    s_low = s.lower()
+    candidates = list(user_names or [])
+    if not candidates:
+        try:
+            from app import User
+            candidates = [str(getattr(u, "name", "") or "").strip() for u in User.query.all()]
+        except Exception:
+            candidates = []
+    for un in candidates:
+        if un.lower() == s_low and len(un.split()) >= 2:
+            return un
+    if len(s.split()) < 2:
+        for un in candidates:
+            u_words = [w.lower() for w in un.split() if w]
+            if len(u_words) >= 2 and (s_low in u_words or un.lower().startswith(s_low + " ")):
+                return un
+    if s_low in SURVEYOR_FULLNAME_FALLBACKS:
+        return SURVEYOR_FULLNAME_FALLBACKS[s_low]
+    return s
+
+def build_base_filename(location_id, mattress_id, date_str=None, surveyor_name=None):
     dt = re.sub(r"[^0-9]", "", str(date_str or ""))[:8]
     if len(dt) < 8:
         dt = datetime.utcnow().strftime("%Y%m%d")
     loc = re.sub(r"[^A-Za-z0-9_-]", "_", str(location_id or "CR-A1_M15").strip())
     tag = re.sub(r"[^A-Za-z0-9_-]", "", str(mattress_id or "001").replace("#", "").strip()) or "001"
-    return f"{dt}_Mattress_{loc}_{tag}"
+    base = f"{dt}_Mattress_{loc}_{tag}"
+    full_s = resolve_full_surveyor_name(surveyor_name) if surveyor_name else ""
+    clean_s = re.sub(r"[^A-Za-z0-9 ._-]", "", str(full_s or "")).strip()
+    if clean_s and clean_s.lower() not in ("duty surveyor", "surveyor"):
+        base = f"{base}_({clean_s})"
+    return base
 
 def _box_corners_cw(ce, cn, az_deg, length=6.0, width=3.0):
     rad = math.radians(float(az_deg) % 360.0)
@@ -287,7 +331,7 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
     mat_id = str(fix_data.get("physical_tag") or fix_data.get("mattress_id") or "#A046").strip()
     dt_str = str(fix_data.get("install_date") or datetime.utcnow().strftime("%Y-%m-%d %H:%M")).strip()
     usbl_s = str(fix_data.get("usbl_sensor") or "Survey Pole").strip()
-    surv_name = str(fix_data.get("surveyor_name") or fix_data.get("surveyor") or fix_data.get("logged_by") or "Duty Surveyor").strip()
+    surv_name = resolve_full_surveyor_name(str(fix_data.get("surveyor_name") or fix_data.get("surveyor") or fix_data.get("logged_by") or "Duty Surveyor").strip())
     unit_no = int(float(fix_data.get("unit_no") or (1 if loc_id.endswith("_M15") else 2)))
     boxes_dict = build_crossing_boxes_from_catalog(catalog_list, xing_id, loc_id, workspace_dir)
     tb = boxes_dict.get(loc_id) or next(iter(boxes_dict.values()))
@@ -398,11 +442,15 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
     verdict = ("VERIFIED - WITHIN DESIGN TOLERANCE" if is_first else "VERIFIED - WITHIN DESIGN & GAP TOLERANCE") if (cl_off <= float(cl_tol) and (is_first or max_gap <= float(gap_tol))) else "ADVISORY - CHECK OFFSET OR GAP TOLERANCE"
 
     cad_polylines = load_cad_bg_polylines(workspace_dir, xing_id)
+    all_grp_c = np.vstack([b["corners"] for b in boxes_dict.values()]) if boxes_dict else np.array([[des_e, des_n]])
+    grp_ce = round(0.5 * (float(np.min(all_grp_c[:, 0])) + float(np.max(all_grp_c[:, 0]))), 3)
+    grp_cn = round(0.5 * (float(np.min(all_grp_c[:, 1])) + float(np.max(all_grp_c[:, 1]))), 3)
+    p1_grp_mode = is_group_centered_crossing(xing_id)
 
     metrics = {
         "unit_no": unit_no, "crossing_id": xing_id, "location_id": loc_id, "mattress_id": mat_id, "install_date": dt_str, "usbl_sensor": usbl_s, "surveyor_name": surv_name,
-        "status": str(fix_data.get("status") or "Completed"), "base_filename": build_base_filename(loc_id, mat_id, dt_str),
-        "design_e": des_e, "design_n": des_n, "design_brg": des_brg, "design_az": des_az,
+        "status": str(fix_data.get("status") or "Completed"), "base_filename": build_base_filename(loc_id, mat_id, dt_str, surv_name),
+        "design_e": des_e, "design_n": des_n, "group_center_e": grp_ce, "group_center_n": grp_cn, "p1_group_centered": p1_grp_mode, "design_brg": des_brg, "design_az": des_az,
         "qaqc_e": float(fix_data.get("qaqc_e") or as_e), "qaqc_n": float(fix_data.get("qaqc_n") or as_n), "qaqc_brg": float(fix_data.get("qaqc_brg") or hdg),
         "aslaid_e": round(as_e, 3), "aslaid_n": round(as_n, 3), "aslaid_z": round(as_z, 2),
         "seabed_at_center_z": round(seabed_at_center, 2), "mat_thickness_m": round(mat_thick, 2),

@@ -9,6 +9,7 @@ import matplotlib.patheffects as patheffects
 from matplotlib.backends.backend_pdf import PdfPages
 
 from mti_4panel_math import (
+    resolve_full_surveyor_name,
     AREA_LOCATIONS, _box_corners_cw, build_crossing_boxes_from_catalog,
     idw_interpolate, get_or_build_seabed_xyz, load_cad_bg_polylines
 )
@@ -230,11 +231,16 @@ def execute_adhoc_chart_script(
         }
 
     raw_fn = str(custom_filename or exec_ns.get("OUTPUT_FILENAME") or f"{today_ymd}_MTI_AdHoc_Chart.pdf").strip()
-    safe_fn = re.sub(r"[^A-Za-z0-9_.-]", "_", os.path.basename(raw_fn))
+    safe_fn = re.sub(r"[^A-Za-z0-9_ .()-]", "_", os.path.basename(raw_fn))
     if not safe_fn.lower().endswith(".pdf"):
         safe_fn += ".pdf"
     if not re.match(r"^\d{8}_", safe_fn):
         safe_fn = f"{today_ymd}_{safe_fn}"
+    full_surv = resolve_full_surveyor_name(surveyor_name)
+    clean_surv = re.sub(r"[^A-Za-z0-9 ._-]", "", str(full_surv or "")).strip()
+    if clean_surv and clean_surv.lower() not in ("duty surveyor", "surveyor") and f"({clean_surv})" not in safe_fn:
+        stem_fn = safe_fn[:-4] if safe_fn.lower().endswith(".pdf") else safe_fn
+        safe_fn = f"{stem_fn}_({clean_surv}).pdf"
 
     pdf_bytes = exec_ns.get("OUTPUT_PDF_BYTES")
     figs = list(exec_ns.get("OUTPUT_FIGS") or [])

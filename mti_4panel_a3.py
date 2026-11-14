@@ -162,7 +162,7 @@ def generate_a3_4panel_chart(
 
     ax_bg.text(314.5, 23.5, f"PLACEMENT DATE/TIME: {metrics['install_date']}", fontsize=6.3, fontweight="bold", color="#0f172a")
     ax_bg.text(314.5, 19.5, f"SURVEYOR: {surv_name} | STATUS: {metrics['status']}", fontsize=6.2, fontweight="bold", color="#0369a1")
-    ax_bg.text(314.5, 15.8, f"FILE: {metrics['base_filename']}.pdf (P1 1:{scale_p1} | P2 1:{scale_p2})", fontsize=5.9, color="#334155")
+    ax_bg.text(314.5, 15.8, f"FILE: {metrics['base_filename']}.pdf (P1 1:{scale_p1} | P2 1:{scale_p2})", fontsize=5.0 if len(str(metrics.get("base_filename", ""))) > 42 else 5.8, color="#334155")
 
     des_e, des_n = metrics["design_e"], metrics["design_n"]
     tb = boxes_dict[loc_id]
@@ -177,7 +177,18 @@ def generate_a3_4panel_chart(
     # PANEL 1: FULL CROSSING ARRAY (Strictly clipped inside ax1 frame)
     ax1 = fig.add_axes([33.0 / W_MM, 41.0 / H_MM, 128.0 / W_MM, 219.0 / H_MM])
     hw1, hh1 = (128.0 / 1000.0) * float(scale_p1) / 2.0, (219.0 / 1000.0) * float(scale_p1) / 2.0
-    e_lim1, n_lim1 = (des_e - hw1, des_e + hw1), (des_n - hh1, des_n + hh1)
+    xing_up = str(metrics.get("crossing_id") or "").strip().upper()
+    if metrics.get("p1_group_centered") or any(xing_up == p or xing_up.startswith(p + "_") for p in ("CR-A1", "CR-A2", "CR-B1", "CR-B2")):
+        if metrics.get("group_center_e") is not None and metrics.get("group_center_n") is not None:
+            p1_ce, p1_cn = float(metrics["group_center_e"]), float(metrics["group_center_n"])
+        else:
+            _all_c = np.vstack([b["corners"] for b in boxes_dict.values()])
+            p1_ce = 0.5 * (float(np.min(_all_c[:, 0])) + float(np.max(_all_c[:, 0])))
+            p1_cn = 0.5 * (float(np.min(_all_c[:, 1])) + float(np.max(_all_c[:, 1])))
+    else:
+        # Crossings A3 & B3 (custom plot format reserved for Phase 3)
+        p1_ce, p1_cn = des_e, des_n
+    e_lim1, n_lim1 = (p1_ce - hw1, p1_ce + hw1), (p1_cn - hh1, p1_cn + hh1)
     ax1.set_xlim(*e_lim1); ax1.set_ylim(*n_lim1)
     plot_seabed_layer(ax1, seabed_full_xyz, e_lim1, n_lim1, False, show_contours, contour_interval, show_soundings, spot_spacing, bathy_src)
     plot_cad_background(ax1, cad_polys, is_local=False)

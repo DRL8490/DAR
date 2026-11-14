@@ -96,7 +96,7 @@ def _enrich_fix_row(r, cat_map, input_logs=None):
                 if cand and cand.lower() != "duty surveyor":
                     surv = cand
                     break
-    d["surveyor_name"] = surv
+    d["surveyor_name"] = resolve_full_surveyor_name(surv) if "resolve_full_surveyor_name" in globals() else surv
     d["clean_remarks"] = _strip_auto_rem_tags(rem_raw)
     return d
 
@@ -367,7 +367,7 @@ def add_fix():
 
     dt_str = (request.form.get("install_date") or ex.get("install_date") or datetime.utcnow().strftime('%Y-%m-%d %H:%M')).strip()
     cur_usr = _get_current_user_display_name() if "_get_current_user_display_name" in globals() else getattr(current_user, "name", "Duty Surveyor")
-    surv_name = (request.form.get("surveyor_name") or ex.get("surveyor_name") or ex.get("surveyor") or cur_usr).strip()
+    surv_name = resolve_full_surveyor_name((request.form.get("surveyor_name") or ex.get("surveyor_name") or ex.get("surveyor") or cur_usr).strip())
 
     rem_str = _strip_auto_rem_tags(request.form.get("remarks") if request.form.get("remarks") is not None else ex.get("remarks", ""))
     if usbl_sensor: rem_str = f"[{usbl_sensor}] {rem_str}".strip()
@@ -852,6 +852,7 @@ import os, re, gc, glob, json, base64
 import numpy as np
 from flask import jsonify, send_file, render_template_string
 from mti_4panel_math import (
+    resolve_full_surveyor_name,
     AREA_LOCATIONS, run_rov_4panel_verification, parse_bathy_xyz_text,
     parse_design_catalog_text, parse_dxf_background,
     load_custom_catalog, build_crossing_boxes_from_catalog
@@ -1011,6 +1012,7 @@ def _resolve_fix_data(req, ledger, input_logs=None):
         fix_data["surveyor_name"] = req_surv
     else:
         fix_data["surveyor_name"] = _get_current_user_display_name()
+    fix_data["surveyor_name"] = resolve_full_surveyor_name(fix_data.get("surveyor_name"))
     return fix_data
 
 @mti_bp.route('/whoami')
@@ -1361,6 +1363,9 @@ def _dl_4panel_file(kind, suffix, mime):
         if not os.path.exists(p):
             alt_p = os.path.join(MTI_WS_DIR, str(metrics.get("base_filename") or "") + ".dxf")
             p = alt_p if os.path.exists(alt_p) else os.path.join(MTI_WS_DIR, "latest_A3_4Panel_Chart.dxf")
+    if not os.path.exists(p) and metrics.get("base_filename"):
+        base = str(metrics["base_filename"]).strip()
+        p = os.path.join(MTI_WS_DIR, base + suffix)
     return send_file(p, as_attachment=True, download_name=base + suffix, mimetype=mime)
 
 
@@ -2899,7 +2904,7 @@ def mti_run_adhoc_chart():
 @login_required
 def mti_download_adhoc_pdf(req_fn=None):
     os.makedirs(MTI_WS_DIR, exist_ok=True)
-    fn = re.sub(r"[^A-Za-z0-9_.-]", "_", os.path.basename(str(req_fn or request.args.get("file") or "latest_MTI_AdHoc_Chart.pdf")))
+    fn = re.sub(r"[^A-Za-z0-9_ .()-]", "_", os.path.basename(str(req_fn or request.args.get("file") or "latest_MTI_AdHoc_Chart.pdf")))
     p = os.path.join(MTI_WS_DIR, fn)
     if not os.path.exists(p):
         p = os.path.join(MTI_WS_DIR, "latest_MTI_AdHoc_Chart.pdf")
@@ -2910,7 +2915,7 @@ def mti_download_adhoc_pdf(req_fn=None):
 @login_required
 def mti_download_adhoc_dxf(req_fn=None):
     os.makedirs(MTI_WS_DIR, exist_ok=True)
-    fn = re.sub(r"[^A-Za-z0-9_.-]", "_", os.path.basename(str(req_fn or request.args.get("file") or "latest_MTI_AdHoc_Chart.dxf")))
+    fn = re.sub(r"[^A-Za-z0-9_ .()-]", "_", os.path.basename(str(req_fn or request.args.get("file") or "latest_MTI_AdHoc_Chart.dxf")))
     if fn.lower().endswith(".pdf"):
         fn = fn[:-4] + ".dxf"
     p = os.path.join(MTI_WS_DIR, fn)
@@ -3035,6 +3040,19 @@ def load_mti_state(*args, **kwargs):
                     r["surveyor_name"] = orig_s
                     r["surveyor"] = orig_s
             st["studio_surveyor_repair_v1"] = True
+            dirty = True
+        if not st.get("full_surveyor_upgrade_v1"):
+            in_logs = st.get("input_logs") or []
+            for r in (st.get("ledger") or []):
+                raw_s = r.get("surveyor_name") or r.get("surveyor") or ""
+                if not raw_s or str(raw_s).strip().lower() in ("duty surveyor", "surveyor"):
+                    if "_find_fix_surveyor_from_logs" in globals():
+                        raw_s = _find_fix_surveyor_from_logs(r.get("design_box_id"), in_logs, r.get("physical_tag"))
+                full_s = resolve_full_surveyor_name(raw_s)
+                if full_s and full_s.lower() not in ("duty surveyor", "surveyor"):
+                    r["surveyor_name"] = full_s
+                    r["surveyor"] = full_s
+            st["full_surveyor_upgrade_v1"] = True
             dirty = True
         if dirty and not _final_gaptol_saving:
             try:
