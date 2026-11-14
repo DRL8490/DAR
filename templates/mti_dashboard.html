@@ -341,12 +341,12 @@
           </div>
           <div class="row g-2 mb-2 align-items-end">
             <div class="col-4">
-              <label class="small fw-bold mb-1">Wind</label>
-              <input type="text" name="env_wind" id="inpEnvWind" class="form-control form-control-sm" placeholder="e.g. 16kt NE">
+              <label class="small fw-bold mb-1">Wind Speed (knots)</label>
+              <input type="text" name="env_wind" id="inpEnvWind" class="form-control form-control-sm" placeholder="e.g. 16 knots NE">
             </div>
             <div class="col-4">
-              <label class="small fw-bold mb-1">Current</label>
-              <input type="text" name="env_current" id="inpEnvCurr" class="form-control form-control-sm" placeholder="e.g. 0.35m/s">
+              <label class="small fw-bold mb-1">Current (knots)</label>
+              <input type="text" name="env_current" id="inpEnvCurr" class="form-control form-control-sm" placeholder="e.g. 0.7 knots">
             </div>
             <div class="col-4">
               <label class="small fw-bold mb-1">Status</label>
@@ -644,13 +644,13 @@
         },
         "ADCP input": {
             lblRef: "Crossing / Station ID", defRef: "CR-A1_L1",
-            lbl1: "Surface / Mid Current (m/s or kt & Dir) *", ph1: "e.g., Surf: 0.45 m/s @ 210 deg",
-            lbl2: "Near-Seabed Current (m/s or kt & Dir)", ph2: "e.g., Seabed: 0.25 m/s @ 195 deg",
+            lbl1: "Surface / Mid Current (knots & Dir) *", ph1: "e.g., Surf: 0.9 knots @ 210 deg",
+            lbl2: "Near-Seabed Current (knots & Dir)", ph2: "e.g., Seabed: 0.5 knots @ 195 deg",
             phRem: "ADCP current profile logged prior to mattress touchdown..."
         },
         "Wind Input": {
             lblRef: "Vessel / Location", defRef: "MMA Prestige (CR-A1)",
-            lbl1: "Wind Speed (kt or m/s) & Direction (deg) *", ph1: "e.g., 18 kt @ 035 deg (NE)",
+            lbl1: "Wind Speed (knots) & Direction (deg) *", ph1: "e.g., 18 knots @ 035 deg (NE)",
             lbl2: "Wave Height Hs (m) & Swell", ph2: "e.g., Hs = 0.8 m (Within <=1.0m limit)",
             phRem: "Bridge anemometer & sea state observation..."
         },
@@ -1056,9 +1056,9 @@ function openQrModal(){
         const div = document.createElement('div');
         div.className = 'row g-2 mb-2 p-2 rounded border border-info env-strip-evt';
         div.style.background = 'rgba(14,165,233,0.08)';
-        div.innerHTML = '<div class="col-12 small fw-bold text-info mb-0"><i class="fas fa-wind me-1"></i>Environmental Inputs (Wind & Current)</div>' +
-          '<div class="col-6"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind (e.g. 18kt NE)"></div>' +
-          '<div class="col-6"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Curr (e.g. 0.4m/s)"></div>' +
+        div.innerHTML = '<div class="col-12 small fw-bold text-info mb-0"><i class="fas fa-wind me-1"></i>Environmental Inputs (Wind Speed & Current in knots)</div>' +
+          '<div class="col-6"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind Speed (e.g. 18 knots)"></div>' +
+          '<div class="col-6"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Current (e.g. 0.8 knots)"></div>' +
           '';
         const remRow = form.querySelector('[name="remarks"]').closest('.row, .mb-3');
         if (remRow) remRow.parentNode.insertBefore(div, remRow);
@@ -1123,8 +1123,8 @@ function openQrModal(){
           <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C4</span><input type="number" step="0.001" name="c4_e" class="form-control px-1 rc" placeholder="E4"><input type="number" step="0.001" name="c4_n" class="form-control px-1 rc" placeholder="N4"><input type="hidden" step="0.01" name="c4_z" class="form-control px-1 rc" placeholder="Z4" style="display:none;"></div></div>
         </div>
         <div class="row g-2">
-          <div class="col-6"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind (e.g. 16kt NE)"></div>
-          <div class="col-6"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Current (e.g. 0.35m/s)"></div>
+          <div class="col-6"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind Speed (e.g. 16 knots)"></div>
+          <div class="col-6"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Current (e.g. 0.7 knots)"></div>
           
         </div>
         <input type="hidden" name="aslaid_z" class="aslaid-z" value="0.00">`;

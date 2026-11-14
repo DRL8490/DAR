@@ -43,6 +43,39 @@ def resolve_full_surveyor_name(raw_name, user_names=None):
         return SURVEYOR_FULLNAME_FALLBACKS[s_low]
     return s
 
+def fmt_knots(val):
+    s = re.sub(r"\s+", " ", str(val or "").strip())
+    if not s or s.lower() in ("nan", "none", "null", "-"):
+        return ""
+    s = re.sub(r"(\d(?:\.\d+)?)\s*(?:kts?|knots?)\b", r"\1 knots", s, flags=re.I)
+    if "knots" in s.lower() or "m/s" in s.lower():
+        return s
+    m = re.match(r"^([+-]?\d+(?:\.\d+)?)(.*)$", s)
+    if m:
+        num_part, rest = m.group(1), m.group(2).strip()
+        return f"{num_part} knots {rest}".strip() if rest else f"{num_part} knots"
+    return s
+
+def format_remarks_knots(rem_str):
+    s = str(rem_str or "")
+    if not s:
+        return s
+    def _fix_br(m_br):
+        inner = m_br.group(1)
+        if not re.search(r"\b(?:Wind|Curr|Current)\s*:", inner, re.I):
+            return m_br.group(0)
+        out_p = []
+        for p in [x.strip() for x in inner.split("|")]:
+            mp = re.match(r"^(Wind(?:\s+Speed)?|Curr(?:ent)?)\s*:\s*(.*)$", p, re.I)
+            if mp:
+                k_clean = "Wind" if mp.group(1).lower().startswith("wind") else "Curr"
+                vf = fmt_knots(mp.group(2).strip())
+                out_p.append(f"{k_clean}:{vf if vf else '-'}")
+            else:
+                out_p.append(p)
+        return "[" + " | ".join(out_p) + "]"
+    return re.sub(r"\[([^\]]+)\]", _fix_br, s)
+
 def build_base_filename(location_id, mattress_id, date_str=None, surveyor_name=None):
     dt = re.sub(r"[^0-9]", "", str(date_str or ""))[:8]
     if len(dt) < 8:
@@ -465,6 +498,6 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
         "bathy_z_min": b_zmin, "bathy_z_max": b_zmax,
         "cad_polylines": cad_polylines, "cad_poly_count": len(cad_polylines),
         "neighbors": tb["neighbors"], "verdict": verdict,
-        "env_wind": str(fix_data.get("env_wind") or ""), "env_current": str(fix_data.get("env_current") or ""), "remarks": str(fix_data.get("remarks") or "")
+        "env_wind": fmt_knots(fix_data.get("env_wind")), "env_current": fmt_knots(fix_data.get("env_current")), "remarks": format_remarks_knots(fix_data.get("remarks") or "")
     }
     return boxes_dict, metrics, cleaned_xyz, x_local, y_local, z_vals, seabed_local_xyz, seabed_full_xyz

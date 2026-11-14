@@ -97,7 +97,10 @@ def _enrich_fix_row(r, cat_map, input_logs=None):
                     surv = cand
                     break
     d["surveyor_name"] = resolve_full_surveyor_name(surv) if "resolve_full_surveyor_name" in globals() else surv
-    d["clean_remarks"] = _strip_auto_rem_tags(rem_raw)
+    d["env_wind"] = fmt_knots(d.get("env_wind"))
+    d["env_current"] = fmt_knots(d.get("env_current"))
+    d["remarks"] = format_remarks_knots(rem_raw)
+    d["clean_remarks"] = _strip_auto_rem_tags(d["remarks"])
     return d
 
 
@@ -360,8 +363,8 @@ def add_fix():
         prev_lbl = str(ex.get("gap_labels") or "").strip()
         gap_labels = prev_lbl if (prev_lbl and "1st unit" not in prev_lbl.lower() and max_gap > 0) else (f"G1:{gap1:.2f}m | G2:{gap2:.2f}m" if max_gap > 0 else "N/A")
 
-    env_w = str(request.form.get("env_wind") if request.form.get("env_wind") is not None else ex.get("env_wind", "")).strip()
-    env_c = str(request.form.get("env_current") if request.form.get("env_current") is not None else ex.get("env_current", "")).strip()
+    env_w = fmt_knots(request.form.get("env_wind") if request.form.get("env_wind") is not None else ex.get("env_wind", ""))
+    env_c = fmt_knots(request.form.get("env_current") if request.form.get("env_current") is not None else ex.get("env_current", ""))
     env_s = str(request.form.get("env_swell") if request.form.get("env_swell") is not None else ex.get("env_swell", "")).strip()
     env_tag = " | ".join([f"{k}:{v}" for k, v in [("Wind", env_w), ("Curr", env_c)] if v])
 
@@ -430,8 +433,8 @@ def add_input_log():
 
     evt_t = (request.form.get("event_type") or "Pole down").strip()
     usbl_s = (request.form.get("usbl_sensor") or "").strip() if evt_t in ("ROV & Vessel Ops", "Calib, Setup & TBT", "Survey Issue Reporting", "Survey Issue") else ""
-    env_w = (request.form.get("env_wind") or "").strip()
-    env_c = (request.form.get("env_current") or "").strip()
+    env_w = fmt_knots(request.form.get("env_wind") or "") if "fmt_knots" in globals() else (request.form.get("env_wind") or "").strip()
+    env_c = fmt_knots(request.form.get("env_current") or "") if "fmt_knots" in globals() else (request.form.get("env_current") or "").strip()
     env_s = (request.form.get("env_swell") or "").strip()
     env_tag = " | ".join([f"{k}:{v}" for k, v in [("USBL", usbl_s), ("Wind", env_w), ("Curr", env_c)] if v])
     rem = (request.form.get("remarks") or "").strip()
@@ -852,6 +855,7 @@ import os, re, gc, glob, json, base64
 import numpy as np
 from flask import jsonify, send_file, render_template_string
 from mti_4panel_math import (
+    fmt_knots, format_remarks_knots,
     resolve_full_surveyor_name,
     AREA_LOCATIONS, run_rov_4panel_verification, parse_bathy_xyz_text,
     parse_design_catalog_text, parse_dxf_background,
@@ -3053,6 +3057,17 @@ def load_mti_state(*args, **kwargs):
                     r["surveyor_name"] = full_s
                     r["surveyor"] = full_s
             st["full_surveyor_upgrade_v1"] = True
+            dirty = True
+        if not st.get("knots_env_upgrade_v1") and "fmt_knots" in globals():
+            for r in (st.get("ledger") or []):
+                if r.get("env_wind"): r["env_wind"] = fmt_knots(r["env_wind"])
+                if r.get("env_current"): r["env_current"] = fmt_knots(r["env_current"])
+                if r.get("remarks"): r["remarks"] = format_remarks_knots(r["remarks"])
+            for lg in (st.get("input_logs") or []):
+                if lg.get("env_wind"): lg["env_wind"] = fmt_knots(lg["env_wind"])
+                if lg.get("env_current"): lg["env_current"] = fmt_knots(lg["env_current"])
+                if lg.get("remarks"): lg["remarks"] = format_remarks_knots(lg["remarks"])
+            st["knots_env_upgrade_v1"] = True
             dirty = True
         if dirty and not _final_gaptol_saving:
             try:

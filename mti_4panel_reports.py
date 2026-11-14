@@ -1,10 +1,192 @@
 import os, io, re, gc, zipfile, textwrap
-from datetime import datetime
+from datetime import datetime, timedelta
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.backends.backend_pdf import PdfPages
+from mti_4panel_math import fmt_knots, format_remarks_knots
+
+CROSSING_GROUP_COLORS = {
+    "C-A1": "#1d4ed8",  # Navy Blue
+    "C-B1": "#0f766e",  # Deep Teal
+    "C-A2": "#6d28d9",  # Royal Purple
+    "C-B2": "#b45309",  # Rust / Amber-Brown
+    "C-A3": "#15803d",  # Forest Green
+    "C-B3": "#be123c",  # Crimson Red
+}
+
+CROSSING_GROUP_DARK_BG_COLORS = {
+    "C-A1": "#60a5fa",
+    "C-B1": "#2dd4bf",
+    "C-A2": "#c084fc",
+    "C-B2": "#fbbf24",
+    "C-A3": "#4ade80",
+    "C-B3": "#fb7185",
+}
+
+def normalize_crossing_group(val):
+    s = str(val or "").strip().upper()
+    if not s:
+        return ""
+    m = re.search(r"(?<![#A-Z0-9])(?:CR[-_\s]?([AB][123])|C[-_]([AB][123])|([AB][123])[-_](?:L[12]|M\d+))(?:\b|[_-]|M\d)", s)
+    if m:
+        code = m.group(1) or m.group(2) or m.group(3)
+        return f"C-{code}"
+    if s in ("A1", "A2", "A3", "B1", "B2", "B3"):
+        return f"C-{s}"
+    return ""
+
+def get_crossing_group_color(val, default="#1e293b", dark_bg=False):
+    grp = normalize_crossing_group(val)
+    if not grp:
+        return default
+    pal = CROSSING_GROUP_DARK_BG_COLORS if dark_bg else CROSSING_GROUP_COLORS
+    return pal.get(grp, default)
+
+CONSOLIDATED_CROSSING_SCOPES = [
+    ("C-A1", 27),
+    ("C-B1", 27),
+    ("C-A2", 7),
+    ("C-B2", 7),
+    ("C-A3", 36),
+    ("C-B3", 35),
+]
+
+def _parse_fix_dt_tuple(dt_raw):
+    s = str(dt_raw or "").strip()
+    d_iso = norm_mti_date(s)
+    if not d_iso:
+        return ("", "00:00:00")
+    m_t = re.search(r"(?:^|\s|T)(\d{1,2}):(\d{2})(?::(\d{2}))?", s)
+    if m_t:
+        hh, mm, ss = int(m_t.group(1)), int(m_t.group(2)), int(m_t.group(3) or 0)
+        return (d_iso, f"{hh:02d}:{mm:02d}:{ss:02d}")
+    return (d_iso, "23:59:59")
+
+def _resolve_ledger_for_report(ledger_list=None):
+    if ledger_list is not None:
+        return list(ledger_list)
+    try:
+        import mti_blueprint as _mb
+        return list((_mb.load_mti_state() or {}).get("ledger") or [])
+    except Exception:
+        return []
+
+def compute_historical_progress_rows(ledger_list, cutoff_dt_str, current_metrics=None, full_day=False):
+    rows_in = [dict(r) for r in _resolve_ledger_for_report(ledger_list)]
+    ref_d, ref_t = _parse_fix_dt_tuple(cutoff_dt_str)
+    if not ref_d:
+        all_ds = [_parse_fix_dt_tuple(r.get("install_date"))[0] for r in rows_in]
+        all_ds = [d for d in all_ds if d]
+        ref_d = max(all_ds) if all_ds else datetime.utcnow().strftime("%Y-%m-%d")
+    if full_day or not re.search(r"\d{1,2}:\d{2}", str(cutoff_dt_str or "")):
+        ref_t = "23:59:59"
+
+    try:
+        prev_d = (datetime.strptime(ref_d, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+    except Exception:
+        prev_d = ""
+
+    cur_uno = None
+    if isinstance(current_metrics, dict) and current_metrics.get("location_id"):
+        cur_box = str(current_metrics.get("location_id") or "").strip().upper()
+        try:
+            cur_uno = int(float(current_metrics.get("unit_no") or 0)) or None
+        except Exception:
+            cur_uno = None
+        if cur_box and not any(str(r.get("design_box_id") or "").strip().upper() == cur_box for r in rows_in):
+            rows_in.append({
+                "unit_no": cur_uno or 9999,
+                "crossing_id": current_metrics.get("crossing_id") or cur_box,
+                "design_box_id": cur_box,
+                "install_date": current_metrics.get("install_date") or f"{ref_d} {ref_t[:5]}",
+                "status": current_metrics.get("status") or "Completed",
+                "unit_type": "Concrete Mattress",
+            })
+
+    valid_up_to_cutoff = []
+    for r in rows_in:
+        if str(r.get("unit_type") or "Concrete Mattress").strip() == "Rock Bag":
+            continue
+        if str(r.get("status") or "Completed").strip().lower() == "planned":
+            continue
+        rd, rt = _parse_fix_dt_tuple(r.get("install_date"))
+        if not rd:
+            continue
+        if (rd, rt) < (ref_d, ref_t):
+            valid_up_to_cutoff.append((rd, r))
+        elif (rd, rt) == (ref_d, ref_t):
+            try:
+                r_uno = int(float(r.get("unit_no") or 0))
+            except Exception:
+                r_uno = 0
+            if cur_uno is None or r_uno <= cur_uno or not full_day:
+                valid_up_to_cutoff.append((rd, r))
+
+    out_rows = []
+    tot_scope = tot_post = tot_today = tot_cum = tot_rem = 0
+    for grp_id, scope_qty in CONSOLIDATED_CROSSING_SCOPES:
+        grp_items = [(rd, r) for (rd, r) in valid_up_to_cutoff if normalize_crossing_group(r.get("crossing_id") or r.get("design_box_id")) == grp_id]
+        cum_q = len(grp_items)
+        today_q = sum(1 for (rd, _) in grp_items if rd == ref_d)
+        post_q = sum(1 for (rd, _) in grp_items if prev_d and rd == prev_d)
+        rem_q = max(0, scope_qty - cum_q)
+        out_rows.append((grp_id, scope_qty, post_q, today_q, cum_q, rem_q))
+        tot_scope += scope_qty
+        tot_post += post_q
+        tot_today += today_q
+        tot_cum += cum_q
+        tot_rem += rem_q
+
+    totals = ("TOTAL", tot_scope, tot_post, tot_today, tot_cum, tot_rem)
+    return out_rows, totals, ref_d
+
+def draw_mattress_progress_box(ax, y_top, prog_rows, totals_row, title_str="INSTALLATION PROGRESS OF CONCRETE MATTRESS 0001-2400"):
+    x0, w_tot = 13.0, 271.0
+    col_edges = [13.0, 58.0, 105.0, 150.0, 193.0, 241.0, 284.0]
+    h_title = 5.2
+    h_hdr = 10.6
+    h_row = 4.3
+
+    ax.add_patch(mpatches.Rectangle((x0, y_top - h_title), w_tot, h_title, facecolor="#fef08a", edgecolor="#0f172a", linewidth=0.75))
+    ax.text(x0 + w_tot / 2.0, y_top - h_title / 2.0, title_str, fontsize=8.4, fontweight="bold", color="#0f172a", ha="center", va="center")
+    ax.plot([x0 + 68.0, x0 + w_tot - 68.0], [y_top - h_title + 0.85, y_top - h_title + 0.85], color="#0f172a", linewidth=0.65)
+    y = y_top - h_title
+
+    ax.add_patch(mpatches.Rectangle((x0, y - h_hdr), w_tot, h_hdr, facecolor="#bae6fd", edgecolor="#0f172a", linewidth=0.75))
+    hdr_labels = [
+        "LOCATION /\nCROSSING ID",
+        "TOTAL\nQUANTITY TO\nBE INSTALLED",
+        "POST\nINSTALLED\nQUANTITY",
+        "TODAY\nINSTALLED",
+        "TOTAL\nCUMULATIVE\nINSTALLED",
+        "REMAINING",
+    ]
+    for ic, h_txt in enumerate(hdr_labels):
+        cx = 0.5 * (col_edges[ic] + col_edges[ic + 1])
+        ax.text(cx, y - h_hdr / 2.0, h_txt, fontsize=6.8, fontweight="bold", color="#0f172a", ha="center", va="center", linespacing=1.15)
+    y -= h_hdr
+
+    all_draw_rows = list(prog_rows) + [totals_row]
+    for lbl, sc_q, post_q, tod_q, cum_q, rem_q in all_draw_rows:
+        is_tot = (lbl == "TOTAL")
+        fc_r = "#f8fafc" if is_tot else "#ffffff"
+        ax.add_patch(mpatches.Rectangle((x0, y - h_row), w_tot, h_row, facecolor=fc_r, edgecolor="#0f172a", linewidth=0.65))
+        row_col = "#0f172a" if is_tot else get_crossing_group_color(lbl, default="#0f172a")
+        vals_r = [lbl, str(sc_q), str(post_q), str(tod_q), str(cum_q), str(rem_q)]
+        for ic, v_txt in enumerate(vals_r):
+            cx = 0.5 * (col_edges[ic] + col_edges[ic + 1])
+            fw_cell = "bold" if (is_tot or ic == 0 or (ic in (2, 3, 4) and int(v_txt) > 0)) else "normal"
+            c_cell = row_col if (is_tot or ic == 0 or int(v_txt) > 0) else "#475569"
+            ax.text(cx, y - h_row / 2.0, v_txt, fontsize=7.6, fontweight=fw_cell, color=c_cell, ha="center", va="center")
+        y -= h_row
+
+    y_grid_top = y_top - h_title
+    for xv in col_edges[1:-1]:
+        ax.plot([xv, xv], [y, y_grid_top], color="#0f172a", linewidth=0.6)
+
+    return y - 2.6
 
 CROSSING_SCOPES = [
     ("CR-A1_L1", 25), ("CR-A1_L2", 2), ("CR-A2", 7), ("CR-A3", 36),
@@ -163,11 +345,23 @@ def parse_log_entry_fields(lg, default_surveyor="Duty Surveyor"):
     clean_desc = re.sub(r"\s*\[[^\]]*(?:Wind|Curr|USBL)[^\]]*\]", "", raw_combined).strip(" |") or "-"
 
     if env_tag:
-        env_short = re.sub(r"USBL:[^|]+\|\s*", "", env_tag, flags=re.I).replace("Curr:NaN", "Curr:-").strip()
+        raw_et = re.sub(r"USBL:[^|]+\|\s*", "", env_tag, flags=re.I).strip()
+        et_parts = []
+        for ep in [x.strip() for x in raw_et.split("|") if x.strip()]:
+            mp = re.match(r"^(Wind(?:\s+Speed)?|W|Curr(?:ent)?|C)\s*:\s*(.*)$", ep, re.I)
+            if mp:
+                kl = "W" if mp.group(1).lower().startswith("w") else "C"
+                vf = fmt_knots(mp.group(2))
+                if vf:
+                    et_parts.append(f"{kl}:{vf}")
+            else:
+                et_parts.append(ep)
+        env_short = " | ".join(et_parts) if et_parts else "-"
     elif w_val or c_val:
-        w_str = f"W:{w_val}" if w_val and w_val.lower() != "nan" else ""
-        c_str = f"C:{c_val}" if c_val and c_val.lower() != "nan" else ""
-        env_short = " | ".join([x for x in (w_str, c_str) if x])
+        wf, cf = fmt_knots(w_val), fmt_knots(c_val)
+        w_str = f"W:{wf}" if wf else ""
+        c_str = f"C:{cf}" if cf else ""
+        env_short = " | ".join([x for x in (w_str, c_str) if x]) or "-"
     else:
         env_short = "-"
 
@@ -191,12 +385,14 @@ def build_structured_report_markdown(metrics, include_history=False, ledger_list
     gap_st = "N/A (1st Unit)" if is_first else ("PASS" if max_g <= g_tol else "EXCEEDS TOLERANCE")
 
     env_parts = []
-    if str(metrics.get("env_wind") or "").strip():
-        env_parts.append(f"Wind {metrics['env_wind']}")
-    if str(metrics.get("env_current") or "").strip():
-        env_parts.append(f"Current {metrics['env_current']}")
+    w_rep = fmt_knots(metrics.get("env_wind"))
+    c_rep = fmt_knots(metrics.get("env_current"))
+    if w_rep:
+        env_parts.append(f"Wind Speed {w_rep}")
+    if c_rep:
+        env_parts.append(f"Current {c_rep}")
     env_line = ", ".join(env_parts) if env_parts else "Not recorded"
-    raw_rem = str(metrics.get("remarks") or "").strip()
+    raw_rem = format_remarks_knots(str(metrics.get("remarks") or "").strip())
 
     lines = [
         f"**Verdict:** {metrics.get('verdict', 'VERIFIED')}  --  **Crossing:** {xing_id}  --  **Placement:** {metrics.get('install_date','')}  --  **Surveyor:** {metrics.get('surveyor_name','Duty Surveyor')}",
@@ -228,8 +424,8 @@ def build_structured_report_markdown(metrics, include_history=False, ledger_list
             lines.append(f"| {r.get('unit_no','')} | {r.get('install_date','')} | {r.get('design_box_id','')} | {r.get('physical_tag','')} | {float(r.get('aslaid_e') or 0):.3f} | {float(r.get('aslaid_n') or 0):.3f} | {float(r.get('cl_offset_m') or 0):.3f} | {r.get('gap_labels','')} |")
     return chr(10).join(lines)
 
-def render_a4_landscape_figures(metrics, custom_report_md=None):
-    md_text = custom_report_md if custom_report_md else build_structured_report_markdown(metrics)
+def render_a4_landscape_figures(metrics, custom_report_md=None, ledger_list=None):
+    md_text = custom_report_md if custom_report_md else build_structured_report_markdown(metrics, True, ledger_list)
     filtered_lines = [
         ln for ln in str(md_text).splitlines()
         if "chart scales @ a3" not in ln.strip().lower() and "chart scales:" not in ln.strip().lower()
@@ -237,6 +433,10 @@ def render_a4_landscape_figures(metrics, custom_report_md=None):
 
     W_MM, H_MM = 297.0, 210.0
     loc_id, mat_id = metrics.get("location_id", "CR-A1_M15"), metrics.get("mattress_id", "#A046")
+    xing_id = metrics.get("crossing_id") or loc_id
+    act_grp = normalize_crossing_group(xing_id) or normalize_crossing_group(loc_id)
+    act_col = get_crossing_group_color(act_grp, default="#1e293b", dark_bg=False)
+    act_hdr_col = get_crossing_group_color(act_grp, default="#38bdf8", dark_bg=True)
     surv_name = metrics.get("surveyor_name", "Duty Surveyor")
 
     def _new_a4_landscape_page(page_num):
@@ -246,7 +446,9 @@ def render_a4_landscape_figures(metrics, custom_report_md=None):
         ax.add_patch(mpatches.Rectangle((10, 10), 277, 190, fill=False, edgecolor="#0f172a", linewidth=1.4))
         ax.add_patch(mpatches.Rectangle((10, 186.5), 277, 13.5, facecolor="#0f172a", edgecolor="#0f172a"))
         ax.text(14, 195.2, f"SUBSEA MATTRESS VERIFICATION REPORT  |  {loc_id} ({mat_id})", color="white", fontsize=10.8, fontweight="bold", va="center")
-        ax.text(14, 189.6, f"File: {metrics.get('base_filename','')}.pdf  |  Active USBL: {metrics.get('usbl_sensor','Survey Pole')}  |  {metrics.get('verdict','')}", color="#38bdf8", fontsize=8.6, fontweight="bold", va="center")
+        if act_grp:
+            ax.text(283, 195.2, f"CROSSING GROUP: {act_grp}", color=act_hdr_col, fontsize=9.2, fontweight="bold", va="center", ha="right")
+        ax.text(14, 189.6, f"File: {metrics.get('base_filename','')}.pdf  |  Active USBL: {metrics.get('usbl_sensor','Survey Pole')}  |  {metrics.get('verdict','')}", color=act_hdr_col, fontsize=8.2, fontweight="bold", va="center")
         ax.plot([10, 287], [16.0, 16.0], color="#cbd5e1", linewidth=0.8)
         ax.text(14, 12.2, f"DP2 MMA Prestige | Placement Date/Time: {metrics.get('install_date','')} | Surveyor: {surv_name}", fontsize=8.0, color="#475569", fontweight="bold")
         ax.text(283, 12.2, f"Verification Report | Page {page_num}", fontsize=8.0, color="#475569", ha="right")
@@ -258,8 +460,25 @@ def render_a4_landscape_figures(metrics, custom_report_md=None):
     figs.append(fig)
     y_cur = 180.5
 
-    for raw_l in filtered_lines:
-        line = raw_l.strip()
+    idx_ln = 0
+    drawn_prog_box = False
+    while idx_ln < len(filtered_lines):
+        line = filtered_lines[idx_ln].strip()
+        idx_ln += 1
+
+        if line.startswith("## ") and "INSTALLATION PROGRESS OF CONCRETE MATTRESS" in line.upper():
+            while idx_ln < len(filtered_lines) and (not filtered_lines[idx_ln].strip() or filtered_lines[idx_ln].strip().startswith("|")):
+                idx_ln += 1
+            prog_rows, prog_tot, _ = compute_historical_progress_rows(ledger_list, metrics.get("install_date"), current_metrics=metrics, full_day=False)
+            y_cur -= 1.0
+            if y_cur - 47.0 < 16.5:
+                page_no += 1
+                fig, ax = _new_a4_landscape_page(page_no)
+                figs.append(fig)
+                y_cur = 181.5
+            y_cur = draw_mattress_progress_box(ax, y_cur + 2.0, prog_rows, prog_tot)
+            drawn_prog_box = True
+            continue
         if y_cur < 19.5:
             page_no += 1
             fig, ax = _new_a4_landscape_page(page_no)
@@ -269,7 +488,7 @@ def render_a4_landscape_figures(metrics, custom_report_md=None):
             y_cur -= 1.6
             continue
         if line.startswith("# "):
-            ax.text(14, y_cur, line[2:], fontsize=10.8, fontweight="bold", color="#0f172a")
+            ax.text(14, y_cur, line[2:], fontsize=10.8, fontweight="bold", color=act_col)
             y_cur -= 5.0
         elif line.startswith("## "):
             y_cur -= 0.8
@@ -281,20 +500,45 @@ def render_a4_landscape_figures(metrics, custom_report_md=None):
                 continue
             cells = [c.strip() for c in line.strip("|").split("|")]
             n_c = max(len(cells), 1)
-            xs = [14.0, 74.0, 128.0, 182.0, 236.0] if n_c == 5 else [14.0 + i * (268.0 / n_c) for i in range(n_c)]
-            is_hdr = ("Parameter" in cells[0] or "Unit #" in cells[0])
+            if n_c == 5:
+                xs = [14.0, 74.0, 128.0, 182.0, 236.0]
+            elif n_c == 8:
+                xs = [14.0, 28.0, 66.0, 96.0, 118.0, 149.0, 181.0, 204.0]
+            else:
+                xs = [14.0 + i * (268.0 / n_c) for i in range(n_c)]
+            is_hdr = ("Parameter" in cells[0] or "Unit #" in cells[0] or "LOCATION" in cells[0].upper())
+            row_x_col = "" if is_hdr else get_crossing_group_color(line, default="")
             for ic, c_txt in enumerate(cells):
-                ax.text(xs[ic], y_cur, c_txt[:36], fontsize=7.8, fontweight="bold" if is_hdr else "normal", family="monospace", color="#0f172a" if is_hdr else "#1e293b")
+                if is_hdr:
+                    c_use, fw_use = "#0f172a", "bold"
+                elif row_x_col:
+                    c_use = row_x_col
+                    fw_use = "bold" if ic in (0, 2) else "normal"
+                elif n_c == 5 and ic == 3:
+                    c_use, fw_use = act_col, "bold"
+                elif n_c == 5 and ic == 4:
+                    u_txt = c_txt.upper()
+                    c_use = "#15803d" if "PASS" in u_txt else ("#b91c1c" if "EXCEEDS" in u_txt else "#1e293b")
+                    fw_use = "bold" if ("PASS" in u_txt or "EXCEEDS" in u_txt) else "normal"
+                else:
+                    c_use, fw_use = "#1e293b", "normal"
+                max_ch = 44 if (n_c == 8 and ic == 7) else 36
+                ax.text(xs[ic], y_cur, c_txt[:max_ch], fontsize=7.8, fontweight=fw_use, family="monospace", color=c_use)
             y_cur -= 4.0
         else:
             cl = line.replace("**", "")
-            ax.text(14, y_cur, cl[:145], fontsize=8.8, color="#1e293b")
+            is_verdict_ln = cl.startswith("Verdict:")
+            is_corner_ln = bool(re.match(r"^-\s*C[1-4]\s*\(", cl))
+            ln_x_col = act_col if (is_verdict_ln or is_corner_ln) else get_crossing_group_color(cl, default="#1e293b")
+            fw_ln = "bold" if is_verdict_ln else "normal"
+            ax.text(14, y_cur, cl[:145], fontsize=8.8, fontweight=fw_ln, color=ln_x_col)
             if len(cl) > 145:
                 y_cur -= 4.0
-                ax.text(18, y_cur, cl[145:290], fontsize=8.8, color="#1e293b")
+                ax.text(18, y_cur, cl[145:290], fontsize=8.8, fontweight=fw_ln, color=ln_x_col)
             y_cur -= 4.2
 
     return figs
+
 
 def generate_a4_report_pdf(metrics, workspace_dir="workspace", custom_report_md=None):
     os.makedirs(workspace_dir, exist_ok=True)
@@ -370,43 +614,9 @@ def generate_mti_dpr_pdf(st_data, target_date_str=None, surveyor_name="Duty Surv
     ax.text(15, y + 1.1, exec_line[:135], fontsize=7.8, fontweight="bold", color="#0f172a", va="center")
     y -= 6.0
 
-    # --- SECTION 1: DAILY & CUMULATIVE MTI PROGRESS MATRIX BY CROSSING ---
-    ax.add_patch(mpatches.Rectangle((13, y - 1.4), 271, 5.0, facecolor="#0f172a", edgecolor="none"))
-    ax.text(15, y + 1.1, f"1. MTI PROGRESS SUMMARY BY CROSSING LOCATION ({dt_iso} | 00:00 TO 23:59 HRS)", fontsize=8.8, fontweight="bold", color="white", va="center")
-    y -= 5.8
-
-    col_x = [13.0, 48.0, 74.0, 100.0, 126.0, 152.0, 178.0, 204.0, 230.0, 256.0, 284.0]
-    headers_m = ["Metric / Area", "CR-A1_L1", "CR-A1_L2", "CR-A2", "CR-A3", "CR-B1_L1", "CR-B1_L2", "CR-B2", "CR-B3", "TOTAL"]
-    ax.add_patch(mpatches.Rectangle((13, y - 1.2), 271, 4.4, facecolor="#e2e8f0", edgecolor="#94a3b8", linewidth=0.5))
-    for idx_h, h_txt in enumerate(headers_m):
-        cx = (col_x[idx_h] + col_x[idx_h + 1]) / 2.0 if idx_h > 0 else col_x[0] + 2.0
-        ha_m = "center" if idx_h > 0 else "left"
-        ax.text(cx, y + 0.9, h_txt, fontsize=7.4, fontweight="bold", color="#0f172a", ha=ha_m, va="center")
-    y -= 4.4
-
-    def _cnt_xing(rows_list, x_id):
-        return sum(1 for r in rows_list if str(r.get("crossing_id") or str(r.get("design_box_id","")).split("_M")[0]).upper() == x_id.upper())
-
-    matrix_rows = [
-        ("Design Scope", [sc for _, sc in CROSSING_SCOPES], sum(sc for _, sc in CROSSING_SCOPES), "#334155", False),
-        ("Prev Laid", [_cnt_xing(prior_fixes, x) for x, _ in CROSSING_SCOPES], len(prior_fixes), "#475569", False),
-        ("Today (00-24h)", [_cnt_xing(day_fixes, x) for x, _ in CROSSING_SCOPES], len(day_fixes), "#0369a1", True),
-        ("Cumul. Laid", [_cnt_xing(cum_fixes, x) for x, _ in CROSSING_SCOPES], len(cum_fixes), "#15803d", True),
-        ("Remaining", [max(0, sc - _cnt_xing(cum_fixes, x)) for x, sc in CROSSING_SCOPES], max(0, sum(sc for _, sc in CROSSING_SCOPES) - len(cum_fixes)), "#b91c1c", False)
-    ]
-    for r_idx, (r_label, vals, tot_v, c_col, is_b) in enumerate(matrix_rows):
-        bg_c = "#f8fafc" if r_idx % 2 == 0 else "#ffffff"
-        ax.add_patch(mpatches.Rectangle((13, y - 1.1), 271, 4.0, facecolor=bg_c, edgecolor="#cbd5e1", linewidth=0.4))
-        ax.text(col_x[0] + 2.0, y + 0.8, r_label, fontsize=7.3, fontweight="bold", color=c_col, va="center")
-        for ic, v in enumerate(vals):
-            cx = (col_x[ic + 1] + col_x[ic + 2]) / 2.0
-            ax.text(cx, y + 0.8, str(v), fontsize=7.4, fontweight="bold" if (is_b and v > 0) else "normal", color=c_col if (is_b and v > 0) else "#1e293b", ha="center", va="center")
-        cx_tot = (col_x[9] + col_x[10]) / 2.0
-        ax.text(cx_tot, y + 0.8, str(tot_v), fontsize=7.6, fontweight="bold", color=c_col, ha="center", va="center")
-        y -= 4.0
-    for x_line in col_x:
-        ax.plot([x_line, x_line], [y + 2.9, y + 2.9 + 24.4], color="#cbd5e1", linewidth=0.4)
-    y -= 2.8
+    # --- SECTION 1: INSTALLATION PROGRESS OF CONCRETE MATTRESS 0001-2400 ---
+    prog_rows_dpr, prog_tot_dpr, _ = compute_historical_progress_rows(ledger, f"{dt_iso} 23:59:59", current_metrics=None, full_day=True)
+    y = draw_mattress_progress_box(ax, y + 2.2, prog_rows_dpr, prog_tot_dpr, title_str="INSTALLATION PROGRESS OF CONCRETE MATTRESS 0001-2400")
 
     # --- SECTION 2: MATTRESSES PLACED ON TARGET DATE (00:00 - 23:59) ---
     ax.add_patch(mpatches.Rectangle((13, y - 1.4), 271, 5.0, facecolor="#0f172a", edgecolor="none"))
@@ -441,8 +651,9 @@ def generate_mti_dpr_pdf(st_data, target_date_str=None, surveyor_name="Duty Surv
                 f"{float(r.get('heading_deg') or 0):.1f} deg", f"{float(r.get('cl_offset_m') or 0):.2f} m",
                 f"{r.get('gap_labels','1st Unit')} | {r.get('status','Completed')}"[:40]
             ]
-            for (x0, x1, _), v_str in zip(f_cols, vals_f):
-                ax.text(x0 + 1.5, y + 0.8, v_str, fontsize=7.4, color="#1e293b", family="monospace", va="center")
+            fx_col = get_crossing_group_color(r.get("crossing_id") or r.get("design_box_id"), default="#1e293b")
+            for idx_fc, ((x0, x1, _), v_str) in enumerate(zip(f_cols, vals_f)):
+                ax.text(x0 + 1.5, y + 0.8, v_str, fontsize=7.4, fontweight="bold" if idx_fc in (2, 3) else "normal", color=fx_col, family="monospace", va="center")
             y -= 4.2
         y -= 2.5
 
@@ -460,7 +671,7 @@ def generate_mti_dpr_pdf(st_data, target_date_str=None, surveyor_name="Duty Surv
     else:
         l_cols = [
             (13.0, 27.0, "Time"), (27.0, 62.0, "Category"), (62.0, 92.0, "Asset / Area"),
-            (92.0, 216.0, "Operational Event & Remarks"), (216.0, 252.0, "Wind / Curr"), (252.0, 284.0, "Surveyor")
+            (92.0, 204.0, "Operational Event & Remarks"), (204.0, 252.0, "Wind / Curr (knots)"), (252.0, 284.0, "Surveyor")
         ]
         ax.add_patch(mpatches.Rectangle((13, y - 1.2), 271, 4.4, facecolor="#e2e8f0", edgecolor="#94a3b8", linewidth=0.5))
         for x0, x1, h_lbl in l_cols:
@@ -468,8 +679,10 @@ def generate_mti_dpr_pdf(st_data, target_date_str=None, surveyor_name="Duty Surv
         y -= 4.4
 
         for idx_l, (_, t_hm, cat_s, area_s, clean_desc, env_short, surv_l) in enumerate(day_logs):
-            wrapped_lines = textwrap.wrap(clean_desc, width=68) or ["-"]
-            row_h = max(4.2, len(wrapped_lines) * 3.6 + 0.8)
+            wrapped_lines = textwrap.wrap(clean_desc, width=62) or ["-"]
+            env_lines = [x.strip() for x in env_short.split("|")] if len(env_short) > 26 and "|" in env_short else [env_short[:30]]
+            n_row_ln = max(len(wrapped_lines), len(env_lines))
+            row_h = max(4.2, n_row_ln * 3.6 + 0.8)
 
             if y - row_h + 3.0 < 17.0:
                 p_no += 1; fig, ax = _new_dpr_page(p_no); figs.append(fig); y = 180.0
@@ -483,10 +696,12 @@ def generate_mti_dpr_pdf(st_data, target_date_str=None, surveyor_name="Duty Surv
 
             ax.text(14.5, y + 0.7, t_hm, fontsize=7.5, fontweight="bold", color="#0369a1", family="monospace", va="center")
             ax.text(28.5, y + 0.7, cat_s[:18], fontsize=7.4, fontweight="bold", color="#0f172a", va="center")
-            ax.text(63.5, y + 0.7, area_s[:15], fontsize=7.4, color="#334155", family="monospace", va="center")
+            lg_x_col = get_crossing_group_color(area_s, default="") or get_crossing_group_color(clean_desc, default="")
+            ax.text(63.5, y + 0.7, area_s[:15], fontsize=7.4, fontweight="bold" if lg_x_col else "normal", color=lg_x_col or "#334155", family="monospace", va="center")
             for w_idx, w_ln in enumerate(wrapped_lines):
-                ax.text(93.5, y + 0.7 - w_idx * 3.5, w_ln, fontsize=7.5, color="#1e293b", va="center")
-            ax.text(217.5, y + 0.7, env_short[:20], fontsize=7.1, color="#0369a1", family="monospace", va="center")
+                ax.text(93.5, y + 0.7 - w_idx * 3.5, w_ln, fontsize=7.5, color=lg_x_col or "#1e293b", va="center")
+            for e_idx, e_ln in enumerate(env_lines):
+                ax.text(205.5, y + 0.7 - e_idx * 3.5, e_ln, fontsize=6.7, color="#0369a1", family="monospace", va="center")
             ax.text(253.5, y + 0.7, surv_l[:16], fontsize=7.3, color="#475569", va="center")
             y -= row_h
 
@@ -507,6 +722,7 @@ def _xml_esc(s):
 
 def generate_editable_docx(metrics, report_md, workspace_dir="workspace"):
     os.makedirs(workspace_dir, exist_ok=True)
+    act_hex = get_crossing_group_color(metrics.get("crossing_id") or metrics.get("location_id"), default="#1e293b").lstrip("#").upper()
     p_list = []
     for raw_l in str(report_md or "").splitlines():
         line = raw_l.strip()
@@ -514,12 +730,19 @@ def generate_editable_docx(metrics, report_md, workspace_dir="workspace"):
             continue
         txt = _xml_esc(re.sub(r"^#+\s*", "", line).replace("**", ""))
         if line.startswith("#"):
-            p_list.append(f'<w:p><w:r><w:rPr><w:b/><w:sz w:val="28"/></w:rPr><w:t>{txt}</w:t></w:r></w:p>')
+            p_list.append(f'<w:p><w:r><w:rPr><w:b/><w:color w:val="0F172A"/><w:sz w:val="28"/></w:rPr><w:t>{txt}</w:t></w:r></w:p>')
         elif line.startswith("|"):
-            row_t = _xml_esc("  |  ".join([c.strip() for c in line.strip("|").split("|")]))
-            p_list.append(f'<w:p><w:r><w:rPr><w:rFonts w:ascii="Courier New" w:hAnsi="Courier New"/><w:sz w:val="22"/></w:rPr><w:t>{row_t}</w:t></w:r></w:p>')
+            cells = [c.strip() for c in line.strip("|").split("|")]
+            is_hdr = ("Parameter" in cells[0] or "Unit #" in cells[0] or "LOCATION" in cells[0].upper())
+            r_hex = "0F172A" if is_hdr else get_crossing_group_color(line, default="#1E293B").lstrip("#").upper()
+            b_tag = "<w:b/>" if is_hdr else ""
+            row_t = _xml_esc("  |  ".join(cells))
+            p_list.append(f'<w:p><w:r><w:rPr>{b_tag}<w:rFonts w:ascii="Courier New" w:hAnsi="Courier New"/><w:color w:val="{r_hex}"/><w:sz w:val="21"/></w:rPr><w:t>{row_t}</w:t></w:r></w:p>')
         else:
-            p_list.append(f'<w:p><w:r><w:rPr><w:sz w:val="24"/></w:rPr><w:t>{txt}</w:t></w:r></w:p>')
+            is_act = txt.startswith("Verdict:") or bool(re.match(r"^-\s*C[1-4]\s*\(", txt))
+            l_hex = act_hex if is_act else get_crossing_group_color(line, default="#1E293B").lstrip("#").upper()
+            b_tag = "<w:b/>" if txt.startswith("Verdict:") else ""
+            p_list.append(f'<w:p><w:r><w:rPr>{b_tag}<w:color w:val="{l_hex}"/><w:sz w:val="23"/></w:rPr><w:t>{txt}</w:t></w:r></w:p>')
 
     doc_xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>' + "".join(p_list) + '<w:sectPr/></w:body></w:document>'
     ct_xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'

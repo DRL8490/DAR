@@ -256,8 +256,8 @@
             </div>
           </div>
           <div class="row g-2 mb-2">
-            <div class="col-6"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind (e.g. 16kt NE)"></div>
-            <div class="col-6"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Curr (e.g. 0.35m/s)"></div>
+            <div class="col-6"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind Speed (e.g. 16 knots)"></div>
+            <div class="col-6"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Current (e.g. 0.7 knots)"></div>
             
           </div>
         </div>
@@ -404,8 +404,8 @@ const EVENT_CONFIGS = {
   "Pole up": {r:"Location / Crossing ID",dr:"CR-A1_L1",l1:"Pole Stowed Status *",p1:"Recovered & Secured on Deck Cradle",l2:"Reason for Recovery",p2:"Transit / Weather / Maintenance",pr:"USBL/ADCP pole raised and locked above waterline..."},
   "Mattress on water": {r:"Xing / Box / Tag ID *",dr:"CR-A1_M{{ ledger|length + 1 }}",l1:"Mattress Physical Tag # *",p1:"e.g., #A046",l2:"Water Depth / Beacon Status",p2:"Transponder Ch 1 & 2 Tracking OK",pr:"Mattress overboarded through splash zone; WROV following descent..."},
   "Frame above water": {r:"Xing / Box / Tag ID *",dr:"CR-A1_M{{ ledger|length }}",l1:"Acoustic Release Status *",p1:"4-Hook Release Confirmed by WROV",l2:"Frame Deck Status",p2:"Frame Above Water & Landed on Deck",pr:"Deployment frame recovered cleanly; preparing next mattress..."},
-  "ADCP input": {r:"Crossing / Station ID",dr:"CR-A1_L1",l1:"Surface / Mid Current (m/s or kt & Dir) *",p1:"e.g., Surf: 0.45 m/s @ 210 deg",l2:"Near-Seabed Current (m/s or kt & Dir)",p2:"e.g., Seabed: 0.25 m/s @ 195 deg",pr:"ADCP current profile logged prior to mattress touchdown..."},
-  "Wind Input": {r:"Vessel / Location",dr:"MMA Prestige (CR-A1)",l1:"Wind Speed (kt or m/s) & Direction (deg) *",p1:"e.g., 18 kt @ 035 deg (NE)",l2:"Wave Height Hs (m) & Swell",p2:"e.g., Hs = 0.8 m (Within <=1.0m limit)",pr:"Bridge anemometer & sea state observation..."},
+  "ADCP input": {r:"Crossing / Station ID",dr:"CR-A1_L1",l1:"Surface / Mid Current (knots & Dir) *",p1:"e.g., Surf: 0.9 knots @ 210 deg",l2:"Near-Seabed Current (knots & Dir)",p2:"e.g., Seabed: 0.5 knots @ 195 deg",pr:"ADCP current profile logged prior to mattress touchdown..."},
+  "Wind Input": {r:"Vessel / Location",dr:"MMA Prestige (CR-A1)",l1:"Wind Speed (knots) & Direction (deg) *",p1:"e.g., 18 knots @ 035 deg (NE)",l2:"Wave Height Hs (m) & Swell",p2:"e.g., Hs = 0.8 m (Within <=1.0m limit)",pr:"Bridge anemometer & sea state observation..."},
   "Survey Issue Reporting": {r:"System / Sensor Affected *",dr:"USBL / WROV / NaviPac",l1:"Issue / Fault Description *",p1:"e.g., USBL acoustic dropout / ROV tether",l2:"Operational Impact / Downtime",p2:"e.g., 25 min troubleshooting on DP",pr:"Root cause and corrective action taken by onboard survey team..."}
 };
 function openMobEvt(t){
@@ -475,9 +475,9 @@ function triggerPhoneShortcut(){
         const div = document.createElement('div');
         div.className = 'row g-2 mb-2 p-2 rounded border border-info env-strip-evt';
         div.style.background = 'rgba(14,165,233,0.08)';
-        div.innerHTML = '<div class="col-12 small fw-bold text-info mb-0"><i class="fas fa-wind me-1"></i>Environmental Inputs (Wind & Current)</div>' +
-          '<div class="col-6"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind (e.g. 18kt NE)"></div>' +
-          '<div class="col-6"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Curr (e.g. 0.4m/s)"></div>' +
+        div.innerHTML = '<div class="col-12 small fw-bold text-info mb-0"><i class="fas fa-wind me-1"></i>Environmental Inputs (Wind Speed & Current in knots)</div>' +
+          '<div class="col-6"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind Speed (e.g. 18 knots)"></div>' +
+          '<div class="col-6"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Current (e.g. 0.8 knots)"></div>' +
           '';
         const remRow = form.querySelector('[name="remarks"]').closest('.row, .mb-3');
         if (remRow) remRow.parentNode.insertBefore(div, remRow);
@@ -542,8 +542,8 @@ function triggerPhoneShortcut(){
           <div class="col-md-3 col-6"><div class="input-group input-group-sm"><span class="input-group-text fw-bold px-1">C4</span><input type="number" step="0.001" name="c4_e" class="form-control px-1 rc" placeholder="E4"><input type="number" step="0.001" name="c4_n" class="form-control px-1 rc" placeholder="N4"><input type="hidden" name="c4_z" id="c4_z" value=""></div></div>
         </div>
         <div class="row g-2">
-          <div class="col-6"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind (e.g. 16kt NE)"></div>
-          <div class="col-6"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Current (e.g. 0.35m/s)"></div>
+          <div class="col-6"><input type="text" name="env_wind" class="form-control form-control-sm" placeholder="Wind Speed (e.g. 16 knots)"></div>
+          <div class="col-6"><input type="text" name="env_current" class="form-control form-control-sm" placeholder="Current (e.g. 0.7 knots)"></div>
           
         </div>
         <input type="hidden" name="aslaid_z" class="aslaid-z" value="0.00">`;
