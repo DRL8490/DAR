@@ -22,3 +22,7 @@ Thumbs.db
 *~
 *.pyc
 instance/*.db
+
+_laptop_sync_backup/
+_unpushed_backups/
+_pure_whl/
