@@ -66,12 +66,15 @@ def get_crossing_group_color(val, default="#1e293b", dark_bg=False):
     pal = CROSSING_GROUP_DARK_BG_COLORS if dark_bg else CROSSING_GROUP_COLORS
     return pal.get(grp, default)
 
-def _strip_redundant_verdict_prefix(line):
-    s = str(line or "")
-    s2 = re.sub(r"^\s*(?:\*\*)?Verdict\s*:(?:\*\*)?\s*.*?\s*--\s*", "", s, flags=re.I)
-    if re.match(r"^\s*(?:\*\*)?Verdict\s*:(?:\*\*)?\s*", s2, flags=re.I) and "--" not in s2:
-        return ""
-    return s2
+def _is_redundant_top_meta_line(line):
+    plain = re.sub(r"\*+", "", str(line or "")).strip()
+    if not plain:
+        return False
+    if re.match(r"^(?:Verdict\s*:.*?\s*--\s*)?Crossing\s*:.*?\s*--\s*Placement\s*:", plain, flags=re.I):
+        return True
+    if re.match(r"^Verdict\s*:\s*", plain, flags=re.I) and "--" not in plain:
+        return True
+    return False
 
 def norm_mti_date(s):
     s = str(s or "").strip()
@@ -565,9 +568,6 @@ def parse_log_entry_fields(lg, default_surveyor="Duty Surveyor"):
 
 def build_structured_report_markdown(metrics, include_history=True, ledger_list=None, scale_p1=250, scale_p2=75):
     resolved_ledger = _resolve_ledger_for_report(ledger_list)
-    loc_id = metrics.get("location_id", "CR-A1_M15")
-    xing_id = metrics.get("crossing_id", "CR-A1_L1")
-    act_grp = normalize_crossing_group(xing_id) or normalize_crossing_group(loc_id)
     cl_off, cl_tol = float(metrics.get("cl_offset_m", 0.0)), float(metrics.get("cl_tol", 0.50))
     max_g, g_tol = float(metrics.get("max_gap_m", 0.0)), float(metrics.get("gap_tol", 0.50))
     is_first = bool(metrics.get("is_first_in_array", False))
@@ -585,7 +585,6 @@ def build_structured_report_markdown(metrics, include_history=True, ledger_list=
     env_line = ", ".join(env_parts) if env_parts else "Not recorded"
     raw_rem = format_remarks_knots(str(metrics.get("remarks") or "").strip())
 
-    xing_disp = f"{xing_id} ({act_grp})" if (act_grp and act_grp != xing_id) else xing_id
     clean_cur_gaps = "1st Unit (N/A)" if is_first else _format_unit_gaps_clean(metrics.get("gap_labels", "N/A"))
 
     geo_headers = ["Parameter", "Design", "QA/QC USBL", "As-Laid ROV", "Delta / Result"]
@@ -599,8 +598,6 @@ def build_structured_report_markdown(metrics, include_history=True, ledger_list=
     ]
 
     lines = [
-        f"**Crossing:** {xing_disp}  --  **Placement:** {metrics.get('install_date','')}  --  **Surveyor:** {metrics.get('surveyor_name','Duty Surveyor')}",
-        "",
         "## 1. GEODETIC & TOLERANCE SUMMARY",
         *_format_aligned_md_table(geo_headers, geo_rows),
         "",
@@ -700,7 +697,7 @@ def render_a4_landscape_figures(metrics, custom_report_md=None, ledger_list=None
     page_no = 1
     fig, ax = _new_a4_landscape_page(page_no)
     figs.append(fig)
-    y_cur = 180.5
+    y_cur = 180.0
 
     def _draw_boxed_md_table(tbl_kind, hdr_cells, data_rows):
         nonlocal page_no, fig, ax, y_cur
@@ -799,6 +796,7 @@ def render_a4_landscape_figures(metrics, custom_report_md=None, ledger_list=None
 
     sec_counter = 0
     idx_ln = 0
+    has_rendered_body = False
     while idx_ln < len(filtered_lines):
         raw_ln = filtered_lines[idx_ln].strip()
         idx_ln += 1
@@ -808,19 +806,22 @@ def render_a4_landscape_figures(metrics, custom_report_md=None, ledger_list=None
                 idx_ln += 1
             continue
 
-        line = _strip_redundant_verdict_prefix(raw_ln) if not raw_ln.startswith("|") else raw_ln
-        if raw_ln and not line:
+        if not raw_ln.startswith("|") and _is_redundant_top_meta_line(raw_ln):
+            continue
+
+        if not raw_ln:
+            if has_rendered_body:
+                y_cur -= 1.3
             continue
 
         if y_cur < 19.5:
             page_no += 1
             fig, ax = _new_a4_landscape_page(page_no)
             figs.append(fig)
-            y_cur = 180.5
+            y_cur = 180.0
 
-        if not line:
-            y_cur -= 1.3
-            continue
+        has_rendered_body = True
+        line = raw_ln
         if line.startswith("# "):
             ax.text(14, y_cur, line[2:], fontsize=10.6, fontweight="bold", color=act_col)
             y_cur -= 4.8
@@ -845,8 +846,7 @@ def render_a4_landscape_figures(metrics, custom_report_md=None, ledger_list=None
             t_kind = _detect_md_table_kind(parsed_pipe[0])
             if t_kind == "progress":
                 continue
-            if t_kind in ("placed_units_8", "placed_units_9") and custom_report_md and t_kind == "placed_units_8":
-                # Upgrade legacy 8-col cached table to all placed mattresses across all crossings
+            if t_kind == "placed_units_8" and custom_report_md:
                 placed_pairs_u, _ = _collect_placed_mattresses_up_to_cutoff(
                     resolved_ledger, metrics.get("install_date"), current_metrics=metrics, full_day=False
                 )
@@ -871,14 +871,12 @@ def render_a4_landscape_figures(metrics, custom_report_md=None, ledger_list=None
             _draw_boxed_md_table(t_kind, h_norm, d_norm)
         else:
             cl = line.replace("**", "").strip()
-            is_meta_ln = cl.startswith("Crossing:")
             is_corner_ln = bool(re.match(r"^-\s*C[1-4]\s*\(", cl))
-            ln_x_col = act_col if (is_meta_ln or is_corner_ln) else get_crossing_group_color(cl, default="#1e293b")
-            fw_ln = "bold" if is_meta_ln else "normal"
-            ax.text(14, y_cur, cl[:145], fontsize=8.6, fontweight=fw_ln, color=ln_x_col)
+            ln_x_col = act_col if is_corner_ln else get_crossing_group_color(cl, default="#1e293b")
+            ax.text(14, y_cur, cl[:145], fontsize=8.6, fontweight="normal", color=ln_x_col)
             if len(cl) > 145:
                 y_cur -= 3.8
-                ax.text(18, y_cur, cl[145:290], fontsize=8.6, fontweight=fw_ln, color=ln_x_col)
+                ax.text(18, y_cur, cl[145:290], fontsize=8.6, fontweight="normal", color=ln_x_col)
             y_cur -= 3.9
 
     prog_rows, prog_tot, _ = compute_historical_progress_rows(
@@ -1193,9 +1191,9 @@ def generate_editable_docx(metrics, report_md, workspace_dir="workspace", ledger
             while idx_l < len(md_lines) and (not md_lines[idx_l].strip() or md_lines[idx_l].strip().startswith("|")):
                 idx_l += 1
             continue
-        line = _strip_redundant_verdict_prefix(raw_ln) if not raw_ln.startswith("|") else raw_ln
-        if not line:
+        if not raw_ln.startswith("|") and _is_redundant_top_meta_line(raw_ln):
             continue
+        line = raw_ln
         if line.startswith("|"):
             if ":---" in line or "---:" in line:
                 continue
@@ -1228,13 +1226,11 @@ def generate_editable_docx(metrics, report_md, workspace_dir="workspace", ledger
                 f'<w:r><w:rPr><w:b/><w:color w:val="0F172A"/><w:sz w:val="22"/></w:rPr><w:t>{txt}</w:t></w:r></w:p>'
             )
         else:
-            is_meta = raw_plain.strip().startswith("Crossing:")
-            is_act = is_meta or bool(re.match(r"^-\s*C[1-4]\s*\(", raw_plain))
-            l_hex = act_hex if is_act else get_crossing_group_color(line, default="#1E293B").lstrip("#").upper()
-            b_tag = "<w:b/>" if is_meta else ""
+            is_corner = bool(re.match(r"^-\s*C[1-4]\s*\(", raw_plain))
+            l_hex = act_hex if is_corner else get_crossing_group_color(line, default="#1E293B").lstrip("#").upper()
             elem_list.append(
                 f'<w:p><w:pPr><w:spacing w:before="20" w:after="20"/></w:pPr>'
-                f'<w:r><w:rPr>{b_tag}<w:color w:val="{l_hex}"/><w:sz w:val="19"/></w:rPr><w:t>{txt}</w:t></w:r></w:p>'
+                f'<w:r><w:rPr><w:color w:val="{l_hex}"/><w:sz w:val="19"/></w:rPr><w:t>{txt}</w:t></w:r></w:p>'
             )
     _flush_pending_table()
 
