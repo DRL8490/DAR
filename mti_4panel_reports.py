@@ -49,7 +49,7 @@ def normalize_crossing_group(val):
     if not s:
         return ""
     m = re.search(
-        r"(?<![#A-Z0-9])(?:CR[-_\s]?([AB][123])|C[-_]([AB][123])|CROSSING\s+([AB][123])|([AB][123])[-_]?(?:L[12]\b|M\d+))(?:\b|[_-]|M\d|$)",
+        r"(?<![#A-Z0-9])(?:CR[-_\s]?([AB][123])|C[-_\s]?([AB][123])|CROSSING\s+([AB][123])|([AB][123])[-_]?(?:L[12]\b|M\d+))(?:\b|[_-]|M\d|$)",
         s,
     )
     if m:
@@ -65,6 +65,13 @@ def get_crossing_group_color(val, default="#1e293b", dark_bg=False):
         return default
     pal = CROSSING_GROUP_DARK_BG_COLORS if dark_bg else CROSSING_GROUP_COLORS
     return pal.get(grp, default)
+
+def _strip_redundant_verdict_prefix(line):
+    s = str(line or "")
+    s2 = re.sub(r"^\s*(?:\*\*)?Verdict\s*:(?:\*\*)?\s*.*?\s*--\s*", "", s, flags=re.I)
+    if re.match(r"^\s*(?:\*\*)?Verdict\s*:(?:\*\*)?\s*", s2, flags=re.I) and "--" not in s2:
+        return ""
+    return s2
 
 def norm_mti_date(s):
     s = str(s or "").strip()
@@ -136,7 +143,7 @@ def _format_aligned_md_table(headers, rows, right_cols=()):
         return "| " + " | ".join(parts) + " |"
 
     sep = "| " + " | ".join(
-        ("---:" if i in right_cols else ":---").ljust(widths[i], "-") if i not in right_cols else ("-" * (widths[i] - 1) + ":")
+        (":" + "-" * (widths[i] - 1)) if i not in right_cols else ("-" * (widths[i] - 1) + ":")
         for i in range(n_c)
     ) + " |"
     out = [_fmt_row(all_r[0]), sep]
@@ -157,14 +164,24 @@ def _detect_md_table_kind(header_cells):
     if "parameter" in c0:
         return "geodetic"
     if "unit" in c0:
-        return "prior_units"
+        has_xing = len(header_cells) > 2 and "crossing" in str(header_cells[2]).strip().lower()
+        return "placed_units_9" if has_xing else "placed_units_8"
     if "location" in c0 or "crossing id" in c0:
         return "progress"
     return "generic"
 
 def _normalize_md_table_cells(raw_cells, kind, expected_cols=None):
     cells = [str(c).strip() for c in (raw_cells or [])]
-    if kind == "prior_units":
+    if kind == "placed_units_9":
+        if len(cells) > 9:
+            merged_gaps = ", ".join(x for x in cells[8:] if x) or "N/A"
+            cells = cells[:8] + [merged_gaps]
+        elif len(cells) < 9:
+            cells = cells + [""] * (9 - len(cells))
+        if not cells[8]:
+            cells[8] = "N/A"
+        return cells[:9]
+    if kind == "placed_units_8":
         if len(cells) > 8:
             merged_gaps = ", ".join(x for x in cells[7:] if x) or "N/A"
             cells = cells[:7] + [merged_gaps]
@@ -216,7 +233,7 @@ def _resolve_ledger_for_report(ledger_list=None):
     except Exception:
         return []
 
-def compute_historical_progress_rows(ledger_list, cutoff_dt_str, current_metrics=None, full_day=False):
+def _collect_placed_mattresses_up_to_cutoff(ledger_list, cutoff_dt_str, current_metrics=None, full_day=False):
     rows_in = [dict(r) for r in _resolve_ledger_for_report(ledger_list)]
     eff_cutoff = str(cutoff_dt_str or "").strip()
     if not eff_cutoff and isinstance(current_metrics, dict):
@@ -245,16 +262,34 @@ def compute_historical_progress_rows(ledger_list, cutoff_dt_str, current_metrics
                     r["install_date"] = current_metrics["install_date"]
                 if current_metrics.get("crossing_id"):
                     r["crossing_id"] = current_metrics["crossing_id"]
+                if current_metrics.get("mattress_id"):
+                    r["physical_tag"] = current_metrics["mattress_id"]
+                if current_metrics.get("aslaid_e") is not None:
+                    r["aslaid_e"] = current_metrics["aslaid_e"]
+                if current_metrics.get("aslaid_n") is not None:
+                    r["aslaid_n"] = current_metrics["aslaid_n"]
+                if current_metrics.get("cl_offset_m") is not None:
+                    r["cl_offset_m"] = current_metrics["cl_offset_m"]
+                if current_metrics.get("gap_labels"):
+                    r["gap_labels"] = current_metrics["gap_labels"]
+                if "is_first_in_array" in current_metrics:
+                    r["is_first_in_array"] = bool(current_metrics["is_first_in_array"])
                 if current_metrics.get("status"):
                     r["status"] = current_metrics["status"]
                 matched_cur = True
                 break
         if cur_box and not matched_cur:
             rows_in.append({
-                "unit_no": cur_uno or 9999,
+                "unit_no": cur_uno or (max([int(float(x.get("unit_no") or 0)) for x in rows_in] + [0]) + 1),
                 "crossing_id": current_metrics.get("crossing_id") or cur_box,
                 "design_box_id": cur_box,
+                "physical_tag": current_metrics.get("mattress_id") or "-",
                 "install_date": current_metrics.get("install_date") or f"{ref_d} {ref_t[:5]}",
+                "aslaid_e": current_metrics.get("aslaid_e") or 0.0,
+                "aslaid_n": current_metrics.get("aslaid_n") or 0.0,
+                "cl_offset_m": current_metrics.get("cl_offset_m") or 0.0,
+                "gap_labels": current_metrics.get("gap_labels") or "",
+                "is_first_in_array": bool(current_metrics.get("is_first_in_array", False)),
                 "status": current_metrics.get("status") or "Completed",
                 "unit_type": "Concrete Mattress",
             })
@@ -265,20 +300,30 @@ def compute_historical_progress_rows(ledger_list, cutoff_dt_str, current_metrics
             continue
         if str(r.get("status") or "Completed").strip().lower() in ("planned", "cancelled", "rejected"):
             continue
+        try:
+            r_uno = int(float(r.get("unit_no") or 0))
+        except Exception:
+            r_uno = 0
         rd, rt = _parse_fix_dt_tuple(r.get("install_date"))
         if not rd:
-            continue
+            if full_day or cur_uno is None or r_uno <= cur_uno:
+                rd, rt = ref_d, "00:00:00"
+            else:
+                continue
         r_box = str(r.get("design_box_id") or "").strip().upper()
         if (rd, rt) < (ref_d, ref_t):
             valid_up_to_cutoff.append((rd, r))
         elif (rd, rt) == (ref_d, ref_t):
-            try:
-                r_uno = int(float(r.get("unit_no") or 0))
-            except Exception:
-                r_uno = 0
             if full_day or cur_uno is None or r_uno <= cur_uno or (cur_box and r_box == cur_box):
                 valid_up_to_cutoff.append((rd, r))
 
+    valid_up_to_cutoff.sort(key=lambda pair: (int(float(pair[1].get("unit_no") or 9999)), pair[0], str(pair[1].get("install_date") or "")))
+    return valid_up_to_cutoff, ref_d
+
+def compute_historical_progress_rows(ledger_list, cutoff_dt_str, current_metrics=None, full_day=False):
+    valid_up_to_cutoff, ref_d = _collect_placed_mattresses_up_to_cutoff(
+        ledger_list, cutoff_dt_str, current_metrics=current_metrics, full_day=full_day
+    )
     out_rows = []
     tot_scope = tot_post = tot_today = tot_cum = tot_rem = 0
     for grp_id, scope_qty in CONSOLIDATED_CROSSING_SCOPES:
@@ -518,7 +563,7 @@ def parse_log_entry_fields(lg, default_surveyor="Duty Surveyor"):
     surv_l = resolve_full_surveyor_name(surv_raw) or surv_raw
     return dt_found, (tm_found or "00:00"), cat_s, area_s, clean_desc, env_short, surv_l
 
-def build_structured_report_markdown(metrics, include_history=False, ledger_list=None, scale_p1=250, scale_p2=75):
+def build_structured_report_markdown(metrics, include_history=True, ledger_list=None, scale_p1=250, scale_p2=75):
     resolved_ledger = _resolve_ledger_for_report(ledger_list)
     loc_id = metrics.get("location_id", "CR-A1_M15")
     xing_id = metrics.get("crossing_id", "CR-A1_L1")
@@ -526,7 +571,6 @@ def build_structured_report_markdown(metrics, include_history=False, ledger_list
     cl_off, cl_tol = float(metrics.get("cl_offset_m", 0.0)), float(metrics.get("cl_tol", 0.50))
     max_g, g_tol = float(metrics.get("max_gap_m", 0.0)), float(metrics.get("gap_tol", 0.50))
     is_first = bool(metrics.get("is_first_in_array", False))
-    cur_uno = int(float(metrics.get("unit_no") or (1 if is_first else 2)))
     c_enz = metrics.get("corners_enz") or [[0, 0, 0]] * 4
     gaps = metrics.get("gaps") or {}
     cl_st = "PASS" if cl_off <= cl_tol else "EXCEEDS TOLERANCE"
@@ -555,7 +599,7 @@ def build_structured_report_markdown(metrics, include_history=False, ledger_list
     ]
 
     lines = [
-        f"**Verdict:** {metrics.get('verdict', 'VERIFIED')}  --  **Crossing:** {xing_disp}  --  **Placement:** {metrics.get('install_date','')}  --  **Surveyor:** {metrics.get('surveyor_name','Duty Surveyor')}",
+        f"**Crossing:** {xing_disp}  --  **Placement:** {metrics.get('install_date','')}  --  **Surveyor:** {metrics.get('surveyor_name','Duty Surveyor')}",
         "",
         "## 1. GEODETIC & TOLERANCE SUMMARY",
         *_format_aligned_md_table(geo_headers, geo_rows),
@@ -571,34 +615,23 @@ def build_structured_report_markdown(metrics, include_history=False, ledger_list
         f"- Remarks: {raw_rem if raw_rem else 'None (within design specification).'}",
     ]
 
-    ref_d, ref_t = _parse_fix_dt_tuple(metrics.get("install_date"))
-    hist_rows = []
-    if include_history and not is_first:
-        for r in resolved_ledger:
-            if str(r.get("status") or "Completed").strip().lower() in ("planned", "cancelled", "rejected"):
-                continue
-            r_bid = str(r.get("design_box_id") or "").strip().upper()
-            if not r_bid or r_bid == str(loc_id).strip().upper():
-                continue
-            r_grp = normalize_crossing_group(r.get("crossing_id") or r_bid)
-            if act_grp and r_grp and r_grp != act_grp:
-                continue
-            rd, rt = _parse_fix_dt_tuple(r.get("install_date"))
-            r_uno = int(float(r.get("unit_no") or 0))
-            if r_uno < cur_uno and (not ref_d or not rd or (rd, rt) <= (ref_d, ref_t)):
-                hist_rows.append(r)
-        hist_rows.sort(key=lambda x: (int(float(x.get("unit_no") or 0)), str(x.get("install_date") or "")))
+    placed_pairs, _ = _collect_placed_mattresses_up_to_cutoff(
+        resolved_ledger, metrics.get("install_date"), current_metrics=metrics, full_day=False
+    )
+    placed_rows = [r for (_, r) in placed_pairs]
 
     prog_sec_no = 4
-    if hist_rows:
+    if placed_rows:
         prog_sec_no = 5
-        prior_headers = ["Unit #", "Date/Time", "Box ID", "Tag ID", "As-Laid E", "As-Laid N", "dCL (m)", "Gaps"]
-        prior_data = []
-        for r in hist_rows:
+        placed_headers = ["Unit #", "Date/Time", "Crossing", "Box ID", "Tag ID", "As-Laid E", "As-Laid N", "dCL (m)", "Gaps"]
+        placed_data = []
+        for r in placed_rows:
             dt_clean = re.sub(r"(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})", r"\1 \2", str(r.get("install_date") or "").strip())
-            prior_data.append([
+            r_xing = str(r.get("crossing_id") or "").strip() or normalize_crossing_group(r.get("design_box_id")) or "-"
+            placed_data.append([
                 str(r.get("unit_no", "")).strip(),
                 dt_clean,
+                r_xing,
                 str(r.get("design_box_id") or "").strip(),
                 str(r.get("physical_tag") or "-").strip() or "-",
                 f"{float(r.get('aslaid_e') or 0):.3f}",
@@ -608,8 +641,8 @@ def build_structured_report_markdown(metrics, include_history=False, ledger_list
             ])
         lines.extend([
             "",
-            "## 4. PRIOR PLACED UNITS IN CROSSING",
-            *_format_aligned_md_table(prior_headers, prior_data, right_cols=(4, 5, 6)),
+            "## 4. PLACED CONCRETE MATTRESSES",
+            *_format_aligned_md_table(placed_headers, placed_data, right_cols=(5, 6, 7)),
         ])
 
     prog_rows, prog_tot, _ = compute_historical_progress_rows(
@@ -641,6 +674,7 @@ def render_a4_landscape_figures(metrics, custom_report_md=None, ledger_list=None
 
     W_MM, H_MM = 297.0, 210.0
     loc_id, mat_id = metrics.get("location_id", "CR-A1_M15"), metrics.get("mattress_id", "#A046")
+    loc_up = str(loc_id or "").strip().upper()
     xing_id = metrics.get("crossing_id") or loc_id
     act_grp = normalize_crossing_group(xing_id) or normalize_crossing_group(loc_id)
     act_col = get_crossing_group_color(act_grp, default="#1e293b", dark_bg=False)
@@ -671,31 +705,43 @@ def render_a4_landscape_figures(metrics, custom_report_md=None, ledger_list=None
     def _draw_boxed_md_table(tbl_kind, hdr_cells, data_rows):
         nonlocal page_no, fig, ax, y_cur
         n_c = len(hdr_cells)
+        is_placed_tbl = tbl_kind in ("placed_units_9", "placed_units_8")
         if tbl_kind == "geodetic":
             edges = [13.0, 69.0, 115.0, 157.0, 216.0, 284.0]
             aligns = ["left", "center", "center", "center", "left"]
             max_lens = [34, 24, 20, 34, 38]
-        elif tbl_kind == "prior_units":
+            bold_cols = (0,)
+        elif tbl_kind == "placed_units_9":
+            edges = [13.0, 26.0, 60.0, 84.0, 112.0, 132.0, 161.0, 192.0, 213.0, 284.0]
+            aligns = ["center", "center", "center", "center", "center", "right", "right", "center", "left"]
+            max_lens = [7, 19, 13, 15, 11, 14, 14, 10, 44]
+            bold_cols = (0, 2, 3, 4)
+        elif tbl_kind == "placed_units_8":
             edges = [13.0, 27.0, 65.0, 95.0, 117.0, 148.0, 180.0, 203.0, 284.0]
             aligns = ["center", "center", "center", "center", "right", "right", "center", "left"]
             max_lens = [8, 20, 16, 12, 14, 14, 10, 48]
+            bold_cols = (0, 2, 3)
         else:
             edges = [13.0 + i * (271.0 / n_c) for i in range(n_c + 1)]
             aligns = ["left"] * n_c
             max_lens = [max(10, int(160 / n_c))] * n_c
+            bold_cols = (0,)
 
-        h_hdr_r, h_dat_r = 4.3, 4.0
+        h_hdr_r, h_dat_r = 4.3, 3.9
 
         def _render_row_cells(cells_r, y_top_r, h_r, is_header=False, r_idx=0):
-            fc = "#e2e8f0" if is_header else ("#f8fafc" if r_idx % 2 == 0 else "#ffffff")
-            ec = "#94a3b8" if is_header else "#cbd5e1"
-            ax.add_patch(mpatches.Rectangle((13.0, y_top_r - h_r), 271.0, h_r, facecolor=fc, edgecolor=ec, linewidth=0.5))
+            is_cur_unit = (not is_header and is_placed_tbl and loc_up and any(c.strip().upper() == loc_up for c in cells_r))
+            if is_header:
+                fc = "#bae6fd" if is_placed_tbl else "#e2e8f0"
+                ec = "#0f172a" if is_placed_tbl else "#94a3b8"
+            else:
+                fc = "#f0f9ff" if is_cur_unit else ("#f8fafc" if r_idx % 2 == 0 else "#ffffff")
+                ec = "#64748b" if is_placed_tbl else "#cbd5e1"
+            ax.add_patch(mpatches.Rectangle((13.0, y_top_r - h_r), 271.0, h_r, facecolor=fc, edgecolor=ec, linewidth=0.55))
             for xv in edges[1:-1]:
                 ax.plot([xv, xv], [y_top_r - h_r, y_top_r], color=ec, linewidth=0.45)
 
             row_x_col = "" if is_header else get_crossing_group_color(" ".join(cells_r), default="")
-            if not is_header and tbl_kind == "prior_units" and not row_x_col:
-                row_x_col = act_col
 
             yc = y_top_r - h_r / 2.0
             for ic in range(min(n_c, len(cells_r))):
@@ -704,7 +750,7 @@ def render_a4_landscape_figures(metrics, custom_report_md=None, ledger_list=None
                 if al == "center":
                     xp, ha_u = 0.5 * (edges[ic] + edges[ic + 1]), "center"
                 elif al == "right":
-                    xp, ha_u = edges[ic + 1] - 2.0, "right"
+                    xp, ha_u = edges[ic + 1] - 2.2, "right"
                 else:
                     xp, ha_u = edges[ic] + 1.8, "left"
 
@@ -723,11 +769,13 @@ def render_a4_landscape_figures(metrics, custom_report_md=None, ledger_list=None
                         c_use, fw_use = "#1e293b", "normal"
                 elif row_x_col:
                     c_use = row_x_col
-                    fw_use = "bold" if ic in (0, 2, 3) else "normal"
+                    fw_use = "bold" if (is_cur_unit or ic in bold_cols) else "normal"
                 else:
-                    c_use, fw_use = "#1e293b", "normal"
+                    c_use = "#1e293b"
+                    fw_use = "bold" if (is_cur_unit or ic in bold_cols) else "normal"
 
-                ax.text(xp, yc, txt_c, fontsize=7.5, fontweight=fw_use, family="monospace", color=c_use, ha=ha_u, va="center")
+                fs_u = 7.3 if tbl_kind == "placed_units_9" else 7.5
+                ax.text(xp, yc, txt_c, fontsize=fs_u, fontweight=fw_use, family="monospace", color=c_use, ha=ha_u, va="center")
 
         if y_cur - (h_hdr_r + h_dat_r) < 17.0:
             page_no += 1
@@ -749,16 +797,19 @@ def render_a4_landscape_figures(metrics, custom_report_md=None, ledger_list=None
             y_cur -= h_dat_r
         y_cur -= 1.0
 
-    # Renumber Prior Placed Units heading cleanly if cached markdown had it as #5 above progress
     sec_counter = 0
     idx_ln = 0
     while idx_ln < len(filtered_lines):
-        line = filtered_lines[idx_ln].strip()
+        raw_ln = filtered_lines[idx_ln].strip()
         idx_ln += 1
 
-        if line.startswith("## ") and "INSTALLATION PROGRESS OF CONCRETE MATTRESS" in line.upper():
+        if raw_ln.startswith("## ") and "INSTALLATION PROGRESS OF CONCRETE MATTRESS" in raw_ln.upper():
             while idx_ln < len(filtered_lines) and (not filtered_lines[idx_ln].strip() or filtered_lines[idx_ln].strip().startswith("|")):
                 idx_ln += 1
+            continue
+
+        line = _strip_redundant_verdict_prefix(raw_ln) if not raw_ln.startswith("|") else raw_ln
+        if raw_ln and not line:
             continue
 
         if y_cur < 19.5:
@@ -776,6 +827,8 @@ def render_a4_landscape_figures(metrics, custom_report_md=None, ledger_list=None
         elif line.startswith("## "):
             sec_counter += 1
             raw_sec_title = re.sub(r"^\d+\.\s*", "", line[3:].strip())
+            if "PRIOR PLACED UNITS" in raw_sec_title.upper():
+                raw_sec_title = "PLACED CONCRETE MATTRESSES"
             sec_lbl = f"{sec_counter}. {raw_sec_title}"
             y_cur -= 0.6
             ax.add_patch(mpatches.Rectangle((13, y_cur - 1.3), 271, 4.9, facecolor="#e2e8f0", edgecolor="none"))
@@ -792,22 +845,42 @@ def render_a4_landscape_figures(metrics, custom_report_md=None, ledger_list=None
             t_kind = _detect_md_table_kind(parsed_pipe[0])
             if t_kind == "progress":
                 continue
+            if t_kind in ("placed_units_8", "placed_units_9") and custom_report_md and t_kind == "placed_units_8":
+                # Upgrade legacy 8-col cached table to all placed mattresses across all crossings
+                placed_pairs_u, _ = _collect_placed_mattresses_up_to_cutoff(
+                    resolved_ledger, metrics.get("install_date"), current_metrics=metrics, full_day=False
+                )
+                h_norm = ["Unit #", "Date/Time", "Crossing", "Box ID", "Tag ID", "As-Laid E", "As-Laid N", "dCL (m)", "Gaps"]
+                d_norm = []
+                for _, r_u in placed_pairs_u:
+                    dt_c = re.sub(r"(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})", r"\1 \2", str(r_u.get("install_date") or "").strip())
+                    rx_c = str(r_u.get("crossing_id") or "").strip() or normalize_crossing_group(r_u.get("design_box_id")) or "-"
+                    d_norm.append([
+                        str(r_u.get("unit_no", "")).strip(), dt_c, rx_c,
+                        str(r_u.get("design_box_id") or "").strip(),
+                        str(r_u.get("physical_tag") or "-").strip() or "-",
+                        f"{float(r_u.get('aslaid_e') or 0):.3f}",
+                        f"{float(r_u.get('aslaid_n') or 0):.3f}",
+                        f"{float(r_u.get('cl_offset_m') or 0):.3f}",
+                        _format_unit_gaps_clean(r_u),
+                    ])
+                _draw_boxed_md_table("placed_units_9", h_norm, d_norm)
+                continue
             h_norm = _normalize_md_table_cells(parsed_pipe[0], t_kind)
             d_norm = [_normalize_md_table_cells(pr, t_kind, len(h_norm)) for pr in parsed_pipe[1:]]
             _draw_boxed_md_table(t_kind, h_norm, d_norm)
         else:
-            cl = line.replace("**", "")
-            is_verdict_ln = cl.startswith("Verdict:")
+            cl = line.replace("**", "").strip()
+            is_meta_ln = cl.startswith("Crossing:")
             is_corner_ln = bool(re.match(r"^-\s*C[1-4]\s*\(", cl))
-            ln_x_col = act_col if (is_verdict_ln or is_corner_ln) else get_crossing_group_color(cl, default="#1e293b")
-            fw_ln = "bold" if is_verdict_ln else "normal"
+            ln_x_col = act_col if (is_meta_ln or is_corner_ln) else get_crossing_group_color(cl, default="#1e293b")
+            fw_ln = "bold" if is_meta_ln else "normal"
             ax.text(14, y_cur, cl[:145], fontsize=8.6, fontweight=fw_ln, color=ln_x_col)
             if len(cl) > 145:
                 y_cur -= 3.8
                 ax.text(18, y_cur, cl[145:290], fontsize=8.6, fontweight=fw_ln, color=ln_x_col)
             y_cur -= 3.9
 
-    # Always render INSTALLATION PROGRESS OF CONCRETE MATTRESS 0001-2400 at the bottom of the report
     prog_rows, prog_tot, _ = compute_historical_progress_rows(
         resolved_ledger, metrics.get("install_date"), current_metrics=metrics, full_day=False
     )
@@ -1072,6 +1145,7 @@ def _build_docx_table_xml(col_widths_dxa, rows_spec, aligns=None):
 def generate_editable_docx(metrics, report_md, workspace_dir="workspace", ledger_list=None):
     os.makedirs(workspace_dir, exist_ok=True)
     resolved_ledger = _resolve_ledger_for_report(ledger_list)
+    loc_up = str(metrics.get("location_id") or "").strip().upper()
     act_grp = normalize_crossing_group(metrics.get("crossing_id") or metrics.get("location_id"))
     act_hex = get_crossing_group_color(act_grp, default="#1e293b").lstrip("#").upper()
     elem_list = []
@@ -1092,7 +1166,10 @@ def generate_editable_docx(metrics, report_md, workspace_dir="workspace", ledger
         if pending_tbl_kind == "geodetic":
             widths = [3200, 2600, 2400, 3400, 3800]
             aligns = ["left", "center", "center", "center", "left"]
-        elif pending_tbl_kind == "prior_units":
+        elif pending_tbl_kind == "placed_units_9":
+            widths = [850, 2100, 1450, 1650, 1150, 1750, 1800, 1100, 3550]
+            aligns = ["center", "center", "center", "center", "center", "right", "right", "center", "left"]
+        elif pending_tbl_kind == "placed_units_8":
             widths = [950, 2250, 1750, 1250, 1800, 1850, 1150, 4400]
             aligns = ["center", "center", "center", "center", "right", "right", "center", "left"]
         else:
@@ -1106,15 +1183,18 @@ def generate_editable_docx(metrics, report_md, workspace_dir="workspace", ledger
     idx_l = 0
     sec_no = 0
     while idx_l < len(md_lines):
-        line = md_lines[idx_l].strip()
+        raw_ln = md_lines[idx_l].strip()
         idx_l += 1
-        if not line or "chart scales @ a3" in line.lower() or "chart scales:" in line.lower():
+        if not raw_ln or "chart scales @ a3" in raw_ln.lower() or "chart scales:" in raw_ln.lower():
             _flush_pending_table()
             continue
-        if line.startswith("## ") and "INSTALLATION PROGRESS OF CONCRETE MATTRESS" in line.upper():
+        if raw_ln.startswith("## ") and "INSTALLATION PROGRESS OF CONCRETE MATTRESS" in raw_ln.upper():
             _flush_pending_table()
             while idx_l < len(md_lines) and (not md_lines[idx_l].strip() or md_lines[idx_l].strip().startswith("|")):
                 idx_l += 1
+            continue
+        line = _strip_redundant_verdict_prefix(raw_ln) if not raw_ln.startswith("|") else raw_ln
+        if not line:
             continue
         if line.startswith("|"):
             if ":---" in line or "---:" in line:
@@ -1123,21 +1203,24 @@ def generate_editable_docx(metrics, report_md, workspace_dir="workspace", ledger
             if pending_tbl_kind is None:
                 pending_tbl_kind = _detect_md_table_kind(raw_cells)
                 h_cells = _normalize_md_table_cells(raw_cells, pending_tbl_kind)
-                pending_tbl_rows.append((h_cells, "E2E8F0", "0F172A", True, False, False))
+                hdr_fill = "BAE6FD" if pending_tbl_kind in ("placed_units_9", "placed_units_8") else "E2E8F0"
+                pending_tbl_rows.append((h_cells, hdr_fill, "0F172A", True, False, False))
             else:
                 d_cells = _normalize_md_table_cells(raw_cells, pending_tbl_kind, len(pending_tbl_rows[0][0]))
                 r_hex = get_crossing_group_color(" ".join(d_cells), default="#1E293B").lstrip("#").upper()
-                if pending_tbl_kind == "prior_units" and r_hex == "1E293B":
-                    r_hex = act_hex
-                fill_r = "F8FAFC" if len(pending_tbl_rows) % 2 == 1 else "FFFFFF"
-                pending_tbl_rows.append((d_cells, fill_r, r_hex, False, False, False))
+                is_cur_u = loc_up and any(c.strip().upper() == loc_up for c in d_cells)
+                fill_r = "F0F9FF" if is_cur_u else ("F8FAFC" if len(pending_tbl_rows) % 2 == 1 else "FFFFFF")
+                pending_tbl_rows.append((d_cells, fill_r, r_hex, bool(is_cur_u), False, False))
             continue
 
         _flush_pending_table()
         raw_plain = re.sub(r"^#+\s*", "", line).replace("**", "")
         if line.startswith("## "):
             sec_no += 1
-            raw_plain = f"{sec_no}. " + re.sub(r"^\d+\.\s*", "", raw_plain.strip())
+            clean_t = re.sub(r"^\d+\.\s*", "", raw_plain.strip())
+            if "PRIOR PLACED UNITS" in clean_t.upper():
+                clean_t = "PLACED CONCRETE MATTRESSES"
+            raw_plain = f"{sec_no}. {clean_t}"
         txt = _xml_esc(raw_plain)
         if line.startswith("#"):
             elem_list.append(
@@ -1145,16 +1228,16 @@ def generate_editable_docx(metrics, report_md, workspace_dir="workspace", ledger
                 f'<w:r><w:rPr><w:b/><w:color w:val="0F172A"/><w:sz w:val="22"/></w:rPr><w:t>{txt}</w:t></w:r></w:p>'
             )
         else:
-            is_act = raw_plain.startswith("Verdict:") or bool(re.match(r"^-\s*C[1-4]\s*\(", raw_plain))
+            is_meta = raw_plain.strip().startswith("Crossing:")
+            is_act = is_meta or bool(re.match(r"^-\s*C[1-4]\s*\(", raw_plain))
             l_hex = act_hex if is_act else get_crossing_group_color(line, default="#1E293B").lstrip("#").upper()
-            b_tag = "<w:b/>" if raw_plain.startswith("Verdict:") else ""
+            b_tag = "<w:b/>" if is_meta else ""
             elem_list.append(
                 f'<w:p><w:pPr><w:spacing w:before="20" w:after="20"/></w:pPr>'
                 f'<w:r><w:rPr>{b_tag}<w:color w:val="{l_hex}"/><w:sz w:val="19"/></w:rPr><w:t>{txt}</w:t></w:r></w:p>'
             )
     _flush_pending_table()
 
-    # Append INSTALLATION PROGRESS OF CONCRETE MATTRESS 0001-2400 table at the bottom of the Word report
     prog_rows, prog_tot, _ = compute_historical_progress_rows(
         resolved_ledger, metrics.get("install_date"), current_metrics=metrics, full_day=False
     )
