@@ -67,25 +67,29 @@
   <div class="p-2 mb-2 rounded bg-white border text-dark">
     <div class="small fw-bold text-uppercase text-secondary mb-1" style="font-size:10.5px;">Line 1 : Select Mattress</div>
     <div class="row g-2 align-items-end">
-      <div class="col-md-5">
+      <div class="col-md-4 col-12">
         <label class="form-label small fw-bold text-success mb-1">Select Design Mattress (1 of 139)</label>
         <select id="designCatalogSelect" class="form-select form-select-sm border-success fw-bold" onchange="onSelectDesignMattress()">
           <option value="">-- Choose Design Mattress (139) --</option>
         </select>
       </div>
-      <div class="col-md-2 col-4">
+      <div class="col-md-1 col-4">
         <label class="form-label small fw-bold mb-1">Unit #</label>
         <input type="number" name="unit_no" id="inpUnitNo" class="form-control form-control-sm fw-bold" value="{{ ledger|length + 1 }}" min="1" max="300" oninput="toggleGapInputs()" required>
       </div>
-      <div class="col-md-2 col-4">
+      <div class="col-md-1 col-8">
         <div class="form-check form-switch pb-1">
           <input class="form-check-input" type="checkbox" id="chkFirstMattress" name="is_first_in_array" value="true" onchange="toggleGapInputs()">
           <label class="form-check-label small fw-bold text-primary" for="chkFirstMattress">1st Mattress (No Gaps)</label>
         </div>
       </div>
-      <div class="col-md-3 col-4">
+      <div class="col-md-3 col-6">
         <label class="form-label small fw-bold mb-1">Date/Time</label>
         <input type="text" name="install_date" id="inpFixDateTime" value="{{ today_str|default('') }} {{ now_dt_str.split('T')[-1] if now_dt_str is defined else '' }}" class="form-control form-control-sm" required>
+      </div>
+      <div class="col-md-3 col-6">
+        <label class="form-label small fw-bold text-info mb-1">Surveyor Name</label>
+        <input type="text" name="surveyor_name" id="inpMobFixSurveyor" value="{{ current_user.name }}" class="form-control form-control-sm fw-bold" required>
       </div>
     </div>
   </div>
