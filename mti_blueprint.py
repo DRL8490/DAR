@@ -424,6 +424,109 @@ def delete_fix(fix_id):
     flash("Removed entry from MTI Ledger & DPR Register.", "success")
     return redirect(url_for('mti_bp.mti_mobile') if '/mobile' in (request.referrer or '') else url_for('mti_bp.mti_dashboard'))
 
+# --- MTI_EVT_KPI_CHECKBOX_START ---
+def _map_event_to_kpi_meta(evt_type):
+    et = str(evt_type or "").strip()
+    et_low = et.lower()
+    if "calib" in et_low or "setup" in et_low or "tbt" in et_low:
+        return ("CONFIGURE", "Equipment Configuration", "Survey Software Configuration", "USBL", "MMA Prestige Setup")
+    if "issue" in et_low:
+        return ("CHECK", "Equipment Configuration", "System Check", "USBL", "MMA Prestige Issue")
+    if et in ("Pole down", "Pole up", "ADCP input"):
+        return ("CHECK", "Equipment Configuration", "System Check", "USBL", f"MMA Prestige {et}")
+    return ("VERIFY", "Bathymetric Survey", "Check Survey", "USBL", f"MMA Prestige {et}")
+
+def _remove_event_log_from_surveytask(log_id, surveytask_id=None):
+    try:
+        from app import SurveyTask, db
+        removed = False
+        if surveytask_id:
+            t_id = SurveyTask.query.get(int(surveytask_id))
+            if t_id:
+                db.session.delete(t_id); removed = True
+        marker = f"[MTI_EVT_ID:{log_id}]"
+        for t in SurveyTask.query.filter(SurveyTask.sub_location == "338_Subsea_Crossings").all():
+            if marker in str(t.remarks or ""):
+                db.session.delete(t); removed = True
+        if removed:
+            db.session.commit()
+    except Exception:
+        pass
+
+def _upsert_event_log_to_surveytask(entry):
+    log_id = entry.get("id")
+    if not entry.get("sync_to_kpi"):
+        _remove_event_log_from_surveytask(log_id, entry.get("surveytask_id"))
+        entry.pop("surveytask_id", None)
+        return False
+
+    from app import SurveyTask, db
+    evt_t = str(entry.get("event_type") or "Calib, Setup & TBT").strip()
+    if evt_t.lower() == "mattress fix":
+        return False
+
+    exec_dt, evt_dt = _parse_mti_fix_dt(entry.get("timestamp"))
+    fake_fix = {"surveyor_name": entry.get("surveyor") or "", "install_date": entry.get("timestamp") or ""}
+    if "_resolve_kpi_assigned_surveyor" in globals():
+        kpi_user, full_surv = _resolve_kpi_assigned_surveyor(fake_fix, [])
+    else:
+        kpi_user = str(entry.get("surveyor") or getattr(current_user, "name", "Daryll Enano")).strip()
+        full_surv = kpi_user
+
+    cmd_v, t_cat, act_req, inst, pfx_lbl = _map_event_to_kpi_meta(evt_t)
+    val1_clean = re.sub(r"\s*\[[^\]]+\]", "", str(entry.get("val1") or "").strip()).strip()
+    ref_clean = str(entry.get("ref_id") or "").strip()
+    act_headline = val1_clean or ref_clean or evt_t
+    opening_str = f"{pfx_lbl}: {act_headline} ({ref_clean})" if (ref_clean and ref_clean.upper() not in act_headline.upper() and len(act_headline) < 75) else f"{pfx_lbl}: {act_headline}"
+
+    val2_s = str(entry.get("val2") or "").strip()
+    rem_s = str(entry.get("remarks") or "").strip()
+    closing_bits = []
+    if val2_s and val2_s.lower() not in rem_s.lower():
+        closing_bits.append(val2_s)
+    if rem_s and rem_s.lower() != act_headline.lower():
+        closing_bits.append(rem_s)
+    closing_bits.extend([f"Logged by {full_surv}", f"[MTI_EVT_ID:{log_id}]"])
+    full_rem = f"{opening_str} | Closed: {' ; '.join(closing_bits)}"
+
+    marker = f"[MTI_EVT_ID:{log_id}]"
+    existing_t = None
+    if entry.get("surveytask_id"):
+        try: existing_t = SurveyTask.query.get(int(entry["surveytask_id"]))
+        except Exception: existing_t = None
+    if not existing_t:
+        for t in SurveyTask.query.filter(SurveyTask.sub_location == "338_Subsea_Crossings").all():
+            if marker in str(t.remarks or ""):
+                existing_t = t; break
+
+    if existing_t:
+        existing_t.surveyor_name = kpi_user
+        existing_t.assigned_to = kpi_user
+        existing_t.command_verb = cmd_v
+        existing_t.task_category = t_cat
+        existing_t.action_required = act_req
+        existing_t.instrument = inst
+        existing_t.execution_date = exec_dt
+        existing_t.start_time = evt_dt
+        existing_t.end_time = evt_dt
+        existing_t.remarks = full_rem
+        existing_t.status = "Closed"
+        db.session.flush()
+        entry["surveytask_id"] = existing_t.id
+    else:
+        new_t = SurveyTask(
+            surveyor_name=kpi_user, assigned_to=kpi_user, requestor="Offshore - Walaa Ezzat Gomaa",
+            command_verb=cmd_v, task_category=t_cat, action_required=act_req, instrument=inst,
+            area="300_Marine", location="330_Offshore", sub_location="338_Subsea_Crossings",
+            work_scope="338-00_OS_Subsea_Crossings", remarks=full_rem, status="Closed",
+            is_urgent=False, priority=99, start_time=evt_dt, execution_date=exec_dt, end_time=evt_dt
+        )
+        db.session.add(new_t)
+        db.session.flush()
+        entry["surveytask_id"] = new_t.id
+    return True
+# --- MTI_EVT_KPI_CHECKBOX_END ---
+
 @mti_bp.route('/add_input_log', methods=['POST'])
 @login_required
 def add_input_log():
@@ -438,37 +541,63 @@ def add_input_log():
     env_c = fmt_knots(request.form.get("env_current") or "") if "fmt_knots" in globals() else (request.form.get("env_current") or "").strip()
     env_s = (request.form.get("env_swell") or "").strip()
     env_tag = " | ".join([f"{k}:{v}" for k, v in [("USBL", usbl_s), ("Wind", env_w), ("Curr", env_c)] if v])
-    rem = (request.form.get("remarks") or "").strip()
-    if env_tag and env_tag not in rem:
-        rem = f"{rem} [{env_tag}]".strip()
+    raw_rem = (request.form.get("remarks") or "").strip()
+    clean_rem = re.sub(r"(?:\s*\[(?:USBL:[^\]]*\|?\s*)?(?:Wind:[^\]]*|Curr:[^\]]*)\])+\s*$", "", raw_rem, flags=re.I).strip()
+    if usbl_s and f"[USBL:{usbl_s}]" in clean_rem and env_tag:
+        clean_rem = clean_rem.replace(f"[USBL:{usbl_s}]", "").strip()
+    rem = f"{clean_rem} [{env_tag}]".strip() if (env_tag and env_tag not in clean_rem) else clean_rem
+
+    sync_kpi_chk = str(request.form.get("sync_to_kpi") or "").strip().lower() in ("true", "1", "on", "yes")
+    raw_surv = (request.form.get("surveyor") or getattr(current_user, "name", "Surveyor")).strip()
+    surv_clean = resolve_full_surveyor_name(raw_surv) if "resolve_full_surveyor_name" in globals() else raw_surv
 
     entry = {
-        "id": existing["id"] if existing else (max([int(x.get("id", 0)) for x in input_logs] + [0]) + 1),
+        "id": int(existing["id"]) if existing else (max([int(x.get("id", 0)) for x in input_logs] + [0]) + 1),
         "event_type": evt_t,
         "timestamp": (request.form.get("timestamp") or datetime.utcnow().strftime('%Y-%m-%d %H:%M')).strip(),
-        "surveyor": (request.form.get("surveyor") or getattr(current_user, "name", "Surveyor")).strip(),
+        "surveyor": surv_clean,
         "ref_id": (request.form.get("ref_id") or "").strip(),
         "val1": (request.form.get("val1") or "").strip(),
         "val2": (request.form.get("val2") or "").strip(),
         "usbl_sensor": usbl_s,
         "env_wind": env_w, "env_current": env_c, "env_swell": env_s,
-        "remarks": rem
+        "remarks": rem,
+        "sync_to_kpi": sync_kpi_chk,
     }
+    if existing and existing.get("surveytask_id"):
+        entry["surveytask_id"] = existing["surveytask_id"]
+
+    kpi_synced = False
+    try:
+        from app import db as _db_ev
+        kpi_synced = _upsert_event_log_to_surveytask(entry)
+        if kpi_synced:
+            _db_ev.session.commit()
+    except Exception:
+        kpi_synced = False
+
     if existing:
-        input_logs.remove(existing)
-    input_logs.append(entry)
+        input_logs[input_logs.index(existing)] = entry
+    else:
+        input_logs.append(entry)
     state["input_logs"] = input_logs
     save_mti_state(state)
-    flash(f"Logged '{entry['event_type']}' at {entry['timestamp']}!", "success")
+
+    kpi_note = " & synced to KPI/DPR Register" if kpi_synced else ""
+    flash(f"Saved '{entry['event_type']}' at {entry['timestamp']}{kpi_note}!", "success")
     return redirect(url_for('mti_bp.mti_mobile') if '/mobile' in (request.referrer or '') else url_for('mti_bp.mti_dashboard'))
 
 @mti_bp.route('/delete_input_log/<int:log_id>', methods=['POST'])
 @login_required
 def delete_input_log(log_id):
     state = load_mti_state()
-    state["input_logs"] = [x for x in state.get("input_logs", []) if int(x.get("id", 0)) != log_id]
+    logs = state.get("input_logs", [])
+    target = next((x for x in logs if int(x.get("id", 0)) == log_id), None)
+    if target:
+        _remove_event_log_from_surveytask(log_id, target.get("surveytask_id"))
+    state["input_logs"] = [x for x in logs if int(x.get("id", 0)) != log_id]
     save_mti_state(state)
-    flash("Removed event from Survey Input Log.", "success")
+    flash("Removed event from Survey Input Log & KPI Register.", "success")
     return redirect(url_for('mti_bp.mti_mobile') if '/mobile' in (request.referrer or '') else url_for('mti_bp.mti_dashboard'))
 
 @mti_bp.route('/update_targets', methods=['POST'])
@@ -665,11 +794,20 @@ def sync_to_dpr():
     ]
     target_fixes.sort(key=lambda r: (_parse_mti_fix_dt(r.get("install_date"))[1], int(float(r.get("unit_no") or 0))))
 
-    if not target_fixes:
-        flash(f"No confirmed (Completed) Mattress Fixes found on {'the MTI Ledger' if sync_mode == 'all_fixes' else sync_date_str} to sync.", "error")
+    target_evts = [
+        lg for lg in in_logs
+        if lg.get("sync_to_kpi") and str(lg.get("event_type") or "").strip().lower() != "mattress fix"
+        and (sync_mode == "all_fixes" or _parse_mti_fix_dt(lg.get("timestamp"))[0].strftime("%Y-%m-%d") == sync_date_str)
+    ]
+
+    if not target_fixes and not target_evts:
+        flash(f"No confirmed Mattress Fixes or KPI-checked events found on {'the MTI Ledger' if sync_mode == 'all_fixes' else sync_date_str} to sync.", "error")
         return redirect(url_for('mti_bp.mti_mobile') if '/mobile' in (request.referrer or '') else url_for('mti_bp.mti_dashboard'))
 
     synced_cnt = 0
+    for lg_e in target_evts:
+        if _upsert_event_log_to_surveytask(lg_e):
+            synced_cnt += 1
     for r in target_fixes:
         r_enr = dict(r)
         if "_find_fix_surveyor_from_logs" in globals():

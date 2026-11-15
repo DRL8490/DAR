@@ -530,9 +530,15 @@
                         <form action="/mti/add_input_log" method="POST" id="eventInputForm">
                             <input type="hidden" name="log_id" id="evtLogId" value="">
                             <input type="hidden" name="event_type" id="evtTypeInput" value="Pole down">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                                        <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
                                 <h6 class="fw-bold text-primary mb-0" id="evtBoxTitle">Log Event: Pole down</h6>
-                                <button type="button" class="btn-close small" onclick="document.getElementById('dynamicEventBox').style.display='none';"></button>
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="form-check form-switch mb-0">
+                                        <input class="form-check-input" type="checkbox" name="sync_to_kpi" id="chkEvtSyncKpi" value="true">
+                                        <label class="form-check-label small fw-bold text-dark" for="chkEvtSyncKpi" title="Creates/updates an individual SurveyTask entry in the KPI &amp; DPR Master Register">Sync to KPI / DPR Master Reg.</label>
+                                    </div>
+                                    <button type="button" class="btn-close small" onclick="document.getElementById('dynamicEventBox').style.display='none';"></button>
+                                </div>
                             </div>
                             <div class="row g-2 mb-2">
                                 <div class="col-md-5">
@@ -583,6 +589,9 @@
                                         {% if il.ref_id %}
                                             <span class="badge bg-secondary ms-1">{{ il.ref_id }}</span>
                                         {% endif %}
+                                        {% if il.sync_to_kpi or is_fix %}
+                                            <span class="badge bg-warning text-dark ms-1" title="Synced to KPI &amp; DPR Master Register">KPI</span>
+                                        {% endif %}
                                     </div>
                                     <div class="text-nowrap">
                                         <small class="text-muted me-1">{{ il.surveyor }}</small>
@@ -595,6 +604,7 @@
                                                 data-val1="{{ il.val1 }}"
                                                 data-val2="{{ il.val2 }}"
                                                 data-rem="{{ il.remarks }}"
+                                                data-kpi="{{ 'true' if il.sync_to_kpi else 'false' }}"
                                                 onclick="editEventLogRow(this)">
                                             <i class="fas fa-edit"></i>
                                         </button>
@@ -859,6 +869,8 @@
         document.getElementById('evtLogId').value = '';
         document.getElementById('evtTypeInput').value = evtType;
         document.getElementById('evtBoxTitle').innerText = 'Log Event: ' + evtType;
+        const kpiChk = document.getElementById('chkEvtSyncKpi');
+        if (kpiChk) kpiChk.checked = (evtType === 'Calib, Setup & TBT' || evtType === 'Survey Issue Reporting' || evtType === 'Survey Issue');
         document.getElementById('evtTimestamp').value = nowFormatted();
         document.getElementById('lblRefId').innerText = cfg.lblRef;
         document.getElementById('evtRefId').value = cfg.defRef;
@@ -879,6 +891,8 @@
         openEventInputBox(d.type);
         document.getElementById('evtLogId').value = d.id;
         document.getElementById('evtBoxTitle').innerText = 'Edit Event: ' + d.type;
+        const kpiChkEd = document.getElementById('chkEvtSyncKpi');
+        if (kpiChkEd) kpiChkEd.checked = (d.kpi === 'true');
         document.getElementById('evtTimestamp').value = d.ts;
         document.getElementById('evtSurveyor').value = d.surv;
         document.getElementById('evtRefId').value = d.ref;

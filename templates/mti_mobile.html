@@ -51,6 +51,7 @@
       <div class="mb-2"><label class="small fw-bold text-info" id="mLbl1">USBL & ADCP Telemetry Check *</label><input type="text" name="val1" id="mEvtVal1" class="form-control" required></div>
       <div class="mb-2"><label class="small fw-bold text-info" id="mLbl2">USBL & ADCP Telemetry Check</label><input type="text" name="val2" id="mEvtVal2" class="form-control"></div>
       <div class="mb-3"><label class="small fw-bold" id="mLblRem">Remarks / Action Taken</label><input type="text" name="remarks" id="mEvtRem" class="form-control" required></div>
+      <div class="form-check form-switch mb-2 p-2 ps-5 rounded border border-warning" style="background:rgba(250,204,21,0.08);"><input class="form-check-input" type="checkbox" name="sync_to_kpi" id="mChkEvtSyncKpi" value="true"><label class="form-check-label small fw-bold text-warning" for="mChkEvtSyncKpi">Sync to KPI / DPR Master Reg.</label></div>
       <button type="submit" class="btn btn-info fw-bold w-100 py-2">Save Log</button>
     </form>
   </div>
@@ -418,6 +419,7 @@ function openMobEvt(t){
   const c = document.getElementById('mobEvtCard'); c.style.display='block';
   document.getElementById('mEvtType').value = t;
   document.getElementById('mEvtTitle').innerText = 'Log Event: ' + t;
+  const mKpi = document.getElementById('mChkEvtSyncKpi'); if (mKpi) mKpi.checked = (t === 'Calib, Setup & TBT' || t === 'Survey Issue Reporting' || t === 'Survey Issue');
   document.getElementById('mEvtTs').value = nowStr();
   document.getElementById('mLblRef').innerText = cfg.r;
   document.getElementById('mEvtRef').value = cfg.dr;
