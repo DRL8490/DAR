@@ -6,6 +6,7 @@ import pandas as pd
 from flask import Blueprint, render_template, render_template_string, request, redirect, url_for, flash, send_file
 from flask_login import login_required, current_user
 
+from mti_4panel_math import compute_cl_offset_metrics
 mti_bp = Blueprint('mti_bp', __name__, url_prefix='/mti')
 
 MATTRESS_B64 = (
@@ -101,6 +102,17 @@ def _enrich_fix_row(r, cat_map, input_logs=None):
     d["env_current"] = fmt_knots(d.get("env_current"))
     d["remarks"] = format_remarks_knots(rem_raw)
     d["clean_remarks"] = _strip_auto_rem_tags(d["remarks"])
+    uno_v = int(float(d.get("unit_no") or 0))
+    is_first_r = bool(d.get("is_first_in_array")) or (uno_v == 1) or ("1st unit" in g_lbl.lower()) or (b_up.endswith("_M15") and str(d.get("physical_tag") or "").replace("#", "").upper() == "A046")
+    d["is_first_in_array"] = is_first_r
+    des_e_r = float(d.get("design_e") or cat_it.get("design_e") or 0.0)
+    des_n_r = float(d.get("design_n") or cat_it.get("design_n") or 0.0)
+    as_e_r = float(d.get("aslaid_e") or 0.0)
+    as_n_r = float(d.get("aslaid_n") or 0.0)
+    if abs(as_e_r) > 1000.0 and abs(des_e_r) > 1000.0:
+        d["design_e"], d["design_n"] = round(des_e_r, 3), round(des_n_r, 3)
+        off_r = compute_cl_offset_metrics(as_e_r, as_n_r, des_e_r, des_n_r, d["design_brg"], is_first=is_first_r, box_id=b_up, catalog_map=cat_map)
+        d.update(off_r)
     return d
 
 
@@ -335,11 +347,16 @@ def add_fix():
         hdg = round(hdg + 180.0, 3) if hdg < 180.0 else hdg
         corners = compute_4_corners(as_e, as_n, hdg, 6.0, 3.0, as_z)
 
-    cl_off = round(math.hypot(as_e - des_e, as_n - des_n), 2) if (as_e and des_e) else round(float(request.form.get("cl_offset_m", type=float) or 0.0), 2)
-
     gnw, gne, gsw, gse = [str(request.form.get(k) or "").strip() for k in ("gap_nw", "gap_ne", "gap_sw", "gap_se")]
     chk_first = str(request.form.get("is_first_in_array") or "").strip().lower() in ("true", "1", "on", "yes")
     is_first = chk_first or (unit_no == 1 and not any([gnw, gne, gsw, gse]))
+
+    if as_e and des_e:
+        off_af = compute_cl_offset_metrics(as_e, as_n, des_e, des_n, des_brg, is_first=is_first, box_id=box_id, catalog_map=cat_map)
+        cl_off = off_af["cl_offset_m"]
+    else:
+        cl_off = round(float(request.form.get("cl_offset_m", type=float) or 0.0), 3)
+        off_af = {"cl_offset_m": cl_off, "radial_offset_m": cl_off, "perp_offset_m": cl_off, "perp_signed_m": 0.0, "chain_signed_m": 0.0, "d_along_m": 0.0, "d_cross_m": 0.0, "offset_mode": "RADIAL" if is_first else "PERP", "end_to_end_row": False}
 
     g_parts, g_vals = [], []
     if not is_first:
@@ -384,7 +401,7 @@ def add_fix():
         "design_e": round(des_e, 3), "design_n": round(des_n, 3), "design_brg": round(des_brg, 3),
         "qaqc_e": round(qaqc_e or as_e, 3), "qaqc_n": round(qaqc_n or as_n, 3), "qaqc_brg": round(qaqc_brg or hdg, 3),
         "aslaid_e": round(as_e, 3), "aslaid_n": round(as_n, 3), "aslaid_z": round(as_z, 3),
-        "cl_offset_m": round(cl_off, 2), "heading_deg": hdg, "brg_diff_deg": round(((hdg - des_brg + 180.0) % 360.0) - 180.0, 3),
+        "cl_offset_m": round(cl_off, 3), "radial_offset_m": off_af["radial_offset_m"], "perp_offset_m": off_af["perp_offset_m"], "d_along_m": off_af["d_along_m"], "d_cross_m": off_af["d_cross_m"], "offset_mode": off_af["offset_mode"], "end_to_end_row": off_af["end_to_end_row"], "heading_deg": hdg, "brg_diff_deg": round(((hdg - des_brg + 180.0) % 360.0) - 180.0, 3),
         "gap_nw": gnw, "gap_ne": gne, "gap_sw": gsw, "gap_se": gse,
         "gap_labels": gap_labels, "gap1_m": gap1, "gap2_m": gap2, "gap_m": max_gap,
         "env_wind": env_w, "env_current": env_c, "env_swell": env_s,
@@ -700,7 +717,7 @@ def _sync_fix_to_mti_input_logs(input_logs, entry):
         "id": int(logs[match_idx].get("id", 0)) if match_idx is not None else (max([int(x.get("id", 0)) for x in logs] + [0]) + 1),
         "event_type": "Mattress fix", "timestamp": str(entry.get("install_date") or datetime.utcnow().strftime("%Y-%m-%d %H:%M")).strip(),
         "surveyor": full_surv, "ref_id": f"{box_id} ({tag_id}) [{usbl_s}]",
-        "val1": f"Act E:{float(entry.get('aslaid_e') or 0):.3f}, N:{float(entry.get('aslaid_n') or 0):.3f}, Z:{float(entry.get('aslaid_z') or 0):.2f} (dCL:{float(entry.get('cl_offset_m') or 0):.2f}m)",
+        "val1": f"Act E:{float(entry.get('aslaid_e') or 0):.3f}, N:{float(entry.get('aslaid_n') or 0):.3f}, Z:{float(entry.get('aslaid_z') or 0):.2f} ({'Rad' if entry.get('is_first_in_array') else 'Perp'} dCL:{float(entry.get('cl_offset_m') or 0):.2f}m)",
         "val2": f"Brg:{float(entry.get('heading_deg') or 0):.1f} deg | {entry.get('gap_labels') or 'N/A'}",
         "usbl_sensor": usbl_s, "env_wind": str(entry.get("env_wind") or ""), "env_current": str(entry.get("env_current") or ""), "remarks": str(entry.get("remarks") or ""),
     }
@@ -740,7 +757,7 @@ def _upsert_confirmed_fix_to_surveytask(entry, skip_if_manual_exists=False, inpu
     opening_str = f"MMA Prestige Mattress Fix Confirmed - Unit #{unit_no}: {box_id} ({tag_id})"
     closing_bits = [
         f"Act E:{float(entry.get('aslaid_e') or 0):.3f}, N:{float(entry.get('aslaid_n') or 0):.3f}, Z:{float(entry.get('aslaid_z') or 0):.2f}m",
-        f"Brg:{float(entry.get('heading_deg') or 0):.2f} deg", f"dCL:{float(entry.get('cl_offset_m') or 0):.2f}m",
+        f"Brg:{float(entry.get('heading_deg') or 0):.2f} deg", f"{'Rad' if entry.get('is_first_in_array') else 'Perp'} dCL:{float(entry.get('cl_offset_m') or 0):.2f}m",
         f"Gaps:{entry.get('gap_labels') or ('1st Unit (N/A)' if entry.get('is_first_in_array') else 'N/A')}",
         f"USBL:{usbl_s}", f"Verified by {full_surv}",
     ]
@@ -3350,6 +3367,32 @@ def load_mti_state(*args, **kwargs):
                 if lg.get("remarks"): lg["remarks"] = format_remarks_knots(lg["remarks"])
             st["knots_env_upgrade_v1"] = True
             dirty = True
+        if not st.get("perp_cl_tol_upgrade_v1"):
+            cat_m = _merged_cat_map()
+            in_logs_bf = list(st.get("input_logs") or [])
+            for r in (st.get("ledger") or []):
+                b_up = str(r.get("design_box_id") or "").strip().upper()
+                c_it = cat_m.get(b_up) or {}
+                de_v = float(r.get("design_e") or c_it.get("design_e") or 0.0)
+                dn_v = float(r.get("design_n") or c_it.get("design_n") or 0.0)
+                db_v = float(r.get("design_brg") or c_it.get("bearing") or r.get("heading_deg") or 195.854)
+                ae_v = float(r.get("aslaid_e") or 0.0)
+                an_v = float(r.get("aslaid_n") or 0.0)
+                uno_v = int(float(r.get("unit_no") or 0))
+                isf_v = bool(r.get("is_first_in_array")) or (uno_v == 1) or ("1st unit" in str(r.get("gap_labels") or "").lower()) or (b_up.endswith("_M15") and str(r.get("physical_tag") or "").replace("#", "").upper() == "A046")
+                r["is_first_in_array"] = isf_v
+                if abs(ae_v) > 1000.0 and abs(de_v) > 1000.0:
+                    r["design_e"], r["design_n"], r["design_brg"] = round(de_v, 3), round(dn_v, 3), round(db_v, 3)
+                    off_bf = compute_cl_offset_metrics(ae_v, an_v, de_v, dn_v, db_v, is_first=isf_v, box_id=b_up, catalog_map=cat_m)
+                    r.update(off_bf)
+                    if str(r.get("status") or "Completed").strip().lower() == "completed" and "_sync_fix_to_mti_input_logs" in globals():
+                        in_logs_bf = _sync_fix_to_mti_input_logs(in_logs_bf, r)
+            st["input_logs"] = in_logs_bf
+            st["perp_cl_tol_upgrade_v1"] = True
+            dirty = True
+            if "_purge_cached_pdfs" in globals():
+                try: _purge_cached_pdfs()
+                except Exception: pass
         if dirty and not _final_gaptol_saving:
             try:
                 _final_gaptol_saving = True

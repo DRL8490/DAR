@@ -89,6 +89,61 @@ def build_base_filename(location_id, mattress_id, date_str=None, surveyor_name=N
         base = f"{base}_({clean_s})"
     return base
 
+# --- MTI_PERP_CL_OFFSET_HELPER_START ---
+def compute_cl_offset_metrics(as_e, as_n, des_e, des_n, des_brg, is_first=False, box_id="", catalog_map=None):
+    b = float(des_brg or 195.854) % 360.0
+    s_brg = (b + 180.0) % 360.0 if b < 180.0 else b
+    az_rad = math.radians((s_brg - 180.0) % 360.0)
+    ul_e, ul_n = math.sin(az_rad), math.cos(az_rad)
+    us_e, us_n = math.cos(az_rad), -math.sin(az_rad)
+
+    de = float(as_e) - float(des_e)
+    dn = float(as_n) - float(des_n)
+    radial_m = math.hypot(de, dn)
+    d_along_m = de * ul_e + dn * ul_n
+    d_cross_m = de * us_e + dn * us_n
+
+    b_up = str(box_id or "").strip().upper()
+    end_to_end = bool(re.match(r"^CR-[AB]1_M[1-4]$", b_up))
+    if isinstance(catalog_map, dict) and catalog_map:
+        cur_it = catalog_map.get(b_up) or catalog_map.get(str(box_id or "").strip())
+        cur_lyr = str((cur_it or {}).get("layer") or "")
+        best_d = 999.0
+        for pk, pv in catalog_map.items():
+            if not isinstance(pv, dict):
+                continue
+            pk_up = str(pv.get("id") or pv.get("name") or pk).strip().upper()
+            if pk_up == b_up or (cur_lyr and str(pv.get("layer") or "") != cur_lyr):
+                continue
+            p_brg = float(pv.get("bearing", s_brg)) % 360.0
+            p_sbrg = (p_brg + 180.0) % 360.0 if p_brg < 180.0 else p_brg
+            if abs(((p_sbrg - s_brg + 180.0) % 360.0) - 180.0) > 5.0:
+                continue
+            ve = float(pv.get("design_e", 0.0)) - float(des_e)
+            vn = float(pv.get("design_n", 0.0)) - float(des_n)
+            dist = math.hypot(ve, vn)
+            p_al = abs(ve * ul_e + vn * ul_n)
+            p_cr = abs(ve * us_e + vn * us_n)
+            if 1.0 <= dist <= 8.0 and dist < best_d and min(p_al, p_cr) < 0.40:
+                best_d = dist
+                end_to_end = (p_al > p_cr)
+
+    perp_signed = d_cross_m if end_to_end else d_along_m
+    chain_signed = d_along_m if end_to_end else d_cross_m
+    eval_off = radial_m if is_first else abs(perp_signed)
+    return {
+        "cl_offset_m": round(eval_off, 3),
+        "radial_offset_m": round(radial_m, 3),
+        "perp_offset_m": round(abs(perp_signed), 3),
+        "perp_signed_m": round(perp_signed, 3),
+        "chain_signed_m": round(chain_signed, 3),
+        "d_along_m": round(d_along_m, 3),
+        "d_cross_m": round(d_cross_m, 3),
+        "offset_mode": "RADIAL" if is_first else "PERP",
+        "end_to_end_row": bool(end_to_end),
+    }
+# --- MTI_PERP_CL_OFFSET_HELPER_END ---
+
 def _box_corners_cw(ce, cn, az_deg, length=6.0, width=3.0):
     rad = math.radians(float(az_deg) % 360.0)
     ul = np.array([math.sin(rad), math.cos(rad)], dtype=float)
@@ -453,11 +508,13 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
     c_loc_d = c_arr[:, :2] - np.array([des_e, des_n])
     corners_local = np.column_stack([c_loc_d @ us, c_loc_d @ ul])
 
-    d_along, d_cross = float((as_e - des_e) * ul[0] + (as_n - des_n) * ul[1]), float((as_e - des_e) * us[0] + (as_n - des_n) * us[1])
-    cl_off, d_brg = float(math.hypot(as_e - des_e, as_n - des_n)), round(((hdg - des_brg + 180.0) % 360.0) - 180.0, 3)
+    d_brg = round(((hdg - des_brg + 180.0) % 360.0) - 180.0, 3)
     pct_in = float(np.mean((np.abs(x_local) <= 1.50) & (np.abs(y_local) <= 3.00)) * 100.0)
 
     is_first = bool(fix_data.get("is_first_in_array")) or (unit_no == 1) or ("1st unit" in str(fix_data.get("gap_labels", "")).lower()) or (str(loc_id).endswith("_M15") and str(mat_id).replace("#", "") == "A046")
+    off_info = compute_cl_offset_metrics(as_e, as_n, des_e, des_n, des_brg, is_first=is_first, box_id=loc_id, catalog_map=boxes_dict)
+    d_along, d_cross = off_info["d_along_m"], off_info["d_cross_m"]
+    cl_off = off_info["cl_offset_m"]
     gaps = {k: str(fix_data.get(f"gap_{k}", "") or "").strip() for k in ("nw", "ne", "sw", "se")}
     if not is_first and not any(gaps.values()):
         g1, g2 = float(fix_data.get("gap1_m") or 0.0), float(fix_data.get("gap2_m") or 0.0)
@@ -488,7 +545,7 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
         "aslaid_e": round(as_e, 3), "aslaid_n": round(as_n, 3), "aslaid_z": round(as_z, 2),
         "seabed_at_center_z": round(seabed_at_center, 2), "mat_thickness_m": round(mat_thick, 2),
         "heading_deg": hdg, "act_az": act_az, "brg_diff_deg": d_brg,
-        "cl_offset_m": round(cl_off, 3), "d_along_m": round(d_along, 3), "d_cross_m": round(d_cross, 3), "pct_inside": round(pct_in, 1),
+        "cl_offset_m": round(cl_off, 3), "radial_offset_m": off_info["radial_offset_m"], "perp_offset_m": off_info["perp_offset_m"], "perp_signed_m": off_info["perp_signed_m"], "chain_signed_m": off_info["chain_signed_m"], "offset_mode": off_info["offset_mode"], "end_to_end_row": off_info["end_to_end_row"], "d_along_m": round(d_along, 3), "d_cross_m": round(d_cross, 3), "pct_inside": round(pct_in, 1),
         "corners_enz": c_arr.tolist(), "corners_local": corners_local.tolist(),
         "edge_nne": round(float(np.max(y_local)) - 3.0, 3), "edge_ssw": round(-3.0 - float(np.min(y_local)), 3),
         "edge_ese": round(float(np.max(x_local)) - 1.5, 3), "edge_wnw": round(-1.5 - float(np.min(x_local)), 3),
