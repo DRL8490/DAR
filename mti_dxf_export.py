@@ -641,10 +641,10 @@ def convert_matplotlib_figs_to_dxf(figs, out_path, native_4panel_metrics=None, p
                 _add_locked_viewport(psp, doc, bb_mm, float(sv["ce"]), float(sv["cn"]), abs(y1 - y0), twist_deg=float(sv["az"]))
                 _render_axes_chrome_and_texts_mm(psp, ax, px_to_mm, l_sheet, include_data_texts=False)
             elif is_p2_local:
-                des_e = float(native_4panel_metrics.get("design_e") or native_4panel_metrics.get("aslaid_e") or 0.0)
-                des_n = float(native_4panel_metrics.get("design_n") or native_4panel_metrics.get("aslaid_n") or 0.0)
+                p2_ce = float(native_4panel_metrics.get("aslaid_e") or native_4panel_metrics.get("design_e") or 0.0)
+                p2_cn = float(native_4panel_metrics.get("aslaid_n") or native_4panel_metrics.get("design_n") or 0.0)
                 des_az = float(native_4panel_metrics.get("design_az") or 0.0)
-                _add_locked_viewport(psp, doc, bb_mm, des_e, des_n, abs(y1 - y0), twist_deg=des_az)
+                _add_locked_viewport(psp, doc, bb_mm, p2_ce, p2_cn, abs(y1 - y0), twist_deg=des_az)
                 _render_axes_chrome_and_texts_mm(psp, ax, px_to_mm, l_sheet, include_data_texts=True)
             else:
                 _render_axes_to_paperspace_mm(psp, doc, ax, dpi, l_sheet)

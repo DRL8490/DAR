@@ -431,7 +431,7 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
     if len(seabed_full_xyz) > 0:
         sb_d = seabed_full_xyz[:, :2] - np.array([des_e, des_n])
         sb_x, sb_y = sb_d @ us, sb_d @ ul
-        m_loc = (np.abs(sb_x) <= 12.0) & (np.abs(sb_y) <= 14.0)
+        m_loc = (np.abs(sb_x) <= 24.0) & (np.abs(sb_y) <= 20.0)
         seabed_local_xyz = np.column_stack([sb_x[m_loc], sb_y[m_loc], seabed_full_xyz[m_loc, 2]]) if np.any(m_loc) else np.column_stack([sb_x, sb_y, seabed_full_xyz[:, 2]])
         b_zmin, b_zmax = round(float(np.min(seabed_full_xyz[:, 2])), 2), round(float(np.max(seabed_full_xyz[:, 2])), 2)
         sb_near_global = seabed_full_xyz[m_loc] if np.any(m_loc) else seabed_full_xyz

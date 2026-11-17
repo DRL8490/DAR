@@ -340,39 +340,73 @@ def generate_a3_4panel_chart(
         p3_rect = [341.9 / W_MM, 163.9 / H_MM, 58.1 / W_MM, 61.6 / H_MM]
         p4_rect = [341.9 / W_MM, 75.5 / H_MM, 58.1 / W_MM, 61.6 / H_MM]
 
-    # PANEL 2: LOCAL PLAN VIEW (with Rotated Grid North Arrow)
+    # PANEL 2: LOCAL PLAN VIEW (Centered on As-Laid Center Point, with Rotated Grid North Arrow)
     ax2 = fig.add_axes(p2_rect)
     hw2, hh2 = (p2_w_mm / 1000.0) * float(scale_p2) / 2.0, (p2_h_mm / 1000.0) * float(scale_p2) / 2.0
     ax2.set_xlim(-hw2, hw2); ax2.set_ylim(-hh2, hh2)
-    plot_seabed_layer(ax2, seabed_local_xyz, (-hw2, hw2), (-hh2, hh2), True, show_contours, contour_interval, show_soundings, spot_spacing, bathy_src)
-    plot_cad_background(ax2, cad_polys, is_local=True, des_e=des_e, des_n=des_n, u_short=tb["u_short"], u_long=tb["u_long"])
+
+    as_e_p2 = float(metrics.get("aslaid_e", des_e))
+    as_n_p2 = float(metrics.get("aslaid_n", des_n))
+    cx2 = float(metrics.get("d_cross_m", 0.0))
+    cy2 = float(metrics.get("d_along_m", 0.0))
+
+    if seabed_full_xyz is not None and len(seabed_full_xyz) > 0:
+        sb_d_p2 = np.asarray(seabed_full_xyz, dtype=float)[:, :2] - np.array([as_e_p2, as_n_p2])
+        sb_x_p2, sb_y_p2 = sb_d_p2 @ tb["u_short"], sb_d_p2 @ tb["u_long"]
+        m_sb_p2 = (np.abs(sb_x_p2) <= max(hw2 + 6.0, 14.0)) & (np.abs(sb_y_p2) <= max(hh2 + 6.0, 16.0))
+        sb_p2_xyz = np.column_stack([sb_x_p2[m_sb_p2], sb_y_p2[m_sb_p2], seabed_full_xyz[m_sb_p2, 2]]) if np.any(m_sb_p2) else np.column_stack([sb_x_p2, sb_y_p2, seabed_full_xyz[:, 2]])
+    elif seabed_local_xyz is not None and len(seabed_local_xyz) > 0:
+        sb_tmp = np.asarray(seabed_local_xyz, dtype=float).copy()
+        sb_tmp[:, 0] -= cx2
+        sb_tmp[:, 1] -= cy2
+        sb_p2_xyz = sb_tmp
+    else:
+        sb_p2_xyz = np.zeros((0, 3), dtype=float)
+
+    plot_seabed_layer(ax2, sb_p2_xyz, (-hw2, hw2), (-hh2, hh2), True, show_contours, contour_interval, show_soundings, spot_spacing, bathy_src)
+    plot_cad_background(ax2, cad_polys, is_local=True, des_e=as_e_p2, des_n=as_n_p2, u_short=tb["u_short"], u_long=tb["u_long"])
 
     z_mean = float(np.mean(z_vals))
     vmin_c, vmax_c = round(z_mean - 0.50, 2), round(z_mean + 0.50, 2)
-    ax2.add_patch(mpatches.Rectangle((-1.5, -3.0), 3.0, 6.0, fill=False, edgecolor="#dc2626", linewidth=1.8, zorder=5, label="Design Box (3.0x6.0m)", clip_on=True))
-    sc2 = ax2.scatter(x_local, y_local, c=z_vals, cmap="turbo", vmin=vmin_c, vmax=vmax_c, s=16, alpha=0.9, zorder=6, clip_on=True)
+    des_dx, des_dy = -cx2, -cy2
+    rect_des = mpatches.Rectangle((des_dx - 1.5, des_dy - 3.0), 3.0, 6.0, fill=False, edgecolor="#dc2626", linewidth=1.8, zorder=5, label="Design Box (3.0x6.0m)", clip_on=True)
+    ax2.add_patch(rect_des)
+    rect_des.set_clip_path(ax2.patch)
+
+    x_p2 = np.asarray(x_local, dtype=float) - cx2
+    y_p2 = np.asarray(y_local, dtype=float) - cy2
+    sc2 = ax2.scatter(x_p2, y_p2, c=z_vals, cmap="turbo", vmin=vmin_c, vmax=vmax_c, s=16, alpha=0.9, zorder=6, clip_on=True)
     cax2 = fig.add_axes(cax_rect)
     cb2 = fig.colorbar(sc2, cax=cax2); cb2.set_label("Depth Z (m, TWVD2001)", fontsize=6.4, fontweight="bold"); cb2.ax.tick_params(labelsize=5.6)
 
-    c_loc = np.asarray(metrics["corners_local"], dtype=float)
-    ax2.add_patch(mpatches.Polygon(c_loc, closed=True, fill=False, edgecolor="#16a34a", linewidth=1.6, linestyle="--", zorder=7, label="ROV 4-Corner Polygon", clip_on=True))
+    c_loc = np.asarray(metrics["corners_local"], dtype=float) - np.array([cx2, cy2])
+    poly_rov = mpatches.Polygon(c_loc, closed=True, fill=False, edgecolor="#16a34a", linewidth=1.6, linestyle="--", zorder=7, label="ROV 4-Corner Polygon", clip_on=True)
+    ax2.add_patch(poly_rov)
+    poly_rov.set_clip_path(ax2.patch)
     for idx_c, (cx, cy) in enumerate(c_loc, 1):
         ax2.plot(cx, cy, "s", color="#15803d", markersize=4.5, zorder=8, clip_on=True)
         tc = ax2.text(cx, cy + 0.14, f"C{idx_c}", fontsize=5.8, fontweight="bold", color="#15803d", ha="center", zorder=9, clip_on=True)
         tc.set_path_effects([patheffects.withStroke(linewidth=1.5, foreground="white")])
+        tc.set_clip_path(ax2.patch)
 
-    q_d = np.array([metrics["qaqc_e"] - des_e, metrics["qaqc_n"] - des_n])
+    q_d = np.array([metrics["qaqc_e"] - as_e_p2, metrics["qaqc_n"] - as_n_p2])
     qx, qy = float(q_d @ tb["u_short"]), float(q_d @ tb["u_long"])
-    ax2.plot(0, 0, "+", color="#dc2626", markersize=9, markeredgewidth=2.0, zorder=8, label="Design Center", clip_on=True)
-    ax2.plot(metrics["d_cross_m"], metrics["d_along_m"], "o", color="#16a34a", markersize=6.5, markeredgecolor="white", zorder=8, label="ROV 4-Corner Center", clip_on=True)
-    ax2.plot(qx, qy, "^", color="#0284c7", markersize=6.5, markeredgecolor="white", zorder=8, label="QA/QC USBL Center", clip_on=True)
+    ln_dc = ax2.plot(des_dx, des_dy, "+", color="#dc2626", markersize=9, markeredgewidth=2.0, zorder=8, label="Design Center", clip_on=True)
+    for _l in ln_dc:
+        _l.set_clip_path(ax2.patch)
+    ax2.plot(0.0, 0.0, "o", color="#16a34a", markersize=6.5, markeredgecolor="white", zorder=8, label="ROV 4-Corner Center", clip_on=True)
+    ln_qc = ax2.plot(qx, qy, "^", color="#0284c7", markersize=6.5, markeredgecolor="white", zorder=8, label="QA/QC USBL Center", clip_on=True)
+    for _l in ln_qc:
+        _l.set_clip_path(ax2.patch)
 
+    box_x_off = min(2.35, max(1.65, hw2 - 1.45))
+    box_y_off = min(3.95, max(3.35, hh2 - 1.10))
     if is_first:
         side_callouts = [
-            ("NNE (+3.0m)", metrics["edge_nne"], (0.0, 3.0), (0.0, 3.85)),
-            ("SSW (-3.0m)", metrics["edge_ssw"], (0.0, -3.0), (0.0, -3.85)),
-            ("ESE (+1.5m)", metrics["edge_ese"], (1.5, 0.0), (2.75, 0.0)),
-            ("WNW (-1.5m)", metrics["edge_wnw"], (-1.5, 0.0), (-2.75, 0.0)),
+            ("NNE (+3.0m)", metrics["edge_nne"], (des_dx, des_dy + 3.0), (0.0, box_y_off)),
+            ("SSW (-3.0m)", metrics["edge_ssw"], (des_dx, des_dy - 3.0), (0.0, -box_y_off)),
+            ("ESE (+1.5m)", metrics["edge_ese"], (des_dx + 1.5, des_dy), (box_x_off, 0.0)),
+            ("WNW (-1.5m)", metrics["edge_wnw"], (des_dx - 1.5, des_dy), (-box_x_off, 0.0)),
         ]
         for lbl_e, val_e, xy_p, xy_t in side_callouts:
             ovh = val_e > 0.0
@@ -383,10 +417,10 @@ def generate_a3_4panel_chart(
     else:
         gaps = metrics.get("gaps") or {}
         corner_defs = [
-            ("C1 (NW Corner)", gaps.get("nw", ""), c_loc[0], (-2.55, 3.95)),
-            ("C2 (NE Corner)", gaps.get("ne", ""), c_loc[1], (2.55, 3.95)),
-            ("C3 (SE Corner)", gaps.get("se", ""), c_loc[2], (2.55, -3.95)),
-            ("C4 (SW Corner)", gaps.get("sw", ""), c_loc[3], (-2.55, -3.95)),
+            ("C1 (NW Corner)", gaps.get("nw", ""), c_loc[0], (-box_x_off, box_y_off)),
+            ("C2 (NE Corner)", gaps.get("ne", ""), c_loc[1], (box_x_off, box_y_off)),
+            ("C3 (SE Corner)", gaps.get("se", ""), c_loc[2], (box_x_off, -box_y_off)),
+            ("C4 (SW Corner)", gaps.get("sw", ""), c_loc[3], (-box_x_off, -box_y_off)),
         ]
         for c_title, g_raw, xy_c, xy_box in corner_defs:
             g_str = str(g_raw or "").strip()
@@ -413,7 +447,7 @@ def generate_a3_4panel_chart(
     ax2.text(sb2_x + 1.0, sb2_y + 0.1, "0 - 2 m", fontsize=5.5, fontweight="bold", ha="center", zorder=9, clip_on=True)
     ax2.legend(loc="lower left", fontsize=5.2, framealpha=0.92)
     ax2.set_title(f"PANEL 2: LOCAL PLAN VIEW ({loc_id} / {mat_id}) | 1:{scale_p2} @ A3", fontsize=7.6, fontweight="bold", pad=4)
-    ax2.set_xlabel("Cross-Track X_local (m, WNW -1.5m to ESE +1.5m)", fontsize=6.6, fontweight="bold"); ax2.set_ylabel("Along-Track Y_local (m, SSW -3.0m to NNE +3.0m)", fontsize=6.6, fontweight="bold")
+    ax2.set_xlabel("Cross-Track X_local from As-Laid Center (m, WNW -1.5m to ESE +1.5m)", fontsize=6.4, fontweight="bold"); ax2.set_ylabel("Along-Track Y_local from As-Laid Center (m, SSW -3.0m to NNE +3.0m)", fontsize=6.4, fontweight="bold")
     ax2.tick_params(labelsize=5.8); ax2.grid(True, linestyle=":", linewidth=0.45, color="#cbd5e1")
 
     sb_loc_arr = np.asarray(seabed_local_xyz, dtype=float)
