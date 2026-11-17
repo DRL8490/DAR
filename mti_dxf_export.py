@@ -39,7 +39,8 @@ def _ensure_layer(doc, name, rgb=(226, 232, 240), linetype="CONTINUOUS"):
     clean = re.sub(r"[^A-Za-z0-9_-]", "_", str(name or "0"))[:58] or "0"
     if clean not in doc.layers:
         lt = linetype if linetype in doc.linetypes else "CONTINUOUS"
-        lyr = doc.layers.add(clean, dxfattribs={"linetype": lt})
+        lyr = doc.layers.add(clean, linetype=lt)
+        lyr.dxf.linetype = lt
         lyr.dxf.true_color = ezdxf.rgb2int(rgb)
     return clean
 
@@ -113,9 +114,10 @@ def _add_clean_text(space, text_str, x, y, cap_h, rgb=(15, 23, 42), ha="left", v
 def populate_4panel_modelspace(
     doc, boxes_dict, metrics, cleaned_xyz, seabed_full_xyz, cad_polys=None,
     ledger_list=None, raw_rov_store=None, show_contours=True, contour_interval=0.05,
-    show_soundings=True, spot_spacing=2.0
+    show_soundings=True, spot_spacing=2.0, include_history=True
 ):
     """Writes all real-world TWD97 / TWVD2001 (E, N, Z) survey & design entities to Model Space."""
+    _ensure_styles_and_linetypes(doc)
     msp = doc.modelspace()
     l_cad = _ensure_layer(doc, "01_CAD_BACKGROUND", (148, 163, 184))
     l_cnt = _ensure_layer(doc, "02_BATHY_CONTOURS", (56, 189, 248))
@@ -123,6 +125,8 @@ def populate_4panel_modelspace(
     l_des = _ensure_layer(doc, "04_DESIGN_BOXES", (250, 204, 21), "MTI_DASHED")
     l_lbl = _ensure_layer(doc, "04_DESIGN_LABELS", (250, 204, 21))
     l_hst = _ensure_layer(doc, "05_HIST_MATTRESSES", (168, 85, 247))
+    l_old = _ensure_layer(doc, "05_PRIOR_SAME_BOX", (220, 38, 38), "MTI_DASHED")
+    doc.layers.get(l_old).dxf.color = 1
     l_qaq = _ensure_layer(doc, "06_QAQC_FOOTPRINT", (2, 132, 199), "MTI_DASHED")
     l_asl = _ensure_layer(doc, "07_ASLAID_MATTRESS", (34, 197, 94))
     l_srf = _ensure_layer(doc, "07_ASLAID_SURFACE_3D", (74, 222, 128))
@@ -192,22 +196,44 @@ def populate_4panel_modelspace(
             short_lbl = str(b_id).split("_")[-1] if "_" in str(b_id) else str(b_id)
             _add_clean_text(msp, short_lbl, be, bn, 0.42, rgb=(250, 204, 21), ha="center", va="center", rot_deg=txt_rot, mono=True, layer=l_lbl)
 
-    # 4. Historical Placed Mattresses in TWD97
+    # 4. Historical & Older Same-Box Placed Mattresses in TWD97
     from mti_4panel_math import _box_corners_cw
     cur_uno = int(float(metrics.get("unit_no") or 1))
-    cur_xing = str(metrics.get("crossing_id") or "").upper()
+    cur_xing = str(metrics.get("crossing_id") or "").strip().upper()
+    cur_tag = str(metrics.get("mattress_id") or "").replace("#", "").strip().upper()
+    cur_dt = str(metrics.get("install_date") or "").strip()
+    box_keys_up = {str(k).strip().upper() for k in (boxes_dict or {}).keys()}
+    same_older, hist_groups = [], {}
     for r in (ledger_list or []):
+        if str(r.get("status") or "Completed").strip().lower() in ("planned", "cancelled", "rejected"):
+            continue
+        r_bid = str(r.get("design_box_id") or "").strip().upper()
         r_uno = int(float(r.get("unit_no") or 9999))
-        r_xing = str(r.get("crossing_id") or "").upper()
-        if r_uno < cur_uno and (not cur_xing or r_xing == cur_xing):
-            he, hn = float(r.get("aslaid_e") or 0.0), float(r.get("aslaid_n") or 0.0)
-            hz = float(r.get("aslaid_z") or 0.0)
-            h_brg = float(r.get("heading_deg") or 195.854)
-            h_az = ((h_brg + 180.0) % 360.0 - 180.0) % 360.0 if h_brg >= 180.0 else h_brg
-            if abs(he) > 1000.0 and abs(hn) > 1000.0:
-                hc, _, _ = _box_corners_cw(he, hn, h_az, 6.0, 3.0)
-                msp.add_lwpolyline([(float(p[0]), float(p[1])) for p in hc], close=True, dxfattribs={"layer": l_hst, "elevation": hz})
-                _add_clean_text(msp, str(r.get("physical_tag") or f"#{r_uno}"), he, hn, 0.40, rgb=(192, 132, 252), ha="center", va="center", mono=True, layer=l_hst)
+        r_xing = str(r.get("crossing_id") or "").strip().upper()
+        r_tag = str(r.get("physical_tag") or "").replace("#", "").strip().upper()
+        he, hn = float(r.get("aslaid_e") or 0.0), float(r.get("aslaid_n") or 0.0)
+        if abs(he) <= 1000.0 or abs(hn) <= 1000.0:
+            continue
+        is_prior = (r_uno < cur_uno) or (r_uno == cur_uno and cur_tag and r_tag and r_tag != cur_tag and str(r.get("install_date") or "") <= cur_dt)
+        if loc_active and r_bid == loc_active:
+            if is_prior and (not cur_tag or r_tag != cur_tag):
+                same_older.append(r)
+        elif include_history and r_uno < cur_uno and (not cur_xing or r_xing == cur_xing or r_bid in box_keys_up):
+            hist_groups.setdefault(r_bid or f"_U{r_uno}", []).append(r)
+    sort_k = lambda x: (int(float(x.get("unit_no") or 0)), str(x.get("install_date") or ""))
+    for r_list, lyr, lt, rgb_l, rgb_t in [
+        (sorted(same_older, key=sort_k) + [o for g in hist_groups.values() for o in sorted(g, key=sort_k)[:-1]], l_old, "MTI_DASHED", (220, 38, 38), (220, 38, 38)),
+        ([sorted(g, key=sort_k)[-1] for g in hist_groups.values() if g], l_hst, "CONTINUOUS", None, (192, 132, 252)),
+    ]:
+        for r in r_list:
+            r_uno = int(float(r.get("unit_no") or 0))
+            he, hn, hz = float(r.get("aslaid_e") or 0.0), float(r.get("aslaid_n") or 0.0), float(r.get("aslaid_z") or 0.0)
+            hc, _, _ = _box_corners_cw(he, hn, (float(r.get("heading_deg") or 195.854) - 180.0) % 360.0, 6.0, 3.0)
+            att = {"layer": lyr, "linetype": lt, "elevation": hz}
+            if rgb_l: att["true_color"] = ezdxf.rgb2int(rgb_l)
+            msp.add_lwpolyline([(float(p[0]), float(p[1])) for p in hc], close=True, dxfattribs=att)
+            ptag = str(r.get("physical_tag") or f"#{r_uno}").strip()
+            _add_clean_text(msp, f"PRIOR {ptag}" if lyr == l_old else ptag, he, hn, 0.30 if lyr == l_old else 0.40, rgb=rgb_t, ha="center", va="center", mono=True, layer=lyr)
 
     # 5. QA/QC Calculated Footprint in TWD97
     qe, qn = float(metrics.get("qaqc_e") or 0.0), float(metrics.get("qaqc_n") or 0.0)
@@ -514,7 +540,7 @@ def _render_axes_chrome_and_texts_mm(psp, ax, px_to_mm, layer_name, include_data
                 hx0, hy0, hx1, hy1 = hb.x0 * px_to_mm, hb.y0 * px_to_mm, hb.x1 * px_to_mm, hb.y1 * px_to_mm
                 h_col = _rgb_tuple(getattr(h_art, "get_edgecolor", lambda: (2, 132, 199))(), None) or _rgb_tuple(getattr(h_art, "get_color", lambda: (2, 132, 199))(), (2, 132, 199))
                 if all(math.isfinite(_v) for _v in (hx0, hy0, hx1, hy1)):
-                    psp.add_line((hx0, 0.5 * (hy0 + hy1)), (hx1, 0.5 * (hy0 + hy1)), dxfattribs={"layer": layer_name, "true_color": ezdxf.rgb2int(h_col or (2, 132, 199))})
+                    psp.add_line((hx0, 0.5 * (hy0 + hy1)), (hx1, 0.5 * (hy0 + hy1)), dxfattribs={"layer": layer_name, "linetype": _mpl_ls_to_dxf(getattr(h_art, "get_linestyle", lambda: "-")()), "true_color": ezdxf.rgb2int(h_col or (2, 132, 199))})
 
 def _add_locked_viewport(psp, doc, bbox_mm, target_e, target_n, view_h_m, twist_deg=0.0, frozen_layers=None):
     vp_layer = _ensure_layer(doc, "00_VIEWPORTS", (100, 116, 139))
@@ -702,10 +728,10 @@ def generate_4panel_studio_dxf(
     def _populate_cb(doc):
         populate_4panel_modelspace(
             doc, boxes_dict, metrics, cleaned_xyz, seabed_full_xyz,
-            cad_polys=cad_polys, ledger_list=ledger_list if include_history else [],
+            cad_polys=cad_polys, ledger_list=ledger_list,
             raw_rov_store=raw_rov_store, show_contours=show_contours,
             contour_interval=contour_interval, show_soundings=show_soundings,
-            spot_spacing=spot_spacing
+            spot_spacing=spot_spacing, include_history=include_history
         )
 
     try:

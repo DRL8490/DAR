@@ -602,7 +602,7 @@ def delete_fix(fix_id):
     target = next((r for r in ledger if int(r.get("id", 0)) == fix_id), None)
     state["ledger"] = [r for r in ledger if int(r.get("id", 0)) != fix_id]
     if target:
-        _remove_fix_from_dpr_and_logs(target.get("design_box_id"), target.get("unit_no"), state=state)
+        _remove_fix_from_dpr_and_logs(target.get("design_box_id"), target.get("unit_no"), state=state, tag_id=target.get("physical_tag"))
     save_mti_state(state)
     flash("Removed entry from MTI Ledger & DPR Register.", "success")
     return redirect(url_for('mti_bp.mti_mobile') if '/mobile' in (request.referrer or '') else url_for('mti_bp.mti_dashboard'))
@@ -869,20 +869,41 @@ def _resolve_kpi_assigned_surveyor(entry, input_logs=None):
 
     return (best_un if (best_un and best_sc >= 10) else full_disp), full_disp
 
+def _fix_log_meta(lg):
+    ref_s = str(lg.get("ref_id") or "").strip()
+    m_u, m_t = re.match(r"^#(\d+)\s*:", ref_s), re.search(r"\(#?([A-Za-z0-9_-]+)\)", ref_s)
+    uno = lg.get("unit_no") if lg.get("unit_no") not in (None, "") else (int(m_u.group(1)) if m_u else None)
+    return uno, (m_t.group(1).upper() if m_t else ""), ref_s.upper()
+
+def _fix_log_matches(lg, unit_no, box_up, tag_clean=""):
+    if str(lg.get("event_type") or "").strip().lower() != "mattress fix": return False
+    lg_uno, lg_tag, ref_up = _fix_log_meta(lg)
+    if unit_no not in (None, "") and lg_uno not in (None, ""): return int(float(lg_uno)) == int(float(unit_no))
+    if unit_no not in (None, "") and tag_clean and lg_tag:
+        return lg_tag == tag_clean and (not box_up or bool(re.search(rf"(?<![A-Za-z0-9_-]){re.escape(box_up)}(?![0-9])", ref_up)))
+    if (lg_uno not in (None, "")) != (unit_no not in (None, "")) and lg_tag: return False
+    return bool(box_up and re.search(rf"(?<![A-Za-z0-9_-]){re.escape(box_up)}(?![0-9])", ref_up))
+
+def _surveytask_matches_fix(rem_str, unit_no, box_up, tag_clean=""):
+    rem_up, m_u = str(rem_str or "").upper(), re.search(r"UNIT\s*#(\d+)\s*:", str(rem_str or "").upper())
+    if "MMA PRESTIGE MATTRESS FIX CONFIRMED" not in rem_up: return False
+    if unit_no not in (None, "") and m_u: return int(m_u.group(1)) == int(float(unit_no))
+    return False if m_u else bool(box_up and f": {box_up} (" in rem_up and (not tag_clean or tag_clean in rem_up))
+
 def _sync_fix_to_mti_input_logs(input_logs, entry):
     logs = list(input_logs or [])
-    box_id = str(entry.get("design_box_id") or "").strip()
-    box_up, tag_id = box_id.upper(), str(entry.get("physical_tag") or "").strip()
-    usbl_s = str(entry.get("usbl_sensor") or "Survey Pole").strip()
-    match_idx = next((i for i, lg in enumerate(logs) if str(lg.get("event_type") or "").strip().lower() == "mattress fix" and box_up and re.search(rf"(?<![A-Za-z0-9_-]){re.escape(box_up)}(?![0-9])", str(lg.get("ref_id") or "").upper())), None)
+    uno = int(float(entry.get("unit_no") or 0)) or None
+    box_id, tag_id = str(entry.get("design_box_id") or "").strip(), str(entry.get("physical_tag") or "").strip()
+    box_up, tag_clean, usbl_s = box_id.upper(), tag_id.replace("#", "").strip().upper(), str(entry.get("usbl_sensor") or "Survey Pole").strip()
+    match_idx = next((i for i, lg in enumerate(logs) if _fix_log_matches(lg, uno, box_up, tag_clean)), None)
     if str(entry.get("status") or "Completed").strip().lower() != "completed":
         if match_idx is not None: logs.pop(match_idx)
         return logs
     _, full_surv = _resolve_kpi_assigned_surveyor(entry, logs)
     new_lg = {
         "id": int(logs[match_idx].get("id", 0)) if match_idx is not None else (max([int(x.get("id", 0)) for x in logs] + [0]) + 1),
-        "event_type": "Mattress fix", "timestamp": str(entry.get("install_date") or datetime.utcnow().strftime("%Y-%m-%d %H:%M")).strip(),
-        "surveyor": full_surv, "ref_id": f"{box_id} ({tag_id}) [{usbl_s}]",
+        "unit_no": uno, "event_type": "Mattress fix", "timestamp": str(entry.get("install_date") or datetime.utcnow().strftime("%Y-%m-%d %H:%M")).strip(),
+        "surveyor": full_surv, "ref_id": f"#{uno}: {box_id} ({tag_id}) [{usbl_s}]" if uno else f"{box_id} ({tag_id}) [{usbl_s}]",
         "val1": f"Act E:{float(entry.get('aslaid_e') or 0):.3f}, N:{float(entry.get('aslaid_n') or 0):.3f}, Z:{float(entry.get('aslaid_z') or 0):.2f} ({'Rad' if entry.get('is_first_in_array') else 'Perp'} dCL:{float(entry.get('cl_offset_m') or 0):.2f}m)",
         "val2": f"Brg:{float(entry.get('heading_deg') or 0):.1f} deg | {entry.get('gap_labels') or 'N/A'}",
         "usbl_sensor": usbl_s, "env_wind": str(entry.get("env_wind") or ""), "env_current": str(entry.get("env_current") or ""), "remarks": str(entry.get("remarks") or ""),
@@ -891,24 +912,20 @@ def _sync_fix_to_mti_input_logs(input_logs, entry):
     else: logs.append(new_lg)
     return logs
 
-def _remove_fix_from_dpr_and_logs(box_id, unit_no=None, state=None):
-    box_up = str(box_id or "").strip().upper()
-    if isinstance(state, dict) and box_up:
-        state["input_logs"] = [lg for lg in (state.get("input_logs") or []) if not (str(lg.get("event_type") or "").strip().lower() == "mattress fix" and re.search(rf"(?<![A-Za-z0-9_-]){re.escape(box_up)}(?![0-9])", str(lg.get("ref_id") or "").upper()))]
+def _remove_fix_from_dpr_and_logs(box_id, unit_no=None, state=None, tag_id=""):
+    box_up, tag_c = str(box_id or "").strip().upper(), str(tag_id or "").replace("#", "").strip().upper()
+    if isinstance(state, dict) and (box_up or unit_no not in (None, "")):
+        state["input_logs"] = [lg for lg in (state.get("input_logs") or []) if not _fix_log_matches(lg, unit_no, box_up, tag_c)]
     try:
         from app import SurveyTask, db
-        removed = False
-        for t in SurveyTask.query.filter(SurveyTask.sub_location == "338_Subsea_Crossings").all():
-            rem_t = str(t.remarks or "")
-            if "MMA Prestige Mattress Fix Confirmed" in rem_t and ((box_up and f": {box_up} (" in rem_t.upper()) or (unit_no and f"Unit #{unit_no}:" in rem_t)):
-                db.session.delete(t); removed = True
-        if removed: db.session.commit()
-    except Exception:
-        pass
+        hits = [t for t in SurveyTask.query.filter(SurveyTask.sub_location == "338_Subsea_Crossings").all() if _surveytask_matches_fix(t.remarks, unit_no, box_up, tag_c)]
+        for t in hits: db.session.delete(t)
+        if hits: db.session.commit()
+    except Exception: pass
 
 def _upsert_confirmed_fix_to_surveytask(entry, skip_if_manual_exists=False, input_logs=None):
     if str(entry.get("status") or "Completed").strip().lower() != "completed":
-        _remove_fix_from_dpr_and_logs(entry.get("design_box_id"), entry.get("unit_no"))
+        _remove_fix_from_dpr_and_logs(entry.get("design_box_id"), entry.get("unit_no"), tag_id=entry.get("physical_tag"))
         return False
     from app import SurveyTask, db
     unit_no = int(float(entry.get("unit_no") or 1))
@@ -937,9 +954,9 @@ def _upsert_confirmed_fix_to_surveytask(entry, skip_if_manual_exists=False, inpu
     existing_t = None
     for t in SurveyTask.query.filter(SurveyTask.sub_location == "338_Subsea_Crossings").all():
         rem_up = str(t.remarks or "").upper()
-        if "MMA PRESTIGE MATTRESS FIX CONFIRMED" in rem_up and (f": {box_up} (" in rem_up or f"UNIT #{unit_no}:" in rem_up):
+        if _surveytask_matches_fix(rem_up, unit_no, box_up, tag_id.replace("#", "").strip().upper()):
             existing_t = t; break
-        elif skip_if_manual_exists and t.execution_date == exec_dt and box_up in rem_up and "MATTRESS INSTALLATION" in rem_up and "WROV ASSIST" not in rem_up and "WITNESSING (" not in rem_up:
+        elif skip_if_manual_exists and t.execution_date == exec_dt and box_up in rem_up and (tag_id == "N/A" or not re.search(r"#A\d+", rem_up) or tag_id.upper() in rem_up) and "MATTRESS INSTALLATION" in rem_up and "WROV ASSIST" not in rem_up and "WITNESSING (" not in rem_up:
             return False
 
     if existing_t:
@@ -994,7 +1011,7 @@ def sync_to_dpr():
     for r in target_fixes:
         r_enr = dict(r)
         if "_find_fix_surveyor_from_logs" in globals():
-            lg_s = _find_fix_surveyor_from_logs(r_enr.get("design_box_id"), in_logs, r_enr.get("physical_tag"))
+            lg_s = _find_fix_surveyor_from_logs(r_enr.get("design_box_id"), in_logs, r_enr.get("physical_tag"), r_enr.get("unit_no"))
             if lg_s and (not r_enr.get("surveyor_name") or str(r_enr.get("surveyor_name")).strip().lower() in ("duty surveyor", "surveyor")):
                 r_enr["surveyor_name"] = lg_s
         in_logs = _sync_fix_to_mti_input_logs(in_logs, r_enr)
@@ -1428,15 +1445,17 @@ def _get_current_user_display_name():
         pass
     return "Duty Surveyor"
 
-def _find_fix_surveyor_from_logs(box_id, input_logs, tag_id=""):
+def _find_fix_surveyor_from_logs(box_id, input_logs, tag_id="", unit_no=None):
     b_up = str(box_id or "").strip().upper()
     t_up = str(tag_id or "").strip().upper().replace("#", "")
     best = ""
     for lg in (input_logs or []):
         if str(lg.get("event_type") or "").strip().lower() != "mattress fix":
             continue
-        ref_up = str(lg.get("ref_id") or "").upper()
-        if b_up and re.search(rf"(?<![A-Za-z0-9_-]){re.escape(b_up)}(?![0-9])", ref_up):
+        lg_uno, lg_tag, ref_up = _fix_log_meta(lg)
+        if unit_no not in (None, "") and lg_uno not in (None, "") and int(float(lg_uno)) != int(float(unit_no)): continue
+        if t_up and lg_tag and lg_tag != t_up: continue
+        if (unit_no not in (None, "") and lg_uno not in (None, "")) or (b_up and re.search(rf"(?<![A-Za-z0-9_-]){re.escape(b_up)}(?![0-9])", ref_up)):
             cand = str(lg.get("surveyor") or lg.get("surveyor_name") or "").strip()
             if cand and cand.lower() not in ("duty surveyor", "surveyor"):
                 best = cand
@@ -1444,19 +1463,34 @@ def _find_fix_surveyor_from_logs(box_id, input_logs, tag_id=""):
                     return cand
     return best
 
+def _same_unit_no(a, b):
+    sa, sb = str(a or "").strip(), str(b or "").strip()
+    if not sa or not sb:
+        return False
+    try:
+        return int(float(sa)) == int(float(sb))
+    except Exception:
+        return sa == sb
+
 def _resolve_fix_data(req, ledger, input_logs=None):
-    uno = str(req.get("unit_no") or req.get("fix_id") or "").strip()
+    uno = str(req.get("unit_no") or "").strip()
+    fid = str(req.get("fix_id") or "").strip()
     box_q = str(req.get("design_box_id") or req.get("location_id") or req.get("box_id") or "").strip()
     tag_q = str(req.get("physical_tag") or req.get("mattress_id") or "").strip()
+    tq_c = tag_q.replace("#", "").strip().upper()
     matched = None
-    if box_q:
-        matched = next((r for r in ledger if str(r.get("design_box_id", "")).upper() == box_q.upper()), None)
-    if not matched and uno:
-        matched = next((r for r in ledger if str(r.get("unit_no", "")) == uno or str(r.get("id", "")) == uno), None)
-    if not matched and tag_q:
-        matched = next((r for r in ledger if str(r.get("physical_tag", "")).replace("#", "").upper() == tag_q.replace("#", "").upper()), None)
+    if uno:
+        matched = next((r for r in ledger if _same_unit_no(r.get("unit_no"), uno) and (not box_q or str(r.get("design_box_id", "")).strip().upper() == box_q.upper())), None)
+    if not matched and fid:
+        matched = next((r for r in ledger if str(r.get("id", "")).strip() == fid or _same_unit_no(r.get("unit_no"), fid)), None)
+    if not matched and tq_c:
+        matched = next((r for r in ledger if str(r.get("physical_tag", "")).replace("#", "").strip().upper() == tq_c and (not box_q or str(r.get("design_box_id", "")).strip().upper() == box_q.upper())), None)
+    if not matched and box_q:
+        cands = [r for r in ledger if str(r.get("design_box_id", "")).strip().upper() == box_q.upper()]
+        if cands:
+            matched = max(cands, key=lambda r: int(float(r.get("unit_no") or 0)))
     if not matched and ledger and not box_q:
-        matched = ledger[0]
+        matched = max(ledger, key=lambda r: int(float(r.get("unit_no") or 0)))
     fix_data = dict(matched) if matched else {}
     for k, v in req.items():
         if k in ("unit_no", "fix_id", "surveyor_name", "surveyor_override") and matched:
@@ -1465,7 +1499,7 @@ def _resolve_fix_data(req, ledger, input_logs=None):
             fix_data[k] = v
     if box_q and "design_box_id" not in fix_data:
         fix_data["design_box_id"] = box_q
-    log_surv = _find_fix_surveyor_from_logs(fix_data.get("design_box_id"), input_logs, fix_data.get("physical_tag"))
+    log_surv = _find_fix_surveyor_from_logs(fix_data.get("design_box_id"), input_logs, fix_data.get("physical_tag"), fix_data.get("unit_no"))
     saved_surv = str((matched or {}).get("surveyor_name") or (matched or {}).get("surveyor") or "").strip()
     if not saved_surv or saved_surv.lower() in ("duty surveyor", "surveyor"):
         saved_surv = log_surv
@@ -1972,7 +2006,7 @@ STUDIO_HTML_TEMPLATE = r"""<!DOCTYPE html>
         </div>
         <select id="ledgerSelect" class="form-select form-select-sm fw-bold bg-dark text-warning border-info" onchange="window.selectLedgerUnit(this.value)">
           {% for r in ledger %}
-          <option value="{{ r.design_box_id }}" {% if r.design_box_id == init_box %}selected{% endif %}>
+          <option value="{{ r.unit_no }}" {% if (r.unit_no|int) == (init_unit|default(0)|int) %}selected{% endif %}>
             {{ '[!] ' if r.has_anomaly else '' }}#{{ r.unit_no }}: {{ r.design_box_id }} ({{ r.physical_tag }})
           </option>
           {% endfor %}
@@ -2060,14 +2094,14 @@ window.toggleStudioLedgerSort = function() {
   });
   sel.innerHTML = ordered.map(r => {
     const pfx = r.has_anomaly ? '[!] ' : '';
-    const s = (r.design_box_id === curVal) ? ' selected' : '';
-    return `<option value="${r.design_box_id}"${s}>${pfx}#${r.unit_no}: ${r.design_box_id} (${r.physical_tag})</option>`;
+    const s = (String(r.unit_no) === String(curVal)) ? ' selected' : '';
+    return `<option value="${r.unit_no}"${s}>${pfx}#${r.unit_no}: ${r.design_box_id} (${r.physical_tag})</option>`;
   }).join('');
   if (btn) btn.innerHTML = window._studioSortDesc ? '&#8645; Latest&rarr;Earliest' : '&#8645; Earliest&rarr;Latest';
 };
-window.selectLedgerUnit = function(boxId) {
+window.selectLedgerUnit = function(unitKey) {
   for (const k of Array.from(INIT_PARAMS.keys())) { INIT_PARAMS.delete(k); }
-  const row = LEDGER_DATA.find(r => r.design_box_id === boxId);
+  const row = LEDGER_DATA.find(r => String(r.unit_no) === String(unitKey)) || LEDGER_DATA.find(r => r.design_box_id === unitKey);
   const sEl = document.getElementById('inpSurveyor');
   if (sEl) sEl.dataset.userEdited = '';
   if (row) {
@@ -2076,7 +2110,7 @@ window.selectLedgerUnit = function(boxId) {
     if (document.getElementById('inpInstallDate')) document.getElementById('inpInstallDate').value = row.install_date || '';
     if (sEl) sEl.value = row.surveyor_name || row.surveyor || '';
   }
-  window.runStudioVerify({ design_box_id: boxId, unit_no: row ? (row.unit_no || '') : '' });
+  window.runStudioVerify({ design_box_id: row ? (row.design_box_id || '') : unitKey, unit_no: row ? (row.unit_no || '') : '' });
 };
 
 window.toggleFpTab = function(showMd) {
@@ -2089,6 +2123,8 @@ window.toggleFpTab = function(showMd) {
 
 window.runStudioVerify = function(extra) {
   const payload = Object.assign({}, Object.fromEntries(INIT_PARAMS.entries()), extra || {});
+  const _ls = document.getElementById('ledgerSelect');
+  if (!payload.unit_no && _ls && _ls.value) payload.unit_no = _ls.value;
   payload.design_box_id = (extra && extra.design_box_id) || document.getElementById('inpBoxId').value.trim();
   payload.physical_tag = document.getElementById('inpTagId').value.trim();
   if (document.getElementById('inpInstallDate')) payload.install_date = document.getElementById('inpInstallDate').value.trim();
@@ -3325,11 +3361,12 @@ def mti_4panel_studio_window():
     ledger = list(reversed(ledger_asc))
     req = request.args.to_dict()
     fd = _resolve_fix_data(req, ledger, in_logs)
+    init_unit = int(float(fd.get("unit_no") or (ledger[0].get("unit_no") if ledger else 1)))
     init_box = fd.get("design_box_id") or "CR-A1_M15"
     init_tag = fd.get("physical_tag") or "#A046"
     init_date = fd.get("install_date") or "2026-11-04 14:34"
     init_surveyor = str(fd.get("surveyor_name") or _get_current_user_display_name()).strip()
-    return render_template_string(STUDIO_HTML_TEMPLATE, ledger=ledger, ledger_json=json.dumps(ledger), init_box=init_box, init_tag=init_tag, init_date=init_date, init_surveyor=init_surveyor)
+    return render_template_string(STUDIO_HTML_TEMPLATE, ledger=ledger, ledger_json=json.dumps(ledger), init_unit=init_unit, init_box=init_box, init_tag=init_tag, init_date=init_date, init_surveyor=init_surveyor)
 
 @mti_bp.route('/setup')
 @login_required

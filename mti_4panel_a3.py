@@ -124,6 +124,37 @@ def plot_seabed_layer(ax, seabed_xyz, x_lim, y_lim, is_zoomed=False, show_contou
             t = ax.text(px, py, fmt.format(float(pz)), fontsize=5.0 if is_zoomed else 4.7, fontweight="bold", color="#475569", ha="center", va="bottom", alpha=0.8, zorder=2, clip_on=True)
             t.set_path_effects([patheffects.withStroke(linewidth=1.5, foreground="white")])
 
+def _row_world_corners(r, b):
+    ae = float(r.get("aslaid_e") if r.get("aslaid_e") not in (None, "") else b["design_e"])
+    an = float(r.get("aslaid_n") if r.get("aslaid_n") not in (None, "") else b["design_n"])
+    hdg = float(r.get("heading_deg") if r.get("heading_deg") not in (None, "") else b["bearing"])
+    return _box_corners_cw(ae, an, (hdg - 180.0) % 360.0)[0]
+
+def _collect_box_placements(ledger_list, loc_id, cur_uno, mat_id, is_first, include_history, cur_dt=""):
+    mat_c = str(mat_id or "").replace("#", "").strip().upper()
+    same_older, by_box = [], {}
+    for r in (ledger_list or []):
+        r_bid = str(r.get("design_box_id") or "").strip()
+        if not r_bid or r.get("aslaid_e") in (None, "") or r.get("aslaid_n") in (None, ""):
+            continue
+        if abs(float(r.get("aslaid_e") or 0)) < 1.0 and abs(float(r.get("aslaid_n") or 0)) < 1.0:
+            continue
+        r_uno = int(float(r.get("unit_no") or 0))
+        r_tag = str(r.get("physical_tag") or "").replace("#", "").strip().upper()
+        is_prior_same = (r_uno > 0 and r_uno < cur_uno) or (
+            r_uno == cur_uno and mat_c and r_tag and r_tag != mat_c and str(r.get("install_date") or "") <= str(cur_dt or "")
+        )
+        if r_bid == loc_id:
+            if is_prior_same and (not mat_c or r_tag != mat_c):
+                same_older.append(r)
+        elif not is_first and include_history and (r_uno < cur_uno or r_bid == "CR-A1_M15"):
+            by_box.setdefault(r_bid, []).append(r)
+    key_fn = lambda x: (int(float(x.get("unit_no") or 0)), str(x.get("install_date") or ""))
+    same_older.sort(key=key_fn)
+    for k in by_box:
+        by_box[k].sort(key=key_fn)
+    return same_older, by_box
+
 def generate_a3_4panel_chart(
     boxes_dict, metrics, cleaned_xyz, x_local, y_local, z_vals, seabed_local_xyz, seabed_full_xyz,
     workspace_dir="workspace", include_history=False, ledger_list=None, scale_p1=250, scale_p2=75,
@@ -176,13 +207,10 @@ def generate_a3_4panel_chart(
 
     des_e, des_n = metrics["design_e"], metrics["design_n"]
     tb = boxes_dict[loc_id]
-    hist_map = {}
-    if not is_first and include_history and ledger_list:
-        for r in ledger_list:
-            r_bid = str(r.get("design_box_id") or "")
-            r_uno = int(float(r.get("unit_no") or 0))
-            if r_bid and r_bid != loc_id and (r_uno < cur_uno or r_bid == "CR-A1_M15"):
-                hist_map[r_bid] = r
+    same_box_older, hist_groups = _collect_box_placements(
+        ledger_list, loc_id, cur_uno, mat_id, is_first, include_history, metrics.get("install_date", "")
+    )
+    hist_map = {k: v[-1] for k, v in hist_groups.items() if v}
 
     xing_up = str(metrics.get("crossing_id") or "").strip().upper()
     is_split_a3b3 = xing_up.startswith("CR-A3") or xing_up.startswith("CR-B3")
@@ -230,6 +258,10 @@ def generate_a3_4panel_chart(
             for bid in sorted_bids:
                 b = boxes_dict[bid]
                 short_lbl = bid.split("_")[-1]
+                for orow in (same_box_older if bid == loc_id else hist_groups.get(bid, [])[:-1]):
+                    orel = np.asarray(_row_world_corners(orow, b), dtype=float) - np.array([seg_ce, seg_cn])
+                    opoly = mpatches.Polygon(np.column_stack([orel @ u_s, orel @ u_l]), closed=True, fill=False, edgecolor="#dc2626", linewidth=1.35, linestyle="--", alpha=0.92 if (bid in seg_ids) else 0.30, zorder=4.6 if bid == loc_id else 3.8, clip_on=True)
+                    ax_s.add_patch(opoly); opoly.set_clip_path(ax_s.patch)
                 if bid == loc_id:
                     if is_first:
                         w_pts = b["corners"]
@@ -300,6 +332,9 @@ def generate_a3_4panel_chart(
         w1_span, h1_span = max(e_lim1[1] - e_lim1[0], 1e-3), max(n_lim1[1] - n_lim1[0], 1e-3)
         for bid, b in boxes_dict.items():
             short_lbl = bid.split("_")[-1]
+            for orow in (same_box_older if bid == loc_id else hist_groups.get(bid, [])[:-1]):
+                opoly = mpatches.Polygon(_row_world_corners(orow, b), closed=True, fill=False, edgecolor="#dc2626", linewidth=1.4, linestyle="--", zorder=4.6 if bid == loc_id else 3.8, clip_on=True)
+                ax1.add_patch(opoly); opoly.set_clip_path(ax1.patch)
             if bid == loc_id:
                 if is_first:
                     poly_p = mpatches.Polygon(b["corners"], closed=True, facecolor="#fef08a", edgecolor="#dc2626", linewidth=1.6, linestyle="-", alpha=0.88, zorder=5, clip_on=True)
@@ -381,6 +416,11 @@ def generate_a3_4panel_chart(
     cax2 = fig.add_axes(cax_rect)
     cb2 = fig.colorbar(sc2, cax=cax2); cb2.set_label("Depth Z (m, TWVD2001)", fontsize=6.4, fontweight="bold"); cb2.ax.tick_params(labelsize=5.6)
 
+    for orow in same_box_older:
+        otag = str(orow.get("physical_tag") or f"#{orow.get('unit_no','')}").strip()
+        orel2 = np.asarray(_row_world_corners(orow, tb), dtype=float) - np.array([as_e_p2, as_n_p2])
+        opoly2 = mpatches.Polygon(np.column_stack([orel2 @ tb["u_short"], orel2 @ tb["u_long"]]), closed=True, fill=False, edgecolor="#dc2626", linewidth=1.55, linestyle="--", zorder=6.4, label=f"Prior {otag} Footprint", clip_on=True)
+        ax2.add_patch(opoly2); opoly2.set_clip_path(ax2.patch)
     c_loc = np.asarray(metrics["corners_local"], dtype=float) - np.array([cx2, cy2])
     poly_rov = mpatches.Polygon(c_loc, closed=True, fill=False, edgecolor="#16a34a", linewidth=1.6, linestyle="--", zorder=7, label="ROV 4-Corner Polygon", clip_on=True)
     ax2.add_patch(poly_rov)

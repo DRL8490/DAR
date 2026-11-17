@@ -270,6 +270,22 @@ def _resolve_ledger_for_report(ledger_list=None):
     except Exception:
         return []
 
+def _match_active_report_row(rows_in, cur_uno, cur_box, cur_tag):
+    def _u(x):
+        try: return int(float(x.get("unit_no") or 0))
+        except Exception: return 0
+    if cur_uno:
+        hit = next((r for r in rows_in if _u(r) == cur_uno and (not cur_box or str(r.get("design_box_id") or "").strip().upper() == cur_box)), None)
+        if not hit and cur_tag:
+            hit = next((r for r in rows_in if _u(r) == cur_uno and str(r.get("physical_tag") or "").replace("#", "").strip().upper() == cur_tag), None)
+        if hit: return hit
+    if cur_box and cur_tag:
+        return next((r for r in rows_in if str(r.get("design_box_id") or "").strip().upper() == cur_box and str(r.get("physical_tag") or "").replace("#", "").strip().upper() == cur_tag), None)
+    if cur_box and not cur_uno:
+        cands = [r for r in rows_in if str(r.get("design_box_id") or "").strip().upper() == cur_box]
+        return max(cands, key=_u) if cands else None
+    return None
+
 def _collect_placed_mattresses_up_to_cutoff(ledger_list, cutoff_dt_str, current_metrics=None, full_day=False):
     rows_in = [dict(r) for r in _resolve_ledger_for_report(ledger_list)]
     eff_cutoff = str(cutoff_dt_str or "").strip()
@@ -286,51 +302,32 @@ def _collect_placed_mattresses_up_to_cutoff(ledger_list, cutoff_dt_str, current_
 
     cur_uno = None
     cur_box = ""
-    if isinstance(current_metrics, dict) and current_metrics.get("location_id"):
+    if isinstance(current_metrics, dict) and (current_metrics.get("location_id") or current_metrics.get("unit_no")):
         cur_box = str(current_metrics.get("location_id") or "").strip().upper()
-        try:
-            cur_uno = int(float(current_metrics.get("unit_no") or 0)) or None
-        except Exception:
-            cur_uno = None
-        matched_cur = False
-        for r in rows_in:
-            if cur_box and str(r.get("design_box_id") or "").strip().upper() == cur_box:
-                if current_metrics.get("install_date"):
-                    r["install_date"] = current_metrics["install_date"]
-                if current_metrics.get("crossing_id"):
-                    r["crossing_id"] = current_metrics["crossing_id"]
-                if current_metrics.get("mattress_id"):
-                    r["physical_tag"] = current_metrics["mattress_id"]
-                if current_metrics.get("aslaid_e") is not None:
-                    r["aslaid_e"] = current_metrics["aslaid_e"]
-                if current_metrics.get("aslaid_n") is not None:
-                    r["aslaid_n"] = current_metrics["aslaid_n"]
-                if current_metrics.get("cl_offset_m") is not None:
-                    r["cl_offset_m"] = current_metrics["cl_offset_m"]
-                if current_metrics.get("offset_mode"):
-                    r["offset_mode"] = current_metrics["offset_mode"]
-                if current_metrics.get("gap_labels"):
-                    r["gap_labels"] = current_metrics["gap_labels"]
-                if "is_first_in_array" in current_metrics:
-                    r["is_first_in_array"] = bool(current_metrics["is_first_in_array"])
-                if current_metrics.get("status"):
-                    r["status"] = current_metrics["status"]
-                matched_cur = True
-                break
-        if cur_box and not matched_cur:
+        cur_tag = str(current_metrics.get("mattress_id") or "").replace("#", "").strip().upper()
+        try: cur_uno = int(float(current_metrics.get("unit_no") or 0)) or None
+        except Exception: cur_uno = None
+        r_hit = _match_active_report_row(rows_in, cur_uno, cur_box, cur_tag)
+        if r_hit is not None:
+            if cur_box: r_hit["design_box_id"] = str(current_metrics.get("location_id") or cur_box).strip()
+            for mk, rk in (("install_date", "install_date"), ("crossing_id", "crossing_id"), ("mattress_id", "physical_tag"), ("offset_mode", "offset_mode"), ("gap_labels", "gap_labels"), ("status", "status")):
+                if current_metrics.get(mk): r_hit[rk] = current_metrics[mk]
+            for nk in ("aslaid_e", "aslaid_n", "cl_offset_m"):
+                if current_metrics.get(nk) is not None: r_hit[nk] = current_metrics[nk]
+            if "is_first_in_array" in current_metrics: r_hit["is_first_in_array"] = bool(current_metrics["is_first_in_array"])
+            try: cur_uno = int(float(r_hit.get("unit_no") or cur_uno or 0)) or cur_uno
+            except Exception: pass
+        elif cur_box:
+            used_u = {int(float(x.get("unit_no") or 0)) for x in rows_in if str(x.get("unit_no") or "").strip()}
+            cur_uno = cur_uno if (cur_uno and cur_uno not in used_u) else (max(used_u | {0}) + 1)
             rows_in.append({
-                "unit_no": cur_uno or (max([int(float(x.get("unit_no") or 0)) for x in rows_in] + [0]) + 1),
-                "crossing_id": current_metrics.get("crossing_id") or cur_box,
-                "design_box_id": cur_box,
-                "physical_tag": current_metrics.get("mattress_id") or "-",
+                "unit_no": cur_uno, "crossing_id": current_metrics.get("crossing_id") or cur_box,
+                "design_box_id": str(current_metrics.get("location_id") or cur_box).strip(), "physical_tag": current_metrics.get("mattress_id") or "-",
                 "install_date": current_metrics.get("install_date") or f"{ref_d} {ref_t[:5]}",
-                "aslaid_e": current_metrics.get("aslaid_e") or 0.0,
-                "aslaid_n": current_metrics.get("aslaid_n") or 0.0,
-                "cl_offset_m": current_metrics.get("cl_offset_m") or 0.0,
-                "gap_labels": current_metrics.get("gap_labels") or "",
-                "is_first_in_array": bool(current_metrics.get("is_first_in_array", False)),
-                "status": current_metrics.get("status") or "Completed",
-                "unit_type": "Concrete Mattress",
+                "aslaid_e": current_metrics.get("aslaid_e") or 0.0, "aslaid_n": current_metrics.get("aslaid_n") or 0.0,
+                "cl_offset_m": current_metrics.get("cl_offset_m") or 0.0, "offset_mode": current_metrics.get("offset_mode") or "",
+                "gap_labels": current_metrics.get("gap_labels") or "", "is_first_in_array": bool(current_metrics.get("is_first_in_array", False)),
+                "status": current_metrics.get("status") or "Completed", "unit_type": "Concrete Mattress",
             })
 
     valid_up_to_cutoff = []
@@ -353,7 +350,7 @@ def _collect_placed_mattresses_up_to_cutoff(ledger_list, cutoff_dt_str, current_
         if (rd, rt) < (ref_d, ref_t):
             valid_up_to_cutoff.append((rd, r))
         elif (rd, rt) == (ref_d, ref_t):
-            if full_day or cur_uno is None or r_uno <= cur_uno or (cur_box and r_box == cur_box):
+            if full_day or cur_uno is None or r_uno <= cur_uno:
                 valid_up_to_cutoff.append((rd, r))
 
     valid_up_to_cutoff.sort(key=lambda pair: (int(float(pair[1].get("unit_no") or 9999)), pair[0], str(pair[1].get("install_date") or "")))
