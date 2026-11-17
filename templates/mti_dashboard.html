@@ -81,7 +81,7 @@
             <div class="kpi-card border-start border-4 border-success">
                 <div class="text-muted small fw-bold text-uppercase">QA/QC Tolerance Compliance</div>
                 <h3 class="fw-bold text-success mt-1 mb-0">{{ tol_pass_cnt }} / {{ completed_matt + completed_rb }} Verified</h3>
-                <small class="text-muted d-block mt-2">&plusmn;{{ "%.2f"|format(cl_tol) }}m CL &amp; &le;{{ "%.2f"|format(gap_tol) }}m Gap Checks</small>
+                <small class="text-muted d-block mt-2">1st Rad &le;{{ "%.2f"|format(cl_tol) }}m | Perp CL &amp; Gap &le;{{ "%.2f"|format(gap_tol) }}m</small>
             </div>
         </div>
         <div class="col-md-3">
@@ -336,8 +336,8 @@
               <input type="number" step="0.001" name="heading_deg" id="inpHeadingDeg" class="form-control form-control-sm bg-light coord-inp" value="195.854" readonly required>
             </div>
             <div class="col-2">
-              <label class="small fw-bold mb-1">CL Off (m)</label>
-              <input type="number" step="0.01" name="cl_offset_m" id="inpClOff" class="form-control form-control-sm bg-light coord-inp" placeholder="Auto" readonly required>
+              <label class="small fw-bold mb-1" id="lblInpClOff">Perp dCL (m)</label>
+              <input type="number" step="0.001" name="cl_offset_m" id="inpClOff" class="form-control form-control-sm bg-light coord-inp" placeholder="Auto" readonly required>
             </div>
           </div>
           <div class="row g-2 mb-2 align-items-end">
@@ -475,7 +475,7 @@
 
                         const clTol = Number(window.MTI_CL_TOL || 0.50) || 0.50;
                         const gapTol = Number(window.MTI_GAP_TOL || 0.50) || 0.50;
-                        const clVal = parseFloat(ds.cl ?? jRow.cl_offset_m ?? '0') || 0.0;
+                        const clVal = parseFloat(jRow.cl_offset_m ?? ds.cl ?? '0') || 0.0;
                         const isFirst = (ds.first === 'true') || Boolean(jRow.is_first_in_array);
                         const gapCandidates = [ds.gnw, ds.gne, ds.gsw, ds.gse, ds.gap1, ds.gap2, jRow.gap_m]
                             .map(v => parseFloat(v))
@@ -673,8 +673,9 @@
                                     E: {{ "%.2f"|format(r.aslaid_e|float) }}<br>
                                     N: {{ "%.2f"|format(r.aslaid_n|float) }}
                                     <div class="mt-1">
-                                        <span class="{{ 'pass-pill' if cl_ok else 'fail-pill' }}" title="Centerline Offset">
-                                            &Delta;CL: {{ "%.2f"|format(r.cl_offset_m|float) }} m
+                                        {% set is_f_row = (r.is_first_in_array or r.unit_no == 1) %}
+                                        <span class="{{ 'pass-pill' if cl_ok else 'fail-pill' }}" title="{{ '1st Unit Radial dCL' if is_f_row else ('Perp CL Offset | Radial: ' ~ ('%.2f'|format(r.radial_offset_m|default(r.cl_offset_m)|float)) ~ 'm, dAl: ' ~ ('%+.2f'|format(r.d_along_m|default(0)|float)) ~ 'm, dCr: ' ~ ('%+.2f'|format(r.d_cross_m|default(0)|float)) ~ 'm') }}">
+                                            {{ 'Rad' if is_f_row else 'Perp' }} &Delta;CL: {{ "%.2f"|format(r.cl_offset_m|float) }} m
                                         </span>
                                     </div>
                                 </td>
@@ -712,7 +713,7 @@
                                             data-as-e="{{ '%.3f'|format(r.aslaid_e|float) }}"
                                             data-as-n="{{ '%.3f'|format(r.aslaid_n|float) }}"
                                             data-as-z="{{ '%.2f'|format(r.aslaid_z|default(0)|float) }}"
-                                            data-cl="{{ '%.2f'|format(r.cl_offset_m|float) }}"
+                                            data-cl="{{ '%.3f'|format(r.cl_offset_m|float) }}"
                                             data-hdg="{{ '%.3f'|format(r.heading_deg|float) }}"
                                             data-gnw="{{ r.gap_nw|default('') }}"
                                             data-gne="{{ r.gap_ne|default('') }}"
@@ -1150,6 +1151,7 @@
 
     // --- MTI_UNIFIED_FIX_JS_START ---
     window.LEDGER_FIX_ROWS = {{ ledger_json | default('[]') | safe }};
+    window.MTI_CL_TOL = Number({{ cl_tol | default(0.50) }}) || 0.50;
     window.MTI_GAP_TOL = Number({{ gap_tol | default(0.50) }}) || 0.50;
 
     document.addEventListener('DOMContentLoaded', function() {
@@ -1177,6 +1179,46 @@
     function nowFormatted() {
         const now = new Date(), p = n => String(n).padStart(2, '0');
         return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())} ${p(now.getHours())}:${p(now.getMinutes())}`;
+    }
+
+    function computeJsClOffset(ae, an, de, dn, desBrg, isFirst, boxId, catLookup) {
+        let b = Number(desBrg || 195.854) % 360.0;
+        if (b < 0) b += 360.0;
+        const sBrg = b < 180.0 ? (b + 180.0) % 360.0 : b;
+        const azRad = ((sBrg - 180.0) * Math.PI) / 180.0;
+        const ulE = Math.sin(azRad), ulN = Math.cos(azRad);
+        const usE = Math.cos(azRad), usN = -Math.sin(azRad);
+        const dE = ae - de, dN = an - dn;
+        const radial = Math.hypot(dE, dN);
+        const dAlong = dE * ulE + dN * ulN;
+        const dCross = dE * usE + dN * usN;
+        const bUp = String(boxId || '').trim().toUpperCase();
+        let endToEnd = /^CR-[AB]1_M[1-4]$/.test(bUp);
+        if (catLookup && typeof catLookup === 'object') {
+            const vals = Object.values(catLookup);
+            const curIt = catLookup[bUp] || catLookup[boxId] || vals.find(x => String(x.name || '').toUpperCase() === bUp);
+            const curLyr = curIt ? String(curIt.layer || '') : '';
+            let bestD = 999.0;
+            vals.forEach(pv => {
+                if (!pv) return;
+                const pkUp = String(pv.name || pv.id || '').trim().toUpperCase();
+                if (!pkUp || pkUp === bUp || (curLyr && String(pv.layer || '') !== curLyr)) return;
+                let pb = Number(pv.bearing ?? sBrg) % 360.0;
+                if (pb < 0) pb += 360.0;
+                const psBrg = pb < 180.0 ? (pb + 180.0) % 360.0 : pb;
+                if (Math.abs((((psBrg - sBrg + 540.0) % 360.0) - 180.0)) > 5.0) return;
+                const vE = Number(pv.design_e || 0) - de, vN = Number(pv.design_n || 0) - dn;
+                const dist = Math.hypot(vE, vN);
+                const pAl = Math.abs(vE * ulE + vN * ulN), pCr = Math.abs(vE * usE + vN * usN);
+                if (dist >= 1.0 && dist <= 8.0 && dist < bestD && Math.min(pAl, pCr) < 0.40) {
+                    bestD = dist;
+                    endToEnd = (pAl > pCr);
+                }
+            });
+        }
+        const perpSigned = endToEnd ? dCross : dAlong;
+        const clOff = isFirst ? radial : Math.abs(perpSigned);
+        return { clOff, radial, perp: Math.abs(perpSigned), dAlong, dCross, mode: isFirst ? 'Rad' : 'Perp' };
     }
 
     function computeCwCornersJs(ce, cn, brgDeg) {
@@ -1272,8 +1314,23 @@
             const lbl = document.getElementById('lblSvgBrg');
             if (lbl) lbl.innerHTML = `Brg: ${brg.toFixed(1)}&deg;`;
         }
-        if (!isNaN(de) && !isNaN(dn) && !isNaN(ae) && !isNaN(an)) {
-            document.getElementById('inpClOff').value = Math.hypot(ae - de, an - dn).toFixed(2);
+        const hasGaps = ['gNW', 'gNE', 'gSW', 'gSE'].some(id => String(document.getElementById(id)?.value || '').trim() !== '');
+        const isFirstChk = Boolean(document.getElementById('chkFirstMattress')?.checked) || (parseInt(document.getElementById('inpUnitNo')?.value || '0', 10) === 1 && !hasGaps);
+        const lblCl = document.getElementById('lblInpClOff');
+        if (lblCl) lblCl.textContent = isFirstChk ? 'Rad dCL (m)' : 'Perp dCL (m)';
+        const clEl = document.getElementById('inpClOff');
+        if (!isNaN(de) && !isNaN(dn) && !isNaN(ae) && !isNaN(an) && clEl) {
+            const dBrgVal = parseFloat(document.getElementById('inpDesBrg')?.value || brg || '195.854');
+            const bIdVal = document.getElementById('inpBoxId')?.value || '';
+            const offRes = computeJsClOffset(ae, an, de, dn, dBrgVal, isFirstChk, bIdVal, catalogByName);
+            clEl.value = offRes.clOff.toFixed(3);
+            clEl.title = isFirstChk
+                ? `1st Unit Radial dCL: ${offRes.radial.toFixed(3)} m`
+                : `Perp CL: ${offRes.perp.toFixed(3)} m (Radial: ${offRes.radial.toFixed(3)} m | dAl: ${offRes.dAlong >= 0 ? '+' : ''}${offRes.dAlong.toFixed(2)} m, dCr: ${offRes.dCross >= 0 ? '+' : ''}${offRes.dCross.toFixed(2)} m)`;
+            const tolCl = Number(window.MTI_CL_TOL || 0.50) || 0.50;
+            clEl.style.borderColor = (offRes.clOff <= tolCl) ? '#16a34a' : '#dc2626';
+        } else if (clEl && !clEl.value) {
+            clEl.style.borderColor = '';
         }
     }
 
@@ -1300,6 +1357,7 @@
             document.getElementById('inpGap1').value = '0.00';
             document.getElementById('inpGap2').value = '0.00';
         }
+        recalcAllMattress();
     }
 
     function resetFixFormToNew() {

@@ -256,8 +256,8 @@
               <input type="number" step="0.001" name="heading_deg" id="inpHeadingDeg" class="form-control form-control-sm bg-light fw-bold" value="195.854" readonly required>
             </div>
             <div class="col-2">
-              <label class="small fw-bold mb-1">CL Off (m)</label>
-              <input type="number" step="0.01" name="cl_offset_m" id="inpClOff" class="form-control form-control-sm bg-light fw-bold" placeholder="Auto" readonly required>
+              <label class="small fw-bold mb-1" id="lblInpClOff">Perp dCL (m)</label>
+              <input type="number" step="0.001" name="cl_offset_m" id="inpClOff" class="form-control form-control-sm bg-light fw-bold" placeholder="Auto" readonly required>
             </div>
           </div>
           <div class="row g-2 mb-2">
@@ -312,6 +312,59 @@ document.addEventListener('DOMContentLoaded', function(){
     };
   }
 });
+    function computeJsClOffset(ae, an, de, dn, desBrg, isFirst, boxId, catLookup) {
+        let b = Number(desBrg || 195.854) % 360.0;
+        if (b < 0) b += 360.0;
+        const sBrg = b < 180.0 ? (b + 180.0) % 360.0 : b;
+        const azRad = ((sBrg - 180.0) * Math.PI) / 180.0;
+        const ulE = Math.sin(azRad), ulN = Math.cos(azRad);
+        const usE = Math.cos(azRad), usN = -Math.sin(azRad);
+        const dE = ae - de, dN = an - dn;
+        const radial = Math.hypot(dE, dN);
+        const dAlong = dE * ulE + dN * ulN;
+        const dCross = dE * usE + dN * usN;
+        const bUp = String(boxId || '').trim().toUpperCase();
+        let endToEnd = /^CR-[AB]1_M[1-4]$/.test(bUp);
+        if (catLookup && typeof catLookup === 'object') {
+            const vals = Object.values(catLookup);
+            const curIt = catLookup[bUp] || catLookup[boxId] || vals.find(x => String(x.name || '').toUpperCase() === bUp);
+            const curLyr = curIt ? String(curIt.layer || '') : '';
+            let bestD = 999.0;
+            vals.forEach(pv => {
+                if (!pv) return;
+                const pkUp = String(pv.name || pv.id || '').trim().toUpperCase();
+                if (!pkUp || pkUp === bUp || (curLyr && String(pv.layer || '') !== curLyr)) return;
+                let pb = Number(pv.bearing ?? sBrg) % 360.0;
+                if (pb < 0) pb += 360.0;
+                const psBrg = pb < 180.0 ? (pb + 180.0) % 360.0 : pb;
+                if (Math.abs((((psBrg - sBrg + 540.0) % 360.0) - 180.0)) > 5.0) return;
+                const vE = Number(pv.design_e || 0) - de, vN = Number(pv.design_n || 0) - dn;
+                const dist = Math.hypot(vE, vN);
+                const pAl = Math.abs(vE * ulE + vN * ulN), pCr = Math.abs(vE * usE + vN * usN);
+                if (dist >= 1.0 && dist <= 8.0 && dist < bestD && Math.min(pAl, pCr) < 0.40) {
+                    bestD = dist;
+                    endToEnd = (pAl > pCr);
+                }
+            });
+        }
+        const perpSigned = endToEnd ? dCross : dAlong;
+        const clOff = isFirst ? radial : Math.abs(perpSigned);
+        return { clOff, radial, perp: Math.abs(perpSigned), dAlong, dCross, mode: isFirst ? 'Rad' : 'Perp' };
+    }
+function toggleGapInputs(){
+  const isFirst = Boolean(document.getElementById('chkFirstMattress')?.checked) || (parseInt(document.getElementById('inpUnitNo')?.value || '0', 10) === 1);
+  const g1Box = document.getElementById('gap1Container');
+  if (g1Box) g1Box.style.opacity = isFirst ? '0.40' : '1';
+  ['gNW','gNE','gSW','gSE'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = isFirst;
+  });
+  if (isFirst) {
+    if (document.getElementById('inpGap1')) document.getElementById('inpGap1').value = '0.00';
+    if (document.getElementById('inpGap2')) document.getElementById('inpGap2').value = '0.00';
+  }
+  if (typeof recalcAllMattress === 'function') recalcAllMattress();
+}
 function onSelectDesignMattress(){
   const sel = document.getElementById('designCatalogSelect');
   const mapObj = (typeof catalogByName !== 'undefined' && Object.keys(catalogByName).length) ? catalogByName : (typeof catMap !== 'undefined' ? catMap : {});
@@ -378,8 +431,18 @@ function recalcAllMattress(){
     const lbl = document.getElementById('lblSvgBrg');
     if (lbl) lbl.innerHTML = `Brg: ${brg.toFixed(1)}&deg;`;
   }
-  if (!isNaN(de) && !isNaN(dn) && !isNaN(ae) && !isNaN(an)) {
-    document.getElementById('inpClOff').value = Math.hypot(ae - de, an - dn).toFixed(2);
+  const hasGaps = ['gNW','gNE','gSW','gSE'].some(id => String(document.getElementById(id)?.value || '').trim() !== '');
+  const isFirstChk = Boolean(document.getElementById('chkFirstMattress')?.checked) || (parseInt(document.getElementById('inpUnitNo')?.value || '0', 10) === 1 && !hasGaps);
+  const lblCl = document.getElementById('lblInpClOff');
+  if (lblCl) lblCl.textContent = isFirstChk ? 'Rad dCL (m)' : 'Perp dCL (m)';
+  const clEl = document.getElementById('inpClOff');
+  if (!isNaN(de) && !isNaN(dn) && !isNaN(ae) && !isNaN(an) && clEl) {
+    const dBrgVal = parseFloat(document.getElementById('inpDesBrg')?.value || brg || '195.854');
+    const bIdVal = document.getElementById('inpBoxId')?.value || '';
+    const mapObj = (typeof window.catalogByName === 'object' && window.catalogByName && Object.keys(window.catalogByName).length) ? window.catalogByName : ((typeof catMap === 'object') ? catMap : {});
+    const offRes = computeJsClOffset(ae, an, de, dn, dBrgVal, isFirstChk, bIdVal, mapObj);
+    clEl.value = offRes.clOff.toFixed(3);
+    clEl.style.borderColor = (offRes.clOff <= Number({{ cl_tol | default(0.50) }})) ? '#16a34a' : '#dc2626';
   }
 }
 function syncDirGaps(){
