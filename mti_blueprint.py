@@ -116,6 +116,165 @@ def _enrich_fix_row(r, cat_map, input_logs=None):
     return d
 
 
+# --- MTI_SEQ_AND_TAG_VALIDATION_START ---
+def _norm_mattress_tag(raw_tag):
+    s = re.sub(r"\s+", "", str(raw_tag or "")).lstrip("#").upper()
+    if not s or s in ("PENDING", "NA", "N/A", "NONE", "TBD", "-"):
+        return ""
+    return s
+
+def _parse_strict_fix_ts(raw_ts):
+    s = re.sub(r"\s+", " ", str(raw_ts or "").replace("T", " ").strip())
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            dt_obj = datetime.strptime(s, fmt)
+            canon = dt_obj.strftime("%Y-%m-%d %H:%M:%S") if dt_obj.second else dt_obj.strftime("%Y-%m-%d %H:%M")
+            return True, dt_obj, canon
+        except Exception:
+            pass
+    return False, None, s
+
+def _annotate_ledger_anomalies(rows_list):
+    rows = [dict(r) for r in (rows_list or [])]
+    asc = sorted(rows, key=lambda r: (int(float(r.get("unit_no") or 9999)), int(float(r.get("id") or 9999))))
+
+    tag_groups = {}
+    for r in asc:
+        st_low = str(r.get("status") or "Completed").strip().lower()
+        if st_low in ("cancelled", "rejected"):
+            continue
+        nt = _norm_mattress_tag(r.get("physical_tag"))
+        if nt:
+            tag_groups.setdefault(nt, []).append(r)
+
+    for r in asc:
+        nt = _norm_mattress_tag(r.get("physical_tag"))
+        peers = tag_groups.get(nt) or []
+        if nt and len(peers) > 1:
+            others = [f"#{p.get('unit_no')} ({p.get('design_box_id')})" for p in peers if p is not r]
+            r["has_dup_tag"] = True
+            r["dup_tag_msg"] = f"Duplicate Tag #{nt}: shared with {', '.join(others)}"
+        else:
+            r["has_dup_tag"] = False
+            r["dup_tag_msg"] = ""
+        r["has_ts_seq_err"] = False
+        r["ts_seq_msg"] = ""
+
+    placed_valid = []
+    for r in asc:
+        st_low = str(r.get("status") or "Completed").strip().lower()
+        if st_low in ("planned", "cancelled", "rejected"):
+            continue
+        ok_ts, dt_obj, _ = _parse_strict_fix_ts(r.get("install_date"))
+        if not ok_ts:
+            r["has_ts_seq_err"] = True
+            r["ts_seq_msg"] = f"Invalid Date/Time '{r.get('install_date')}' (expected YYYY-MM-DD HH:MM)"
+        else:
+            placed_valid.append((r, dt_obj))
+
+    n_p = len(placed_valid)
+    if n_p >= 2:
+        lis_end = [1] * n_p
+        for i in range(n_p):
+            for j in range(i):
+                if placed_valid[j][1] < placed_valid[i][1] and lis_end[j] + 1 > lis_end[i]:
+                    lis_end[i] = lis_end[j] + 1
+        lis_start = [1] * n_p
+        for i in range(n_p - 1, -1, -1):
+            for j in range(i + 1, n_p):
+                if placed_valid[i][1] < placed_valid[j][1] and lis_start[j] + 1 > lis_start[i]:
+                    lis_start[i] = lis_start[j] + 1
+        max_l = max(lis_end)
+        if max_l < n_p:
+            rank_map = {}
+            for i in range(n_p):
+                if lis_end[i] + lis_start[i] - 1 == max_l:
+                    rank_map.setdefault(lis_end[i], []).append(i)
+            for i, (r_cur, dt_cur) in enumerate(placed_valid):
+                on_max = (lis_end[i] + lis_start[i] - 1 == max_l)
+                uniq_rk = on_max and (len(rank_map.get(lis_end[i], [])) == 1)
+                if not uniq_rk:
+                    msgs = []
+                    if i > 0 and dt_cur <= placed_valid[i - 1][1]:
+                        rp = placed_valid[i - 1][0]
+                        msgs.append(f"must be later than #{rp.get('unit_no')} ({rp.get('design_box_id')} at {rp.get('install_date')})")
+                    if i + 1 < n_p and dt_cur >= placed_valid[i + 1][1]:
+                        rn = placed_valid[i + 1][0]
+                        msgs.append(f"must be earlier than #{rn.get('unit_no')} ({rn.get('design_box_id')} at {rn.get('install_date')})")
+                    if not msgs:
+                        if i > 0:
+                            rp = placed_valid[i - 1][0]
+                            msgs.append(f"check window after #{rp.get('unit_no')} ({rp.get('install_date')})")
+                        if i + 1 < n_p:
+                            rn = placed_valid[i + 1][0]
+                            msgs.append(f"before #{rn.get('unit_no')} ({rn.get('install_date')})")
+                    r_cur["has_ts_seq_err"] = True
+                    r_cur["ts_seq_msg"] = f"Timestamp {r_cur.get('install_date')} out of sequence: " + " and ".join(msgs)
+
+    for r in asc:
+        r["has_anomaly"] = bool(r.get("has_ts_seq_err") or r.get("has_dup_tag"))
+        parts = [m for m in (r.get("ts_seq_msg"), r.get("dup_tag_msg")) if m]
+        r["anomaly_summary"] = " | ".join(parts)
+    return asc
+
+def _validate_fix_submission(ledger, fix_id, unit_no, tag_id, dt_str, status_str):
+    ex_id = int(fix_id) if fix_id else None
+    uno = int(unit_no or 0)
+    st_low = str(status_str or "Completed").strip().lower()
+    norm_t = _norm_mattress_tag(tag_id)
+
+    for r in (ledger or []):
+        r_id = int(r.get("id") or 0)
+        if ex_id is not None and r_id == ex_id:
+            continue
+        if str(r.get("status") or "Completed").strip().lower() in ("cancelled", "rejected"):
+            continue
+        if int(float(r.get("unit_no") or 0)) == uno and uno > 0:
+            return False, f"Unit #{uno} is already assigned to {r.get('design_box_id')} ({r.get('physical_tag')}). Use a unique Unit # or Edit the existing row."
+
+    if st_low not in ("planned", "cancelled", "rejected") and not norm_t:
+        return False, "Mattress Tag ID is required (e.g., #A046) and cannot be blank or Pending for a placed mattress."
+
+    if norm_t:
+        for r in (ledger or []):
+            r_id = int(r.get("id") or 0)
+            if ex_id is not None and r_id == ex_id:
+                continue
+            if str(r.get("status") or "Completed").strip().lower() in ("cancelled", "rejected"):
+                continue
+            if _norm_mattress_tag(r.get("physical_tag")) == norm_t:
+                return False, f"Duplicate Mattress Tag ID '#{norm_t}'! It is already assigned to Unit #{r.get('unit_no')} ({r.get('design_box_id')}, laid {r.get('install_date')})."
+
+    ok_ts, cur_dt, canon_dt = _parse_strict_fix_ts(dt_str)
+    if not ok_ts:
+        return False, f"Invalid Date/Time '{dt_str}'. Please enter a valid 24-hour timestamp in YYYY-MM-DD HH:MM format."
+
+    if st_low not in ("planned", "cancelled", "rejected"):
+        peers = []
+        for r in (ledger or []):
+            r_id = int(r.get("id") or 0)
+            if ex_id is not None and r_id == ex_id:
+                continue
+            rst = str(r.get("status") or "Completed").strip().lower()
+            if rst in ("planned", "cancelled", "rejected"):
+                continue
+            ok_p, p_dt, _ = _parse_strict_fix_ts(r.get("install_date"))
+            if ok_p:
+                peers.append((int(float(r.get("unit_no") or 0)), p_dt, r))
+        prev_candidates = [p for p in peers if p[0] < uno]
+        next_candidates = [p for p in peers if p[0] > uno]
+        if prev_candidates:
+            prev_u, prev_dt, prev_r = max(prev_candidates, key=lambda x: x[0])
+            if cur_dt <= prev_dt:
+                return False, f"Date/Time Out of Sequence! Unit #{uno} ({canon_dt}) must be strictly later than Unit #{prev_u} ({prev_r.get('design_box_id')} at {prev_r.get('install_date')})."
+        if next_candidates:
+            next_u, next_dt, next_r = min(next_candidates, key=lambda x: x[0])
+            if cur_dt >= next_dt:
+                return False, f"Date/Time Out of Sequence! Unit #{uno} ({canon_dt}) must be strictly earlier than Unit #{next_u} ({next_r.get('design_box_id')} at {next_r.get('install_date')})."
+
+    return True, canon_dt
+# --- MTI_SEQ_AND_TAG_VALIDATION_END ---
+
 DEFAULT_MTI_STATE = {
     "campaign_target_mattresses": 139,
     "campaign_target_rockbags": 28,
@@ -232,7 +391,8 @@ def save_mti_state(mti_state):
 @login_required
 def mti_dashboard():
     state = load_mti_state()
-    ledger = [_enrich_fix_row(r, _merged_cat_map(), state.get("input_logs")) for r in sorted(state.get("ledger", []), key=lambda x: int(x.get("unit_no", 999)))]
+    ledger_asc = _annotate_ledger_anomalies([_enrich_fix_row(r, _merged_cat_map(), state.get("input_logs")) for r in sorted(state.get("ledger", []), key=lambda x: int(x.get("unit_no", 999)))])
+    ledger = list(reversed(ledger_asc))
     input_logs = sorted(state.get("input_logs", []), key=lambda x: str(x.get("timestamp", "")), reverse=True)
 
     target_matt = int(state.get("campaign_target_mattresses", 139))
@@ -386,6 +546,12 @@ def add_fix():
     env_tag = " | ".join([f"{k}:{v}" for k, v in [("Wind", env_w), ("Curr", env_c)] if v])
 
     dt_str = (request.form.get("install_date") or ex.get("install_date") or datetime.utcnow().strftime('%Y-%m-%d %H:%M')).strip()
+    status_val = (request.form.get("status") or ex.get("status") or "Completed").strip()
+    ok_sub, sub_msg_or_dt = _validate_fix_submission(ledger, ex.get("id") if existing else fix_id, unit_no, tag_id, dt_str, status_val)
+    if not ok_sub:
+        flash(sub_msg_or_dt, "error")
+        return redirect(url_for('mti_bp.mti_mobile') if '/mobile' in (request.referrer or '') else url_for('mti_bp.mti_dashboard'))
+    dt_str = sub_msg_or_dt
     cur_usr = _get_current_user_display_name() if "_get_current_user_display_name" in globals() else getattr(current_user, "name", "Duty Surveyor")
     surv_name = resolve_full_surveyor_name((request.form.get("surveyor_name") or ex.get("surveyor_name") or ex.get("surveyor") or cur_usr).strip())
 
@@ -914,7 +1080,8 @@ def user_access_list():
 def mti_mobile():
     from flask import render_template
     state = load_mti_state()
-    ledger = [_enrich_fix_row(r, _merged_cat_map(), state.get("input_logs")) for r in sorted(state.get("ledger", []), key=lambda x: int(x.get("unit_no", 999)))]
+    ledger_asc = _annotate_ledger_anomalies([_enrich_fix_row(r, _merged_cat_map(), state.get("input_logs")) for r in sorted(state.get("ledger", []), key=lambda x: int(x.get("unit_no", 999)))])
+    ledger = list(reversed(ledger_asc))
     input_logs = sorted(state.get("input_logs", []), key=lambda x: str(x.get("timestamp", "")), reverse=True)
     completed_matt = sum(1 for r in ledger if r.get("status") == "Completed" and r.get("unit_type", "Concrete Mattress") == "Concrete Mattress")
     return render_template('mti_mobile.html', ledger=ledger, ledger_json=json.dumps(ledger), input_logs=input_logs, completed_matt=completed_matt, target_matt=int(state.get("campaign_target_mattresses", 139)), cl_tol=float(state.get("cl_tolerance_m", 0.50)), gap_tol=float(state.get("gap_tolerance_m", 0.50)), catalog_json=json.dumps(list(_merged_cat_map().values())))
@@ -1785,14 +1952,28 @@ STUDIO_HTML_TEMPLATE = r"""<!DOCTYPE html>
     </div>
   </div>
 
+  {% set anom_units = ledger | selectattr('has_anomaly') | list %}
+  {% if anom_units %}
+  <div id="studioSeqAlertBanner" class="alert alert-danger py-1 px-3 mb-2 d-flex flex-wrap justify-content-between align-items-center small fw-bold" style="background:#450a0a;color:#fecaca;border:1px solid #ef4444;">
+    <span><i class="fas fa-exclamation-triangle text-warning me-2"></i>LEDGER SEQUENCE / TAG ALERT:
+      {% for ar in anom_units %}
+        <span class="badge bg-warning text-dark me-1">#{{ ar.unit_no }} {{ ar.design_box_id }} ({{ ar.physical_tag }})</span> {{ ar.anomaly_summary }}{% if not loop.last %} &bull; {% endif %}
+      {% endfor %}
+    </span>
+    <a href="/mti" class="btn btn-sm btn-warning text-dark fw-bold py-0 px-2" style="font-size:11px;">Fix on MTI Ledger</a>
+  </div>
+  {% endif %}
   <div class="studio-card p-2 mb-2">
     <div class="row g-2 align-items-end">
       <div class="col-md-2 col-12">
-        <label class="small fw-bold text-info">Ledger Switcher</label>
+        <div class="d-flex justify-content-between align-items-center">
+          <label class="small fw-bold text-info mb-0">Ledger Switcher</label>
+          <button type="button" id="btnStudioInvertOrder" class="btn btn-link btn-sm p-0 text-warning fw-bold text-decoration-none" style="font-size:10.5px;" onclick="window.toggleStudioLedgerSort()" title="Invert Laid Mattresses Order (Latest-First / Earliest-First)">&#8645; Latest&rarr;Earliest</button>
+        </div>
         <select id="ledgerSelect" class="form-select form-select-sm fw-bold bg-dark text-warning border-info" onchange="window.selectLedgerUnit(this.value)">
           {% for r in ledger %}
           <option value="{{ r.design_box_id }}" {% if r.design_box_id == init_box %}selected{% endif %}>
-            #{{ r.unit_no }}: {{ r.design_box_id }} ({{ r.physical_tag }})
+            {{ '[!] ' if r.has_anomaly else '' }}#{{ r.unit_no }}: {{ r.design_box_id }} ({{ r.physical_tag }})
           </option>
           {% endfor %}
         </select>
@@ -1866,6 +2047,24 @@ STUDIO_HTML_TEMPLATE = r"""<!DOCTYPE html>
 const LEDGER_DATA = {{ ledger_json | safe }};
 const INIT_PARAMS = new URLSearchParams(window.location.search);
 
+window._studioSortDesc = true;
+window.toggleStudioLedgerSort = function() {
+  window._studioSortDesc = !window._studioSortDesc;
+  const sel = document.getElementById('ledgerSelect');
+  const btn = document.getElementById('btnStudioInvertOrder');
+  if (!sel) return;
+  const curVal = sel.value;
+  const ordered = (LEDGER_DATA || []).slice().sort((a, b) => {
+    const d = (Number(a.unit_no) || 0) - (Number(b.unit_no) || 0);
+    return window._studioSortDesc ? -d : d;
+  });
+  sel.innerHTML = ordered.map(r => {
+    const pfx = r.has_anomaly ? '[!] ' : '';
+    const s = (r.design_box_id === curVal) ? ' selected' : '';
+    return `<option value="${r.design_box_id}"${s}>${pfx}#${r.unit_no}: ${r.design_box_id} (${r.physical_tag})</option>`;
+  }).join('');
+  if (btn) btn.innerHTML = window._studioSortDesc ? '&#8645; Latest&rarr;Earliest' : '&#8645; Earliest&rarr;Latest';
+};
 window.selectLedgerUnit = function(boxId) {
   for (const k of Array.from(INIT_PARAMS.keys())) { INIT_PARAMS.delete(k); }
   const row = LEDGER_DATA.find(r => r.design_box_id === boxId);
@@ -3122,17 +3321,8 @@ def mti_4panel_studio_window():
     st = load_mti_state()
     in_logs = st.get("input_logs", [])
     raw_ledger = sorted(st.get("ledger", []), key=lambda x: int(x.get("unit_no", 999)))
-    if "_enrich_fix_row" in globals() and "_merged_cat_map" in globals():
-        ledger = [_enrich_fix_row(r, _merged_cat_map(), in_logs) for r in raw_ledger]
-    else:
-        ledger = []
-        for r in raw_ledger:
-            d = dict(r)
-            ls = _find_fix_surveyor_from_logs(d.get("design_box_id"), in_logs, d.get("physical_tag"))
-            if not d.get("surveyor_name") or str(d.get("surveyor_name")).lower() in ("duty surveyor", "surveyor"):
-                if ls:
-                    d["surveyor_name"] = ls
-            ledger.append(d)
+    ledger_asc = _annotate_ledger_anomalies([_enrich_fix_row(r, _merged_cat_map(), in_logs) for r in raw_ledger])
+    ledger = list(reversed(ledger_asc))
     req = request.args.to_dict()
     fd = _resolve_fix_data(req, ledger, in_logs)
     init_box = fd.get("design_box_id") or "CR-A1_M15"
