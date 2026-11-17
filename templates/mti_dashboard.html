@@ -2038,33 +2038,8 @@ function openQrModal(){
         syncSurveyorInputBox(true);
       }
 
-      if (!document.getElementById('btnPreview4Panel')) {
-        const saveBtn = fixForm.querySelector('button[type="submit"]');
-        if (saveBtn) {
-          saveBtn.parentNode.classList.add('d-flex', 'flex-wrap', 'gap-1', 'justify-content-end', 'align-items-center');
-          const b = document.createElement('button');
-          b.type = 'button';
-          b.id = 'btnPreview4Panel';
-          b.className = 'btn btn-sm btn-info text-dark fw-bold';
-          b.style.cssText = 'background:#38bdf8;border-color:#0284c7;color:#0f172a;white-space:nowrap;';
-          b.innerHTML = '&#128202; CHART';
-          b.onclick = function() {
-            syncSurveyorInputBox(true);
-            const fd = new FormData(fixForm), qs = new URLSearchParams();
-            fd.forEach(function(v, k) {
-              if (v !== null && String(v).trim() !== '') qs.set(k, String(v).trim());
-            });
-            const sInp = document.getElementById('inpFormSurveyorName');
-            if (sInp && sInp.value.trim()) {
-              qs.set('surveyor_name', sInp.value.trim());
-            } else if (window.MTI_CURRENT_USER_NAME) {
-              qs.set('surveyor_name', window.MTI_CURRENT_USER_NAME);
-            }
-            window.open('/mti/studio?' + qs.toString(), '_blank');
-          };
-          saveBtn.parentNode.insertBefore(b, saveBtn.nextSibling);
-        }
-      }
+      const oldFormChartBtn = document.getElementById('btnPreview4Panel');
+      if (oldFormChartBtn) oldFormChartBtn.remove();
     }
 
     let rowCounter = 0;
