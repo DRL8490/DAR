@@ -97,15 +97,38 @@
         </div>
     </div>
 
+    <!-- MTI_DASH_ANOM_BANNER_START -->
+    {% set anom_units = ledger | selectattr('has_anomaly') | list %}
+    {% if anom_units %}
+    <div id="mtiDashAnomBanner" class="alert alert-danger shadow-sm py-2 px-3 mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2" style="border-left: 5px solid #dc2626;">
+        <div class="small fw-bold text-dark">
+            <i class="fas fa-exclamation-triangle text-danger me-1"></i>
+            <span class="text-danger">LEDGER TIMESTAMP / TAG ALERT ({{ anom_units|length }}):</span>
+            {% for ar in anom_units %}
+                <span class="badge bg-danger text-white ms-1">#{{ ar.unit_no }} {{ ar.design_box_id }} ({{ ar.physical_tag }})</span>
+                <span>{{ ar.anomaly_summary }}</span>
+                <button type="button" class="btn btn-xs btn-warning text-dark fw-bold py-0 px-2 ms-1" style="font-size:11px;" onclick="window.openEditForUnitNo({{ ar.unit_no }})">Edit #{{ ar.unit_no }}</button>
+                {% if not loop.last %}<span class="mx-1 text-muted">&bull;</span>{% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+    <!-- MTI_DASH_ANOM_BANNER_END -->
+
     <div class="row g-4">
         <!-- LEFT / MAIN: CUMULATIVE SUBSEA MATTRESS & ROCK BAG FIX LEDGER -->
         <div class="col-lg-7">
             <div class="card shadow-sm border-0 mb-4" style="border-radius: 12px;">
                 <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-3" style="border-radius: 12px 12px 0 0;">
                     <span class="fw-bold"><i class="fas fa-th-list text-info me-1"></i> Cumulative Subsea Mattress &amp; Rock Bag Fix Ledger ({{ ledger|length }} Logged)</span>
-                    <button class="btn btn-sm btn-success fw-bold" type="button" onclick="openMattressFixBox()">
-                        <i class="fas fa-plus"></i> + Log New Mattress / Rock Bag Fix
-                    </button>
+                    <div class="d-inline-flex flex-wrap align-items-center gap-2">
+                        <button type="button" id="btnInvertLedgerSort" class="btn btn-sm btn-outline-light fw-bold" onclick="window.toggleMtiLedgerSortOrder()" title="Invert Laid Mattresses Order (Latest-First / Earliest-First)">
+                            <i class="fas fa-sort-numeric-down-alt text-warning me-1"></i>Latest&rarr;Earliest
+                        </button>
+                        <button class="btn btn-sm btn-success fw-bold" type="button" onclick="openMattressFixBox()">
+                            <i class="fas fa-plus"></i> + Log New Mattress / Rock Bag Fix
+                        </button>
+                    </div>
                 </div>
 
                 <!-- COLLAPSIBLE MATTRESS FIX FORM (OPENED BY "+ Log New..." OR "Mattress fix" BUTTON) -->
@@ -482,8 +505,8 @@
                             .filter(v => !isNaN(v));
                         const maxGap = gapCandidates.length ? Math.max(...gapCandidates) : 0.0;
                         const passTol = (clVal <= clTol) && (isFirst || maxGap <= gapTol);
-
-                        return { xingGrp, dtYmd, surv, status, passTol };
+                        const hasAnom = (tr.dataset.hasAnom === '1') || Boolean(jRow.has_anomaly);
+                        return { xingGrp, dtYmd, surv, status, passTol, hasAnom };
                     }
 
                     window.initMtiLedgerFilters = function() {
@@ -500,7 +523,7 @@
 
                         const xingCounts = { 'CR-A1': 0, 'CR-B1': 0, 'CR-A2': 0, 'CR-B2': 0, 'CR-A3': 0, 'CR-B3': 0 };
                         const dateCounts = {}, survCounts = {}, statusCounts = {};
-                        let passCnt = 0, advCnt = 0;
+                        let passCnt = 0, advCnt = 0, anomCnt = 0;
 
                         rows.forEach(tr => {
                             const m = extractRowMeta(tr, jsonMapByBox, jsonMapById, logSurvMap);
@@ -509,12 +532,14 @@
                             tr.dataset.mfltSurv = m.surv;
                             tr.dataset.mfltStatus = m.status;
                             tr.dataset.mfltTol = m.passTol ? 'PASS' : 'ADV';
+                            tr.dataset.mfltAnom = m.hasAnom ? '1' : '0';
 
                             if (xingCounts[m.xingGrp] !== undefined) xingCounts[m.xingGrp] += 1;
                             if (m.dtYmd && m.dtYmd !== 'Unknown') dateCounts[m.dtYmd] = (dateCounts[m.dtYmd] || 0) + 1;
                             if (m.surv && m.surv !== 'Unassigned') survCounts[m.surv] = (survCounts[m.surv] || 0) + 1;
                             statusCounts[m.status] = (statusCounts[m.status] || 0) + 1;
                             if (m.passTol) passCnt += 1; else advCnt += 1;
+                            if (m.hasAnom) anomCnt += 1;
                         });
 
                         const total = rows.length;
@@ -556,6 +581,9 @@
                             selSt.innerHTML = '';
                             selSt.appendChild(new Option(`All Status / QA-QC (${total})`, 'ALL'));
                             if (total > 0) {
+                                if (anomCnt > 0) {
+                                    selSt.appendChild(new Option(`! Alerts: Seq / Dup Tag (${anomCnt})`, '__ANOM__'));
+                                }
                                 selSt.appendChild(new Option(`Within Tol <=0.50m (${passCnt})`, '__PASS__'));
                                 selSt.appendChild(new Option(`Exceeds Tol >0.50m (${advCnt})`, '__ADV__'));
                             }
@@ -600,11 +628,9 @@
                             const okXing = (vXing === 'ALL') || (tr.dataset.mfltXing === vXing);
                             const okDate = (vDate === 'ALL') || (tr.dataset.mfltDate === vDate);
                             const okSurv = (vSurv === 'ALL') || (tr.dataset.mfltSurv === vSurv);
-                            const okSt = (vSt === 'ALL')
-                                ? true
-                                : ((vSt === '__PASS__') ? (tr.dataset.mfltTol === 'PASS')
+                            const okSt = (vSt === 'ALL') ? true : ((vSt === '__ANOM__') ? (tr.dataset.mfltAnom === '1') : ((vSt === '__PASS__') ? (tr.dataset.mfltTol === 'PASS')
                                 : ((vSt === '__ADV__') ? (tr.dataset.mfltTol === 'ADV')
-                                : (tr.dataset.mfltStatus === vSt)));
+                                : (tr.dataset.mfltStatus === vSt))));
                             const vis = okXing && okDate && okSurv && okSt;
                             tr.style.display = vis ? '' : 'none';
                             if (vis) shown += 1;
@@ -660,15 +686,17 @@
                         {% for r in ledger %}
                             {% set cl_ok = (r.cl_offset_m|float <= cl_tol) %}
                             {% set gap_ok = (r.gap_m|float <= gap_tol) %}
-                            <tr>
+                            <!-- MTI_ROW_ANOM_CELLS_START -->
+                            <tr data-unit-no="{{ r.unit_no }}" data-has-anom="{{ '1' if r.has_anomaly else '0' }}" class="{{ 'mti-anom-row' if r.has_anomaly else '' }}">
                                 <td class="text-nowrap fw-semibold">
-                                    <span class="text-muted small me-1">#{{ r.unit_no }}</span>{{ r.install_date }}
+                                    <span class="text-muted small me-1">#{{ r.unit_no }}</span>{{ r.install_date }}{% if r.has_ts_seq_err %}<i class="fas fa-exclamation-triangle text-danger ms-1" style="cursor:pointer;" title="{{ r.ts_seq_msg }} (Click to edit Unit #{{ r.unit_no }})" onclick="window.openEditForUnitNo({{ r.unit_no }})"></i>{% endif %}
                                 </td>
                                 <td>
                                     <strong>{{ r.crossing_id }}</strong><br>
                                     <span class="badge bg-secondary">{{ r.design_box_id }}</span>
-                                    <span class="badge bg-info text-dark">{{ r.physical_tag }}</span>
+                                    <span class="badge {{ 'bg-danger text-white' if r.has_dup_tag else 'bg-info text-dark' }}" {% if r.has_dup_tag %}style="cursor:pointer;" title="{{ r.dup_tag_msg }} (Click to edit)" onclick="window.openEditForUnitNo({{ r.unit_no }})"{% endif %}>{{ r.physical_tag }}{% if r.has_dup_tag %} <i class="fas fa-exclamation-circle ms-1"></i>{% endif %}</span>
                                 </td>
+                            <!-- MTI_ROW_ANOM_CELLS_END -->
                                 <td class="mono">
                                     E: {{ "%.2f"|format(r.aslaid_e|float) }}<br>
                                     N: {{ "%.2f"|format(r.aslaid_n|float) }}
@@ -2308,5 +2336,294 @@ function openQrModal(){
 })();
 </script>
 <!-- MTI_REMARKS_TOGGLE_END -->
+<!-- MTI_SEQ_TAG_POPUP_START -->
+<style>
+  #mtiValPopupOverlay {
+    position: fixed; inset: 0; z-index: 10999; display: none;
+    background: rgba(15, 23, 42, 0.72); backdrop-filter: blur(2px);
+    align-items: center; justify-content: center; padding: 16px;
+  }
+  .mti-val-modal-box {
+    background: #ffffff; color: #0f172a; border: 2px solid #dc2626;
+    border-radius: 12px; max-width: 480px; width: 100%;
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.45); overflow: hidden;
+  }
+  .mti-val-modal-hdr {
+    background: #dc2626; color: #ffffff; padding: 10px 16px;
+    font-weight: 800; font-size: 14px; display: flex;
+    justify-content: space-between; align-items: center;
+  }
+  .mti-val-modal-body {
+    padding: 16px; font-size: 13.5px; line-height: 1.5;
+  }
+  .mti-anom-row {
+    background-color: rgba(254, 226, 226, 0.42) !important;
+    box-shadow: inset 4px 0 0 #dc2626;
+  }
+  .mti-input-invalid {
+    border-color: #dc2626 !important;
+    box-shadow: 0 0 0 0.2rem rgba(220, 38, 38, 0.25) !important;
+  }
+</style>
+<div id="mtiValPopupOverlay" role="alertdialog" aria-modal="true" aria-labelledby="mtiValPopupTitle">
+  <div class="mti-val-modal-box">
+    <div class="mti-val-modal-hdr">
+      <span id="mtiValPopupTitle"><i class="fas fa-exclamation-triangle me-2"></i>Mattress Fix Validation Error</span>
+      <button type="button" class="btn-close btn-close-white" style="font-size:11px;" onclick="window.closeMtiValPopup()"></button>
+    </div>
+    <div class="mti-val-modal-body">
+      <div id="mtiValPopupMsg" class="fw-bold text-danger mb-2"></div>
+      <div id="mtiValPopupHint" class="small text-secondary bg-light p-2 rounded border" style="display:none;"></div>
+      <div class="text-end mt-3">
+        <button type="button" id="btnMtiValPopupOk" class="btn btn-danger btn-sm fw-bold px-3" onclick="window.closeMtiValPopup()">OK &mdash; Correct Input</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script id="mtiSeqAndTagValidationJs">
+(function() {
+  window._mtiValFocusEl = null;
+
+  window.showMtiValPopup = function(titleTxt, mainMsg, hintMsg, focusEl) {
+    window._mtiValFocusEl = focusEl || null;
+    if (focusEl && focusEl.classList) {
+      focusEl.classList.add('mti-input-invalid');
+      focusEl.addEventListener('input', function _clr() {
+        focusEl.classList.remove('mti-input-invalid');
+        focusEl.removeEventListener('input', _clr);
+      });
+    }
+    const ov = document.getElementById('mtiValPopupOverlay');
+    const tEl = document.getElementById('mtiValPopupTitle');
+    const mEl = document.getElementById('mtiValPopupMsg');
+    const hEl = document.getElementById('mtiValPopupHint');
+    if (tEl && titleTxt) tEl.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>' + titleTxt;
+    if (mEl) mEl.textContent = mainMsg || 'Please check input fields.';
+    if (hEl) {
+      if (hintMsg) { hEl.textContent = hintMsg; hEl.style.display = 'block'; }
+      else { hEl.textContent = ''; hEl.style.display = 'none'; }
+    }
+    if (ov) {
+      ov.style.display = 'flex';
+      setTimeout(function() {
+        const okBtn = document.getElementById('btnMtiValPopupOk');
+        if (okBtn) okBtn.focus();
+      }, 30);
+    } else {
+      alert((mainMsg || '') + (hintMsg ? ('\n\n' + hintMsg) : ''));
+    }
+  };
+
+  window.closeMtiValPopup = function() {
+    const ov = document.getElementById('mtiValPopupOverlay');
+    if (ov) ov.style.display = 'none';
+    if (window._mtiValFocusEl && typeof window._mtiValFocusEl.focus === 'function') {
+      window._mtiValFocusEl.focus();
+      if (typeof window._mtiValFocusEl.select === 'function') window._mtiValFocusEl.select();
+    }
+  };
+
+  function normMattTagJs(rawTag) {
+    const s = String(rawTag || '').replace(/\s+/g, '').replace(/^#+/, '').toUpperCase();
+    if (!s || ['PENDING', 'NA', 'N/A', 'NONE', 'TBD', '-'].indexOf(s) !== -1) return '';
+    return s;
+  }
+
+  function parseStrictFixTsJs(rawTs) {
+    const s = String(rawTs || '').replace('T', ' ').replace(/\s+/g, ' ').trim();
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})(?::(\d{2}))?$/);
+    if (!m) return null;
+    const Y = parseInt(m[1], 10), M = parseInt(m[2], 10), D = parseInt(m[3], 10);
+    const hh = parseInt(m[4], 10), mm = parseInt(m[5], 10), ss = parseInt(m[6] || '0', 10);
+    if (M < 1 || M > 12 || D < 1 || D > 31 || hh < 0 || hh > 23 || mm < 0 || mm > 59 || ss < 0 || ss > 59) return null;
+    const dt = new Date(Date.UTC(Y, M - 1, D, hh, mm, ss));
+    if (dt.getUTCFullYear() !== Y || (dt.getUTCMonth() + 1) !== M || dt.getUTCDate() !== D) return null;
+    return { ms: dt.getTime(), canon: s };
+  }
+
+  window.validateMattressFixFormJs = function(formEl) {
+    if (!formEl) return true;
+    const fixIdRaw = (formEl.querySelector('[name="fix_id"]')?.value || '').trim();
+    const exId = fixIdRaw ? parseInt(fixIdRaw, 10) : null;
+    const unoEl = formEl.querySelector('[name="unit_no"]');
+    const tagEl = formEl.querySelector('[name="physical_tag"]');
+    const dtEl  = formEl.querySelector('[name="install_date"]');
+    const stEl  = formEl.querySelector('[name="status"]');
+
+    const uno = parseInt(unoEl?.value || '0', 10) || 0;
+    const rawTag = (tagEl?.value || '').trim();
+    const normTag = normMattTagJs(rawTag);
+    const dtRaw = (dtEl?.value || '').trim();
+    const stLow = String(stEl?.value || 'Completed').trim().toLowerCase();
+    const rows = Array.isArray(window.LEDGER_FIX_ROWS) ? window.LEDGER_FIX_ROWS : [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i] || {};
+      const rId = parseInt(r.id || 0, 10);
+      if (exId !== null && rId === exId) continue;
+      const rSt = String(r.status || 'Completed').trim().toLowerCase();
+      if (rSt === 'cancelled' || rSt === 'rejected') continue;
+      if (uno > 0 && parseInt(r.unit_no || 0, 10) === uno) {
+        window.showMtiValPopup(
+          'Duplicate Unit Number',
+          `Unit #${uno} is already assigned to ${r.design_box_id || ''} (${r.physical_tag || ''}).`,
+          'Use the next available Unit # for a new placement, or click Edit on the existing row.',
+          unoEl
+        );
+        return false;
+      }
+    }
+
+    if (['planned', 'cancelled', 'rejected'].indexOf(stLow) === -1 && !normTag) {
+      window.showMtiValPopup(
+        'Missing Mattress Tag ID',
+        'Mattress Tag ID is required (for example, #A046) and cannot be blank or Pending.',
+        'Enter the unique painted physical tag ID from the concrete mattress.',
+        tagEl
+      );
+      return false;
+    }
+
+    if (normTag) {
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i] || {};
+        const rId = parseInt(r.id || 0, 10);
+        if (exId !== null && rId === exId) continue;
+        const rSt = String(r.status || 'Completed').trim().toLowerCase();
+        if (rSt === 'cancelled' || rSt === 'rejected') continue;
+        if (normMattTagJs(r.physical_tag) === normTag) {
+          window.showMtiValPopup(
+            'Duplicate Mattress Tag ID',
+            `Mattress Tag #${normTag} is already assigned to Unit #${r.unit_no} (${r.design_box_id || ''}, laid ${r.install_date || ''}).`,
+            'Every installed mattress must have a unique physical Tag ID.',
+            tagEl
+          );
+          return false;
+        }
+      }
+    }
+
+    const parsedCur = parseStrictFixTsJs(dtRaw);
+    if (!parsedCur) {
+      window.showMtiValPopup(
+        'Invalid Date / Time Format',
+        `Date/Time "${dtRaw}" is not a valid 24-hour timestamp.`,
+        'Use exact format YYYY-MM-DD HH:MM (for example, 2026-11-17 03:12).',
+        dtEl
+      );
+      return false;
+    }
+
+    if (['planned', 'cancelled', 'rejected'].indexOf(stLow) === -1) {
+      let prevPeer = null, nextPeer = null;
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i] || {};
+        const rId = parseInt(r.id || 0, 10);
+        if (exId !== null && rId === exId) continue;
+        const rSt = String(r.status || 'Completed').trim().toLowerCase();
+        if (['planned', 'cancelled', 'rejected'].indexOf(rSt) !== -1) continue;
+        const pTs = parseStrictFixTsJs(r.install_date);
+        const pUno = parseInt(r.unit_no || 0, 10) || 0;
+        if (!pTs || pUno <= 0) continue;
+        if (pUno < uno && (!prevPeer || pUno > prevPeer.uno)) {
+          prevPeer = { uno: pUno, ms: pTs.ms, row: r };
+        }
+        if (pUno > uno && (!nextPeer || pUno < nextPeer.uno)) {
+          nextPeer = { uno: pUno, ms: pTs.ms, row: r };
+        }
+      }
+
+      const winParts = [];
+      if (prevPeer) winParts.push(`after #${prevPeer.uno} (${prevPeer.row.design_box_id || ''} at ${prevPeer.row.install_date})`);
+      if (nextPeer) winParts.push(`before #${nextPeer.uno} (${nextPeer.row.design_box_id || ''} at ${nextPeer.row.install_date})`);
+      const winHint = winParts.length ? (`Allowed sequence window for Unit #${uno}: ` + winParts.join(' and ') + '.') : '';
+
+      if (prevPeer && parsedCur.ms <= prevPeer.ms) {
+        window.showMtiValPopup(
+          'Date / Time Out of Sequence',
+          `Unit #${uno} (${parsedCur.canon}) must be strictly later than Unit #${prevPeer.uno} (${prevPeer.row.design_box_id || ''} at ${prevPeer.row.install_date}).`,
+          winHint,
+          dtEl
+        );
+        return false;
+      }
+      if (nextPeer && parsedCur.ms >= nextPeer.ms) {
+        window.showMtiValPopup(
+          'Date / Time Out of Sequence',
+          `Unit #${uno} (${parsedCur.canon}) must be strictly earlier than Unit #${nextPeer.uno} (${nextPeer.row.design_box_id || ''} at ${nextPeer.row.install_date}).`,
+          winHint,
+          dtEl
+        );
+        return false;
+      }
+    }
+    return true;
+  };
+
+  window.openEditForUnitNo = function(uno) {
+    const btn = document.querySelector(`button[onclick*="editFixRow"][data-unit="${uno}"]`);
+    if (btn && typeof window.editFixRow === 'function') {
+      window.editFixRow(btn);
+    }
+  };
+
+  window._mtiLedgerSortDesc = true;
+  window.toggleMtiLedgerSortOrder = function(forceDesc) {
+    const bar = document.getElementById('mtiLedgerFilterBar');
+    const tbody = bar && bar.parentElement ? bar.parentElement.querySelector('table tbody') : null;
+    if (!tbody) return;
+    if (typeof forceDesc === 'boolean') {
+      window._mtiLedgerSortDesc = forceDesc;
+    } else {
+      window._mtiLedgerSortDesc = !window._mtiLedgerSortDesc;
+    }
+    try { sessionStorage.setItem('mti_ledger_sort_desc_v1', window._mtiLedgerSortDesc ? '1' : '0'); } catch (e) {}
+    const trs = Array.from(tbody.querySelectorAll('tr')).filter(tr => tr.cells && tr.cells.length >= 4);
+    trs.sort(function(a, b) {
+      const ua = parseInt(a.dataset.unitNo || a.querySelector('button[onclick*="editFixRow"]')?.dataset.unit || '0', 10) || 0;
+      const ub = parseInt(b.dataset.unitNo || b.querySelector('button[onclick*="editFixRow"]')?.dataset.unit || '0', 10) || 0;
+      return window._mtiLedgerSortDesc ? (ub - ua) : (ua - ub);
+    });
+    trs.forEach(function(tr) { tbody.appendChild(tr); });
+    const btn = document.getElementById('btnInvertLedgerSort');
+    if (btn) {
+      btn.innerHTML = window._mtiLedgerSortDesc
+        ? '<i class="fas fa-sort-numeric-down-alt text-warning me-1"></i>Latest&rarr;Earliest'
+        : '<i class="fas fa-sort-numeric-down text-info me-1"></i>Earliest&rarr;Latest';
+    }
+  };
+
+  document.addEventListener('keydown', function(ev) {
+    const ov = document.getElementById('mtiValPopupOverlay');
+    if (ev.key === 'Escape' && ov && ov.style.display === 'flex') {
+      window.closeMtiValPopup();
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', function() {
+    const ov = document.getElementById('mtiValPopupOverlay');
+    if (ov) {
+      ov.addEventListener('click', function(ev) {
+        if (ev.target === ov) window.closeMtiValPopup();
+      });
+    }
+    document.querySelectorAll('form[action*="/mti/add_fix"]').forEach(function(f) {
+      if (f.dataset.mtiSeqTagBound === '1') return;
+      f.dataset.mtiSeqTagBound = '1';
+      f.addEventListener('submit', function(ev) {
+        if (!window.validateMattressFixFormJs(f)) {
+          ev.preventDefault();
+          ev.stopPropagation();
+        }
+      });
+    });
+    try {
+      const savedSort = sessionStorage.getItem('mti_ledger_sort_desc_v1');
+      if (savedSort === '0') window.toggleMtiLedgerSortOrder(false);
+    } catch (e) {}
+  });
+})();
+</script>
+<!-- MTI_SEQ_TAG_POPUP_END -->
 </body>
 </html>

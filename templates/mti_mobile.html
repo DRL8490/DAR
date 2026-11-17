@@ -33,6 +33,15 @@
   {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}{% for cat, msg in messages %}
     <div class="alert alert-{{ 'danger' if cat=='error' else 'success' }} py-2 fw-bold small">{{ msg }}</div>
   {% endfor %}{% endif %}{% endwith %}
+  <!-- MTI_MOB_ANOM_BANNER_START -->
+  {% set anom_units = ledger | selectattr('has_anomaly') | list %}
+  {% if anom_units %}
+  <div class="alert alert-danger py-2 px-3 small fw-bold mb-2">
+    <i class="fas fa-exclamation-triangle me-1"></i>Ledger Alert ({{ anom_units|length }}):
+    {% for ar in anom_units %}#{{ ar.unit_no }} {{ ar.design_box_id }} ({{ ar.anomaly_summary }}){% if not loop.last %}; {% endif %}{% endfor %}
+  </div>
+  {% endif %}
+  <!-- MTI_MOB_ANOM_BANNER_END -->
   <div class="row g-2 mb-3">
     <div class="col-6"><button type="button" class="tap-btn" onclick="openMobEvt('Pole down')"><i class="fas fa-arrow-down text-info fs-5"></i>Pole down</button></div>
     <div class="col-6"><button type="button" class="tap-btn" onclick="openMobEvt('Pole up')"><i class="fas fa-arrow-up text-info fs-5"></i>Pole up</button></div>
@@ -461,6 +470,7 @@ function syncDirGaps(){
   </div>
 </div>
 <script>
+window.LEDGER_FIX_ROWS = {{ ledger_json | default('[]') | safe }};
 const CATALOG = {{ catalog_json | default('[]') | safe }}, catMap = {};
 document.addEventListener('DOMContentLoaded', () => {
   const sel = document.getElementById('mCatalogSel');
@@ -780,4 +790,293 @@ document.addEventListener('DOMContentLoaded', function(){
   });
 })();
 </script>
+<!-- MTI_SEQ_TAG_POPUP_START -->
+<style>
+  #mtiValPopupOverlay {
+    position: fixed; inset: 0; z-index: 10999; display: none;
+    background: rgba(15, 23, 42, 0.72); backdrop-filter: blur(2px);
+    align-items: center; justify-content: center; padding: 16px;
+  }
+  .mti-val-modal-box {
+    background: #ffffff; color: #0f172a; border: 2px solid #dc2626;
+    border-radius: 12px; max-width: 480px; width: 100%;
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.45); overflow: hidden;
+  }
+  .mti-val-modal-hdr {
+    background: #dc2626; color: #ffffff; padding: 10px 16px;
+    font-weight: 800; font-size: 14px; display: flex;
+    justify-content: space-between; align-items: center;
+  }
+  .mti-val-modal-body {
+    padding: 16px; font-size: 13.5px; line-height: 1.5;
+  }
+  .mti-anom-row {
+    background-color: rgba(254, 226, 226, 0.42) !important;
+    box-shadow: inset 4px 0 0 #dc2626;
+  }
+  .mti-input-invalid {
+    border-color: #dc2626 !important;
+    box-shadow: 0 0 0 0.2rem rgba(220, 38, 38, 0.25) !important;
+  }
+</style>
+<div id="mtiValPopupOverlay" role="alertdialog" aria-modal="true" aria-labelledby="mtiValPopupTitle">
+  <div class="mti-val-modal-box">
+    <div class="mti-val-modal-hdr">
+      <span id="mtiValPopupTitle"><i class="fas fa-exclamation-triangle me-2"></i>Mattress Fix Validation Error</span>
+      <button type="button" class="btn-close btn-close-white" style="font-size:11px;" onclick="window.closeMtiValPopup()"></button>
+    </div>
+    <div class="mti-val-modal-body">
+      <div id="mtiValPopupMsg" class="fw-bold text-danger mb-2"></div>
+      <div id="mtiValPopupHint" class="small text-secondary bg-light p-2 rounded border" style="display:none;"></div>
+      <div class="text-end mt-3">
+        <button type="button" id="btnMtiValPopupOk" class="btn btn-danger btn-sm fw-bold px-3" onclick="window.closeMtiValPopup()">OK &mdash; Correct Input</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script id="mtiSeqAndTagValidationJs">
+(function() {
+  window._mtiValFocusEl = null;
+
+  window.showMtiValPopup = function(titleTxt, mainMsg, hintMsg, focusEl) {
+    window._mtiValFocusEl = focusEl || null;
+    if (focusEl && focusEl.classList) {
+      focusEl.classList.add('mti-input-invalid');
+      focusEl.addEventListener('input', function _clr() {
+        focusEl.classList.remove('mti-input-invalid');
+        focusEl.removeEventListener('input', _clr);
+      });
+    }
+    const ov = document.getElementById('mtiValPopupOverlay');
+    const tEl = document.getElementById('mtiValPopupTitle');
+    const mEl = document.getElementById('mtiValPopupMsg');
+    const hEl = document.getElementById('mtiValPopupHint');
+    if (tEl && titleTxt) tEl.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>' + titleTxt;
+    if (mEl) mEl.textContent = mainMsg || 'Please check input fields.';
+    if (hEl) {
+      if (hintMsg) { hEl.textContent = hintMsg; hEl.style.display = 'block'; }
+      else { hEl.textContent = ''; hEl.style.display = 'none'; }
+    }
+    if (ov) {
+      ov.style.display = 'flex';
+      setTimeout(function() {
+        const okBtn = document.getElementById('btnMtiValPopupOk');
+        if (okBtn) okBtn.focus();
+      }, 30);
+    } else {
+      alert((mainMsg || '') + (hintMsg ? ('\n\n' + hintMsg) : ''));
+    }
+  };
+
+  window.closeMtiValPopup = function() {
+    const ov = document.getElementById('mtiValPopupOverlay');
+    if (ov) ov.style.display = 'none';
+    if (window._mtiValFocusEl && typeof window._mtiValFocusEl.focus === 'function') {
+      window._mtiValFocusEl.focus();
+      if (typeof window._mtiValFocusEl.select === 'function') window._mtiValFocusEl.select();
+    }
+  };
+
+  function normMattTagJs(rawTag) {
+    const s = String(rawTag || '').replace(/\s+/g, '').replace(/^#+/, '').toUpperCase();
+    if (!s || ['PENDING', 'NA', 'N/A', 'NONE', 'TBD', '-'].indexOf(s) !== -1) return '';
+    return s;
+  }
+
+  function parseStrictFixTsJs(rawTs) {
+    const s = String(rawTs || '').replace('T', ' ').replace(/\s+/g, ' ').trim();
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})(?::(\d{2}))?$/);
+    if (!m) return null;
+    const Y = parseInt(m[1], 10), M = parseInt(m[2], 10), D = parseInt(m[3], 10);
+    const hh = parseInt(m[4], 10), mm = parseInt(m[5], 10), ss = parseInt(m[6] || '0', 10);
+    if (M < 1 || M > 12 || D < 1 || D > 31 || hh < 0 || hh > 23 || mm < 0 || mm > 59 || ss < 0 || ss > 59) return null;
+    const dt = new Date(Date.UTC(Y, M - 1, D, hh, mm, ss));
+    if (dt.getUTCFullYear() !== Y || (dt.getUTCMonth() + 1) !== M || dt.getUTCDate() !== D) return null;
+    return { ms: dt.getTime(), canon: s };
+  }
+
+  window.validateMattressFixFormJs = function(formEl) {
+    if (!formEl) return true;
+    const fixIdRaw = (formEl.querySelector('[name="fix_id"]')?.value || '').trim();
+    const exId = fixIdRaw ? parseInt(fixIdRaw, 10) : null;
+    const unoEl = formEl.querySelector('[name="unit_no"]');
+    const tagEl = formEl.querySelector('[name="physical_tag"]');
+    const dtEl  = formEl.querySelector('[name="install_date"]');
+    const stEl  = formEl.querySelector('[name="status"]');
+
+    const uno = parseInt(unoEl?.value || '0', 10) || 0;
+    const rawTag = (tagEl?.value || '').trim();
+    const normTag = normMattTagJs(rawTag);
+    const dtRaw = (dtEl?.value || '').trim();
+    const stLow = String(stEl?.value || 'Completed').trim().toLowerCase();
+    const rows = Array.isArray(window.LEDGER_FIX_ROWS) ? window.LEDGER_FIX_ROWS : [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i] || {};
+      const rId = parseInt(r.id || 0, 10);
+      if (exId !== null && rId === exId) continue;
+      const rSt = String(r.status || 'Completed').trim().toLowerCase();
+      if (rSt === 'cancelled' || rSt === 'rejected') continue;
+      if (uno > 0 && parseInt(r.unit_no || 0, 10) === uno) {
+        window.showMtiValPopup(
+          'Duplicate Unit Number',
+          `Unit #${uno} is already assigned to ${r.design_box_id || ''} (${r.physical_tag || ''}).`,
+          'Use the next available Unit # for a new placement, or click Edit on the existing row.',
+          unoEl
+        );
+        return false;
+      }
+    }
+
+    if (['planned', 'cancelled', 'rejected'].indexOf(stLow) === -1 && !normTag) {
+      window.showMtiValPopup(
+        'Missing Mattress Tag ID',
+        'Mattress Tag ID is required (for example, #A046) and cannot be blank or Pending.',
+        'Enter the unique painted physical tag ID from the concrete mattress.',
+        tagEl
+      );
+      return false;
+    }
+
+    if (normTag) {
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i] || {};
+        const rId = parseInt(r.id || 0, 10);
+        if (exId !== null && rId === exId) continue;
+        const rSt = String(r.status || 'Completed').trim().toLowerCase();
+        if (rSt === 'cancelled' || rSt === 'rejected') continue;
+        if (normMattTagJs(r.physical_tag) === normTag) {
+          window.showMtiValPopup(
+            'Duplicate Mattress Tag ID',
+            `Mattress Tag #${normTag} is already assigned to Unit #${r.unit_no} (${r.design_box_id || ''}, laid ${r.install_date || ''}).`,
+            'Every installed mattress must have a unique physical Tag ID.',
+            tagEl
+          );
+          return false;
+        }
+      }
+    }
+
+    const parsedCur = parseStrictFixTsJs(dtRaw);
+    if (!parsedCur) {
+      window.showMtiValPopup(
+        'Invalid Date / Time Format',
+        `Date/Time "${dtRaw}" is not a valid 24-hour timestamp.`,
+        'Use exact format YYYY-MM-DD HH:MM (for example, 2026-11-17 03:12).',
+        dtEl
+      );
+      return false;
+    }
+
+    if (['planned', 'cancelled', 'rejected'].indexOf(stLow) === -1) {
+      let prevPeer = null, nextPeer = null;
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i] || {};
+        const rId = parseInt(r.id || 0, 10);
+        if (exId !== null && rId === exId) continue;
+        const rSt = String(r.status || 'Completed').trim().toLowerCase();
+        if (['planned', 'cancelled', 'rejected'].indexOf(rSt) !== -1) continue;
+        const pTs = parseStrictFixTsJs(r.install_date);
+        const pUno = parseInt(r.unit_no || 0, 10) || 0;
+        if (!pTs || pUno <= 0) continue;
+        if (pUno < uno && (!prevPeer || pUno > prevPeer.uno)) {
+          prevPeer = { uno: pUno, ms: pTs.ms, row: r };
+        }
+        if (pUno > uno && (!nextPeer || pUno < nextPeer.uno)) {
+          nextPeer = { uno: pUno, ms: pTs.ms, row: r };
+        }
+      }
+
+      const winParts = [];
+      if (prevPeer) winParts.push(`after #${prevPeer.uno} (${prevPeer.row.design_box_id || ''} at ${prevPeer.row.install_date})`);
+      if (nextPeer) winParts.push(`before #${nextPeer.uno} (${nextPeer.row.design_box_id || ''} at ${nextPeer.row.install_date})`);
+      const winHint = winParts.length ? (`Allowed sequence window for Unit #${uno}: ` + winParts.join(' and ') + '.') : '';
+
+      if (prevPeer && parsedCur.ms <= prevPeer.ms) {
+        window.showMtiValPopup(
+          'Date / Time Out of Sequence',
+          `Unit #${uno} (${parsedCur.canon}) must be strictly later than Unit #${prevPeer.uno} (${prevPeer.row.design_box_id || ''} at ${prevPeer.row.install_date}).`,
+          winHint,
+          dtEl
+        );
+        return false;
+      }
+      if (nextPeer && parsedCur.ms >= nextPeer.ms) {
+        window.showMtiValPopup(
+          'Date / Time Out of Sequence',
+          `Unit #${uno} (${parsedCur.canon}) must be strictly earlier than Unit #${nextPeer.uno} (${nextPeer.row.design_box_id || ''} at ${nextPeer.row.install_date}).`,
+          winHint,
+          dtEl
+        );
+        return false;
+      }
+    }
+    return true;
+  };
+
+  window.openEditForUnitNo = function(uno) {
+    const btn = document.querySelector(`button[onclick*="editFixRow"][data-unit="${uno}"]`);
+    if (btn && typeof window.editFixRow === 'function') {
+      window.editFixRow(btn);
+    }
+  };
+
+  window._mtiLedgerSortDesc = true;
+  window.toggleMtiLedgerSortOrder = function(forceDesc) {
+    const bar = document.getElementById('mtiLedgerFilterBar');
+    const tbody = bar && bar.parentElement ? bar.parentElement.querySelector('table tbody') : null;
+    if (!tbody) return;
+    if (typeof forceDesc === 'boolean') {
+      window._mtiLedgerSortDesc = forceDesc;
+    } else {
+      window._mtiLedgerSortDesc = !window._mtiLedgerSortDesc;
+    }
+    try { sessionStorage.setItem('mti_ledger_sort_desc_v1', window._mtiLedgerSortDesc ? '1' : '0'); } catch (e) {}
+    const trs = Array.from(tbody.querySelectorAll('tr')).filter(tr => tr.cells && tr.cells.length >= 4);
+    trs.sort(function(a, b) {
+      const ua = parseInt(a.dataset.unitNo || a.querySelector('button[onclick*="editFixRow"]')?.dataset.unit || '0', 10) || 0;
+      const ub = parseInt(b.dataset.unitNo || b.querySelector('button[onclick*="editFixRow"]')?.dataset.unit || '0', 10) || 0;
+      return window._mtiLedgerSortDesc ? (ub - ua) : (ua - ub);
+    });
+    trs.forEach(function(tr) { tbody.appendChild(tr); });
+    const btn = document.getElementById('btnInvertLedgerSort');
+    if (btn) {
+      btn.innerHTML = window._mtiLedgerSortDesc
+        ? '<i class="fas fa-sort-numeric-down-alt text-warning me-1"></i>Latest&rarr;Earliest'
+        : '<i class="fas fa-sort-numeric-down text-info me-1"></i>Earliest&rarr;Latest';
+    }
+  };
+
+  document.addEventListener('keydown', function(ev) {
+    const ov = document.getElementById('mtiValPopupOverlay');
+    if (ev.key === 'Escape' && ov && ov.style.display === 'flex') {
+      window.closeMtiValPopup();
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', function() {
+    const ov = document.getElementById('mtiValPopupOverlay');
+    if (ov) {
+      ov.addEventListener('click', function(ev) {
+        if (ev.target === ov) window.closeMtiValPopup();
+      });
+    }
+    document.querySelectorAll('form[action*="/mti/add_fix"]').forEach(function(f) {
+      if (f.dataset.mtiSeqTagBound === '1') return;
+      f.dataset.mtiSeqTagBound = '1';
+      f.addEventListener('submit', function(ev) {
+        if (!window.validateMattressFixFormJs(f)) {
+          ev.preventDefault();
+          ev.stopPropagation();
+        }
+      });
+    });
+    try {
+      const savedSort = sessionStorage.getItem('mti_ledger_sort_desc_v1');
+      if (savedSort === '0') window.toggleMtiLedgerSortOrder(false);
+    } catch (e) {}
+  });
+})();
+</script>
+<!-- MTI_SEQ_TAG_POPUP_END -->
 </body></html>
