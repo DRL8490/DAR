@@ -280,8 +280,9 @@ def generate_a3_4panel_chart(
         p2_rect = [278.0 / W_MM, 41.0 / H_MM, 106.0 / W_MM, 217.0 / H_MM]
         p2_w_mm, p2_h_mm = 106.0, 217.0
         cax_rect = [386.8 / W_MM, 41.0 / H_MM, 3.2 / W_MM, 217.0 / H_MM]
-        p3_rect = [46.0 / W_MM, 41.0 / H_MM, 58.1 / W_MM, 61.6 / H_MM]
-        p4_rect = [162.0 / W_MM, 41.0 / H_MM, 58.1 / W_MM, 61.6 / H_MM]
+        p3_w_mm, p4_w_mm = 62.0, 150.0
+        p3_rect = [28.0 / W_MM, 41.0 / H_MM, p3_w_mm / W_MM, 61.6 / H_MM]
+        p4_rect = [114.0 / W_MM, 41.0 / H_MM, p4_w_mm / W_MM, 61.6 / H_MM]
     else:
         ax1 = fig.add_axes([33.0 / W_MM, 41.0 / H_MM, 128.0 / W_MM, 219.0 / H_MM])
         hw1, hh1 = (128.0 / 1000.0) * float(scale_p1) / 2.0, (219.0 / 1000.0) * float(scale_p1) / 2.0
@@ -337,8 +338,9 @@ def generate_a3_4panel_chart(
         p2_rect = [179.0 / W_MM, 41.0 / H_MM, 128.0 / W_MM, 219.0 / H_MM]
         p2_w_mm, p2_h_mm = 128.0, 219.0
         cax_rect = [309.8 / W_MM, 41.0 / H_MM, 3.2 / W_MM, 219.0 / H_MM]
-        p3_rect = [341.9 / W_MM, 163.9 / H_MM, 58.1 / W_MM, 61.6 / H_MM]
-        p4_rect = [341.9 / W_MM, 75.5 / H_MM, 58.1 / W_MM, 61.6 / H_MM]
+        p3_w_mm, p4_w_mm = 58.1, 58.1
+        p3_rect = [341.9 / W_MM, 163.9 / H_MM, p3_w_mm / W_MM, 61.6 / H_MM]
+        p4_rect = [341.9 / W_MM, 75.5 / H_MM, p4_w_mm / W_MM, 61.6 / H_MM]
 
     # PANEL 2: LOCAL PLAN VIEW (Centered on As-Laid Center Point, with Rotated Grid North Arrow)
     ax2 = fig.add_axes(p2_rect)
@@ -454,8 +456,13 @@ def generate_a3_4panel_chart(
     cy_prof = float(metrics.get("d_along_m", 0.0))
     x_prof_al = np.asarray(x_local, dtype=float) - cx_prof
     y_prof_al = np.asarray(y_local, dtype=float) - cy_prof
-    if "sb_p2_xyz" in locals() and len(sb_p2_xyz) >= 1:
-        sb_prof_arr = np.asarray(sb_p2_xyz, dtype=float)
+    as_e_prof = float(metrics.get("aslaid_e", des_e))
+    as_n_prof = float(metrics.get("aslaid_n", des_n))
+    if seabed_full_xyz is not None and len(seabed_full_xyz) >= 1:
+        sb_d_pr = np.asarray(seabed_full_xyz, dtype=float)[:, :2] - np.array([as_e_prof, as_n_prof])
+        sb_x_pr, sb_y_pr = sb_d_pr @ tb["u_short"], sb_d_pr @ tb["u_long"]
+        m_pr = (np.abs(sb_x_pr) <= 22.0) & (np.abs(sb_y_pr) <= 16.0)
+        sb_prof_arr = np.column_stack([sb_x_pr[m_pr], sb_y_pr[m_pr], seabed_full_xyz[m_pr, 2]]) if np.any(m_pr) else np.column_stack([sb_x_pr, sb_y_pr, seabed_full_xyz[:, 2]])
     elif seabed_local_xyz is not None and len(seabed_local_xyz) >= 1:
         sb_prof_arr = np.asarray(seabed_local_xyz, dtype=float).copy()
         sb_prof_arr[:, 0] -= cx_prof
@@ -463,12 +470,18 @@ def generate_a3_4panel_chart(
     else:
         sb_prof_arr = np.zeros((0, 3), dtype=float)
 
-    for ax_p, coord_arr, des_shift, lim_x, edge_v, is_long, ttl_top, x_lbl in [
-        (fig.add_axes(p3_rect), y_prof_al, -cy_prof, (-3.486, 3.486), 3.0, True, "PANEL 3: LONGITUDINAL (SSW -> NNE)", "Along-Track Y_local from As-Laid (m)"),
-        (fig.add_axes(p4_rect), x_prof_al, -cx_prof, (-3.486, 3.486), 1.5, False, "PANEL 4: LATERAL (WNW -> ESE)", "Cross-Track X_local from As-Laid (m)")
+    hw_p3_120 = (p3_w_mm / 1000.0) * 120.0 / 2.0
+    hw_p4_120 = (p4_w_mm / 1000.0) * 120.0 / 2.0
+    hw_p3 = max(hw_p3_120, abs(cy_prof) + 3.0 + 0.35) if is_split_a3b3 else hw_p3_120
+    hw_p4 = max(hw_p4_120, abs(cx_prof) + 1.5 + 0.60) if is_split_a3b3 else hw_p4_120
+
+    for ax_p, w_mm_p, coord_arr, des_shift, lim_x, edge_v, is_long, ttl_top, x_lbl in [
+        (fig.add_axes(p3_rect), p3_w_mm, y_prof_al, -cy_prof, (-hw_p3, hw_p3), 3.0, True, "PANEL 3: LONGITUDINAL (SSW -> NNE)", "Along-Track Y_local from As-Laid (m)"),
+        (fig.add_axes(p4_rect), p4_w_mm, x_prof_al, -cx_prof, (-hw_p4, hw_p4), 1.5, False, "PANEL 4: LATERAL (WNW -> ESE)", "Cross-Track X_local from As-Laid (m)")
     ]:
         ax_p.scatter(coord_arr, z_vals, c=z_vals, cmap="turbo", vmin=vmin_c, vmax=vmax_c, s=9, alpha=0.85, label="Mattress Surface", clip_on=True)
-        xs_l = np.linspace(lim_x[0], lim_x[1], 40)
+        n_prof_pts = 80 if (lim_x[1] - lim_x[0]) > 10.0 else 40
+        xs_l = np.linspace(lim_x[0], lim_x[1], n_prof_pts)
         if bathy_src == "SURVEY_BATHY" and len(sb_prof_arr) >= 1:
             q_prof = np.column_stack([np.zeros_like(xs_l), xs_l]) if is_long else np.column_stack([xs_l, np.zeros_like(xs_l)])
             z_prof = idw_interpolate(sb_prof_arr[:, :2], sb_prof_arr[:, 2], q_prof)
@@ -478,20 +491,21 @@ def generate_a3_4panel_chart(
         else:
             z_center = z_mean
             half_win = 0.616
+        h_sc_lbl = int(round(((lim_x[1] - lim_x[0]) / (w_mm_p / 1000.0)) / 5.0) * 5)
         v_sc_lbl = int(round((2.0 * half_win) / (61.6 / 1000.0)))
-        ttl = ttl_top + chr(10) + f"H 1:120 | V 1:{v_sc_lbl} @ A3"
+        ttl = ttl_top + chr(10) + f"H 1:{h_sc_lbl} | V 1:{v_sc_lbl} @ A3"
         if z_center <= 0:
             y_bottom, y_top = z_center - half_win, z_center + half_win
         else:
             y_bottom, y_top = z_center + half_win, z_center - half_win
 
-        ax_p.plot([-edge_v, -edge_v], [y_bottom, y_top], color="#16a34a", ls="--", lw=1.15, label=f"As-Laid (+/-{edge_v:.1f}m)", clip_on=True)
-        ax_p.plot([edge_v, edge_v], [y_bottom, y_top], color="#16a34a", ls="--", lw=1.15, clip_on=True)
+        ax_p.plot([-edge_v, -edge_v], [y_bottom, y_top], color="#16a34a", ls="--", lw=1.2, label=f"As-Laid (+/-{edge_v:.1f}m)", clip_on=True)
+        ax_p.plot([edge_v, edge_v], [y_bottom, y_top], color="#16a34a", ls="--", lw=1.2, clip_on=True)
 
         des_labeled = False
         for dx_e in (des_shift - edge_v, des_shift + edge_v):
             if lim_x[0] <= dx_e <= lim_x[1]:
-                ax_p.plot([dx_e, dx_e], [y_bottom, y_top], color="#dc2626", ls=":", lw=1.05, label=(None if des_labeled else "Design Box"), clip_on=True)
+                ax_p.plot([dx_e, dx_e], [y_bottom, y_top], color="#dc2626", ls="--", lw=1.1, label=(None if des_labeled else f"Design (+/-{edge_v:.1f}m)"), clip_on=True)
                 des_labeled = True
 
         ax_p.set_xlim(*lim_x); ax_p.set_ylim(y_bottom, y_top)
