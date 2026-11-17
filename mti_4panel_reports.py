@@ -5,7 +5,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.backends.backend_pdf import PdfPages
-from mti_4panel_math import fmt_knots, format_remarks_knots
+from mti_4panel_math import fmt_knots, format_remarks_knots, compute_cl_offset_metrics
 
 try:
     from mti_4panel_math import resolve_full_surveyor_name
@@ -107,6 +107,40 @@ def _parse_fix_dt_tuple(dt_raw):
         hh, mm, ss = int(m_t.group(1)), int(m_t.group(2)), int(m_t.group(3) or 0)
         return (d_iso, f"{hh:02d}:{mm:02d}:{ss:02d}")
     return (d_iso, "23:59:59")
+
+# --- MTI_REPORT_ROW_OFFSET_HELPER_START ---
+def _eval_report_row_offset(r):
+    b_id = str(r.get("design_box_id") or r.get("location_id") or "").strip().upper()
+    uno = int(float(r.get("unit_no") or 0))
+    g_lbl = str(r.get("gap_labels") or "")
+    tag_s = str(r.get("physical_tag") or r.get("mattress_id") or "").replace("#", "").strip().upper()
+    is_f = bool(r.get("is_first_in_array")) or (uno == 1) or ("1st unit" in g_lbl.lower()) or (b_id.endswith("_M15") and tag_s == "A046")
+    if r.get("offset_mode") in ("RADIAL", "PERP") and r.get("cl_offset_m") is not None:
+        return float(r.get("cl_offset_m") or 0.0), is_f
+    ae, an = float(r.get("aslaid_e") or 0.0), float(r.get("aslaid_n") or 0.0)
+    de, dn = float(r.get("design_e") or 0.0), float(r.get("design_n") or 0.0)
+    dbrg = float(r.get("design_brg") or r.get("heading_deg") or 0.0)
+    cat_m = {}
+    if abs(ae) > 1000.0 and (abs(de) < 1000.0 or abs(dbrg) < 1e-3):
+        try:
+            import mti_blueprint as _mb
+            cat_m = _mb._merged_cat_map() if hasattr(_mb, "_merged_cat_map") else {}
+            c_it = cat_m.get(b_id) or {}
+            de = de if abs(de) > 1000.0 else float(c_it.get("design_e") or 0.0)
+            dn = dn if abs(dn) > 1000.0 else float(c_it.get("design_n") or 0.0)
+            dbrg = dbrg if abs(dbrg) > 1e-3 else float(c_it.get("bearing") or 195.854)
+        except Exception:
+            pass
+    if abs(ae) > 1000.0 and abs(de) > 1000.0:
+        info = compute_cl_offset_metrics(ae, an, de, dn, dbrg or 195.854, is_first=is_f, box_id=b_id, catalog_map=cat_m or None)
+        return float(info["cl_offset_m"]), is_f
+    return float(r.get("cl_offset_m") or 0.0), is_f
+
+def _fmt_report_row_dcl(r, decimals=3):
+    val, is_f = _eval_report_row_offset(r)
+    tag = "R" if is_f else "P"
+    return f"{val:.{decimals}f} ({tag})"
+# --- MTI_REPORT_ROW_OFFSET_HELPER_END ---
 
 def _format_unit_gaps_clean(val_or_row):
     if isinstance(val_or_row, dict):
@@ -273,6 +307,8 @@ def _collect_placed_mattresses_up_to_cutoff(ledger_list, cutoff_dt_str, current_
                     r["aslaid_n"] = current_metrics["aslaid_n"]
                 if current_metrics.get("cl_offset_m") is not None:
                     r["cl_offset_m"] = current_metrics["cl_offset_m"]
+                if current_metrics.get("offset_mode"):
+                    r["offset_mode"] = current_metrics["offset_mode"]
                 if current_metrics.get("gap_labels"):
                     r["gap_labels"] = current_metrics["gap_labels"]
                 if "is_first_in_array" in current_metrics:
@@ -593,7 +629,13 @@ def build_structured_report_markdown(metrics, include_history=True, ledger_list=
         ["Northing N (m, TWD97)", f"{metrics.get('design_n',0):.3f}", f"{metrics.get('qaqc_n',0):.3f}", f"{metrics.get('aslaid_n',0):.3f}", f"{metrics.get('aslaid_n',0)-metrics.get('design_n',0):+.3f} m"],
         ["Depth Z (m, TWVD2001)", "Seabed + 0.30 m", "-", f"{metrics.get('aslaid_z',-18.2):.2f}", "WROV 4-Corner Mean"],
         ["South Bearing (deg)", f"{metrics.get('design_brg',0):.2f}", f"{metrics.get('qaqc_brg',0):.2f}", f"{metrics.get('heading_deg',0):.2f}", f"{metrics.get('brg_diff_deg',0):+.2f} deg"],
-        ["Radial Offset dCL (m)", f"<= {cl_tol:.2f} m", "-", f"{cl_off:.3f} m", f"{cl_st} (dAl {metrics.get('d_along_m',0):+.2f}, dCr {metrics.get('d_cross_m',0):+.2f}m)"],
+        [
+            "1st Unit Radial dCL (m)" if is_first else "Perp CL Offset dCL (m)",
+            f"<= {cl_tol:.2f} m ({'Rad' if is_first else 'Perp'})",
+            "-",
+            f"{cl_off:.3f} m (Radial)" if is_first else f"{cl_off:.3f} m (Rad {float(metrics.get('radial_offset_m', cl_off)):.2f}m)",
+            f"{cl_st} (dAl {metrics.get('d_along_m',0):+.2f}, dCr {metrics.get('d_cross_m',0):+.2f}m)",
+        ],
         ["Side-to-Side Gap (m)", f"<= {g_tol:.2f} m", "-", clean_cur_gaps, gap_st],
     ]
 
@@ -633,7 +675,7 @@ def build_structured_report_markdown(metrics, include_history=True, ledger_list=
                 str(r.get("physical_tag") or "-").strip() or "-",
                 f"{float(r.get('aslaid_e') or 0):.3f}",
                 f"{float(r.get('aslaid_n') or 0):.3f}",
-                f"{float(r.get('cl_offset_m') or 0):.3f}",
+                _fmt_report_row_dcl(r, 3),
                 _format_unit_gaps_clean(r),
             ])
         lines.extend([
@@ -704,9 +746,9 @@ def render_a4_landscape_figures(metrics, custom_report_md=None, ledger_list=None
         n_c = len(hdr_cells)
         is_placed_tbl = tbl_kind in ("placed_units_9", "placed_units_8")
         if tbl_kind == "geodetic":
-            edges = [13.0, 69.0, 115.0, 157.0, 216.0, 284.0]
+            edges = [13.0, 68.0, 110.0, 148.0, 205.0, 284.0]
             aligns = ["left", "center", "center", "center", "left"]
-            max_lens = [34, 24, 20, 34, 38]
+            max_lens = [34, 24, 20, 32, 46]
             bold_cols = (0,)
         elif tbl_kind == "placed_units_9":
             edges = [13.0, 26.0, 60.0, 84.0, 112.0, 132.0, 161.0, 192.0, 213.0, 284.0]
@@ -861,7 +903,7 @@ def render_a4_landscape_figures(metrics, custom_report_md=None, ledger_list=None
                         str(r_u.get("physical_tag") or "-").strip() or "-",
                         f"{float(r_u.get('aslaid_e') or 0):.3f}",
                         f"{float(r_u.get('aslaid_n') or 0):.3f}",
-                        f"{float(r_u.get('cl_offset_m') or 0):.3f}",
+                        _fmt_report_row_dcl(r_u, 3),
                         _format_unit_gaps_clean(r_u),
                     ])
                 _draw_boxed_md_table("placed_units_9", h_norm, d_norm)
@@ -1025,7 +1067,7 @@ def generate_mti_dpr_pdf(st_data, target_date_str=None, surveyor_name="Duty Surv
                 f"#{r.get('unit_no','')}", t_hm, str(r.get("crossing_id") or "")[:10],
                 str(r.get("design_box_id") or "")[:12], str(r.get("physical_tag") or "")[:8],
                 f"{float(r.get('aslaid_e') or 0):.3f}", f"{float(r.get('aslaid_n') or 0):.3f}",
-                f"{float(r.get('heading_deg') or 0):.1f} deg", f"{float(r.get('cl_offset_m') or 0):.2f} m",
+                f"{float(r.get('heading_deg') or 0):.1f} deg", _fmt_report_row_dcl(r, 2),
                 f"{_format_unit_gaps_clean(r)} | {r.get('status','Completed')}"[:42],
             ]
             fx_col = get_crossing_group_color(r.get("crossing_id") or r.get("design_box_id"), default="#1e293b")
@@ -1162,7 +1204,7 @@ def generate_editable_docx(metrics, report_md, workspace_dir="workspace", ledger
             return
         n_cols = len(pending_tbl_rows[0][0])
         if pending_tbl_kind == "geodetic":
-            widths = [3200, 2600, 2400, 3400, 3800]
+            widths = [3100, 2300, 2000, 3400, 4600]
             aligns = ["left", "center", "center", "center", "left"]
         elif pending_tbl_kind == "placed_units_9":
             widths = [850, 2100, 1450, 1650, 1150, 1750, 1800, 1100, 3550]

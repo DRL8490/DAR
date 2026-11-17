@@ -161,11 +161,14 @@ def generate_a3_4panel_chart(
 
     ax_bg.text(113, 23.5, f"DESIGN ({loc_id}): E {metrics['design_e']:.3f} m, N {metrics['design_n']:.3f} m", fontsize=6.8, fontweight="bold", color="#0f172a")
     ax_bg.text(113, 19.5, f"AS-LAID ({mat_id}): E {metrics['aslaid_e']:.3f} m, N {metrics['aslaid_n']:.3f} m (Z: {metrics['aslaid_z']:.2f}m)", fontsize=6.4, color="#0369a1")
-    ax_bg.text(113, 15.8, f"dCL OFFSET: {metrics['cl_offset_m']:.3f} m (Tol +/-{cl_tol:.2f}m | dAl {metrics['d_along_m']:+.2f}, dCr {metrics['d_cross_m']:+.2f}m)", fontsize=6.3, fontweight="bold", color="#15803d" if metrics["cl_offset_m"] <= cl_tol else "#b91c1c")
+    off_lbl_a3 = "RADIAL dCL" if is_first else "PERP dCL"
+    ax_bg.text(113, 15.8, f"{off_lbl_a3}: {metrics['cl_offset_m']:.3f} m (Tol <={cl_tol:.2f}m | dAl {metrics['d_along_m']:+.2f}, dCr {metrics['d_cross_m']:+.2f}m)", fontsize=6.2, fontweight="bold", color="#15803d" if metrics["cl_offset_m"] <= cl_tol else "#b91c1c")
 
+    gap_ok_a3 = is_first or (float(metrics.get("max_gap_m") or 0.0) <= gap_tol)
     ax_bg.text(217, 23.5, f"SOUTH BRG: Des {metrics['design_brg']:.2f} deg | Act {metrics['heading_deg']:.2f} deg (dBrg {metrics['brg_diff_deg']:+.2f} deg)", fontsize=6.4, fontweight="bold", color="#0f172a")
-    ax_bg.text(217, 19.5, f"CORNER GAPS: {'1st Unit (N/A)' if is_first else metrics['gap_labels'][:36]}", fontsize=6.3, fontweight="bold", color="#0369a1" if not is_first else "#334155")
-    ax_bg.text(217, 15.8, f"TOLERANCE: Centerline +/-{cl_tol:.2f} m | Side-to-Side Gap <= {gap_tol:.2f} m", fontsize=6.2, fontweight="bold", color="#15803d")
+    ax_bg.text(217, 19.5, f"CORNER GAPS: {'1st Unit (N/A)' if is_first else metrics['gap_labels'][:36]}", fontsize=6.3, fontweight="bold", color="#334155" if is_first else ("#0369a1" if gap_ok_a3 else "#b91c1c"))
+    tol_rule_txt = f"TOLERANCE: 1st Radial <= {cl_tol:.2f} m | Gap: N/A (1st Unit)" if is_first else f"TOLERANCE: Perp CL <= {cl_tol:.2f} m | Side Gap <= {gap_tol:.2f} m"
+    ax_bg.text(217, 15.8, tol_rule_txt, fontsize=6.1, fontweight="bold", color="#15803d")
 
     ax_bg.text(314.5, 23.5, f"PLACEMENT DATE/TIME: {metrics['install_date']}", fontsize=6.3, fontweight="bold", color="#0f172a")
     ax_bg.text(314.5, 19.5, f"SURVEYOR: {surv_name} | STATUS: {metrics['status']}", fontsize=6.2, fontweight="bold", color="#0369a1")

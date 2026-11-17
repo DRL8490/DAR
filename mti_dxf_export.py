@@ -513,7 +513,8 @@ def _render_axes_chrome_and_texts_mm(psp, ax, px_to_mm, layer_name, include_data
                 hb = h_art.get_window_extent()
                 hx0, hy0, hx1, hy1 = hb.x0 * px_to_mm, hb.y0 * px_to_mm, hb.x1 * px_to_mm, hb.y1 * px_to_mm
                 h_col = _rgb_tuple(getattr(h_art, "get_edgecolor", lambda: (2, 132, 199))(), None) or _rgb_tuple(getattr(h_art, "get_color", lambda: (2, 132, 199))(), (2, 132, 199))
-                psp.add_line((hx0, 0.5 * (hy0 + hy1)), (hx1, 0.5 * (hy0 + hy1)), dxfattribs={"layer": layer_name, "true_color": ezdxf.rgb2int(h_col or (2, 132, 199))})
+                if all(math.isfinite(_v) for _v in (hx0, hy0, hx1, hy1)):
+                    psp.add_line((hx0, 0.5 * (hy0 + hy1)), (hx1, 0.5 * (hy0 + hy1)), dxfattribs={"layer": layer_name, "true_color": ezdxf.rgb2int(h_col or (2, 132, 199))})
 
 def _add_locked_viewport(psp, doc, bbox_mm, target_e, target_n, view_h_m, twist_deg=0.0, frozen_layers=None):
     vp_layer = _ensure_layer(doc, "00_VIEWPORTS", (100, 116, 139))
