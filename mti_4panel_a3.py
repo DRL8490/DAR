@@ -450,17 +450,29 @@ def generate_a3_4panel_chart(
     ax2.set_xlabel("Cross-Track X_local from As-Laid Center (m, WNW -1.5m to ESE +1.5m)", fontsize=6.4, fontweight="bold"); ax2.set_ylabel("Along-Track Y_local from As-Laid Center (m, SSW -3.0m to NNE +3.0m)", fontsize=6.4, fontweight="bold")
     ax2.tick_params(labelsize=5.8); ax2.grid(True, linestyle=":", linewidth=0.45, color="#cbd5e1")
 
-    sb_loc_arr = np.asarray(seabed_local_xyz, dtype=float)
-    for ax_p, coord_arr, lim_x, edge_v, is_long, ttl_top, x_lbl in [
-        (fig.add_axes(p3_rect), y_local, (-3.486, 3.486), 3.0, True, "PANEL 3: LONGITUDINAL (SSW -> NNE)", "Along-Track Y_local (m)"),
-        (fig.add_axes(p4_rect), x_local, (-3.486, 3.486), 1.5, False, "PANEL 4: LATERAL (WNW -> ESE)", "Cross-Track X_local (m)")
+    cx_prof = float(metrics.get("d_cross_m", 0.0))
+    cy_prof = float(metrics.get("d_along_m", 0.0))
+    x_prof_al = np.asarray(x_local, dtype=float) - cx_prof
+    y_prof_al = np.asarray(y_local, dtype=float) - cy_prof
+    if "sb_p2_xyz" in locals() and len(sb_p2_xyz) >= 1:
+        sb_prof_arr = np.asarray(sb_p2_xyz, dtype=float)
+    elif seabed_local_xyz is not None and len(seabed_local_xyz) >= 1:
+        sb_prof_arr = np.asarray(seabed_local_xyz, dtype=float).copy()
+        sb_prof_arr[:, 0] -= cx_prof
+        sb_prof_arr[:, 1] -= cy_prof
+    else:
+        sb_prof_arr = np.zeros((0, 3), dtype=float)
+
+    for ax_p, coord_arr, des_shift, lim_x, edge_v, is_long, ttl_top, x_lbl in [
+        (fig.add_axes(p3_rect), y_prof_al, -cy_prof, (-3.486, 3.486), 3.0, True, "PANEL 3: LONGITUDINAL (SSW -> NNE)", "Along-Track Y_local from As-Laid (m)"),
+        (fig.add_axes(p4_rect), x_prof_al, -cx_prof, (-3.486, 3.486), 1.5, False, "PANEL 4: LATERAL (WNW -> ESE)", "Cross-Track X_local from As-Laid (m)")
     ]:
-        ax_p.scatter(coord_arr, z_vals, c=z_vals, cmap="turbo", vmin=vmin_c, vmax=vmax_c, s=9, alpha=0.85, label="Mattress Surface")
+        ax_p.scatter(coord_arr, z_vals, c=z_vals, cmap="turbo", vmin=vmin_c, vmax=vmax_c, s=9, alpha=0.85, label="Mattress Surface", clip_on=True)
         xs_l = np.linspace(lim_x[0], lim_x[1], 40)
-        if bathy_src == "SURVEY_BATHY" and len(sb_loc_arr) >= 1:
+        if bathy_src == "SURVEY_BATHY" and len(sb_prof_arr) >= 1:
             q_prof = np.column_stack([np.zeros_like(xs_l), xs_l]) if is_long else np.column_stack([xs_l, np.zeros_like(xs_l)])
-            z_prof = idw_interpolate(sb_loc_arr[:, :2], sb_loc_arr[:, 2], q_prof)
-            ax_p.plot(xs_l, z_prof, "--", color="#0284c7", lw=1.25, label="Survey Seabed Profile")
+            z_prof = idw_interpolate(sb_prof_arr[:, :2], sb_prof_arr[:, 2], q_prof)
+            ax_p.plot(xs_l, z_prof, "--", color="#0284c7", lw=1.25, label="Survey Seabed Profile", clip_on=True)
             z_center = 0.5 * (float(np.mean(z_vals)) + float(np.mean(z_prof)))
             half_win = max(0.616, 0.5 * abs(float(np.max(z_prof) - np.min(z_vals))) + 0.32)
         else:
@@ -472,10 +484,19 @@ def generate_a3_4panel_chart(
             y_bottom, y_top = z_center - half_win, z_center + half_win
         else:
             y_bottom, y_top = z_center + half_win, z_center - half_win
-        ax_p.axvline(-edge_v, color="#dc2626", ls="--", lw=1.1, label=f"Design (+/-{edge_v:.1f}m)"); ax_p.axvline(edge_v, color="#dc2626", ls="--", lw=1.1)
+
+        ax_p.plot([-edge_v, -edge_v], [y_bottom, y_top], color="#16a34a", ls="--", lw=1.15, label=f"As-Laid (+/-{edge_v:.1f}m)", clip_on=True)
+        ax_p.plot([edge_v, edge_v], [y_bottom, y_top], color="#16a34a", ls="--", lw=1.15, clip_on=True)
+
+        des_labeled = False
+        for dx_e in (des_shift - edge_v, des_shift + edge_v):
+            if lim_x[0] <= dx_e <= lim_x[1]:
+                ax_p.plot([dx_e, dx_e], [y_bottom, y_top], color="#dc2626", ls=":", lw=1.05, label=(None if des_labeled else "Design Box"), clip_on=True)
+                des_labeled = True
+
         ax_p.set_xlim(*lim_x); ax_p.set_ylim(y_bottom, y_top)
-        ax_p.set_title(ttl, fontsize=6.5, fontweight="bold", pad=3); ax_p.set_xlabel(x_lbl, fontsize=5.9, fontweight="bold"); ax_p.set_ylabel("Depth Z (m, TWVD2001)", fontsize=5.9, fontweight="bold")
-        ax_p.tick_params(labelsize=5.2); ax_p.grid(True, linestyle=":", lw=0.45, color="#cbd5e1"); ax_p.legend(loc="lower right", fontsize=4.6, framealpha=0.9)
+        ax_p.set_title(ttl, fontsize=6.5, fontweight="bold", pad=3); ax_p.set_xlabel(x_lbl, fontsize=5.8, fontweight="bold"); ax_p.set_ylabel("Depth Z (m, TWVD2001)", fontsize=5.9, fontweight="bold")
+        ax_p.tick_params(labelsize=5.2); ax_p.grid(True, linestyle=":", lw=0.45, color="#cbd5e1"); ax_p.legend(loc="lower right", fontsize=4.5, framealpha=0.9)
 
     buf_png = io.BytesIO()
     fig.savefig(buf_png, format="png", dpi=125)
