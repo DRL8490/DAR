@@ -157,7 +157,7 @@ def _collect_box_placements(ledger_list, loc_id, cur_uno, mat_id, is_first, incl
 
 def generate_a3_4panel_chart(
     boxes_dict, metrics, cleaned_xyz, x_local, y_local, z_vals, seabed_local_xyz, seabed_full_xyz,
-    workspace_dir="workspace", include_history=False, ledger_list=None, scale_p1=250, scale_p2=75,
+    workspace_dir="workspace", include_history=False, ledger_list=None, scale_p1=None, scale_p2=75,
     show_contours=True, contour_interval=0.05, show_soundings=True, spot_spacing=2.0, save_pdf=True, custom_report_md=None
 ):
     os.makedirs(workspace_dir, exist_ok=True)
@@ -177,6 +177,9 @@ def generate_a3_4panel_chart(
     cl_tol = float(metrics.get("cl_tol") or 0.50)
     bathy_src = str(metrics.get("bathy_source") or "NO_BATHY_UPLOADED")
     cad_polys = metrics.get("cad_polylines") or []
+    if not scale_p1:
+        _xu_p1 = str(metrics.get("crossing_id") or "").strip().upper()
+        scale_p1 = 300 if (_xu_p1.startswith("CR-A3") or _xu_p1.startswith("CR-B3")) else 250
 
     verdict_full = str(metrics.get("verdict") or ("VERIFIED - WITHIN DESIGN TOLERANCE" if is_first else "VERIFIED - WITHIN DESIGN & GAP TOLERANCE"))
     ax_bg.text(18, 276.5, f"SUBSEA MATTRESS 4-PANEL VERIFICATION CHART  |  CROSSING: {metrics['crossing_id']}  |  ACTIVE USBL: {usbl_s}", color="white", fontsize=8.0, fontweight="bold", va="center", ha="left")
@@ -264,7 +267,7 @@ def generate_a3_4panel_chart(
                     ax_s.add_patch(opoly); opoly.set_clip_path(ax_s.patch)
                 if bid == loc_id:
                     if is_first:
-                        w_pts = b["corners"]
+                        w_pts, _, _ = _box_corners_cw(metrics["aslaid_e"], metrics["aslaid_n"], (float(metrics["heading_deg"]) - 180.0) % 360.0)
                         fc_p, ec_p, lw_p, ls_p, ht_p, al_p, zo_p = "#fef08a", "#dc2626", 1.6, "-", None, 0.88, 5
                     else:
                         w_pts, _, _ = _box_corners_cw(metrics["aslaid_e"], metrics["aslaid_n"], (float(metrics["heading_deg"]) - 180.0) % 360.0)
@@ -289,8 +292,8 @@ def generate_a3_4panel_chart(
                 poly_p = mpatches.Polygon(loc_pts, **kw_p)
                 ax_s.add_patch(poly_p); poly_p.set_clip_path(ax_s.patch)
 
-                bx_l = float((b["design_e"] - seg_ce) * u_s[0] + (b["design_n"] - seg_cn) * u_s[1])
-                by_l = float((b["design_e"] - seg_ce) * u_l[0] + (b["design_n"] - seg_cn) * u_l[1])
+                bx_l = float(np.mean(loc_pts[:, 0]))
+                by_l = float(np.mean(loc_pts[:, 1]))
                 if bid in seg_ids and (-hw_s + 1.0 <= bx_l <= hw_s - 1.0):
                     t_s = ax_s.text(bx_l, by_l, lbl, fontsize=4.8, fontweight="bold", color="#0f172a", ha="center", va="center", rotation=90.0, zorder=6, clip_on=True)
                     t_s.set_path_effects([patheffects.withStroke(linewidth=1.3, foreground="white")])
@@ -337,7 +340,8 @@ def generate_a3_4panel_chart(
                 ax1.add_patch(opoly); opoly.set_clip_path(ax1.patch)
             if bid == loc_id:
                 if is_first:
-                    poly_p = mpatches.Polygon(b["corners"], closed=True, facecolor="#fef08a", edgecolor="#dc2626", linewidth=1.6, linestyle="-", alpha=0.88, zorder=5, clip_on=True)
+                    cur_c, _, _ = _box_corners_cw(metrics["aslaid_e"], metrics["aslaid_n"], (float(metrics["heading_deg"]) - 180.0) % 360.0)
+                    poly_p = mpatches.Polygon(cur_c, closed=True, facecolor="#fef08a", edgecolor="#dc2626", linewidth=1.6, linestyle="-", alpha=0.88, zorder=5, clip_on=True)
                 else:
                     cur_c, _, _ = _box_corners_cw(metrics["aslaid_e"], metrics["aslaid_n"], (float(metrics["heading_deg"]) - 180.0) % 360.0)
                     poly_p = mpatches.Polygon(cur_c, closed=True, facecolor=(0.13, 0.77, 0.37, 0.25), edgecolor="#15803d", linewidth=1.8, linestyle="-", hatch="///", zorder=5, clip_on=True)
@@ -353,11 +357,13 @@ def generate_a3_4panel_chart(
             ax1.add_patch(poly_p)
             poly_p.set_clip_path(ax1.patch)
 
-            fx_b = (b["design_e"] - e_lim1[0]) / w1_span
-            fy_b = (b["design_n"] - n_lim1[0]) / h1_span
+            _p1_xy = np.asarray(poly_p.get_xy(), dtype=float)[:4]
+            lbl_e1, lbl_n1 = float(np.mean(_p1_xy[:, 0])), float(np.mean(_p1_xy[:, 1]))
+            fx_b = (lbl_e1 - e_lim1[0]) / w1_span
+            fy_b = (lbl_n1 - n_lim1[0]) / h1_span
             if 0.04 <= fx_b <= 0.96 and 0.04 <= fy_b <= 0.96:
                 if not (fy_b > 0.84 and fx_b < 0.20) and not (fy_b < 0.12 and fx_b > 0.68):
-                    t1 = ax1.text(b["design_e"], b["design_n"], lbl, fontsize=5.1, fontweight="bold", color="#0f172a", ha="center", va="center", rotation=b["azimuth"] - 90.0, zorder=6, clip_on=True)
+                    t1 = ax1.text(lbl_e1, lbl_n1, lbl, fontsize=5.1, fontweight="bold", color="#0f172a", ha="center", va="center", rotation=b["azimuth"] - 90.0, zorder=6, clip_on=True)
                     t1.set_path_effects([patheffects.withStroke(linewidth=1.4, foreground="white")])
                     t1.set_clip_path(ax1.patch)
 

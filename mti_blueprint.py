@@ -1538,7 +1538,8 @@ def verify_4panel():
     req = request.get_json(silent=True) or request.form.to_dict()
     fix_data = _resolve_fix_data(req, ledger, st.get('input_logs', []))
 
-    sc_p1, sc_p2 = int(float(req.get("scale_p1") or 250)), int(float(req.get("scale_p2") or 75))
+    _def_sc1 = 300 if str(fix_data.get("crossing_id") or fix_data.get("design_box_id") or "").strip().upper().startswith(("CR-A3", "CR-B3")) else 250
+    sc_p1, sc_p2 = int(float(req.get("scale_p1") or _def_sc1)), int(float(req.get("scale_p2") or 75))
     inc_hist = _as_bool(req.get("include_history"), True)
     sh_cont, sh_snd = _as_bool(req.get("show_contours"), True), _as_bool(req.get("show_soundings"), True)
     c_int, s_spc = float(req.get("contour_interval") or 0.05), float(req.get("spot_spacing") or 2.0)
@@ -1840,7 +1841,7 @@ def _dl_4panel_file(kind, suffix, mime):
         cat_list = list(MATTRESS_CATALOG.values()) if isinstance(MATTRESS_CATALOG, dict) else list(MATTRESS_CATALOG)
         fd = cache.get("fix_data") or (ledger[0] if ledger else {})
         b_dict, metrics, c_xyz, xl, yl, zv, sb_loc, sb_full = run_rov_4panel_verification(fd, cat_list, MTI_WS_DIR)
-        generate_a3_4panel_chart(b_dict, metrics, c_xyz, xl, yl, zv, sb_loc, sb_full, MTI_WS_DIR, cache.get("include_history", True), ledger, cache.get("scale_p1", 250), cache.get("scale_p2", 75), cache.get("show_contours", True), cache.get("contour_interval", 0.05), cache.get("show_soundings", True), cache.get("spot_spacing", 2.0), save_pdf=True, custom_report_md=rep_md or None)
+        generate_a3_4panel_chart(b_dict, metrics, c_xyz, xl, yl, zv, sb_loc, sb_full, MTI_WS_DIR, cache.get("include_history", True), ledger, (cache.get("scale_p1") or (300 if str(metrics.get("crossing_id") or metrics.get("location_id") or "").strip().upper().startswith(("CR-A3", "CR-B3")) else 250)), cache.get("scale_p2", 75), cache.get("show_contours", True), cache.get("contour_interval", 0.05), cache.get("show_soundings", True), cache.get("spot_spacing", 2.0), save_pdf=True, custom_report_md=rep_md or None)
     elif kind == "a4_pdf" and not os.path.exists(p):
         generate_a4_report_pdf(metrics, MTI_WS_DIR, rep_md or None)
     elif kind == "docx" and not os.path.exists(p):
@@ -1856,7 +1857,7 @@ def _dl_4panel_file(kind, suffix, mime):
         generate_4panel_studio_dxf(
             b_dict, metrics, c_xyz, xl, yl, zv, sb_loc, sb_full, MTI_WS_DIR,
             cache.get("include_history", True), ledger,
-            cache.get("scale_p1", 250), cache.get("scale_p2", 75),
+            (cache.get("scale_p1") or (300 if str(metrics.get("crossing_id") or metrics.get("location_id") or "").strip().upper().startswith(("CR-A3", "CR-B3")) else 250)), cache.get("scale_p2", 75),
             cache.get("show_contours", True), cache.get("contour_interval", 0.05),
             cache.get("show_soundings", True), cache.get("spot_spacing", 2.0),
             custom_report_md=rep_md or None,
@@ -2035,7 +2036,7 @@ STUDIO_HTML_TEMPLATE = r"""<!DOCTYPE html>
       <div class="col-md-1 col-4">
         <label class="small fw-bold text-light">P1 / P2</label>
         <div class="d-flex gap-1">
-          <select id="fpScP1" class="form-select form-select-sm px-1" title="Panel 1 Scale"><option value="200">200</option><option value="250" selected>250</option><option value="300">300</option><option value="400">400</option><option value="500">500</option><option value="750">750</option><option value="1000">1000</option></select>
+          <select id="fpScP1" class="form-select form-select-sm px-1" title="Panel 1 Scale"><option value="200">200</option><option value="250" {% if (init_sc_p1|default(250)|int) != 300 %}selected{% endif %}>250</option><option value="300" {% if (init_sc_p1|default(250)|int) == 300 %}selected{% endif %}>300</option><option value="400">400</option><option value="500">500</option><option value="750">750</option><option value="1000">1000</option></select>
           <select id="fpScP2" class="form-select form-select-sm px-1" title="Panel 2 Scale"><option value="50">50</option><option value="75" selected>75</option><option value="100">100</option></select>
         </div>
       </div>
@@ -2187,6 +2188,23 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
+<script id="studioAutoScaleP1">
+(function() {
+  const origSel = window.selectLedgerUnit;
+  if (typeof origSel === 'function' && !origSel._autoScP1) {
+    window.selectLedgerUnit = function(val) {
+      const row = (typeof LEDGER_DATA !== 'undefined' ? LEDGER_DATA : []).find(r => String(r.unit_no) === String(val) || r.design_box_id === val);
+      const xing = String((row && (row.crossing_id || row.design_box_id)) || '').trim().toUpperCase();
+      const scEl = document.getElementById('fpScP1');
+      if (scEl && xing.indexOf('CR-') === 0) {
+        scEl.value = (xing.indexOf('CR-A3') === 0 || xing.indexOf('CR-B3') === 0) ? '300' : '250';
+      }
+      return origSel.apply(this, arguments);
+    };
+    window.selectLedgerUnit._autoScP1 = true;
+  }
+})();
+</script>
 <!-- ADHOC_STUDIO_START -->
 <style>
   #adhocModalOverlay {
@@ -3363,10 +3381,11 @@ def mti_4panel_studio_window():
     fd = _resolve_fix_data(req, ledger, in_logs)
     init_unit = int(float(fd.get("unit_no") or (ledger[0].get("unit_no") if ledger else 1)))
     init_box = fd.get("design_box_id") or "CR-A1_M15"
+    init_sc_p1 = 300 if str(fd.get("crossing_id") or init_box).strip().upper().startswith(("CR-A3", "CR-B3")) else 250
     init_tag = fd.get("physical_tag") or "#A046"
     init_date = fd.get("install_date") or "2026-11-04 14:34"
     init_surveyor = str(fd.get("surveyor_name") or _get_current_user_display_name()).strip()
-    return render_template_string(STUDIO_HTML_TEMPLATE, ledger=ledger, ledger_json=json.dumps(ledger), init_unit=init_unit, init_box=init_box, init_tag=init_tag, init_date=init_date, init_surveyor=init_surveyor)
+    return render_template_string(STUDIO_HTML_TEMPLATE, ledger=ledger, ledger_json=json.dumps(ledger), init_unit=init_unit, init_sc_p1=init_sc_p1, init_box=init_box, init_tag=init_tag, init_date=init_date, init_surveyor=init_surveyor)
 
 @mti_bp.route('/setup')
 @login_required
