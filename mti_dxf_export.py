@@ -254,7 +254,7 @@ def populate_4panel_modelspace(
             close=True,
             dxfattribs={"layer": l_asl, "elevation": act_z, "const_width": 0.04}
         )
-        for idx_c, ( cname, c_pt ) in enumerate(zip(("C1_NW", "C2_NE", "C3_SE", "C4_SW"), c_enz)):
+        for idx_c, ( cname, c_pt ) in enumerate(zip(("C1_SW", "C2_NW", "C3_NE", "C4_SE"), c_enz)):
             ce, cn, cz = float(c_pt[0]), float(c_pt[1]), float(c_pt[2])
             msp.add_circle((ce, cn, cz), radius=0.12, dxfattribs={"layer": l_asl})
             _add_clean_text(msp, f"{cname} ({cz:.2f}m)", ce + 0.18, cn + 0.18, 0.25, rgb=(34, 197, 94), ha="left", va="bottom", mono=True, layer=l_asl)

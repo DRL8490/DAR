@@ -47,7 +47,7 @@ def compute_4_corners(center_e, center_n, bearing_deg, length_m=6.0, width_m=3.0
     sin_a, cos_a = math.sin(az_rad), math.cos(az_rad)
     dl, dw = length_m / 2.0, width_m / 2.0
     corners = {}
-    for idx, (sl, sw) in enumerate([(+1, -1), (+1, +1), (-1, +1), (-1, -1)], start=1):
+    for idx, (sl, sw) in enumerate([(-1, -1), (+1, -1), (+1, +1), (-1, +1)], start=1):
         corners[f"c{idx}_e"] = round(center_e + sl * dl * sin_a + sw * dw * cos_a, 3)
         corners[f"c{idx}_n"] = round(center_n + sl * dl * cos_a - sw * dw * sin_a, 3)
         corners[f"c{idx}_z"] = round(float(default_z or 0.0), 3)
@@ -492,8 +492,8 @@ def add_fix():
             pts = [(p[0], p[1], as_z) for p in pts]
         else:
             as_z = mean_cz if abs(mean_cz) > 1e-6 else round(fallback_z, 3)
-        be, bn = (pts[0][0] + pts[1][0]) / 2.0, (pts[0][1] + pts[1][1]) / 2.0
-        fe, fn = (pts[2][0] + pts[3][0]) / 2.0, (pts[2][1] + pts[3][1]) / 2.0
+        be, bn = (pts[1][0] + pts[2][0]) / 2.0, (pts[1][1] + pts[2][1]) / 2.0
+        fe, fn = (pts[0][0] + pts[3][0]) / 2.0, (pts[0][1] + pts[3][1]) / 2.0
         hdg = round((math.degrees(math.atan2(fe - be, fn - bn)) + 360.0) % 360.0, 3)
         hdg = round(hdg + 180.0, 3) if hdg < 180.0 else hdg
         corners = {f"c{i+1}_e": round(pts[i][0], 3) for i in range(4)}
@@ -1252,10 +1252,10 @@ PRELOADED_MTI_LEDGER = [
         "qaqc_e": 194541.206, "qaqc_n": 2702613.513, "qaqc_brg": 196.889,
         "aslaid_e": 194541.206, "aslaid_n": 2702613.513, "aslaid_z": -18.20,
         "cl_offset_m": 0.265, "heading_deg": 196.889, "brg_diff_deg": -1.028,
-        "c1_e": 194540.642, "c1_n": 2702616.819, "c1_z": -18.20,
-        "c2_e": 194543.513, "c2_n": 2702615.948, "c2_z": -18.20,
-        "c3_e": 194541.770, "c3_n": 2702610.207, "c3_z": -18.20,
-        "c4_e": 194538.899, "c4_n": 2702611.078, "c4_z": -18.20,
+        "c1_e": 194538.899, "c1_n": 2702611.078, "c1_z": -18.20,
+        "c2_e": 194540.642, "c2_n": 2702616.819, "c2_z": -18.20,
+        "c3_e": 194543.513, "c3_n": 2702615.948, "c3_z": -18.20,
+        "c4_e": 194541.770, "c4_n": 2702610.207, "c4_z": -18.20,
         "gap_nw": "", "gap_ne": "", "gap_sw": "", "gap_se": "",
         "gap_labels": "1st Unit (N/A)", "gap1_m": 0.0, "gap2_m": 0.0, "gap_m": 0.0,
         "env_wind": "", "env_current": "",
@@ -1270,10 +1270,10 @@ PRELOADED_MTI_LEDGER = [
         "qaqc_e": 194544.356, "qaqc_n": 2702612.753, "qaqc_brg": 198.397,
         "aslaid_e": 194544.356, "aslaid_n": 2702612.753, "aslaid_z": -18.35,
         "cl_offset_m": 0.180, "heading_deg": 198.397, "brg_diff_deg": -2.545,
-        "c1_e": 194543.879, "c1_n": 2702616.073, "c1_z": -18.35,
-        "c2_e": 194546.726, "c2_n": 2702615.126, "c2_z": -18.35,
-        "c3_e": 194544.833, "c3_n": 2702609.433, "c3_z": -18.35,
-        "c4_e": 194541.986, "c4_n": 2702610.380, "c4_z": -18.35,
+        "c1_e": 194541.986, "c1_n": 2702610.380, "c1_z": -18.35,
+        "c2_e": 194543.879, "c2_n": 2702616.073, "c2_z": -18.35,
+        "c3_e": 194546.726, "c3_n": 2702615.126, "c3_z": -18.35,
+        "c4_e": 194544.833, "c4_n": 2702609.433, "c4_z": -18.35,
         "gap_nw": "0.02", "gap_ne": "", "gap_sw": "0.10", "gap_se": "",
         "gap_labels": "NW:0.02m | SW:0.10m", "gap1_m": 0.02, "gap2_m": 0.10, "gap_m": 0.10,
         "env_wind": "", "env_current": "",
@@ -3131,7 +3131,7 @@ document.addEventListener('DOMContentLoaded', window.refreshSetupStatus);
             <option value="__AUTO__">-- Auto-Detect Mattress from Point ID (Bulk Paste) --</option>
           </select>
           <div id="rawRovBoxHint" class="small font-monospace mb-2" style="color:#94a3b8;font-size:11px;">
-            Bulk mode auto-matches IDs like CRA1M15_NW, C1_NW_A1M16, C1_NW_A3M18.
+            Bulk mode auto-matches IDs like CRA1M15_SW, C1_SW_A1M16, C1_SW_A3M18.
           </div>
 
           <div class="d-flex justify-content-between align-items-center mb-1">
@@ -3320,7 +3320,7 @@ document.addEventListener('DOMContentLoaded', window.refreshSetupStatus);
     const hint = document.getElementById('rawRovBoxHint');
     const inp = document.getElementById('rawRovTextInp');
     if (val === '__AUTO__') {
-      if (hint) hint.textContent = 'Bulk mode auto-matches IDs like CRA1M15_NW, C1_NW_A1M16, C1_NW_A3M18.';
+      if (hint) hint.textContent = 'Bulk mode auto-matches IDs like CRA1M15_SW, C1_SW_A1M16, C1_SW_A3M18.';
       return;
     }
     const rec = (window._rawRovState.store || {})[val];
@@ -3763,3 +3763,46 @@ def load_mti_state(*args, **kwargs):
                 _final_gaptol_saving = False
     return st
 # --- MTI_GAP_TOL_050_FINAL_ENFORCE_END ---
+
+# --- MTI_C1_SW_CORNER_MIGRATION_START ---
+_c1_sw_migrating = False
+_prev_load_mti_state_c1sw = load_mti_state
+
+def _migrate_row_corners_to_c1_sw(r):
+    if not isinstance(r, dict): return False
+    try: pts = [(float(r[f"c{i}_e"]), float(r[f"c{i}_n"]), r.get(f"c{i}_z")) for i in (1, 2, 3, 4)]
+    except Exception: return False
+    if any(abs(x[0]) < 1000.0 or abs(x[1]) < 1000.0 for x in pts): return False
+    d12 = math.hypot(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1])
+    d23 = math.hypot(pts[2][0] - pts[1][0], pts[2][1] - pts[1][1])
+    if not (d23 > d12 * 1.25): return False
+    ce, cn = sum(x[0] for x in pts) / 4.0, sum(x[1] for x in pts) / 4.0
+    hdg = float(r.get("heading_deg") or r.get("design_brg") or 195.854)
+    az_r = math.radians(((hdg + 180.0 if hdg < 180.0 else hdg) - 180.0) % 360.0)
+    dx0, dy0 = pts[0][0] - ce, pts[0][1] - cn
+    if (dx0 * math.sin(az_r) + dy0 * math.cos(az_r)) > 0 and (dx0 * math.cos(az_r) - dy0 * math.sin(az_r)) < 0:
+        for idx, (pe, pn, pz) in enumerate((pts[3], pts[0], pts[1], pts[2]), start=1):
+            r[f"c{idx}_e"], r[f"c{idx}_n"] = round(pe, 3), round(pn, 3)
+            if pz is not None and str(pz) != "": r[f"c{idx}_z"] = pz
+        return True
+    return False
+
+def load_mti_state(*args, **kwargs):
+    global _c1_sw_migrating
+    st = _prev_load_mti_state_c1sw(*args, **kwargs)
+    if isinstance(st, dict):
+        dirty = False
+        for r in (st.get("ledger") or []):
+            if _migrate_row_corners_to_c1_sw(r):
+                dirty = True
+        if not st.get("c1_sw_order_v1"):
+            st["c1_sw_order_v1"] = True
+            dirty = True
+        if dirty and not _c1_sw_migrating:
+            try:
+                _c1_sw_migrating = True
+                save_mti_state(st)
+            except Exception: pass
+            finally: _c1_sw_migrating = False
+    return st
+# --- MTI_C1_SW_CORNER_MIGRATION_END ---

@@ -149,7 +149,7 @@ def _box_corners_cw(ce, cn, az_deg, length=6.0, width=3.0):
     ul = np.array([math.sin(rad), math.cos(rad)], dtype=float)
     us = np.array([math.cos(rad), -math.sin(rad)], dtype=float)
     c = np.array([float(ce), float(cn)], dtype=float)
-    pts = [c + sL * (length / 2.0) * ul + sW * (width / 2.0) * us for sL, sW in [(1, -1), (1, 1), (-1, 1), (-1, -1)]]
+    pts = [c + sL * (length / 2.0) * ul + sW * (width / 2.0) * us for sL, sW in [(-1, -1), (1, -1), (1, 1), (-1, 1)]]
     return np.array(pts, dtype=float), ul, us
 
 def parse_bathy_xyz_text(raw_text, bounds=None, max_pts=4500):
@@ -491,14 +491,14 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
             c_pts = [[round(float(p[0]), 3), round(float(p[1]), 3), round(as_z, 3)] for p in c2d]
     c_arr = np.array(c_pts, dtype=float)
     as_e, as_n, as_z = float(np.mean(c_arr[:, 0])), float(np.mean(c_arr[:, 1])), float(np.mean(c_arr[:, 2]))
-    be, bn, fe, fn = (c_arr[0, 0] + c_arr[1, 0]) / 2.0, (c_arr[0, 1] + c_arr[1, 1]) / 2.0, (c_arr[2, 0] + c_arr[3, 0]) / 2.0, (c_arr[2, 1] + c_arr[3, 1]) / 2.0
+    be, bn, fe, fn = (c_arr[1, 0] + c_arr[2, 0]) / 2.0, (c_arr[1, 1] + c_arr[2, 1]) / 2.0, (c_arr[0, 0] + c_arr[3, 0]) / 2.0, (c_arr[0, 1] + c_arr[3, 1]) / 2.0
     hdg = round((math.degrees(math.atan2(fe - be, fn - bn)) + 360.0) % 360.0, 3)
     hdg = round(hdg + 180.0, 3) if hdg < 180.0 else hdg
     act_az = round((hdg - 180.0) % 360.0, 3)
 
     ug, vg = np.meshgrid(np.linspace(0.0, 1.0, 20), np.linspace(0.0, 1.0, 35))
     uf, vf = ug.ravel(), vg.ravel()
-    cleaned_xyz = (np.outer((1 - uf) * (1 - vf), c_arr[3]) + np.outer((1 - uf) * vf, c_arr[0]) + np.outer(uf * vf, c_arr[1]) + np.outer(uf * (1 - vf), c_arr[2]))
+    cleaned_xyz = (np.outer((1 - uf) * (1 - vf), c_arr[0]) + np.outer((1 - uf) * vf, c_arr[1]) + np.outer(uf * vf, c_arr[2]) + np.outer(uf * (1 - vf), c_arr[3]))
     if len(sb_near_global) > 0 and use_seabed_drape:
         cleaned_xyz[:, 2] = idw_interpolate(sb_near_global[:, :2], sb_near_global[:, 2], cleaned_xyz[:, :2]) + thick_signed
         as_z = float(np.mean(cleaned_xyz[:, 2]))

@@ -465,10 +465,10 @@ def generate_a3_4panel_chart(
     else:
         gaps = metrics.get("gaps") or {}
         corner_defs = [
-            ("C1 (NW Corner)", gaps.get("nw", ""), c_loc[0], (-box_x_off, box_y_off)),
-            ("C2 (NE Corner)", gaps.get("ne", ""), c_loc[1], (box_x_off, box_y_off)),
-            ("C3 (SE Corner)", gaps.get("se", ""), c_loc[2], (box_x_off, -box_y_off)),
-            ("C4 (SW Corner)", gaps.get("sw", ""), c_loc[3], (-box_x_off, -box_y_off)),
+            ("C1 (SW Corner)", gaps.get("sw", ""), c_loc[0], (-box_x_off, -box_y_off)),
+            ("C2 (NW Corner)", gaps.get("nw", ""), c_loc[1], (-box_x_off, box_y_off)),
+            ("C3 (NE Corner)", gaps.get("ne", ""), c_loc[2], (box_x_off, box_y_off)),
+            ("C4 (SE Corner)", gaps.get("se", ""), c_loc[3], (box_x_off, -box_y_off)),
         ]
         for c_title, g_raw, xy_c, xy_box in corner_defs:
             g_str = str(g_raw or "").strip()

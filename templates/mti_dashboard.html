@@ -267,7 +267,7 @@
     <div class="small fw-bold text-uppercase text-success mb-1" style="font-size:10.5px;">Line 4 : As-Laid ROV Coordinates Input = E, N of 4-Corners of Mattress</div>
     <div class="row g-2">
       <div class="col-xl-3 col-md-6 col-12">
-        <label class="small fw-bold text-dark mb-1">Corner 1 (C1 - NW: E, N)</label>
+        <label class="small fw-bold text-dark mb-1">Corner 1 (C1 - SW: E, N)</label>
         <div class="input-group input-group-sm">
           <input type="number" step="0.001" name="c1_e" id="c1_e" class="form-control border-success coord-inp" placeholder="E1" oninput="recalcAllMattress()">
           <input type="number" step="0.001" name="c1_n" id="c1_n" class="form-control border-success coord-inp" placeholder="N1" oninput="recalcAllMattress()">
@@ -275,7 +275,7 @@
         </div>
       </div>
       <div class="col-xl-3 col-md-6 col-12">
-        <label class="small fw-bold text-dark mb-1">Corner 2 (C2 - NE: E, N)</label>
+        <label class="small fw-bold text-dark mb-1">Corner 2 (C2 - NW: E, N)</label>
         <div class="input-group input-group-sm">
           <input type="number" step="0.001" name="c2_e" id="c2_e" class="form-control border-success coord-inp" placeholder="E2" oninput="recalcAllMattress()">
           <input type="number" step="0.001" name="c2_n" id="c2_n" class="form-control border-success coord-inp" placeholder="N2" oninput="recalcAllMattress()">
@@ -283,7 +283,7 @@
         </div>
       </div>
       <div class="col-xl-3 col-md-6 col-12">
-        <label class="small fw-bold text-dark mb-1">Corner 3 (C3 - SE: E, N)</label>
+        <label class="small fw-bold text-dark mb-1">Corner 3 (C3 - NE: E, N)</label>
         <div class="input-group input-group-sm">
           <input type="number" step="0.001" name="c3_e" id="c3_e" class="form-control border-success coord-inp" placeholder="E3" oninput="recalcAllMattress()">
           <input type="number" step="0.001" name="c3_n" id="c3_n" class="form-control border-success coord-inp" placeholder="N3" oninput="recalcAllMattress()">
@@ -291,7 +291,7 @@
         </div>
       </div>
       <div class="col-xl-3 col-md-6 col-12">
-        <label class="small fw-bold text-dark mb-1">Corner 4 (C4 - SW: E, N)</label>
+        <label class="small fw-bold text-dark mb-1">Corner 4 (C4 - SE: E, N)</label>
         <div class="input-group input-group-sm">
           <input type="number" step="0.001" name="c4_e" id="c4_e" class="form-control border-success coord-inp" placeholder="E4" oninput="recalcAllMattress()">
           <input type="number" step="0.001" name="c4_n" id="c4_n" class="form-control border-success coord-inp" placeholder="N4" oninput="recalcAllMattress()">
@@ -310,8 +310,8 @@
           <span class="badge bg-light text-dark border" id="lblSvgBrg" style="font-size:9.5px;">Brg: 195.9&deg;</span>
         </div>
         <div class="d-flex justify-content-between px-1 mb-1">
-          <input type="number" step="0.01" name="gap_nw" id="gNW" class="form-control form-control-sm text-center fw-bold px-1" style="width:98px;height:26px;font-size:11.5px;" placeholder="C1 / NW (m)" oninput="syncDirGaps()">
-          <input type="number" step="0.01" name="gap_ne" id="gNE" class="form-control form-control-sm text-center fw-bold px-1" style="width:98px;height:26px;font-size:11.5px;" placeholder="C2 / NE (m)" oninput="syncDirGaps()">
+          <input type="number" step="0.01" name="gap_nw" id="gNW" class="form-control form-control-sm text-center fw-bold px-1" style="width:98px;height:26px;font-size:11.5px;" placeholder="C2 / NW (m)" oninput="syncDirGaps()">
+          <input type="number" step="0.01" name="gap_ne" id="gNE" class="form-control form-control-sm text-center fw-bold px-1" style="width:98px;height:26px;font-size:11.5px;" placeholder="C3 / NE (m)" oninput="syncDirGaps()">
         </div>
         <div class="my-1">
           <svg width="140" height="84" viewBox="0 0 140 84" style="background:#e2e8f0;border-radius:6px;border:1px solid #cbd5e1;">
@@ -321,16 +321,16 @@
               <line x1="70" y1="54" x2="70" y2="66" stroke="#dc2626" stroke-width="2.2"/>
               <circle cx="58" cy="18" r="2.8" fill="#16a34a"/><circle cx="82" cy="18" r="2.8" fill="#16a34a"/>
               <circle cx="82" cy="66" r="2.8" fill="#16a34a"/><circle cx="58" cy="66" r="2.8" fill="#16a34a"/>
-              <text id="svgTxtC1" x="47" y="16" font-size="9.5" font-weight="800" fill="#0f172a" text-anchor="middle" transform="rotate(-15.854 47 13)">C1</text>
-              <text id="svgTxtC2" x="93" y="16" font-size="9.5" font-weight="800" fill="#0f172a" text-anchor="middle" transform="rotate(-15.854 93 13)">C2</text>
-              <text id="svgTxtC3" x="93" y="72" font-size="9.5" font-weight="800" fill="#0f172a" text-anchor="middle" transform="rotate(-15.854 93 69)">C3</text>
-              <text id="svgTxtC4" x="47" y="72" font-size="9.5" font-weight="800" fill="#0f172a" text-anchor="middle" transform="rotate(-15.854 47 69)">C4</text>
+              <text id="svgTxtC1" x="47" y="72" font-size="9.5" font-weight="800" fill="#0f172a" text-anchor="middle" transform="rotate(-15.854 47 69)">C1</text>
+              <text id="svgTxtC2" x="47" y="16" font-size="9.5" font-weight="800" fill="#0f172a" text-anchor="middle" transform="rotate(-15.854 47 13)">C2</text>
+              <text id="svgTxtC3" x="93" y="16" font-size="9.5" font-weight="800" fill="#0f172a" text-anchor="middle" transform="rotate(-15.854 93 13)">C3</text>
+              <text id="svgTxtC4" x="93" y="72" font-size="9.5" font-weight="800" fill="#0f172a" text-anchor="middle" transform="rotate(-15.854 93 69)">C4</text>
             </g>
           </svg>
         </div>
         <div class="d-flex justify-content-between px-1 mt-1">
-          <input type="number" step="0.01" name="gap_sw" id="gSW" class="form-control form-control-sm text-center fw-bold px-1" style="width:98px;height:26px;font-size:11.5px;" placeholder="C4 / SW (m)" oninput="syncDirGaps()">
-          <input type="number" step="0.01" name="gap_se" id="gSE" class="form-control form-control-sm text-center fw-bold px-1" style="width:98px;height:26px;font-size:11.5px;" placeholder="C3 / SE (m)" oninput="syncDirGaps()">
+          <input type="number" step="0.01" name="gap_sw" id="gSW" class="form-control form-control-sm text-center fw-bold px-1" style="width:98px;height:26px;font-size:11.5px;" placeholder="C1 / SW (m)" oninput="syncDirGaps()">
+          <input type="number" step="0.01" name="gap_se" id="gSE" class="form-control form-control-sm text-center fw-bold px-1" style="width:98px;height:26px;font-size:11.5px;" placeholder="C4 / SE (m)" oninput="syncDirGaps()">
         </div>
         <input type="hidden" name="gap1_m" id="inpGap1" value="0.00"><input type="hidden" name="gap2_m" id="inpGap2" value="0.00">
       </div>
@@ -1255,7 +1255,7 @@
         const sBrg = b < 180.0 ? (b + 180.0) % 360.0 : b;
         const azRad = ((sBrg - 180.0) * Math.PI) / 180.0;
         const sa = Math.sin(azRad), ca = Math.cos(azRad);
-        return [[1, -1], [1, 1], [-1, 1], [-1, -1]].map(s => [
+        return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(s => [
             ce + s[0] * 3.0 * sa + s[1] * 1.5 * ca,
             cn + s[0] * 3.0 * ca - s[1] * 1.5 * sa
         ]);
@@ -1314,8 +1314,8 @@
             an = (pts[0][1] + pts[1][1] + pts[2][1] + pts[3][1]) / 4.0;
             const zList = pts.map(p => p[2]).filter(z => !isNaN(z) && Math.abs(z) > 0.001);
             if (zList.length === 4) az = (zList[0] + zList[1] + zList[2] + zList[3]) / 4.0;
-            const be = (pts[0][0] + pts[1][0]) / 2.0, bn = (pts[0][1] + pts[1][1]) / 2.0;
-            const fe = (pts[2][0] + pts[3][0]) / 2.0, fn = (pts[2][1] + pts[3][1]) / 2.0;
+            const be = (pts[1][0] + pts[2][0]) / 2.0, bn = (pts[1][1] + pts[2][1]) / 2.0;
+            const fe = (pts[0][0] + pts[3][0]) / 2.0, fn = (pts[0][1] + pts[3][1]) / 2.0;
             brg = ((Math.atan2(fe - be, fn - bn) * 180.0 / Math.PI) + 360.0) % 360.0;
             if (brg < 180.0) brg += 180.0;
             if (badge) { badge.className = 'badge bg-success'; badge.innerText = 'Calculated from 4 ROV Corners'; }
@@ -1335,7 +1335,7 @@
             const g = document.getElementById('svgMattRot');
             const rot = ((brg - 180.0) + 360.0) % 360.0;
             if (g) g.setAttribute('transform', `rotate(${rot} 70 42)`);
-            [['svgTxtC1', 47, 13], ['svgTxtC2', 93, 13], ['svgTxtC3', 93, 69], ['svgTxtC4', 47, 69]].forEach(c => {
+            [['svgTxtC1', 47, 69], ['svgTxtC2', 47, 13], ['svgTxtC3', 93, 13], ['svgTxtC4', 93, 69]].forEach(c => {
                 const el = document.getElementById(c[0]);
                 if (el) el.setAttribute('transform', `rotate(${-rot} ${c[1]} ${c[2]})`);
             });
@@ -1529,8 +1529,11 @@
         ]);
         if (!cPts.every(p => !isNaN(p[0]) && !isNaN(p[1]) && Math.abs(p[0]) > 1000)) {
             cPts = computeCwCornersJs(asE, asN, hdg).map(pt => [pt[0], pt[1], asZ]);
-        } else if ((cPts[0][1] + cPts[1][1]) < (cPts[2][1] + cPts[3][1])) {
-            cPts = [cPts[2], cPts[3], cPts[0], cPts[1]];
+        } else {
+            const azEd = ((((hdg < 180 ? hdg + 180 : hdg) - 180) % 360) * Math.PI) / 180.0;
+            if (((cPts[1][0] + cPts[2][0] - cPts[0][0] - cPts[3][0]) * Math.sin(azEd) + (cPts[1][1] + cPts[2][1] - cPts[0][1] - cPts[3][1]) * Math.cos(azEd)) < 0) {
+                cPts = [cPts[2], cPts[3], cPts[0], cPts[1]];
+            }
         }
         cPts.forEach((pt, idx) => {
             const i = idx + 1;
@@ -1722,7 +1725,7 @@ function openQrModal(){
     const brg = parseFloat(f.querySelector('.qaqc-brg')?.value || f.querySelector('[name="heading_deg"]')?.value) || 0;
     if (!ce || !cn) return;
     const rad = ((brg - 180.0) * Math.PI / 180.0), sb = Math.sin(rad), cb = Math.cos(rad);
-    [[1,-1],[1,1],[-1,1],[-1,-1]].forEach((s, idx) => {
+    [[-1,-1],[1,-1],[1,1],[-1,1]].forEach((s, idx) => {
       const i = idx + 1;
       f.querySelector(`[name="c${i}_e"]`).value = (ce + s[0]*3.0*sb + s[1]*1.5*cb).toFixed(3);
       f.querySelector(`[name="c${i}_n"]`).value = (cn + s[0]*3.0*cb - s[1]*1.5*sb).toFixed(3);
@@ -1741,9 +1744,9 @@ function openQrModal(){
       const ae = (pts[0][0]+pts[1][0]+pts[2][0]+pts[3][0])/4.0;
       const an = (pts[0][1]+pts[1][1]+pts[2][1]+pts[3][1])/4.0;
       const az = (pts[0][2]+pts[1][2]+pts[2][2]+pts[3][2])/4.0;
-      const fe = (pts[0][0]+pts[1][0])/2.0, fn = (pts[0][1]+pts[1][1])/2.0;
-      const be = (pts[2][0]+pts[3][0])/2.0, bn = (pts[2][1]+pts[3][1])/2.0;
-      const brg = ((Math.atan2(fe - be, fn - bn) * 180.0 / Math.PI) + 360.0) % 360.0; if (brg < 180.0) brg += 180.0;
+      const be = (pts[1][0]+pts[2][0])/2.0, bn = (pts[1][1]+pts[2][1])/2.0;
+      const fe = (pts[0][0]+pts[3][0])/2.0, fn = (pts[0][1]+pts[3][1])/2.0;
+      let brg = ((Math.atan2(fe - be, fn - bn) * 180.0 / Math.PI) + 360.0) % 360.0; if (brg < 180.0) brg += 180.0;
       const inpE = f.querySelector('[name="aslaid_e"]'), inpN = f.querySelector('[name="aslaid_n"]'), inpH = f.querySelector('[name="heading_deg"]');
       if (inpE) { inpE.value = ae.toFixed(3); inpE.dispatchEvent(new Event('input', {bubbles:true})); }
       if (inpN) { inpN.value = an.toFixed(3); inpN.dispatchEvent(new Event('input', {bubbles:true})); }
