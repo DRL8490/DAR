@@ -1025,6 +1025,120 @@ def sync_to_dpr():
     return redirect(url_for('mti_bp.mti_mobile') if '/mobile' in (request.referrer or '') else url_for('mti_bp.mti_dashboard'))
 # --- MTI_ONE_LOG_PER_CONFIRMED_FIX_END ---
 
+# --- MTI_ADMIN_ATTRIBUTION_REPAIR_START ---
+def _repair_mti_attribution(apply_changes=False):
+    from app import SurveyTask, db
+    _is_gen = lambda v: str(v or "").strip().lower() in ("", "duty surveyor", "surveyor", "none", "n/a")
+    st = load_mti_state() or {}
+    ledger = [dict(r) for r in (st.get("ledger") or [])]
+    in_logs = [dict(lg) for lg in (st.get("input_logs") or [])]
+    tasks = SurveyTask.query.filter(SurveyTask.sub_location == "338_Subsea_Crossings").order_by(SurveyTask.id.asc()).all()
+    fix_tasks = [t for t in tasks if "MMA PRESTIGE MATTRESS FIX CONFIRMED" in str(t.remarks or "").upper()]
+    evt_tasks = [t for t in tasks if t not in fix_tasks]
+    counts = {"ledger": 0, "logs": 0, "st_new": 0, "st_fixed": 0, "st_dedup": 0, "evt": 0}
+    changes = []
+    for lg in in_logs:
+        if str(lg.get("event_type") or "").strip().lower() == "mattress fix": continue
+        s_old = str(lg.get("surveyor") or "").strip()
+        s_new = resolve_full_surveyor_name(s_old) if not _is_gen(s_old) else ""
+        if s_new and not _is_gen(s_new) and s_new != s_old:
+            lg["surveyor"] = s_new; counts["logs"] += 1
+            changes.append(f"[LOG-EVT] id={lg.get('id')}: '{s_old}' -> '{s_new}'")
+    for r in sorted(ledger, key=lambda x: (int(float(x.get("unit_no") or 9999)), int(float(x.get("id") or 9999)))):
+        if str(r.get("status") or "Completed").strip().lower() != "completed": continue
+        uno = int(float(r.get("unit_no") or 0))
+        box, tag = str(r.get("design_box_id") or "").strip(), str(r.get("physical_tag") or "").strip()
+        box_up, tag_c = box.upper(), tag.replace("#", "").strip().upper()
+        hits = [t for t in fix_tasks if _surveytask_matches_fix(t.remarks, uno, box_up, tag_c)]
+        for extra_t in hits[1:]:
+            changes.append(f"[ST-DEDUP] Unit #{uno} ({box}/{tag}): delete extra ST#{extra_t.id}")
+            if apply_changes: db.session.delete(extra_t)
+            fix_tasks.remove(extra_t); counts["st_dedup"] += 1
+        raw_led = str(r.get("surveyor_name") or r.get("surveyor") or "").strip()
+        lg_surv = _find_fix_surveyor_from_logs(box, in_logs, tag, uno)
+        m_v0 = re.search(r"Verified by\s+([^;|]+)", str(hits[0].remarks or ""), re.I) if hits else None
+        st_surv = next((str(c).strip() for c in ((m_v0.group(1).strip() if m_v0 else ""), hits[0].assigned_to if hits else "", hits[0].surveyor_name if hits else "") if not _is_gen(c)), "")
+        r_work = dict(r)
+        seed = next((c for c in (raw_led, lg_surv, st_surv) if not _is_gen(c)), raw_led)
+        if seed: r_work["surveyor_name"] = seed
+        exp_kpi, exp_full = _resolve_kpi_assigned_surveyor(r_work, in_logs)
+        if not _is_gen(exp_full) and (r.get("surveyor_name") != exp_full or r.get("surveyor") != exp_full):
+            changes.append(f"[LEDGER] Unit #{uno} ({box}/{tag}): '{raw_led}' -> '{exp_full}'")
+            r["surveyor_name"] = r["surveyor"] = exp_full; counts["ledger"] += 1
+        lg_hit = next((lg for lg in in_logs if _fix_log_matches(lg, uno, box_up, tag_c)), None)
+        new_logs = _sync_fix_to_mti_input_logs(in_logs, dict(r, install_date=r.get("install_date") or (lg_hit or {}).get("timestamp") or ""))
+        if new_logs != in_logs:
+            changes.append(f"[LOG-FIX] Unit #{uno} ({box}/{tag}): synced fix log -> '{exp_full}'")
+            in_logs = new_logs; counts["logs"] += 1
+        exec_dt, _ = _parse_mti_fix_dt(r.get("install_date"))
+        if not hits:
+            changes.append(f"[ST-NEW] Unit #{uno} ({box}/{tag}): create ST -> KPI='{exp_kpi}' ({exp_full})")
+            if apply_changes: _upsert_confirmed_fix_to_surveytask(r, skip_if_manual_exists=False, input_logs=in_logs)
+            counts["st_new"] += 1
+        else:
+            t0, rem_up = hits[0], str(hits[0].remarks or "").upper()
+            cur_ver = m_v0.group(1).strip() if m_v0 else ""
+            drifts = [lbl for lbl, bad in (
+                (f"surv='{t0.surveyor_name}'->'{exp_kpi}'", str(t0.surveyor_name or "").strip() != exp_kpi),
+                (f"asgn='{t0.assigned_to}'->'{exp_kpi}'", str(t0.assigned_to or "").strip() != exp_kpi),
+                (f"ver='{cur_ver}'->'{exp_full}'", bool(exp_full) and cur_ver.lower() != exp_full.lower()),
+                ("box/tag", (bool(box_up) and f": {box_up} (" not in rem_up) or (bool(tag_c) and tag_c not in rem_up)),
+                (f"date={t0.execution_date}->{exec_dt}", t0.execution_date != exec_dt),
+                (f"status={t0.status}->Closed", str(t0.status or "").lower() != "closed"),
+            ) if bad]
+            if drifts:
+                changes.append(f"[ST-FIX] Unit #{uno} ({box}/{tag}) ST#{t0.id}: {', '.join(drifts)}")
+                if apply_changes: _upsert_confirmed_fix_to_surveytask(r, skip_if_manual_exists=False, input_logs=in_logs)
+                counts["st_fixed"] += 1
+    for t in evt_tasks:
+        ts, ta = str(t.surveyor_name or "").strip(), str(t.assigned_to or "").strip()
+        pick = next((c for c in (ta, ts) if not _is_gen(c)), "")
+        if not pick or (ts == ta and not _is_gen(ta)): continue
+        kpi_u, _ = _resolve_kpi_assigned_surveyor({"surveyor_name": pick, "install_date": str(t.execution_date or "")}, in_logs)
+        if not _is_gen(kpi_u) and (ts != kpi_u or ta != kpi_u):
+            changes.append(f"[EVT-FIX] ST#{t.id} ({t.execution_date}): '{ts}'/'{ta}' -> '{kpi_u}'")
+            if apply_changes: t.surveyor_name = t.assigned_to = kpi_u
+            counts["evt"] += 1
+    total_ops = sum(counts.values())
+    if apply_changes and total_ops > 0:
+        if (counts["ledger"] + counts["logs"]) > 0:
+            st["ledger"], st["input_logs"] = ledger, in_logs
+            save_mti_state(st)
+            if "_purge_cached_pdfs" in globals():
+                try: _purge_cached_pdfs()
+                except Exception: pass
+        db.session.commit()
+    else:
+        db.session.rollback()
+    return {"mode": "APPLIED" if apply_changes else "DRY_RUN", "total_ops": total_ops, "counts": counts, "changes": changes}
+
+@mti_bp.route('/admin/repair_attribution', methods=['GET', 'POST'])
+@login_required
+def mti_admin_repair_attribution():
+    from app import is_user_admin
+    want_json = request.args.get("format") == "json" or request.is_json
+    if not is_user_admin(current_user):
+        if want_json: return jsonify({"status": "error", "error": "Admin access required"}), 403
+        flash("Admin access required for MTI attribution repair.", "error")
+        return redirect(url_for("mti_bp.mti_dashboard"))
+    res = _repair_mti_attribution(apply_changes=(request.method == "POST" and request.args.get("dry_run") != "1"))
+    if want_json: return jsonify({"status": "ok", **res})
+    tpl = """<!doctype html><html><head><meta charset="utf-8"><title>MTI Attribution Repair</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"></head>
+    <body class="bg-dark text-light p-4"><div class="container" style="max-width:920px">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="text-info mb-0">MTI &harr; SurveyTask Attribution Audit &amp; Repair ({{ res.mode }})</h5>
+      <div class="d-flex gap-2"><a href="/mti/admin/repair_attribution" class="btn btn-sm btn-outline-info">Dry-Run Refresh</a>
+      <a href="/mti" class="btn btn-sm btn-outline-light">Back to MTI</a></div></div>
+    <div class="alert {{ 'alert-success' if res.total_ops == 0 or res.mode == 'APPLIED' else 'alert-warning' }} py-2 small fw-bold">
+      Ledger: {{ res.counts.ledger }} | InputLogs: {{ res.counts.logs }} | ST New: {{ res.counts.st_new }} | ST Fixed: {{ res.counts.st_fixed }} | ST Dedup: {{ res.counts.st_dedup }} | Evt: {{ res.counts.evt }}</div>
+    <pre class="bg-black text-warning border border-secondary rounded p-3 small" style="max-height:460px;overflow:auto">{{ log_text }}</pre>
+    {% if res.mode == 'DRY_RUN' and res.total_ops > 0 %}
+    <form method="post" action="/mti/admin/repair_attribution"><button type="submit" class="btn btn-warning fw-bold">Apply {{ res.total_ops }} Idempotent Repair(s) Now</button></form>
+    {% endif %}</div></body></html>"""
+    return render_template_string(tpl, res=res, log_text="\n".join(res["changes"]) or "[OK] Production PostgreSQL & MTI state are 100% aligned (0 writes needed).")
+# --- MTI_ADMIN_ATTRIBUTION_REPAIR_END ---
+
 @mti_bp.route('/export_excel', methods=['GET'])
 @login_required
 def export_excel():
