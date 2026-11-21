@@ -629,5 +629,202 @@ async function refreshDynamicQuickPicks(userName) {
 </script>
 <!-- === END AUTO-PATCH: EMBEDDED WSR STUDIO INSIDE REPORTS.HTML === -->
 
+<!-- === BEGIN DPR ADHOC GEMINI STUDIO UI === -->
+<div class="container pb-5" id="dpr-adhoc-studio">
+  <div class="card wizard-card border-0 shadow-sm">
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2"
+         style="background: linear-gradient(90deg, #1e1b4b 0%, #312e81 100%); text-align: left;">
+      <div>
+        <div style="font-size: 11px; color: #a5b4fc; letter-spacing: 0.7px; text-transform: uppercase;">
+          NMDC PROJECT 20012 &bull; LIVE SQL SCHEMA + MULTI-FORMAT PYTHON RUNNER
+        </div>
+        <div class="fs-5 fw-bold text-white">
+          <i class="fas fa-wand-magic-sparkles me-2 text-warning"></i>Ad-Hoc Custom Report &amp; Chart Studio (Gemini)
+        </div>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <span id="dprAdhocStatusBadge" class="badge bg-light text-dark">Ready</span>
+        <button class="btn btn-sm btn-outline-light fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#dprAdhocCollapse" aria-expanded="true">
+          Toggle Studio
+        </button>
+      </div>
+    </div>
+    <div id="dprAdhocCollapse" class="collapse show card-body bg-white p-4">
+      <div class="row g-2 align-items-center mb-3 pb-3 border-bottom">
+        <div class="col-md-5">
+          <label class="form-label small fw-bold mb-1">Saved Script Presets (PostgreSQL)</label>
+          <select id="adhocPresetSelect" class="form-select form-select-sm"></select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small fw-bold mb-1">Save New / Update Preset Name</label>
+          <input type="text" id="adhocPresetName" class="form-control form-control-sm" placeholder="e.g., Monthly MBES Vessel Utilization">
+        </div>
+        <div class="col-md-3 d-flex gap-1 align-self-end">
+          <button type="button" class="btn btn-sm btn-outline-primary fw-bold flex-fill" onclick="loadSelectedDprPreset()">Load</button>
+          <button type="button" class="btn btn-sm btn-outline-success fw-bold flex-fill" onclick="saveCurrentDprPreset()">Save</button>
+          <button type="button" class="btn btn-sm btn-outline-danger fw-bold" onclick="deleteSelectedDprPreset()" title="Delete Preset"><i class="fas fa-trash"></i></button>
+        </div>
+      </div>
+
+      <div class="row g-4">
+        <div class="col-lg-5 border-end-lg">
+          <h6 class="fw-bold text-primary mb-2">Step 1: Live DB Context &amp; Gemini Prompt</h6>
+          <div class="row g-2 mb-2">
+            <div class="col-6">
+              <label class="form-label small fw-semibold mb-1">Start Date</label>
+              <input type="date" id="adhocStartDate" class="form-control form-control-sm">
+            </div>
+            <div class="col-6">
+              <label class="form-label small fw-semibold mb-1">End Date</label>
+              <input type="date" id="adhocEndDate" class="form-control form-control-sm">
+            </div>
+            <div class="col-7">
+              <label class="form-label small fw-semibold mb-1">Work Scope Filter</label>
+              <select id="adhocWorkScope" class="form-select form-select-sm"><option value="">All Work Scopes</option></select>
+            </div>
+            <div class="col-5">
+              <label class="form-label small fw-semibold mb-1">Status</label>
+              <select id="adhocStatusFilter" class="form-select form-select-sm">
+                <option value="">All Statuses</option><option value="Closed">Closed</option><option value="Open">Open</option>
+              </select>
+            </div>
+          </div>
+          <label class="form-label small fw-semibold mb-1">Describe Custom DPR / KPI Chart or Table Needed</label>
+          <textarea id="adhocUserRequest" rows="4" class="form-control form-control-sm mb-2"
+            placeholder="e.g., Plot weekly Closed vs Open tasks stacked by area on Landscape A3, plus a 2-sheet Excel workbook breaking down tasks per surveyor and instrument."></textarea>
+          <button type="button" id="btnCopyGeminiPrompt" class="btn btn-primary btn-sm w-100 fw-bold py-2 shadow-sm" onclick="copyDprGeminiPrompt()">
+            <i class="fas fa-copy me-1"></i> 1. Copy Full Context + Request for Gemini
+          </button>
+          <div id="adhocPromptHint" class="form-text small mt-1">Bundles live SurveyTask schema, active counts, filters &amp; output contract.</div>
+        </div>
+
+        <div class="col-lg-7">
+          <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+            <h6 class="fw-bold text-success mb-0">Step 2: Paste Gemini Python Script &amp; Run</h6>
+            <input type="text" id="adhocCustomFilename" class="form-control form-control-sm w-auto" placeholder="Optional filename stem">
+          </div>
+          <textarea id="adhocScriptCode" rows="9" class="form-control form-control-sm font-monospace mb-2" spellcheck="false"
+            style="font-size: 12px; background: #0f172a; color: #e2e8f0;"></textarea>
+          <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+            <button type="button" id="btnRunAdhocScript" class="btn btn-success btn-sm fw-bold px-3 py-2 shadow-sm" onclick="runDprAdhocScript()">
+              <i class="fas fa-play me-1"></i> 2. Run Script &amp; Preview
+            </button>
+            <div id="adhocDownloadGroup" class="btn-group btn-group-sm d-none">
+              <a id="dlAdhocPdf" href="#" class="btn btn-danger fw-bold"><i class="fas fa-file-pdf me-1"></i>PDF</a>
+              <a id="dlAdhocXlsx" href="#" class="btn btn-success fw-bold"><i class="fas fa-file-excel me-1"></i>Excel (.xlsx)</a>
+              <a id="dlAdhocDocx" href="#" class="btn btn-primary fw-bold"><i class="fas fa-file-word me-1"></i>Word (.docx)</a>
+            </div>
+          </div>
+          <div id="adhocSummaryBanner" class="alert alert-secondary py-2 px-3 small fw-semibold d-none mb-2"></div>
+          <div id="adhocPreviewBox" class="border rounded p-2 bg-light text-center d-none mb-2">
+            <img id="adhocPreviewImg" src="" alt="Page 1 Preview" class="img-fluid rounded shadow-sm" style="max-height: 360px;">
+          </div>
+          <div id="adhocTableBox" class="table-responsive border rounded bg-white d-none mb-2" style="max-height: 220px;"></div>
+          <pre id="adhocConsoleLogs" class="p-2 rounded small font-monospace mb-0 d-none" style="max-height: 150px; overflow:auto; background:#1e293b; color:#cbd5e1;"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- === END DPR ADHOC GEMINI STUDIO UI === -->
+
+<!-- === BEGIN DPR ADHOC GEMINI STUDIO JS === -->
+<script>
+let _dprPresets = [];
+const _el = id => document.getElementById(id);
+const _setBadge = (txt, cls) => { const b = _el("dprAdhocStatusBadge"); if (b) { b.className = `badge ${cls}`; b.textContent = txt; } };
+const _filters = () => ({
+  start_date: _el("adhocStartDate")?.value || "", end_date: _el("adhocEndDate")?.value || "",
+  work_scope: _el("adhocWorkScope")?.value || "", status_filter: _el("adhocStatusFilter")?.value || ""
+});
+
+function _renderPresetDropdown(presets, selectId) {
+  _dprPresets = presets || [];
+  const sel = _el("adhocPresetSelect");
+  if (!sel) return;
+  sel.innerHTML = _dprPresets.map(p => `<option value="${p.id}">${p.builtin ? "⭐ " : "📌 "}${p.name}</option>`).join("");
+  if (selectId && _dprPresets.some(p => p.id === selectId)) sel.value = selectId;
+}
+
+async function initDprAdhocStudio() {
+  try {
+    const r = await fetch("/api/dpr_adhoc/meta");
+    const d = await r.json();
+    if (d.status !== "ok") return;
+    const ws = _el("adhocWorkScope");
+    if (ws) (d.scopes || []).forEach(s => ws.insertAdjacentHTML("beforeend", `<option value="${s.replace(/"/g, '&quot;')}">${s}</option>`));
+    _renderPresetDropdown(d.presets || []);
+    if (_el("adhocScriptCode") && !_el("adhocScriptCode").value.trim()) _el("adhocScriptCode").value = d.starter_script || "";
+  } catch (e) { console.error("DPR Studio init error:", e); }
+}
+
+function loadSelectedDprPreset() {
+  const p = _dprPresets.find(x => x.id === _el("adhocPresetSelect")?.value);
+  if (!p) return;
+  if (_el("adhocScriptCode")) _el("adhocScriptCode").value = p.script || "";
+  if (_el("adhocUserRequest") && p.prompt) _el("adhocUserRequest").value = p.prompt;
+  if (_el("adhocPresetName")) _el("adhocPresetName").value = p.builtin ? "" : (p.name || "");
+  _setBadge(`Loaded: ${p.name}`, "bg-info text-dark");
+}
+
+async function saveCurrentDprPreset() {
+  const name = (_el("adhocPresetName")?.value || "").trim();
+  const script = (_el("adhocScriptCode")?.value || "").trim();
+  if (!name || !script) return alert("Enter a Preset Name and non-empty Python script first.");
+  const cur = _dprPresets.find(x => x.id === _el("adhocPresetSelect")?.value);
+  const id = (cur && !cur.builtin && cur.name === name) ? cur.id : "";
+  _setBadge("Saving...", "bg-warning text-dark");
+  const r = await fetch("/api/dpr_adhoc/presets", { method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ action: "save", id, name, prompt: _el("adhocUserRequest")?.value || "", script }) });
+  const d = await r.json();
+  if (d.status === "ok") { _renderPresetDropdown(d.presets, (d.presets.slice(-1)[0] || {}).id); _setBadge("Preset Saved", "bg-success"); }
+}
+
+async function deleteSelectedDprPreset() {
+  const p = _dprPresets.find(x => x.id === _el("adhocPresetSelect")?.value);
+  if (!p || p.builtin) return alert("Built-in starter preset cannot be deleted.");
+  if (!confirm(`Delete preset "${p.name}"?`)) return;
+  const r = await fetch("/api/dpr_adhoc/presets", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({ action: "delete", id: p.id }) });
+  const d = await r.json();
+  if (d.status === "ok") { _renderPresetDropdown(d.presets); _setBadge("Preset Deleted", "bg-secondary"); }
+}
+
+async function copyDprGeminiPrompt() {
+  _setBadge("Building Prompt...", "bg-warning text-dark");
+  try {
+    const r = await fetch("/api/dpr_adhoc/context", { method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ ..._filters(), user_request: _el("adhocUserRequest")?.value || "" }) });
+    const d = await r.json();
+    if (d.status !== "ok") throw new Error(d.message || "Context build failed");
+    try { await navigator.clipboard.writeText(d.prompt); }
+    catch (_) { const ta = document.createElement("textarea"); ta.value = d.prompt; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove(); }
+    _setBadge("Copied Gemini Prompt!", "bg-success");
+    _el("adhocPromptHint").textContent = `Copied ${d.prompt.length.toLocaleString()} chars! Paste into Gemini, then paste returned Python into Step 2.`;
+  } catch (e) { _setBadge("Prompt Error", "bg-danger"); alert(e.message); }
+}
+
+async function runDprAdhocScript() {
+  _setBadge("Running Script...", "bg-warning text-dark");
+  _el("btnRunAdhocScript").disabled = true;
+  try {
+    const r = await fetch("/api/dpr_adhoc/run", { method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ ..._filters(), script_code: _el("adhocScriptCode")?.value || "", custom_filename: _el("adhocCustomFilename")?.value || "" }) });
+    const d = await r.json();
+    const lg = _el("adhocConsoleLogs");
+    lg.textContent = d.logs || d.message || ""; lg.classList.toggle("d-none", !lg.textContent);
+    if (d.status !== "ok") { _setBadge("Execution Error", "bg-danger"); _el("adhocDownloadGroup").classList.add("d-none"); return; }
+    ["pdf", "xlsx", "docx"].forEach(f => { _el("dlAdhoc" + f[0].toUpperCase() + f.slice(1)).href = `/api/dpr_adhoc/download/${d.token}?fmt=${f}`; });
+    _el("adhocDownloadGroup").classList.remove("d-none");
+    _el("adhocSummaryBanner").textContent = `${d.summary}  |  File: ${d.filename_stem}`; _el("adhocSummaryBanner").classList.remove("d-none");
+    if (d.image_b64) { _el("adhocPreviewImg").src = `data:image/png;base64,${d.image_b64}`; _el("adhocPreviewBox").classList.remove("d-none"); }
+    _el("adhocTableBox").innerHTML = d.table_html || ""; _el("adhocTableBox").classList.toggle("d-none", !d.table_html);
+    _setBadge(`Rendered (${d.page_count}p / ${d.row_count} rows)`, "bg-success");
+  } catch (e) { _setBadge("Network Error", "bg-danger"); }
+  finally { _el("btnRunAdhocScript").disabled = false; }
+}
+document.addEventListener("DOMContentLoaded", initDprAdhocStudio);
+</script>
+<!-- === END DPR ADHOC GEMINI STUDIO JS === -->
+
 </body>
 </html>

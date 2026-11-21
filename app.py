@@ -2650,6 +2650,12 @@ def delete_preset(preset_id):
     return redirect(request.referrer or url_for('new_task'))
     
 # --- REPORT GENERATOR ROUTES (DTR & KPI EXCEL ONLY) ---
+# === BEGIN DPR ADHOC STUDIO BLUEPRINT ===
+from dpr_adhoc import create_dpr_adhoc_blueprint
+if "dpr_adhoc" not in app.blueprints:
+    app.register_blueprint(create_dpr_adhoc_blueprint(db, SurveyTask, User, UserActivityLog, AppConfig))
+# === END DPR ADHOC STUDIO BLUEPRINT ===
+
 @app.route('/reports')
 @login_required
 def reports():
