@@ -127,151 +127,102 @@ def fallback_clean_description(t) -> str:
     return desc.strip()
 
 
-def categorize_task_for_wsr(t) -> str:
-    area = str(getattr(t, "area", "") or "").lower()
-    loc = str(getattr(t, "location", "") or "").lower()
-    inst = str(getattr(t, "instrument", "") or "").lower()
-    scope = str(getattr(t, "work_scope", "") or "").lower()
-    combined = f"{area} {loc} {inst} {scope}"
+# --- WSR_DTR_EXACT_PULL_START ---
+def _task_dtr_date(t):
+    for attr in ("execution_date", "start_time"):
+        v = getattr(t, attr, None)
+        if v is not None:
+            if isinstance(v, datetime.datetime): return v.date()
+            if isinstance(v, datetime.date): return v
+            try: return datetime.datetime.strptime(str(v)[:10], "%Y-%m-%d").date()
+            except Exception: return None
+    return None
 
-    if "ws166" in combined or "egst" in combined:
-        return "EGST Hydro Survey (Survey Boat: WS166 | Surveyor: Min-Ying Tsai)"
-    if "echo 4" in combined or "seatrench" in combined:
-        return "Seatrench Hydro Survey (Survey Boat: Echo 4 | Surveyor: Johannes Jacobsen)"
-    if "office" in area or "wuqi" in loc:
-        return "Wuqi Office"
-    if "offshore" in area or "marine" in area or "nearshore" in area:
-        return "Marine Offshore"
-    return "Onshore-Land"
+
+def pull_tasks_from_db(start_str: str = "", end_str: str = ""):
+    _, SurveyTask, _, fmt_fn = get_dpr_app_models()
+    if not SurveyTask:
+        raise RuntimeError("SurveyTask database model not detected inside app.py.")
+    if start_str and end_str:
+        start_dt = datetime.datetime.strptime(str(start_str)[:10], "%Y-%m-%d").date()
+        end_dt = datetime.datetime.strptime(str(end_str)[:10], "%Y-%m-%d").date()
+    else:
+        today = datetime.date.today()
+        start_dt = today - datetime.timedelta(days=today.weekday())
+        end_dt = start_dt + datetime.timedelta(days=6)
+    if start_dt > end_dt:
+        start_dt, end_dt = end_dt, start_dt
+
+    open_set, by_date = set(), {}
+    for t in SurveyTask.query.all():
+        st = str(getattr(t, "status", "") or "").strip()
+        try: desc = fmt_fn(t, include_opening_remark=True) if callable(fmt_fn) else fallback_clean_description(t)
+        except TypeError: desc = fmt_fn(t) if callable(fmt_fn) else fallback_clean_description(t)
+        if not desc: continue
+        if st == "Open":
+            open_set.add(desc)
+        elif st in ("Closed", "Archived"):
+            td = _task_dtr_date(t)
+            if td and (start_dt <= td <= end_dt):
+                by_date.setdefault(td, []).append((t, desc))
+
+    sort_order = ["Wuqi Office", "EGST Hydro Survey", "Arzana", "Onshore-Land", "Marine Offshore"]
+    day_chunks, closed_count, curr_dt = [], 0, start_dt
+    while curr_dt <= end_dt:
+        daily_items = by_date.get(curr_dt, [])
+        closed_count += len(daily_items)
+        dtr_groups = {}
+        for t, task_bullet in daily_items:
+            assigned = getattr(t, "assigned_to", None) or getattr(t, "surveyor_name", "") or ""
+            surveyors = [s.strip() for s in str(assigned).split(",") if s.strip()]
+            raw_rem, inst_s = str(getattr(t, "remarks", "") or ""), str(getattr(t, "instrument", "") or "")
+            scope_s, area_s = str(getattr(t, "work_scope", "") or ""), str(getattr(t, "area", "") or "")
+            group_type, boat_name = "inline", ""
+            if "WS166" in inst_s or "WS166" in raw_rem:
+                group_key, group_type, boat_name = "EGST Hydro Survey", "hydro", "WS166"
+            elif "Arzana" in inst_s or "Arzana" in scope_s or "Arzana" in raw_rem:
+                group_key, group_type = "Arzana", "vessel"
+            elif area_s.startswith("100"): group_key = "Wuqi Office"
+            elif area_s.startswith("200"): group_key = "Onshore-Land"
+            else: group_key = "Marine Offshore"
+            grp = dtr_groups.setdefault(group_key, {"title": group_key, "type": group_type, "surveyors": set(), "tasks": [], "boat": boat_name})
+            grp["surveyors"].update(surveyors)
+            grp["tasks"].append(task_bullet)
+
+        ordered_keys = [k for k in sort_order if k in dtr_groups] + [k for k in dtr_groups if k not in sort_order]
+        lines = [f"{curr_dt.strftime('%d.%m.%Y')} {curr_dt.strftime('%A')}"]
+        if not ordered_keys:
+            lines.append("\nNo survey tasks logged for this date.")
+        else:
+            for key in ordered_keys:
+                b = dtr_groups[key]
+                surv_str = ", ".join(sorted(b["surveyors"]))
+                if b["type"] == "inline": lines.append(f"\n{b['title']}: {surv_str}")
+                elif b["type"] == "hydro": lines.append(f"\n{b['title']}\nSurvey Boat: {b['boat']}\nSurveyor: {surv_str}")
+                elif b["type"] == "vessel": lines.append(f"\n{b['title']}\nSurvey Personnel: {surv_str}")
+                lines.extend(f"- {tk}" for tk in b["tasks"])
+        day_chunks.append("\n".join(lines))
+        curr_dt += datetime.timedelta(days=1)
+
+    raw_daily_text = "\n\n".join(day_chunks)
+    return {
+        "closed_count": closed_count, "task_count": closed_count,
+        "start_date": start_dt.strftime("%Y-%m-%d"), "end_date": end_dt.strftime("%Y-%m-%d"),
+        "raw_daily_text": raw_daily_text, "daily_logs": raw_daily_text,
+        "dtr_outstanding": sorted(open_set),
+    }
 
 
 @wsr_bp.route("/api/pull_db_week", methods=["POST"])
 def api_pull_db_week():
-    _, SurveyTask, _, fmt_fn = get_dpr_app_models()
-    if not SurveyTask:
-        return jsonify({
-            "status": "error",
-            "message": "SurveyTask database model not detected. Make sure wsr_blueprint is running inside your DPR app.py!"
-        }), 200
-
-    data = request.get_json(force=True)
-    start_str = data.get("start_date")
-    end_str = data.get("end_date")
-
+    data = request.get_json(force=True) or {}
     try:
-        if start_str and end_str:
-            start_dt = datetime.datetime.strptime(start_str, "%Y-%m-%d").date()
-            end_dt = datetime.datetime.strptime(end_str, "%Y-%m-%d").date()
-        else:
-            today = datetime.date.today()
-            start_dt = today - datetime.timedelta(days=today.weekday())
-            end_dt = start_dt + datetime.timedelta(days=6)
-    except Exception as e:
-        return jsonify({"status": "error", "message": f"Invalid date range: {e}"}), 200
-
-    all_tasks = SurveyTask.query.all()
-    days_map = {}
-    curr = start_dt
-    while curr <= end_dt:
-        days_map[curr] = {
-            "Wuqi Office": {"staff": set(), "tasks": []},
-            "Onshore-Land": {"staff": set(), "tasks": []},
-            "Marine Offshore": {"staff": set(), "tasks": []},
-            "vessels": {},
-        }
-        curr += datetime.timedelta(days=1)
-
-    open_actions = []
-    closed_count = 0
-
-    for t in all_tasks:
-        st = str(getattr(t, "status", "") or "")
-        t_date = None
-        for dt_attr in ("execution_date", "start_time"):
-            val = getattr(t, dt_attr, None)
-            if val:
-                if isinstance(val, datetime.datetime):
-                    t_date = val.date()
-                    break
-                elif isinstance(val, datetime.date):
-                    t_date = val
-                    break
-                else:
-                    try:
-                        t_date = datetime.datetime.strptime(str(val)[:10], "%Y-%m-%d").date()
-                        break
-                    except Exception:
-                        pass
-
-        try:
-            desc_text = fmt_fn(t) if callable(fmt_fn) else fallback_clean_description(t)
-        except Exception:
-            desc_text = fallback_clean_description(t)
-
-        if not desc_text:
-            continue
-
-        if st.lower() == "closed" and t_date and (start_dt <= t_date <= end_dt):
-            closed_count += 1
-            cat = categorize_task_for_wsr(t)
-            staff_raw = getattr(t, "assigned_to", "") or getattr(t, "surveyor_name", "") or ""
-            staff_names = [s.strip() for s in str(staff_raw).split(",") if s.strip()]
-
-            if "Hydro Survey" in cat:
-                if cat not in days_map[t_date]["vessels"]:
-                    days_map[t_date]["vessels"][cat] = []
-                if desc_text not in days_map[t_date]["vessels"][cat]:
-                    days_map[t_date]["vessels"][cat].append(desc_text)
-            else:
-                days_map[t_date][cat]["staff"].update(staff_names)
-                if desc_text not in days_map[t_date][cat]["tasks"]:
-                    days_map[t_date][cat]["tasks"].append(desc_text)
-        elif st.lower() not in ("closed", "archived", "cancelled"):
-            if desc_text not in open_actions:
-                open_actions.append(desc_text)
-
-    weekday_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-    blocks = []
-    for d_key in sorted(days_map.keys()):
-        d_header = f"{d_key.strftime('%d.%m.%Y')} {weekday_names[d_key.weekday()]}"
-        day_lines = [d_header]
-        d_info = days_map[d_key]
-        has_any = False
-
-        for sec_name in ["Wuqi Office", "Onshore-Land", "Marine Offshore"]:
-            sec_tasks = d_info[sec_name]["tasks"]
-            if sec_tasks:
-                has_any = True
-                staff_str = ", ".join(sorted(d_info[sec_name]["staff"])) or "Survey Team"
-                day_lines.append(f"\n{sec_name}: {staff_str}")
-                for tk in sec_tasks:
-                    day_lines.append(f"- {tk}")
-
-        for v_hdr, v_tasks in d_info["vessels"].items():
-            if v_tasks:
-                has_any = True
-                day_lines.append(f"\n{v_hdr}")
-                for vtk in v_tasks:
-                    day_lines.append(f"- {vtk}")
-
-        if not has_any:
-            day_lines.append("\nNo survey tasks logged for this date.")
-
-        blocks.append("\n".join(day_lines))
-
-    return jsonify({
-        "status": "ok",
-        "closed_count": closed_count,
-        "start_date": start_dt.strftime("%Y-%m-%d"),
-        "end_date": end_dt.strftime("%Y-%m-%d"),
-        "raw_daily_text": "\n\n".join(blocks),
-        "dtr_outstanding": open_actions[:12],
-    })
+        return jsonify({"status": "ok", **pull_tasks_from_db(data.get("start_date", ""), data.get("end_date", ""))})
+    except Exception as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 200
+# --- WSR_DTR_EXACT_PULL_END ---
 
 
-# ==============================================================================
-# 2. PAGE-1 ADMIN TABLES ENGINE (Tables 1, 2, and 3)
-# ==============================================================================
 def extract_admin_tables_from_docx_file(docx_path: str) -> dict:
     if not os.path.exists(docx_path):
         return {}
