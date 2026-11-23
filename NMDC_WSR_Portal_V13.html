@@ -209,6 +209,7 @@ Previous Hardware Movement and Status:
                   <option value="Onshore-Land">Onshore-Land</option>
                   <option value="Wuqi Office">Wuqi Office</option>
                   <option value="Marine Offshore">Marine Offshore</option>
+                    <option value="Arzana">Arzana (Vessel)</option>
                   <option value="EGST Hydro Survey (Survey Boat: WS166 | Surveyor: Min-Ying Tsai)">EGST Hydro Survey (WS166)</option>
                   <option value="Seatrench Hydro Survey (Survey Boat: Echo 4 | Surveyor: Johannes Jacobsen)">Seatrench Hydro Survey (Echo 4)</option>
                 </select>
@@ -1629,21 +1630,15 @@ Rewrite and polish the user's draft notes for the specified WSR section into for
           currentSec = 'marine';
           continue;
         }
-        if (/Hydro Survey/i.test(line)) {
+        if (/^(?:Arzana|.*Hydro Survey)/i.test(line)) {
           currentSec = 'vessel';
           const m = line.match(/Survey Boat:\s*([^|\)]+)/i);
-          currentBoat = m ? m[1].trim() : line.replace(/Hydro Survey/i, '').trim();
+          currentBoat = /^Arzana$/i.test(line) ? 'Arzana' : (m ? m[1].trim() : line.replace(/Hydro Survey/i, '').trim());
           if (!vesselActivities[currentBoat]) vesselActivities[currentBoat] = [];
           continue;
         }
-        if (currentSec === 'vessel' && /^Survey Boat:/i.test(line)) {
-          currentBoat = line.split(':')[1].trim();
-          if (!vesselActivities[currentBoat]) vesselActivities[currentBoat] = [];
-          continue;
-        }
-        if (currentSec === 'vessel' && /^Surveyor:/i.test(line)) {
-          continue;
-        }
+        if (currentSec === 'vessel' && /^Survey Boat:/i.test(line)) { currentBoat = line.split(':')[1].trim(); if (!vesselActivities[currentBoat]) vesselActivities[currentBoat] = []; continue; }
+        if (currentSec === 'vessel' && /^(?:Surveyor|Survey Personnel):/i.test(line)) continue;
 
         if (line.startsWith('-')) {
           const task = line.replace(/^-+\s*/, '').trim();
@@ -1809,7 +1804,20 @@ Rewrite and polish the user's draft notes for the specified WSR section into for
       syncExecutivePreview();
     }
 
+    function stripDtrOutstandingJs(txt) {
+      const out = []; let skip = false;
+      for (const rawL of String(txt || '').replace(/\r\n/g, '\n').split('\n')) {
+        const t = rawL.trim();
+        if (/^\d{2}\.\d{2}\.\d{4}\s+(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/i.test(t)) { skip = false; out.push(rawL); continue; }
+        if (/^(?:Project name:|Tung-Hsiao Power Plant 2nd Stage|Daily Survey Activities:)/i.test(t)) continue;
+        if (/^(?:Outstanding\s+(?:Tasks|Actions|Activities)|Pending\s+(?:Tasks|Actions))\b/i.test(t)) { skip = true; continue; }
+        if (!skip) out.push(rawL);
+      }
+      return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    }
     function onDailyLogEdited() {
+      const ta = document.getElementById('wsr-daily-compiled');
+      if (ta && /(?:Outstanding\s+(?:Tasks|Actions)|Project name:|Daily Survey Activities:)/i.test(ta.value)) ta.value = stripDtrOutstandingJs(ta.value);
       autoSyncDatesFromDailyLog();
       if (document.getElementById('cb-auto-sync-on-edit').checked) {
         regenerateAllFromDailyLog(true);
@@ -2002,11 +2010,11 @@ Rewrite and polish the user's draft notes for the specified WSR section into for
         if (/^\d{2}\.\d{2}\.\d{4}\s+(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/i.test(trimmed)) {
           return `<span class="bg-[#00ff00] font-bold px-1">${trimmed}</span>`;
         }
-        if (/^(Wuqi Office:|Onshore-Land:|Marine Offshore:|Survey Boat:|Surveyor:)/i.test(trimmed)) {
+        if (/^(Wuqi Office:|Onshore-Land:|Marine Offshore:|Survey Boat:|Surveyor:|Survey Personnel:)/i.test(trimmed)) {
           const parts = trimmed.split(':');
           return `<strong>${parts[0]}:</strong>${parts.slice(1).join(':')}`;
         }
-        if (/Hydro Survey/i.test(trimmed)) {
+        if (/^(?:Arzana|.*Hydro Survey.*)$/i.test(trimmed)) {
           return `<strong>${trimmed}</strong>`;
         }
         return line;
@@ -2193,6 +2201,8 @@ Rewrite and polish the user's draft notes for the specified WSR section into for
       let block = `\n\n${formattedDate} ${dayName}\n`;
       if (cat.includes('Hydro Survey')) {
         block += `${cat}\n- ${task}`;
+      } else if (cat === 'Arzana') {
+        block += `Arzana\nSurvey Personnel: ${staff}\n- ${task}`;
       } else {
         block += `${cat}: ${staff}\n- ${task}`;
       }
