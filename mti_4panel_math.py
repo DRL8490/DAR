@@ -452,14 +452,18 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
 
     as_e, as_n = float(fix_data.get("aslaid_e") or fix_data.get("qaqc_e") or des_e), float(fix_data.get("aslaid_n") or fix_data.get("qaqc_n") or des_n)
     raw_z = fix_data.get("aslaid_z")
+    wrov_raw_z = None
     if raw_z is not None and str(raw_z).strip() != "" and not _is_legacy_placeholder_z(raw_z):
-        cand_z = -abs(float(raw_z))
-        if len(seabed_full_xyz) == 0 or abs(cand_z - seabed_at_center) <= 5.0:
-            as_z = cand_z
-            use_seabed_drape = False
-        else:
-            as_z = round(seabed_at_center + thick_signed, 3)
-            use_seabed_drape = True
+        try:
+            wrov_raw_z = round(-abs(float(raw_z)), 2)
+        except Exception:
+            wrov_raw_z = None
+    if len(sb_near_global) > 0:
+        as_z = round(seabed_at_center + thick_signed, 3)
+        use_seabed_drape = True
+    elif wrov_raw_z is not None:
+        as_z = wrov_raw_z
+        use_seabed_drape = False
     else:
         as_z = round(seabed_at_center + thick_signed, 3)
         use_seabed_drape = True
@@ -500,6 +504,7 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
     uf, vf = ug.ravel(), vg.ravel()
     cleaned_xyz = (np.outer((1 - uf) * (1 - vf), c_arr[0]) + np.outer((1 - uf) * vf, c_arr[1]) + np.outer(uf * vf, c_arr[2]) + np.outer(uf * (1 - vf), c_arr[3]))
     if len(sb_near_global) > 0 and use_seabed_drape:
+        seabed_at_center = float(idw_interpolate(sb_near_global[:, :2], sb_near_global[:, 2], np.array([[as_e, as_n]]))[0])
         cleaned_xyz[:, 2] = idw_interpolate(sb_near_global[:, :2], sb_near_global[:, 2], cleaned_xyz[:, :2]) + thick_signed
         as_z = float(np.mean(cleaned_xyz[:, 2]))
 
@@ -543,7 +548,7 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
         "design_e": des_e, "design_n": des_n, "group_center_e": grp_ce, "group_center_n": grp_cn, "p1_group_centered": p1_grp_mode, "design_brg": des_brg, "design_az": des_az,
         "qaqc_e": float(fix_data.get("qaqc_e") or as_e), "qaqc_n": float(fix_data.get("qaqc_n") or as_n), "qaqc_brg": float(fix_data.get("qaqc_brg") or hdg),
         "aslaid_e": round(as_e, 3), "aslaid_n": round(as_n, 3), "aslaid_z": round(as_z, 2),
-        "seabed_at_center_z": round(seabed_at_center, 2), "mat_thickness_m": round(mat_thick, 2),
+        "seabed_at_center_z": round(seabed_at_center, 2), "mat_thickness_m": round(mat_thick, 2), "wrov_raw_z": wrov_raw_z, "z_draped": bool(len(sb_near_global) > 0 and use_seabed_drape),
         "heading_deg": hdg, "act_az": act_az, "brg_diff_deg": d_brg,
         "cl_offset_m": round(cl_off, 3), "radial_offset_m": off_info["radial_offset_m"], "perp_offset_m": off_info["perp_offset_m"], "perp_signed_m": off_info["perp_signed_m"], "chain_signed_m": off_info["chain_signed_m"], "offset_mode": off_info["offset_mode"], "end_to_end_row": off_info["end_to_end_row"], "d_along_m": round(d_along, 3), "d_cross_m": round(d_cross, 3), "pct_inside": round(pct_in, 1),
         "corners_enz": c_arr.tolist(), "corners_local": corners_local.tolist(),

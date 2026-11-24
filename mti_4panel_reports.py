@@ -367,9 +367,14 @@ def compute_historical_progress_rows(ledger_list, cutoff_dt_str, current_metrics
             (rd, r) for (rd, r) in valid_up_to_cutoff
             if normalize_crossing_group(r.get("crossing_id") or r.get("design_box_id")) == grp_id
         ]
-        cum_q = len(grp_items)
-        today_q = sum(1 for (rd, _) in grp_items if rd == ref_d)
-        post_q = sum(1 for (rd, _) in grp_items if rd < ref_d)
+        box_first_rd = {}
+        for i_g, (rd, r) in enumerate(grp_items):
+            bk = str(r.get("design_box_id") or r.get("location_id") or f"__ROW_{i_g}").strip().upper()
+            if bk not in box_first_rd or (rd is not None and (box_first_rd[bk] is None or rd < box_first_rd[bk])):
+                box_first_rd[bk] = rd
+        cum_q = len(box_first_rd)
+        today_q = sum(1 for rd in box_first_rd.values() if rd == ref_d)
+        post_q = sum(1 for rd in box_first_rd.values() if rd is not None and ref_d is not None and rd < ref_d)
         rem_q = max(0, scope_qty - cum_q)
         out_rows.append((grp_id, scope_qty, post_q, today_q, cum_q, rem_q))
         tot_scope += scope_qty
@@ -624,7 +629,7 @@ def build_structured_report_markdown(metrics, include_history=True, ledger_list=
     geo_rows = [
         ["Easting E (m, TWD97)", f"{metrics.get('design_e',0):.3f}", f"{metrics.get('qaqc_e',0):.3f}", f"{metrics.get('aslaid_e',0):.3f}", f"{metrics.get('aslaid_e',0)-metrics.get('design_e',0):+.3f} m"],
         ["Northing N (m, TWD97)", f"{metrics.get('design_n',0):.3f}", f"{metrics.get('qaqc_n',0):.3f}", f"{metrics.get('aslaid_n',0):.3f}", f"{metrics.get('aslaid_n',0)-metrics.get('design_n',0):+.3f} m"],
-        ["Depth Z (m, TWVD2001)", "Seabed + 0.30 m", "-", f"{metrics.get('aslaid_z',-18.2):.2f}", "WROV 4-Corner Mean"],
+        ["Depth Z (m, TWVD2001)", f"Seabed + {float(metrics.get('mat_thickness_m', 0.30)):.2f} m", "-", f"{metrics.get('aslaid_z',-18.2):.2f}", f"TWVD2001 (SB {float(metrics.get('seabed_at_center_z', 0.0)):.2f} +{float(metrics.get('mat_thickness_m', 0.30)):.2f}m)" if metrics.get("z_draped") else "WROV 4-Corner Mean"],
         ["South Bearing (deg)", f"{metrics.get('design_brg',0):.2f}", f"{metrics.get('qaqc_brg',0):.2f}", f"{metrics.get('heading_deg',0):.2f}", f"{metrics.get('brg_diff_deg',0):+.2f} deg"],
         [
             "1st Unit Radial dCL (m)" if is_first else "Perp CL Offset dCL (m)",

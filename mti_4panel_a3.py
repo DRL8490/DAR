@@ -525,38 +525,44 @@ def generate_a3_4panel_chart(
         (fig.add_axes(p3_rect), p3_w_mm, y_prof_al, -cy_prof, (-hw_p3, hw_p3), 3.0, True, "PANEL 3: LONGITUDINAL (SSW -> NNE)", "Along-Track Y_local from As-Laid (m)"),
         (fig.add_axes(p4_rect), p4_w_mm, x_prof_al, -cx_prof, (-hw_p4, hw_p4), 1.5, False, "PANEL 4: LATERAL (WNW -> ESE)", "Cross-Track X_local from As-Laid (m)")
     ]:
-        ax_p.scatter(coord_arr, z_vals, c=z_vals, cmap="turbo", vmin=vmin_c, vmax=vmax_c, s=9, alpha=0.85, label="Mattress Surface", clip_on=True)
         n_prof_pts = 80 if (lim_x[1] - lim_x[0]) > 10.0 else 40
         xs_l = np.linspace(lim_x[0], lim_x[1], n_prof_pts)
+        mat_t = float(metrics.get("mat_thickness_m") or 0.30)
         if bathy_src == "SURVEY_BATHY" and len(sb_prof_arr) >= 1:
             q_prof = np.column_stack([np.zeros_like(xs_l), xs_l]) if is_long else np.column_stack([xs_l, np.zeros_like(xs_l)])
             z_prof = idw_interpolate(sb_prof_arr[:, :2], sb_prof_arr[:, 2], q_prof)
-            ax_p.plot(xs_l, z_prof, "--", color="#0284c7", lw=1.25, label="Survey Seabed Profile", clip_on=True)
-            z_center = 0.5 * (float(np.mean(z_vals)) + float(np.mean(z_prof)))
-            half_win = max(0.616, 0.5 * abs(float(np.max(z_prof) - np.min(z_vals))) + 0.32)
+            ax_p.plot(xs_l, z_prof, "--", color="#0284c7", lw=1.25, zorder=2, label="Survey Seabed Profile", clip_on=True)
+            xs_m = np.linspace(-edge_v, edge_v, 25)
+            q_m = np.column_stack([np.zeros_like(xs_m), xs_m]) if is_long else np.column_stack([xs_m, np.zeros_like(xs_m)])
+            z_m_base = idw_interpolate(sb_prof_arr[:, :2], sb_prof_arr[:, 2], q_m)
+            t_sgn = mat_t if float(np.mean(z_m_base)) <= 0 else -mat_t
+            ax_p.fill_between(xs_m, z_m_base, z_m_base + t_sgn, facecolor="#86efac", edgecolor="#15803d", alpha=0.45, lw=0.85, zorder=3, label=f"Mattress ({mat_t:.2f}m)", clip_on=True)
+            z_lo, z_hi = min(float(np.min(z_vals)), float(np.min(z_prof))), max(float(np.max(z_vals)), float(np.max(z_prof)))
+            z_center = 0.5 * (z_lo + z_hi)
+            half_win = max(0.616, 0.5 * (z_hi - z_lo) + 0.32)
         else:
             z_center = z_mean
             half_win = 0.616
+        ax_p.scatter(coord_arr, z_vals, c=z_vals, cmap="turbo", vmin=vmin_c, vmax=vmax_c, s=9, alpha=0.85, zorder=4, label="Mattress Top", clip_on=True)
         h_sc_lbl = int(round(((lim_x[1] - lim_x[0]) / (w_mm_p / 1000.0)) / 5.0) * 5)
         v_sc_lbl = int(round((2.0 * half_win) / (61.6 / 1000.0)))
         ttl = ttl_top + chr(10) + f"H 1:{h_sc_lbl} | V 1:{v_sc_lbl} @ A3"
-        if z_center <= 0:
-            y_bottom, y_top = z_center - half_win, z_center + half_win
-        else:
-            y_bottom, y_top = z_center + half_win, z_center - half_win
-
-        ax_p.plot([-edge_v, -edge_v], [y_bottom, y_top], color="#16a34a", ls="--", lw=1.2, label=f"As-Laid (+/-{edge_v:.1f}m)", clip_on=True)
-        ax_p.plot([edge_v, edge_v], [y_bottom, y_top], color="#16a34a", ls="--", lw=1.2, clip_on=True)
-
+        y_bottom, y_top = (z_center - half_win, z_center + half_win) if z_center <= 0 else (z_center + half_win, z_center - half_win)
+        ax_p.plot([-edge_v, -edge_v], [y_bottom, y_top], color="#16a34a", ls="--", lw=1.2, zorder=5, label=f"As-Laid (+/-{edge_v:.1f}m)", clip_on=True)
+        ax_p.plot([edge_v, edge_v], [y_bottom, y_top], color="#16a34a", ls="--", lw=1.2, zorder=5, clip_on=True)
         des_labeled = False
         for dx_e in (des_shift - edge_v, des_shift + edge_v):
             if lim_x[0] <= dx_e <= lim_x[1]:
-                ax_p.plot([dx_e, dx_e], [y_bottom, y_top], color="#dc2626", ls="--", lw=1.1, label=(None if des_labeled else f"Design (+/-{edge_v:.1f}m)"), clip_on=True)
+                ax_p.plot([dx_e, dx_e], [y_bottom, y_top], color="#dc2626", ls="--", lw=1.1, zorder=5, label=(None if des_labeled else f"Design (+/-{edge_v:.1f}m)"), clip_on=True)
                 des_labeled = True
-
+        if not is_long and abs(des_shift) > 0.50:
+            bx, bha = (0.98, "right") if des_shift <= 0 else (0.02, "left")
+            p_cl = float(metrics.get("perp_offset_m", metrics.get("cl_offset_m", 0.0)))
+            ax_p.text(bx, 0.96, f"Along-Row Shift: {-des_shift:+.2f}m" + chr(10) + f"Perp dCL: {p_cl:.2f}m (Tol <=0.50m)", transform=ax_p.transAxes, ha=bha, va="top", fontsize=4.5, fontweight="bold", color="#0f172a", bbox=dict(boxstyle="round,pad=0.20", facecolor="#f8fafc", edgecolor="#64748b", lw=0.7), zorder=8)
+        leg_loc, leg_ncol = ("lower center", 2) if is_long else (("lower right" if des_shift <= 0 else "lower left"), 1)
         ax_p.set_xlim(*lim_x); ax_p.set_ylim(y_bottom, y_top)
         ax_p.set_title(ttl, fontsize=6.5, fontweight="bold", pad=3); ax_p.set_xlabel(x_lbl, fontsize=5.8, fontweight="bold"); ax_p.set_ylabel("Depth Z (m, TWVD2001)", fontsize=5.9, fontweight="bold")
-        ax_p.tick_params(labelsize=5.2); ax_p.grid(True, linestyle=":", lw=0.45, color="#cbd5e1"); ax_p.legend(loc="lower right", fontsize=4.5, framealpha=0.9)
+        ax_p.tick_params(labelsize=5.2); ax_p.grid(True, linestyle=":", lw=0.45, color="#cbd5e1"); ax_p.legend(loc=leg_loc, ncol=leg_ncol, fontsize=4.3, framealpha=0.92)
 
     buf_png = io.BytesIO()
     fig.savefig(buf_png, format="png", dpi=125)
