@@ -144,6 +144,20 @@ def compute_cl_offset_metrics(as_e, as_n, des_e, des_n, des_brg, is_first=False,
     }
 # --- MTI_PERP_CL_OFFSET_HELPER_END ---
 
+def compute_long_axis_bearing_4c(pts):
+    d01 = math.hypot(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1])
+    d12 = math.hypot(pts[2][0] - pts[1][0], pts[2][1] - pts[1][1])
+    d23 = math.hypot(pts[3][0] - pts[2][0], pts[3][1] - pts[2][1])
+    d30 = math.hypot(pts[0][0] - pts[3][0], pts[0][1] - pts[3][1])
+    if (d12 + d30) > (d01 + d23):
+        be, bn = (pts[2][0] + pts[3][0]) / 2.0, (pts[2][1] + pts[3][1]) / 2.0
+        fe, fn = (pts[0][0] + pts[1][0]) / 2.0, (pts[0][1] + pts[1][1]) / 2.0
+    else:
+        be, bn = (pts[1][0] + pts[2][0]) / 2.0, (pts[1][1] + pts[2][1]) / 2.0
+        fe, fn = (pts[0][0] + pts[3][0]) / 2.0, (pts[0][1] + pts[3][1]) / 2.0
+    hdg = round((math.degrees(math.atan2(fe - be, fn - bn)) + 360.0) % 360.0, 3) % 360.0
+    return round(hdg + 180.0, 3) if hdg < 180.0 else hdg
+
 def _box_corners_cw(ce, cn, az_deg, length=6.0, width=3.0):
     rad = math.radians(float(az_deg) % 360.0)
     ul = np.array([math.sin(rad), math.cos(rad)], dtype=float)
@@ -495,9 +509,7 @@ def run_rov_4panel_verification(fix_data, catalog_list, workspace_dir="workspace
             c_pts = [[round(float(p[0]), 3), round(float(p[1]), 3), round(as_z, 3)] for p in c2d]
     c_arr = np.array(c_pts, dtype=float)
     as_e, as_n, as_z = float(np.mean(c_arr[:, 0])), float(np.mean(c_arr[:, 1])), float(np.mean(c_arr[:, 2]))
-    be, bn, fe, fn = (c_arr[1, 0] + c_arr[2, 0]) / 2.0, (c_arr[1, 1] + c_arr[2, 1]) / 2.0, (c_arr[0, 0] + c_arr[3, 0]) / 2.0, (c_arr[0, 1] + c_arr[3, 1]) / 2.0
-    hdg = round((math.degrees(math.atan2(fe - be, fn - bn)) + 360.0) % 360.0, 3)
-    hdg = round(hdg + 180.0, 3) if hdg < 180.0 else hdg
+    hdg = compute_long_axis_bearing_4c(c_arr)
     act_az = round((hdg - 180.0) % 360.0, 3)
 
     ug, vg = np.meshgrid(np.linspace(0.0, 1.0, 20), np.linspace(0.0, 1.0, 35))

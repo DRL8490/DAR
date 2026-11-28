@@ -492,9 +492,17 @@ def add_fix():
             pts = [(p[0], p[1], as_z) for p in pts]
         else:
             as_z = mean_cz if abs(mean_cz) > 1e-6 else round(fallback_z, 3)
-        be, bn = (pts[1][0] + pts[2][0]) / 2.0, (pts[1][1] + pts[2][1]) / 2.0
-        fe, fn = (pts[0][0] + pts[3][0]) / 2.0, (pts[0][1] + pts[3][1]) / 2.0
-        hdg = round((math.degrees(math.atan2(fe - be, fn - bn)) + 360.0) % 360.0, 3)
+        d01 = math.hypot(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1])
+        d12 = math.hypot(pts[2][0] - pts[1][0], pts[2][1] - pts[1][1])
+        d23 = math.hypot(pts[3][0] - pts[2][0], pts[3][1] - pts[2][1])
+        d30 = math.hypot(pts[0][0] - pts[3][0], pts[0][1] - pts[3][1])
+        if (d12 + d30) > (d01 + d23):
+            be, bn = (pts[2][0] + pts[3][0]) / 2.0, (pts[2][1] + pts[3][1]) / 2.0
+            fe, fn = (pts[0][0] + pts[1][0]) / 2.0, (pts[0][1] + pts[1][1]) / 2.0
+        else:
+            be, bn = (pts[1][0] + pts[2][0]) / 2.0, (pts[1][1] + pts[2][1]) / 2.0
+            fe, fn = (pts[0][0] + pts[3][0]) / 2.0, (pts[0][1] + pts[3][1]) / 2.0
+        hdg = round((math.degrees(math.atan2(fe - be, fn - bn)) + 360.0) % 360.0, 3) % 360.0
         hdg = round(hdg + 180.0, 3) if hdg < 180.0 else hdg
         corners = {f"c{i+1}_e": round(pts[i][0], 3) for i in range(4)}
         corners.update({f"c{i+1}_n": round(pts[i][1], 3) for i in range(4)})
@@ -3682,6 +3690,29 @@ def mti_delete_raw_rov():
 _real_final_load_mti_state = load_mti_state
 _final_gaptol_saving = False
 
+def _repair_row_long_axis_brg(r):
+    if not isinstance(r, dict): return False
+    try: pts = [(float(r[f"c{i}_e"]), float(r[f"c{i}_n"])) for i in (1, 2, 3, 4)]
+    except Exception: return False
+    if any(abs(x[0]) < 1000.0 or abs(x[1]) < 1000.0 for x in pts): return False
+    d01 = math.hypot(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1])
+    d12 = math.hypot(pts[2][0] - pts[1][0], pts[2][1] - pts[1][1])
+    d23 = math.hypot(pts[3][0] - pts[2][0], pts[3][1] - pts[2][1])
+    d30 = math.hypot(pts[0][0] - pts[3][0], pts[0][1] - pts[3][1])
+    if max(d01 + d23, d12 + d30) < min(d01 + d23, d12 + d30) * 1.25: return False
+    if (d12 + d30) > (d01 + d23):
+        be, bn, fe, fn = (pts[2][0] + pts[3][0]) / 2.0, (pts[2][1] + pts[3][1]) / 2.0, (pts[0][0] + pts[1][0]) / 2.0, (pts[0][1] + pts[1][1]) / 2.0
+    else:
+        be, bn, fe, fn = (pts[1][0] + pts[2][0]) / 2.0, (pts[1][1] + pts[2][1]) / 2.0, (pts[0][0] + pts[3][0]) / 2.0, (pts[0][1] + pts[3][1]) / 2.0
+    true_hdg = round((math.degrees(math.atan2(fe - be, fn - bn)) + 360.0) % 360.0, 3) % 360.0
+    true_hdg = round(true_hdg + 180.0, 3) if true_hdg < 180.0 else true_hdg
+    if abs(((float(r.get("heading_deg") or 0.0) - true_hdg + 180.0) % 360.0) - 180.0) > 45.0:
+        r["heading_deg"] = true_hdg
+        if float(r.get("design_brg") or 0.0) > 0:
+            r["brg_diff_deg"] = round(((true_hdg - float(r["design_brg"]) + 180.0) % 360.0) - 180.0, 3)
+        return True
+    return False
+
 def load_mti_state(*args, **kwargs):
     global _final_gaptol_saving
     st = _real_final_load_mti_state(*args, **kwargs)
@@ -3794,6 +3825,8 @@ def load_mti_state(*args, **kwargs):
         dirty = False
         for r in (st.get("ledger") or []):
             if _migrate_row_corners_to_c1_sw(r):
+                dirty = True
+            if _repair_row_long_axis_brg(r):
                 dirty = True
         if not st.get("c1_sw_order_v1"):
             st["c1_sw_order_v1"] = True

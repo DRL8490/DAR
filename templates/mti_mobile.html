@@ -415,9 +415,13 @@ function recalcAllMattress(){
     ae = (pts[0][0]+pts[1][0]+pts[2][0]+pts[3][0])/4.0;
     an = (pts[0][1]+pts[1][1]+pts[2][1]+pts[3][1])/4.0;
     az = (pts[0][2]+pts[1][2]+pts[2][2]+pts[3][2])/4.0;
-    const be = (pts[1][0]+pts[2][0])/2.0, bn = (pts[1][1]+pts[2][1])/2.0;
-    const fe = (pts[0][0]+pts[3][0])/2.0, fn = (pts[0][1]+pts[3][1])/2.0;
-    brg = ((Math.atan2(fe - be, fn - bn) * 180.0 / Math.PI) + 360.0) % 360.0; if (brg < 180.0) brg += 180.0;
+    const _d01 = Math.hypot(pts[1][0]-pts[0][0], pts[1][1]-pts[0][1]), _d12 = Math.hypot(pts[2][0]-pts[1][0], pts[2][1]-pts[1][1]);
+    const _d23 = Math.hypot(pts[3][0]-pts[2][0], pts[3][1]-pts[2][1]), _d30 = Math.hypot(pts[0][0]-pts[3][0], pts[0][1]-pts[3][1]);
+    const _ew = (_d12 + _d30) > (_d01 + _d23);
+    const be = _ew ? (pts[2][0]+pts[3][0])/2.0 : (pts[1][0]+pts[2][0])/2.0, bn = _ew ? (pts[2][1]+pts[3][1])/2.0 : (pts[1][1]+pts[2][1])/2.0;
+    const fe = _ew ? (pts[0][0]+pts[1][0])/2.0 : (pts[0][0]+pts[3][0])/2.0, fn = _ew ? (pts[0][1]+pts[1][1])/2.0 : (pts[0][1]+pts[3][1])/2.0;
+    brg = ((Math.atan2(fe - be, fn - bn) * 180.0 / Math.PI) + 360.0) % 360.0;
+    if (brg < 180.0) brg += 180.0;
     if (badge) { badge.className = 'badge bg-success'; badge.innerText = 'Calculated from 4 ROV Corners'; }
   } else {
     ae = parseFloat(document.getElementById('inpQaqcE')?.value);
@@ -663,9 +667,13 @@ function triggerPhoneShortcut(){
       const ae = (pts[0][0]+pts[1][0]+pts[2][0]+pts[3][0])/4.0;
       const an = (pts[0][1]+pts[1][1]+pts[2][1]+pts[3][1])/4.0;
       const az = (pts[0][2]+pts[1][2]+pts[2][2]+pts[3][2])/4.0;
-      const be = (pts[1][0]+pts[2][0])/2.0, bn = (pts[1][1]+pts[2][1])/2.0;
-      const fe = (pts[0][0]+pts[3][0])/2.0, fn = (pts[0][1]+pts[3][1])/2.0;
-      let brg = ((Math.atan2(fe - be, fn - bn) * 180.0 / Math.PI) + 360.0) % 360.0; if (brg < 180.0) brg += 180.0;
+      const _d01 = Math.hypot(pts[1][0]-pts[0][0], pts[1][1]-pts[0][1]), _d12 = Math.hypot(pts[2][0]-pts[1][0], pts[2][1]-pts[1][1]);
+      const _d23 = Math.hypot(pts[3][0]-pts[2][0], pts[3][1]-pts[2][1]), _d30 = Math.hypot(pts[0][0]-pts[3][0], pts[0][1]-pts[3][1]);
+      const _ew = (_d12 + _d30) > (_d01 + _d23);
+      const be = _ew ? (pts[2][0]+pts[3][0])/2.0 : (pts[1][0]+pts[2][0])/2.0, bn = _ew ? (pts[2][1]+pts[3][1])/2.0 : (pts[1][1]+pts[2][1])/2.0;
+      const fe = _ew ? (pts[0][0]+pts[1][0])/2.0 : (pts[0][0]+pts[3][0])/2.0, fn = _ew ? (pts[0][1]+pts[1][1])/2.0 : (pts[0][1]+pts[3][1])/2.0;
+      let brg = ((Math.atan2(fe - be, fn - bn) * 180.0 / Math.PI) + 360.0) % 360.0;
+      if (brg < 180.0) brg += 180.0;
       const inpE = f.querySelector('[name="aslaid_e"]'), inpN = f.querySelector('[name="aslaid_n"]'), inpH = f.querySelector('[name="heading_deg"]');
       if (inpE) { inpE.value = ae.toFixed(3); inpE.dispatchEvent(new Event('input', {bubbles:true})); }
       if (inpN) { inpN.value = an.toFixed(3); inpN.dispatchEvent(new Event('input', {bubbles:true})); }

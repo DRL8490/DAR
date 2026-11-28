@@ -266,16 +266,16 @@ def generate_a3_4panel_chart(
                     opoly = mpatches.Polygon(np.column_stack([orel @ u_s, orel @ u_l]), closed=True, fill=False, edgecolor="#dc2626", linewidth=1.35, linestyle="--", alpha=0.92 if (bid in seg_ids) else 0.30, zorder=4.6 if bid == loc_id else 3.8, clip_on=True)
                     ax_s.add_patch(opoly); opoly.set_clip_path(ax_s.patch)
                 if bid == loc_id:
+                    _c_cur = metrics.get("corners_enz") or []
+                    w_pts = np.asarray([[float(c[0]), float(c[1])] for c in _c_cur], dtype=float) if len(_c_cur) == 4 else _box_corners_cw(metrics["aslaid_e"], metrics["aslaid_n"], (float(metrics["heading_deg"]) - 180.0) % 360.0)[0]
                     if is_first:
-                        w_pts, _, _ = _box_corners_cw(metrics["aslaid_e"], metrics["aslaid_n"], (float(metrics["heading_deg"]) - 180.0) % 360.0)
                         fc_p, ec_p, lw_p, ls_p, ht_p, al_p, zo_p = "#fef08a", "#dc2626", 1.6, "-", None, 0.88, 5
                     else:
-                        w_pts, _, _ = _box_corners_cw(metrics["aslaid_e"], metrics["aslaid_n"], (float(metrics["heading_deg"]) - 180.0) % 360.0)
                         fc_p, ec_p, lw_p, ls_p, ht_p, al_p, zo_p = (0.13, 0.77, 0.37, 0.30), "#15803d", 1.7, "-", "///", None, 5
                     lbl = f"{short_lbl} [{mat_id}]"
                 elif bid in hist_map:
                     hr = hist_map[bid]
-                    w_pts, _, _ = _box_corners_cw(hr.get("aslaid_e", b["design_e"]), hr.get("aslaid_n", b["design_n"]), (float(hr.get("heading_deg", b["bearing"])) - 180.0) % 360.0)
+                    w_pts = _row_world_corners(hr, b)
                     fc_p, ec_p, lw_p, ls_p, ht_p, al_p, zo_p = (0.80, 0.92, 1.0, 0.32), "#0369a1", 1.3, "--", None, None, 4
                     lbl = f"{short_lbl} [{hr.get('physical_tag','')}]"
                 else:
@@ -339,16 +339,16 @@ def generate_a3_4panel_chart(
                 opoly = mpatches.Polygon(_row_world_corners(orow, b), closed=True, fill=False, edgecolor="#dc2626", linewidth=1.4, linestyle="--", zorder=4.6 if bid == loc_id else 3.8, clip_on=True)
                 ax1.add_patch(opoly); opoly.set_clip_path(ax1.patch)
             if bid == loc_id:
+                _c_cur = metrics.get("corners_enz") or []
+                cur_c = np.asarray([[float(c[0]), float(c[1])] for c in _c_cur], dtype=float) if len(_c_cur) == 4 else _box_corners_cw(metrics["aslaid_e"], metrics["aslaid_n"], (float(metrics["heading_deg"]) - 180.0) % 360.0)[0]
                 if is_first:
-                    cur_c, _, _ = _box_corners_cw(metrics["aslaid_e"], metrics["aslaid_n"], (float(metrics["heading_deg"]) - 180.0) % 360.0)
                     poly_p = mpatches.Polygon(cur_c, closed=True, facecolor="#fef08a", edgecolor="#dc2626", linewidth=1.6, linestyle="-", alpha=0.88, zorder=5, clip_on=True)
                 else:
-                    cur_c, _, _ = _box_corners_cw(metrics["aslaid_e"], metrics["aslaid_n"], (float(metrics["heading_deg"]) - 180.0) % 360.0)
                     poly_p = mpatches.Polygon(cur_c, closed=True, facecolor=(0.13, 0.77, 0.37, 0.25), edgecolor="#15803d", linewidth=1.8, linestyle="-", hatch="///", zorder=5, clip_on=True)
                 lbl = f"{short_lbl} [{mat_id}]"
             elif bid in hist_map:
                 hr = hist_map[bid]
-                hc, _, _ = _box_corners_cw(hr.get("aslaid_e", b["design_e"]), hr.get("aslaid_n", b["design_n"]), (float(hr.get("heading_deg", b["bearing"])) - 180.0) % 360.0)
+                hc = _row_world_corners(hr, b)
                 poly_p = mpatches.Polygon(hc, closed=True, facecolor=(0.80, 0.92, 1.0, 0.28), edgecolor="#0369a1", linewidth=1.4, linestyle="--", zorder=4, clip_on=True)
                 lbl = f"{short_lbl} [{hr.get('physical_tag','')}]"
             else:
@@ -465,10 +465,13 @@ def generate_a3_4panel_chart(
     else:
         gaps = metrics.get("gaps") or {}
         corner_defs = [
-            ("C1 (SW Corner)", gaps.get("sw", ""), c_loc[0], (-box_x_off, -box_y_off)),
-            ("C2 (NW Corner)", gaps.get("nw", ""), c_loc[1], (-box_x_off, box_y_off)),
-            ("C3 (NE Corner)", gaps.get("ne", ""), c_loc[2], (box_x_off, box_y_off)),
-            ("C4 (SE Corner)", gaps.get("se", ""), c_loc[3], (box_x_off, -box_y_off)),
+            (lbl_c, g_val, c_loc[i_c], (box_x_off if float(c_loc[i_c][0]) >= 0 else -box_x_off, box_y_off if float(c_loc[i_c][1]) >= 0 else -box_y_off))
+            for i_c, (lbl_c, g_val) in enumerate([
+                ("C1 (SW Corner)", gaps.get("sw", "")),
+                ("C2 (NW Corner)", gaps.get("nw", "")),
+                ("C3 (NE Corner)", gaps.get("ne", "")),
+                ("C4 (SE Corner)", gaps.get("se", "")),
+            ])
         ]
         for c_title, g_raw, xy_c, xy_box in corner_defs:
             g_str = str(g_raw or "").strip()
